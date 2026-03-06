@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda Pro - Catálogo Cliente</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="client-screen">
+        <!-- Header -->
+        <header class="client-header">
+            <div class="header-left">
+                <a href="login.html" class="btn-back">
+                    <i class="fas fa-arrow-left"></i> Volver a Login
+                </a>
+                <h1><i class="fas fa-shopping-bag"></i> Catálogo de Servicios</h1>
+            </div>
+            
+            <div class="header-right">
+                <div class="client-actions">
+                    <button class="btn-icon cart-btn">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span class="cart-badge">3</span>
+                    </button>
+                    
+                    <div class="user-info client">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <span>Cliente Demo</span>
+                    </div>
+                </div>
+                
+                <a href="admin.html" class="btn-grad admin-access">
+                    <i class="fas fa-user-shield"></i> Acceso Admin
+                </a>
+                <button id="logout-btn" class="btn-small" onclick="cerrarSesion()" title="Cerrar sesión" style="margin-left:10px;">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </header>
+        
+        <!-- Filtros rápidos -->
+        <div class="filters-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Buscar servicios...">
+            </div>
+            
+            <div class="filter-options">
+                <button class="filter-btn active">Todos</button>
+                <button class="filter-btn">Bienestar</button>
+                <button class="filter-btn">Belleza</button>
+                <button class="filter-btn">Salud</button>
+                <button class="filter-btn">
+                    <i class="fas fa-sliders-h"></i> Más filtros
+                </button>
+            </div>
+        </div>
+        
+        <!-- Filtro por fecha -->
+        <div class="date-filter">
+            <label for="filter-date">
+                <i class="fas fa-calendar-alt"></i> Filtrar por fecha:
+            </label>
+            <input type="date" id="filter-date" class="date-input" min="2024-02-13">
+            <button class="btn-small" id="clear-date-filter">
+                <i class="fas fa-times"></i> Limpiar
+            </button>
+        </div>
+        
+        <!-- Contenido Principal -->
+        <main class="client-main">
+            
+            <!-- Catálogo de servicios -->
+            <div class="catalog-container">
+                <div class="services-grid" id="client-services-grid">
+                    <!-- Los servicios se cargarán dinámicamente desde JavaScript -->
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Cargando servicios...</p>
+                    </div>
+                </div>
+            </div>
+                    
+            <!-- Carrito lateral -->
+            <aside class="cart-sidebar">
+                <div class="glass-panel cart-panel">
+                    <h3><i class="fas fa-shopping-cart"></i> Mi Carrito</h3>
+                    
+                    <div class="cart-items">
+                        <!-- Los elementos del carrito se cargarán dinámicamente desde renderCartFromReservations() -->
+                    </div>
+                    
+                    <div class="cart-summary">
+                        <div class="cart-total">
+                            <span>Total:</span>
+                            <strong>$0</strong>
+                        </div>
+                        
+                        <button class="btn-grad" style="width:100%;">
+                            <i class="fas fa-calendar-alt"></i> Agendar Cita
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Navegación entre pantallas -->
+                <div class="screen-navigation">
+                    <div class="nav-cards vertical">
+                        <a href="login.html" class="nav-card">
+                            <div class="nav-number">1</div>
+                            <div>
+                                <h4>Login/Registro</h4>
+                                <p><i class="fas fa-arrow-left"></i> Volver</p>
+                            </div>
+                        </a>
+                        
+                        <a href="admin.html" class="nav-card">
+                            <div class="nav-number">2</div>
+                            <div>
+                                <h4>Panel Admin</h4>
+                                <p><i class="fas fa-arrow-left"></i> Ir a Admin</p>
+                            </div>
+                        </a>
+                        
+                        <div class="nav-card current">
+                            <div class="nav-number">3</div>
+                            <div>
+                                <h4>Vista Cliente</h4>
+                                <p>Pantalla actual</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+        
+        <footer class="client-footer">
+            <p>Pantalla 3/3: Vista Cliente | Catálogo de Servicios</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+
+    <!-- Popup: Términos y Condiciones de Reserva -->
+    <div id="popup-reserva" class="popup-reserva" style="display:none;">
+        <div class="popup-inner" role="dialog" aria-modal="true" aria-labelledby="popup-reserva-title">
+            <button class="popup-close" aria-label="Cerrar" onclick="cerrarPopupReserva()">&times;</button>
+            <h2 id="popup-reserva-title">Términos y Condiciones de Reserva</h2>
+            <p class="muted">No reembolsos. Cancelaciones con 24h de anticipación.</p>
+
+            <div class="detalles-servicio" aria-live="polite">
+                <p><strong>Servicio:</strong> <span id="servicio-nombre">—</span></p>
+                <p><strong>Precio:</strong> <span id="servicio-precio">—</span></p>
+                <!-- Aquí se insertarán dinámicamente los <select> de fecha y hora -->
+            </div>
+
+            <!-- Resumen de confirmación -->
+            <div id="resumen-confirmacion" style="margin-top:10px;">
+                <div class="popup-summary">Selecciona fecha y hora para ver el resumen de la reserva.</div>
+            </div>
+
+            <div class="terms-accept">
+                <label>
+                    <input type="checkbox" id="acepto-condiciones"> He leído y acepto las condiciones
+                </label>
+            </div>
+
+            <div class="popup-actions">
+                <button id="btn-confirmar-reserva" disabled class="btn-confirm">Confirmar Reserva</button>
+                <button type="button" class="btn-cancelar-popup">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function(){
+        const popup = document.getElementById('popup-reserva');
+        const checkbox = document.getElementById('acepto-condiciones');
+        const btnConfirm = document.getElementById('btn-confirmar-reserva');
+        const cancelBtns = document.querySelectorAll('.btn-cancelar-popup');
+
+        function updateBtnState(){
+            const selF = document.getElementById('select-fecha')?.value;
+            const selH = document.getElementById('select-hora')?.value;
+            const enable = Boolean(checkbox?.checked && selF && selH);
+            if(btnConfirm){ btnConfirm.disabled = !enable; btnConfirm.style.cursor = enable ? 'pointer' : 'not-allowed'; }
+        }
+
+        if(checkbox){
+            checkbox.addEventListener('change', updateBtnState);
+        }
+
+        cancelBtns.forEach(btn=> btn.addEventListener('click', function(){ if(popup) popup.style.display = 'none'; }));
+
+        window.abrirPopupReserva = function(details){
+            if(details){
+                const nombreEl = document.getElementById('servicio-nombre'); if(nombreEl) nombreEl.textContent = details.nombre || '—';
+                const precioEl = document.getElementById('servicio-precio'); if(precioEl) precioEl.textContent = details.precio || '—';
+                const fechaEl = document.getElementById('servicio-fecha'); if(fechaEl) fechaEl.textContent = details.fecha || '—';
+                const horaEl = document.getElementById('servicio-hora'); if(horaEl) horaEl.textContent = details.hora || '—';
+            }
+            if(checkbox){ checkbox.checked = false; }
+            if(btnConfirm){ btnConfirm.disabled = true; btnConfirm.style.cursor = 'not-allowed'; }
+            if(popup) popup.style.display = 'flex';
+        };
+
+        window.cerrarPopupReserva = function(){ if(popup) popup.style.display = 'none'; };
+    })();
+    </script>
+
+</body>
+</html>

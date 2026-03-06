@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda Pro - Panel Admin</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="admin-screen">
+        <!-- Header -->
+        <header class="admin-header">
+            <div class="header-left">
+                <a href="login.html" class="btn-back">
+                    <i class="fas fa-arrow-left"></i> Volver a Login
+                </a>
+                <h1><i class="fas fa-user-shield"></i> Panel Administrador</h1>
+            </div>
+            
+            <div class="header-right">
+                <div class="user-info">
+                    <div class="user-avatar admin">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                    <span>Administrador</span>
+                </div>
+                    <a href="cliente.html" class="btn-grad">
+                        <i class="fas fa-eye"></i> Ver como Cliente
+                    </a>
+                    <button id="logout-btn" class="btn-small" onclick="cerrarSesion()" title="Cerrar sesión" style="margin-left:10px;">
+                        <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                    </button>
+            </div>
+        </header>
+        
+        <!-- Estadísticas -->
+        <div class="stats-container">
+            <div class="stat-box">
+                <div class="stat-icon">
+                    <i class="fas fa-concierge-bell"></i>
+                </div>
+                <span>Servicios Activos</span>
+                <h2 id="statServicios">0</h2>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-icon">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <span>Ventas del Mes</span>
+                <h2 id="statVentas">$0</h2>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-icon">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <span>Citas Activas</span>
+                <h2 id="statCitas">0</h2>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <span>Clientes Registrados</span>
+                <h2 id="statClientes">0</h2>
+            </div>
+        </div>
+        
+        <!-- ===== DASHBOARD FINANCIERO (NUEVO - FASE 3) ===== -->
+<div class="dashboard-section glass-panel">
+    <div class="dashboard-header">
+        <h3><i class="fas fa-chart-line"></i> Dashboard Financiero</h3>
+        <div class="dashboard-actions">
+            <button class="btn-secondary btn-small" id="btn-exportar-csv">
+                <i class="fas fa-download"></i> Exportar CSV
+            </button>
+            <button class="btn-secondary btn-small" id="btn-refresh-dashboard">
+                <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+        </div>
+    </div>
+    
+    <!-- Filtro de fechas personalizado -->
+    <div class="date-range-filter">
+        <div class="filter-group">
+            <label for="fecha-inicio">
+                <i class="fas fa-calendar-plus"></i> Desde:
+            </label>
+            <input type="date" id="fecha-inicio" class="date-input">
+        </div>
+        
+        <div class="filter-group">
+            <label for="fecha-fin">
+                <i class="fas fa-calendar-check"></i> Hasta:
+            </label>
+            <input type="date" id="fecha-fin" class="date-input">
+        </div>
+        
+        <button class="btn-grad btn-small" id="btn-aplicar-filtro">
+            <i class="fas fa-filter"></i> Aplicar
+        </button>
+        
+        <button class="btn-secondary btn-small" id="btn-limpiar-filtro">
+            <i class="fas fa-times"></i> Limpiar
+        </button>
+    </div>
+    
+    <!-- Estadísticas Triples -->
+    <div class="triple-stats">
+        <!-- Diario -->
+        <div class="stat-card daily" id="stat-diario">
+            <div class="stat-icon">
+                <i class="fas fa-sun"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Hoy</span>
+                <h4 class="stat-value" id="valor-diario">$0</h4>
+                <span class="stat-detail" id="detalle-diario">0 ventas</span>
+            </div>
+        </div>
+        
+        <!-- Semanal -->
+        <div class="stat-card weekly" id="stat-semanal">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-week"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Esta Semana</span>
+                <h4 class="stat-value" id="valor-semanal">$0</h4>
+                <span class="stat-detail" id="detalle-semanal">0 ventas</span>
+            </div>
+        </div>
+        
+        <!-- Mensual -->
+        <div class="stat-card monthly" id="stat-mensual">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Este Mes</span>
+                <h4 class="stat-value" id="valor-mensual">$0</h4>
+                <span class="stat-detail" id="detalle-mensual">0 ventas</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráfico de tendencia (placeholder) -->
+    <div class="chart-container">
+        <h4><i class="fas fa-chart-bar"></i> Tendencia de Ventas</h4>
+        <div class="chart-placeholder" id="chart-ventas">
+            <canvas id="ventas-chart" style="width:100%; height:200px;"></canvas>
+        </div>
+    </div>
+    
+    <!-- Top servicios -->
+    <div class="top-services">
+        <h4><i class="fas fa-crown"></i> Servicios Más Vendidos</h4>
+        <div class="top-services-list" id="top-servicios">
+            <!-- Se llenará dinámicamente -->
+        </div>
+    </div>
+    
+    <!-- KPIs adicionales -->
+    <div class="kpi-grid">
+        <div class="kpi-item">
+            <span class="kpi-label">Ticket Promedio</span>
+            <strong class="kpi-value" id="kpi-ticket-promedio">$0</strong>
+        </div>
+        <div class="kpi-item">
+            <span class="kpi-label">Total Ventas</span>
+            <strong class="kpi-value" id="kpi-total-ventas">0</strong>
+        </div>
+        <div class="kpi-item">
+            <span class="kpi-label">Clientes Únicos</span>
+            <strong class="kpi-value" id="kpi-clientes-unicos">0</strong>
+        </div>
+        <div class="kpi-item">
+            <span class="kpi-label">Día Pico</span>
+            <strong class="kpi-value" id="kpi-dia-pico">-</strong>
+        </div>
+    </div>
+</div>
+        <!-- Contenido Principal -->
+        <main class="admin-main">
+                   
+                    <!-- Panel izquierdo: Crear servicio -->
+            <aside class="admin-panel">
+                
+                <div class="glass-panel">
+                    <h3><i class="fas fa-plus-circle"></i> Crear Nuevo Servicio</h3>
+                    
+                    <form id="service-form" class="form-group">
+                        <!-- Nombre y Categoría -->
+                        <div class="form-row">
+                            <input type="text" id="srv-name" placeholder="Nombre del servicio*" required>
+                            <select id="srv-category" required>
+                                <option value="">Categoría*</option>
+                                <option value="belleza">Belleza</option>
+                                <option value="bienestar">Bienestar</option>
+                                <option value="salud">Salud</option>
+                                <option value="otros">Otros</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Precio (SOLO PRECIO, SIN DURACIÓN) -->
+<div class="form-row">
+    <input type="number" id="srv-price" placeholder="Precio ($)*" min="0" required>
+    <div class="duration-info-static">
+        <i class="fas fa-clock"></i> Duración: <span id="main-duration-display">0</span> min (desde horarios)
+    </div>
+</div>
+
+<!-- ===== MÓDULOS DE HORARIO - VERSIÓN SIMPLE ===== -->
+<div class="schedule-modules-section">
+    <h4><i class="fas fa-clock"></i> Horarios del Servicio</h4>
+    <p class="form-hint">Define los horarios disponibles. La duración se calcula automáticamente.</p>
+    
+    <!-- Selectores de hora -->
+    <div class="module-form">
+        <div class="form-row">
+            <div class="time-selector">
+                <label for="module-start-time">Hora inicio</label>
+                <select id="module-start-time" class="time-select">
+                    <option value="00:00">12:00 AM</option>
+                    <option value="01:00">1:00 AM</option>
+                    <option value="02:00">2:00 AM</option>
+                    <option value="03:00">3:00 AM</option>
+                    <option value="04:00">4:00 AM</option>
+                    <option value="05:00">5:00 AM</option>
+                    <option value="06:00">6:00 AM</option>
+                    <option value="07:00">7:00 AM</option>
+                    <option value="08:00">8:00 AM</option>
+                    <option value="09:00">9:00 AM</option>
+                    <option value="10:00">10:00 AM</option>
+                    <option value="11:00">11:00 AM</option>
+                    <option value="12:00">12:00 PM</option>
+                    <option value="13:00">1:00 PM</option>
+                    <option value="14:00">2:00 PM</option>
+                    <option value="15:00">3:00 PM</option>
+                    <option value="16:00">4:00 PM</option>
+                    <option value="17:00">5:00 PM</option>
+                    <option value="18:00">6:00 PM</option>
+                    <option value="19:00">7:00 PM</option>
+                    <option value="20:00">8:00 PM</option>
+                    <option value="21:00">9:00 PM</option>
+                    <option value="22:00">10:00 PM</option>
+                    <option value="23:00">11:00 PM</option>
+                </select>
+            </div>
+            
+            <div class="time-selector">
+                <label for="module-end-time">Hora fin</label>
+                <select id="module-end-time" class="time-select">
+                    <option value="01:00">1:00 AM</option>
+                    <option value="02:00">2:00 AM</option>
+                    <option value="03:00">3:00 AM</option>
+                    <option value="04:00">4:00 AM</option>
+                    <option value="05:00">5:00 AM</option>
+                    <option value="06:00">6:00 AM</option>
+                    <option value="07:00">7:00 AM</option>
+                    <option value="08:00">8:00 AM</option>
+                    <option value="09:00">9:00 AM</option>
+                    <option value="10:00">10:00 AM</option>
+                    <option value="11:00">11:00 AM</option>
+                    <option value="12:00">12:00 PM</option>
+                    <option value="13:00">1:00 PM</option>
+                    <option value="14:00">2:00 PM</option>
+                    <option value="15:00">3:00 PM</option>
+                    <option value="16:00">4:00 PM</option>
+                    <option value="17:00">5:00 PM</option>
+                    <option value="18:00">6:00 PM</option>
+                    <option value="19:00">7:00 PM</option>
+                    <option value="20:00">8:00 PM</option>
+                    <option value="21:00">9:00 PM</option>
+                    <option value="22:00">10:00 PM</option>
+                    <option value="23:00">11:00 PM</option>
+                    <option value="23:59">12:00 AM (siguiente)</option>
+                </select>
+            </div>
+            
+            <button type="button" class="btn-grad" id="add-module-btn">
+                <i class="fas fa-plus-circle"></i> Agregar
+            </button>
+        </div>
+    </div>
+    
+    <!-- Lista de horarios agregados -->
+    <div class="modules-list-container">
+        <h5><i class="fas fa-list"></i> Horarios configurados</h5>
+        <div id="modules-list" class="modules-list">
+            <div class="empty-modules">
+                <i class="fas fa-clock"></i>
+                <p>No hay horarios configurados</p>
+                <small>Agrega al menos un horario</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Campos ocultos -->
+    <input type="hidden" id="service-modules" name="service-modules" value="">
+</div>
+<!-- ===== FIN HORARIOS ===== -->
+                        
+                        <!-- Cupos por sesión -->
+                        <div class="form-row">
+                            <div class="input-with-label">
+                                <label for="srv-capacity"><i class="fas fa-users"></i> Cupos por turno</label>
+                                <input type="number" id="srv-capacity" placeholder="Ej: 10 (0 = ilimitado)" min="0" value="10" required>
+                            </div>
+                            <div class="input-with-label" style="margin-left:12px; display:flex; align-items:center; gap:8px;">
+                                <small style="color:#aaa;">Define los cupos por turno (se aplican por fecha y horario al crear el servicio).</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Imagen con previsualización -->
+                        <div class="image-section">
+                            <label for="srv-image-url"><i class="fas fa-image"></i> Imagen del servicio</label>
+                            <input type="text" id="srv-image-url" placeholder="Pega URL de imagen (opcional)">
+                            
+                            <div class="image-preview-container" id="image-preview">
+                                <div class="image-placeholder">
+                                    <i class="fas fa-image"></i>
+                                    <p>Vista previa aparecerá aquí</p>
+                                </div>
+                                <!-- La imagen se cargará aquí dinámicamente -->
+                            </div>
+                            
+                            <div class="image-options">
+                                <button type="button" class="btn-small" id="clear-image">
+                                    <i class="fas fa-times"></i> Limpiar
+                                </button>
+                                <button type="button" class="btn-small" id="default-image">
+                                    <i class="fas fa-magic"></i> Imagen predeterminada
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Descripción -->
+                        <div class="desc-container">
+                            <label for="srv-desc"><i class="fas fa-align-left"></i> Descripción del servicio</label>
+                            <textarea id="srv-desc" placeholder="Describe tu servicio en detalle..." rows="4"></textarea>
+                            <div class="char-count">
+                                <span id="char-count">0</span>/500 caracteres
+                            </div>
+                        </div>
+                        
+                        <!-- Opciones adicionales -->
+                        <div class="service-options">
+                            <div class="option-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="srv-featured" checked>
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-star"></i> Destacar en catálogo
+                                </label>
+                                
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="srv-active" checked>
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-eye"></i> Activo (visible para clientes)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        
+                        
+                        <!-- Botones -->
+                        <div class="form-actions">
+                            <button type="reset" class="btn-secondary" id="reset-form">
+                                <i class="fas fa-broom"></i> Limpiar formulario
+                            </button>
+                            <button type="submit" class="btn-grad">
+                                <i class="fas fa-plus-circle"></i> CREAR SERVICIO
+                            </button>
+                        </div>
+                    </form>
+                    
+                   <!-- Calendario para seleccionar fechas del servicio -->
+<div class="calendar-mini">
+    <h4><i class="fas fa-calendar-alt"></i> Fechas Disponibles del Servicio</h4>
+    
+    <!-- Controles del calendario -->
+    <div class="calendar-controls">
+        <button class="cal-btn" id="prev-month">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <h5 id="current-month">Febrero 2024</h5>
+        <button class="cal-btn" id="next-month">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+    </div>
+    
+    <!-- Encabezados de días -->
+    <div class="calendar-weekdays">
+        <div>Lun</div>
+        <div>Mar</div>
+        <div>Mié</div>
+        <div>Jue</div>
+        <div>Vie</div>
+        <div>Sáb</div>
+        <div>Dom</div>
+    </div>
+    
+    <!-- Días del mes -->
+    <div class="calendar-days" id="calendar-days">
+        <!-- Se generará dinámicamente con JavaScript -->
+    </div>
+    
+    <!-- Información del servicio -->
+    <div class="service-dates-info">
+        <h6><i class="fas fa-info-circle"></i> Instrucciones:</h6>
+        <p class="form-hint">Selecciona las fechas en las que este servicio estará disponible. Las fechas seleccionadas se guardarán automáticamente con el servicio.</p>
+        
+        <!-- Contador de fechas -->
+        <div class="dates-counter">
+            <i class="fas fa-calendar-day"></i>
+            <span id="dates-count">0</span> fechas seleccionadas
+        </div>
+        
+        <!-- Vista rápida de fechas -->
+        <div class="selected-dates-preview" id="selected-dates-preview">
+            <p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>
+        </div>
+        
+        <!-- Opciones de fechas -->
+        <div class="date-options">
+            <button type="button" class="btn-small" id="clear-all-dates">
+                <i class="fas fa-trash-alt"></i> Limpiar todas
+            </button>
+            <button type="button" class="btn-small" id="select-weekends">
+                <i class="fas fa-umbrella-beach"></i> Solo fines de semana
+            </button>
+            <button type="button" class="btn-small" id="select-weekdays">
+                <i class="fas fa-briefcase"></i> Solo días laborables
+            </button>
+        </div>
+        
+        <!-- Fechas ocultas para el formulario -->
+        <input type="hidden" id="service-dates" name="service-dates" value="">
+    </div>
+</div> 
+
+                </div>
+            </aside>
+            
+            <!-- Panel derecho: Lista de servicios en CARDS -->
+            <section class="content-panel">
+                <!-- Panel de notificaciones con pestañas -->
+<div class="notifications-panel" style="position:relative;">
+    <h2><i class="fas fa-bell"></i> Notificaciones</h2>
+    
+    <!-- Pestañas para separar tipos de notificaciones -->
+    <div class="notifications-tabs" style="display:flex; gap:10px; margin-bottom:15px; border-bottom:1px solid rgba(179,0,255,0.3);">
+        <button class="tab-btn active" data-tab="todas" style="background:none; border:none; color:#fff; padding:8px 16px; cursor:pointer; border-bottom:3px solid #b300ff; font-weight:600;">Todas</button>
+        <button class="tab-btn" data-tab="reservas" style="background:none; border:none; color:#aaa; padding:8px 16px; cursor:pointer;">Reservas</button>
+        <button class="tab-btn" data-tab="cambios" style="background:none; border:none; color:#aaa; padding:8px 16px; cursor:pointer;">Cambios Admin</button>
+    </div>
+    
+    <!-- Contenedor de notificaciones -->
+    <div id="notifications-list" class="notifications-list">
+        <p class="loading">Cargando notificaciones...</p>
+    </div>
+    
+    <!-- Contador de cambios no leídos -->
+    <div id="admin-notif-badge" style="display:none; position:absolute; top:10px; right:10px; background:#ff9800; color:#000; border-radius:50%; width:24px; height:24px; align-items:center; justify-content:center; font-weight:bold;"></div>
+</div>
+
+<!-- Estilos específicos para las pestañas -->
+<style>
+.notifications-tabs .tab-btn.active {
+    color: #fff;
+    border-bottom: 3px solid #b300ff;
+    font-weight: 600;
+}
+.notifications-tabs .tab-btn:hover {
+    color: #fff;
+    background: rgba(179,0,255,0.1);
+}
+</style>
+                <div class="glass-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-boxes"></i> Mis Servicios</h3>
+                        <div class="panel-actions">
+                            <div class="filter-controls">
+                                <select id="filter-category" class="filter-select">
+                                    <option value="all">Todas las categorías</option>
+                                    <option value="belleza">Belleza</option>
+                                    <option value="bienestar">Bienestar</option>
+                                    <option value="salud">Salud</option>
+                                    <option value="otros">Otros</option>
+                                </select>
+                                <select id="filter-status" class="filter-select">
+                                    <option value="all">Todos los estados</option>
+                                    <option value="active">Activos</option>
+                                    <option value="inactive">Inactivos</option>
+                                </select>
+                            </div>
+                            <button class="btn-grad" id="refresh-services">
+                                <i class="fas fa-sync-alt"></i> Actualizar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Cards de servicios -->
+                    <div class="services-cards-container" id="services-cards">
+                        <!-- Se cargarán dinámicamente con JS -->
+                        <div class="empty-state" id="no-services">
+                            <i class="fas fa-box-open"></i>
+                            <h4>No hay servicios creados</h4>
+                            <p>Crea tu primer servicio usando el formulario a la izquierda</p>
+                            <button class="btn-grad" id="create-first-service">
+                                <i class="fas fa-plus"></i> Crear primer servicio
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Estadísticas de servicios -->
+                    <div class="services-stats">
+                        <div class="stat-item">
+                            <i class="fas fa-layer-group"></i>
+                            <div>
+                                <h4 id="total-services">0</h4>
+                                <p>Total servicios</p>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-eye"></i>
+                            <div>
+                                <h4 id="active-services">0</h4>
+                                <p>Activos</p>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-star"></i>
+                            <div>
+                                <h4 id="featured-services">0</h4>
+                                <p>Destacados</p>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-users"></i>
+                            <div>
+                                <h4 id="total-capacity">0</h4>
+                                <p>Cupos totales</p>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-dollar-sign"></i>
+                            <div>
+                                <h4 id="projected-revenue">$0.00</h4>
+                                <p>Ingresos Proyectados</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección: Citas Programadas -->
+                <div id="appointments-container" class="glass-panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <h3><i class="fas fa-calendar-check"></i> Citas Programadas</h3>
+                        <button id="btn-limpiar-db" class="btn-small danger" onclick="limpiarBaseDatos()" title="Eliminar todas las citas de la base de datos">
+                            <i class="fas fa-trash-alt"></i> Limpiar Base de Datos
+                        </button>
+                    </div>
+                    <div id="upcoming-appointments"></div>
+                </div>
+
+                <!-- Navegación entre pantallas -->
+                <div class="screen-navigation bottom">
+                    <div class="nav-cards">
+                        <a href="login.html" class="nav-card">
+                            <div class="nav-number">1</div>
+                            <h4>Login/Registro</h4>
+                            <p><i class="fas fa-arrow-left"></i> Volver a esta pantalla</p>
+                        </a>
+                        
+                        <div class="nav-card current">
+                            <div class="nav-number">2</div>
+                            <h4>Panel Admin</h4>
+                            <p>Pantalla actual</p>
+                        </div>
+                        
+                        <a href="cliente.html" class="nav-card">
+                            <div class="nav-number">3</div>
+                            <h4>Vista Cliente</h4>
+                            <p>Ir a esta pantalla <i class="fas fa-arrow-right"></i></p>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <footer class="admin-footer">
+            <p>Pantalla 2/3: Panel Administrador | <span id="current-time"></span></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+// Script para filtrar notificaciones por pestañas
+document.addEventListener('DOMContentLoaded', function() {
+    // Esperar un poco a que se carguen las notificaciones
+    setTimeout(function() {
+        const tabs = document.querySelectorAll('.tab-btn');
+        const notifList = document.getElementById('notifications-list');
+        
+        if (!tabs.length || !notifList) return;
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Actualizar clases activas
+                tabs.forEach(t => {
+                    t.classList.remove('active');
+                    t.style.color = '#aaa';
+                    t.style.borderBottom = 'none';
+                });
+                
+                this.classList.add('active');
+                this.style.color = '#fff';
+                this.style.borderBottom = '3px solid #b300ff';
+                
+                const tipo = this.dataset.tab;
+                const items = notifList.querySelectorAll('.notification-item');
+                
+                items.forEach(item => {
+                    if (tipo === 'todas') {
+                        item.style.display = 'flex';
+                    } else if (tipo === 'reservas' && item.dataset.origen === 'reserva') {
+                        item.style.display = 'flex';
+                    } else if (tipo === 'cambios' && item.dataset.origen === 'cambio') {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        });
+        
+        // Función para actualizar badge de cambios no leídos
+        function actualizarBadge() {
+            const badge = document.getElementById('admin-notif-badge');
+            if (!badge) return;
+            
+            const cambiosNoLeidos = document.querySelectorAll('.notification-item[data-origen="cambio"]').length;
+            if (cambiosNoLeidos > 0) {
+                badge.textContent = cambiosNoLeidos;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        
+        actualizarBadge();
+        
+        // Observar cambios en las notificaciones
+        const observer = new MutationObserver(actualizarBadge);
+        observer.observe(notifList, { childList: true, subtree: true });
+        
+    }, 500);
+});
+</script>
+<!-- Popup de reprogramación (debe estar ANTES de cerrar </body>) -->
+<div id="popup-reserva" class="popup-reserva" style="display:none;">
+    <div class="popup-inner">
+        <button class="popup-close" onclick="cerrarPopupReserva()">&times;</button>
+        <h2 id="popup-reserva-title">Reagendar Cita</h2>
+        
+        <div class="detalles-servicio">
+            <!-- Se llena dinámicamente -->
+        </div>
+        
+        <div id="resumen-confirmacion"></div>
+        
+        <div class="terms-accept">
+            <label>
+                <input type="checkbox" id="acepto-condiciones">
+                <span>Confirmo el cambio de fecha/hora</span>
+            </label>
+        </div>
+        
+        <div class="popup-actions">
+            <button id="btn-confirmar-reserva" class="btn-confirm" disabled>Confirmar Cambio</button>
+            <button class="btn-cancelar-popup" onclick="cerrarPopupReserva()">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function cerrarPopupReserva() {
+    document.getElementById('popup-reserva').style.display = 'none';
+}
+</script>
+</body>
+</html>
+<script>
+// Script para filtrar notificaciones por pestañas
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        const tabs = document.querySelectorAll('.tab-btn');
+        const notifList = document.getElementById('notifications-list');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Actualizar clases activas
+                tabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                
+                const tipo = this.dataset.tab;
+                const items = notifList.querySelectorAll('.notification-item');
+                
+                items.forEach(item => {
+                    if (tipo === 'todas') {
+                        item.style.display = 'flex';
+                    } else if (tipo === 'reservas' && item.dataset.origen === 'reserva') {
+                        item.style.display = 'flex';
+                    } else if (tipo === 'cambios' && item.dataset.origen === 'cambio') {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        });
+        
+        // Actualizar badge de cambios no leídos
+        function actualizarBadge() {
+            const badge = document.getElementById('admin-notif-badge');
+            if (!badge) return;
+            
+            const cambiosNoLeidos = document.querySelectorAll('.notification-item.admin-change').length;
+            if (cambiosNoLeidos > 0) {
+                badge.textContent = cambiosNoLeidos;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        
+        actualizarBadge();
+        
+        // Observar cambios en las notificaciones
+        const observer = new MutationObserver(actualizarBadge);
+        observer.observe(notifList, { childList: true, subtree: true });
+        
+    }, 500); // Esperar a que se rendericen las notificaciones
+});
+</script>

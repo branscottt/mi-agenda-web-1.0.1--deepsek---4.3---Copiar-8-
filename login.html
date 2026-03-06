@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda Pro - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="login-screen">
+        <div class="glass-panel login-panel">
+            <div class="logo-header">
+                <i class="fas fa-calendar-alt"></i>
+                <h1>Agenda Pro</h1>
+                <p class="tagline">Pantalla 1/3: Login & Registro</p>
+            </div>
+            
+            <div class="role-selector">
+                <!-- Toggle Login/Registro -->
+                <div class="mode-toggle">
+                    <button class="mode-btn active" id="login-mode">Login</button>
+                    <button class="mode-btn" id="register-mode">Registro</button>
+                </div>
+                
+                <!-- Formulario LOGIN -->
+                <div class="form-container active" id="login-container">
+                    <h2>Iniciar Sesión</h2>
+                    
+                    <div class="role-options">
+                        <div class="role-card" id="client-role">
+                            <div class="role-icon">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <h3>Acceso Cliente</h3>
+                            <p>Ver catálogo y reservar servicios</p>
+                            <div class="role-badge client-badge">Click para acceder</div>
+                        </div>
+                        
+                        <div class="role-card" id="admin-role">
+                            <div class="role-icon">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            <h3>Acceso Admin</h3>
+                            <p>Gestionar sistema completo</p>
+                            <div class="role-badge admin-badge">Requiere contraseña</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Formulario contraseña Admin -->
+                    <div class="admin-login" id="admin-login-form">
+                        <h3>Verificación de Administrador</h3>
+                        <div class="form-group">
+                            <div class="input-with-icon">
+                                <i class="fas fa-lock"></i>
+                                <input type="password" id="admin-password" placeholder="Contraseña: admin123">
+                            </div>
+                            <button class="btn-grad" id="submit-admin">Acceder como Admin</button>
+                        </div>
+                        <button class="btn-secondary" id="cancel-admin">Cancelar</button>
+                    </div>
+                    
+                    <!-- Token rápido -->
+                    <div class="token-quick">
+                        <div class="divider">
+                            <span>Acceso rápido con token</span>
+                        </div>
+                        <input type="text" id="quick-token" placeholder="Token: CLIENT-2024 o ADMIN-2024">
+                        <button class="btn-token" id="submit-token">Validar Token</button>
+                    </div>
+                </div>
+                
+                <!-- Formulario REGISTRO -->
+                <div class="form-container" id="register-container">
+                    <h2>Registro de Cliente</h2>
+                    
+                    <form id="register-form">
+                        <div class="input-group">
+                            <i class="fas fa-user"></i>
+                            <input type="text" placeholder="Nombre completo" required>
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" placeholder="Email" required>
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" placeholder="Contraseña" required>
+                        </div>
+                        
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" placeholder="Confirmar contraseña" required>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="back-to-login">
+                                <i class="fas fa-arrow-left"></i> Volver a Login
+                            </button>
+                            <button type="submit" class="btn-grad">
+                                <i class="fas fa-user-plus"></i> Crear Cuenta
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Demo Info -->
+                <div class="demo-info">
+                    <h4><i class="fas fa-info-circle"></i> Credenciales de Demo</h4>
+                    <ul>
+                        <li><strong>Cliente:</strong> Click en tarjeta "Cliente"</li>
+                        <li><strong>Admin:</strong> Contraseña: <code>admin123</code></li>
+                        <li><strong>Tokens:</strong> <code>CLIENT-2024</code> o <code>ADMIN-2024</code></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Navegación a otras pantallas -->
+            <div class="screen-navigation">
+                <div class="nav-cards">
+                    <div class="nav-card current">
+                        <div class="nav-number">1</div>
+                        <h4>Login/Registro</h4>
+                        <p>Pantalla actual</p>
+                    </div>
+                    
+                    <a href="admin.html" class="nav-card">
+                        <div class="nav-number">2</div>
+                        <h4>Panel Admin</h4>
+                        <p>Ir a esta pantalla <i class="fas fa-arrow-right"></i></p>
+                    </a>
+                    
+                    <a href="cliente.html" class="nav-card">
+                        <div class="nav-number">3</div>
+                        <h4>Vista Cliente</h4>
+                        <p>Ir a esta pantalla <i class="fas fa-arrow-right"></i></p>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="login-footer">
+                <p>Sistema Triple Pantalla - Agenda Pro</p>
+            </div>
+        </div>
+        
+        <!-- Efectos de fondo -->
+        <div class="login-background">
+            <div class="bg-circle circle-1"></div>
+            <div class="bg-circle circle-2"></div>
+            <div class="bg-circle circle-3"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

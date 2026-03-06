@@ -1,0 +1,28 @@
+🗺️ PLAN MAESTRO: AGENDA UNIVERSAL PRO (White Label)
+FASE 1: El Corazón y los Roles (Estructura Base)
+[-] 1.1 Sistema de Login y Roles: Creación de la pantalla inicial con selector "Admin / Cliente". Lógica de protección (simulada por ahora con contraseña o token) para que el cliente no entre al panel de control.
+[-] 1.2 Estructura de Triple Pantalla: Configuración de los tres contenedores principales: Registro/Login, Panel Admin y Vista Catálogo Cliente.
+FASE 2: El Cerebro del Admin (Gestión de Módulos)
+[-] 2.1 Creador de Módulos "Master": Interfaz para definir el nombre del servicio (ej. Entrenamiento Fuerza), descripción y foto adjunta.
+[-] 2.2 Gestor de Sesiones y Cupos: Lógica para que un mismo Módulo tenga múltiples fechas/horarios. Implementación de control de cupos (1 a N, o ilimitado).
+[-] 2.3 Función de Programación Rápida: Herramienta para replicar horarios en varios días (ahorro de tiempo para el Admin).
+·FASE 3: Dashboard y Finanzas (Inteligencia de Negocio)
+[-] 3.1 Estadísticas Triples: Visualización de ventas Diario / Semanal / Mensual con filtros de calendario.
+[ ] 3.2 Porcentaje de Conversión: Cálculo automático de "Citas completadas vs. Agendadas".
+·[ ] 3.3 Notificaciones de Urgencia: Sistema de colores dinámico (Morado para lo próximo, Rojo fuerte para citas en < 2 horas).
+FASE 4: Experiencia del Cliente (Catálogo y Reserva)
+[-] 4.1 Buscador y Filtros: Búsqueda por nombre de módulo y filtrado por fechas disponibles.
+[-] 4.2 Proceso de Reserva Blindado: Popup de condiciones (No reembolso, límite de 24h para cambios) con doble validación ("¿Realmente leyó las condiciones?").
+[-] 4.3 Formulario de Datos Personales: Registro obligatorio de contacto para que el Admin pueda gestionar cambios.
+FASE 5: Operatividad y Ajustes (Cirugía de Datos)
+[-] 5.1 Edición de Citas y Notificación: Si el Admin cambia una fecha, el sistema genera el aviso para contactar al cliente con sus datos.
+
+·🛡️ NUESTRAS REGLAS DE CONSTRUCCIÓN
+Seguridad por Capas: Trabajaremos HTML → CSS → JS para cada punto.
+Validación Visual: Tras el CSS, revisamos que el diseño neón y el "Glassmorphism" sean perfectos.
+Checkpoint Obligatorio: Al terminar cada punto de la lista y verificar que funciona, se guarda versión.
+
+·Gestión de Código:
+< 500 líneas: Código entero.
+500 - 1500 líneas: Código en partes (Máximo 3).
+> 1500 líneas: Cirugía quirúrgica con guía visual de contexto.
