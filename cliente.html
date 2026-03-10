@@ -60,15 +60,26 @@
             </div>
         </div>
         
-        <!-- Filtro por fecha -->
+                <!-- Filtro por fecha -->
         <div class="date-filter">
             <label for="filter-date">
                 <i class="fas fa-calendar-alt"></i> Filtrar por fecha:
             </label>
             <input type="date" id="filter-date" class="date-input" min="2024-02-13">
+            
+            <!-- NUEVO: Botón exportar CSV -->
+            <button class="btn-grad btn-small" id="export-filtered-csv">
+                <i class="fas fa-download"></i> Exportar CSV
+            </button>
+            
             <button class="btn-small" id="clear-date-filter">
                 <i class="fas fa-times"></i> Limpiar
             </button>
+        </div>
+        
+        <!-- NUEVO: Indicador de servicios expirados (se mostrará cuando se oculten) -->
+        <div id="expired-services-message" style="display:none; margin:10px 20px; padding:10px; background:rgba(255,0,0,0.1); border:1px solid rgba(255,0,0,0.3); border-radius:8px; color:#ff6b6b;">
+            <i class="fas fa-clock"></i> Algunos servicios han expirado y se han ocultado automáticamente.
         </div>
         
         <!-- Contenido Principal -->

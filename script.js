@@ -180,6 +180,50 @@ const CitasManager = {
 
         if (cambiado) this.save(citas);
     },
+    // ===== NUEVA FUNCIÓN: LIMPIEZA DE EXPIRADOS =====
+    limpiarExpiradas: function() {
+        const citas = this.getAll();
+        const ahora = new Date();
+        const citasFiltradas = citas.filter(c => {
+            if (!c.fecha) return true; // Mantener si no tiene fecha
+            
+            try {
+                let citaDate;
+                const partes = String(c.fecha).split('-');
+                if (partes.length === 3) {
+                    citaDate = new Date(partes[0], partes[1] - 1, partes[2]);
+                } else {
+                    citaDate = new Date(c.fecha);
+                }
+                
+                if (c.hora) {
+                    const horaParts = String(c.hora).match(/(\d{1,2}):(\d{2})/);
+                    if (horaParts) {
+                        citaDate.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
+                    }
+                }
+                
+                if (isNaN(citaDate.getTime())) return true;
+                
+                // Comparar con ahora
+                return citaDate >= ahora;
+                
+            } catch (e) {
+                console.warn('Error verificando cita expirada:', e);
+                return true; // Mantener en caso de error
+            }
+        });
+        
+        if (citasFiltradas.length !== citas.length) {
+            const eliminadas = citas.length - citasFiltradas.length;
+            this.save(citasFiltradas);
+            console.log(`🧹 Limpiadas ${eliminadas} citas expiradas`);
+            return eliminadas;
+        }
+        
+        return 0;
+    },
+    // ===== FIN NUEVA FUNCIÓN =====
     finalizar(citaId) {
         const citas = this.getAll();
         const idStr = String(citaId);
@@ -193,6 +237,38 @@ const CitasManager = {
         return true;
     }
 };
+
+// ============================================
+// CONFIGURAR LIMPIEZA AUTOMÁTICA
+// ============================================
+
+function configurarLimpiezaAutomatica() {
+    // Limpiar citas expiradas cada 10 minutos
+    setInterval(() => {
+        const eliminadas = CitasManager.limpiarExpiradas();
+        
+        if (eliminadas > 0) {
+            // Actualizar vistas
+            if (typeof renderAdminAppointments === 'function') {
+                renderAdminAppointments();
+            }
+            if (typeof renderMisReservas === 'function') {
+                renderMisReservas();
+            }
+            if (typeof renderCarrito === 'function') {
+                renderCarrito();
+            }
+            if (typeof updateProjectedRevenue === 'function') {
+                updateProjectedRevenue();
+            }
+        }
+    }, 10 * 60 * 1000); // 10 minutos
+    
+    // También limpiar al inicio
+    setTimeout(() => {
+        CitasManager.limpiarExpiradas();
+    }, 1000);
+}
 // ============================================
 // GESTIÓN DE VENTAS (NUEVO - FASE 3)
 // ============================================
@@ -313,7 +389,182 @@ const VentasManager = {
 
 // Exportar al objeto window
 window.VentasManager = VentasManager;
+// ============================================
+// SISTEMA DE URGENCIAS VISUAL - NUEVO
+// ============================================
 
+const UrgenciaManager = {
+    /**
+     * Calcula el estado de urgencia basado en fecha y hora
+     * @param {string} fecha - Formato YYYY-MM-DD
+     * @param {string} hora - Formato HH:MM
+     * @returns {string} 'urgent-now' (<2h), 'urgent-soon' (2-24h), 'normal' (>24h), 'expirado' (pasado)
+     */
+    calcularEstado(fecha, hora) {
+        if (!fecha) return 'normal';
+        
+        try {
+            const ahora = new Date();
+            
+            // Construir fecha completa
+            let citaDate;
+            const partes = String(fecha).split('-');
+            if (partes.length === 3) {
+                citaDate = new Date(partes[0], partes[1] - 1, partes[2]);
+            } else {
+                citaDate = new Date(fecha);
+            }
+            
+            // Añadir hora si existe
+            if (hora) {
+                const horaParts = String(hora).match(/(\d{1,2}):(\d{2})/);
+                if (horaParts) {
+                    citaDate.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
+                }
+            } else {
+                citaDate.setHours(12, 0, 0, 0); // Mediodía por defecto si no hay hora
+            }
+            
+            // Validar fecha
+            if (isNaN(citaDate.getTime())) {
+                return 'normal';
+            }
+            
+            const diferenciaMs = citaDate - ahora;
+            const diferenciaHoras = diferenciaMs / (1000 * 60 * 60);
+            
+            if (diferenciaMs < 0) {
+                return 'expirado'; // Pasado
+            } else if (diferenciaHoras < 2) {
+                return 'urgent-now'; // Menos de 2 horas
+            } else if (diferenciaHoras <= 24) {
+                return 'urgent-soon'; // Entre 2 y 24 horas
+            } else {
+                return 'normal'; // Más de 24 horas
+            }
+        } catch (e) {
+            console.warn('Error calculando urgencia:', e, fecha, hora);
+            return 'normal';
+        }
+    },
+    
+    /**
+     * Filtra servicios que tienen al menos una fecha/hora futura
+     * @param {Array} servicios - Lista de servicios
+     * @returns {Array} Servicios con disponibilidad futura
+     */
+    filtrarServiciosConFuturo(servicios) {
+        if (!Array.isArray(servicios)) return [];
+        
+        const ahora = new Date();
+        
+        return servicios.filter(servicio => {
+            if (!servicio.disponibilidad || typeof servicio.disponibilidad !== 'object') {
+                return false; // Sin disponibilidad, no se muestra
+            }
+            
+            const fechas = Object.keys(servicio.disponibilidad).filter(f => {
+                // Construir fecha del servicio (mediodía para comparar)
+                const partes = f.split('-');
+                if (partes.length !== 3) return false;
+                
+                const fechaServicio = new Date(partes[0], partes[1] - 1, partes[2], 12, 0, 0);
+                
+                // Verificar si la fecha es hoy o futura
+                if (fechaServicio < ahora.setHours(0, 0, 0, 0)) {
+                    return false; // Fecha pasada
+                }
+                
+                // Verificar si hay horarios con cupos en esa fecha
+                const modulos = servicio.disponibilidad[f] || [];
+                return modulos.some(m => {
+                    if (Number(m.cupos || 0) <= 0) return false;
+                    
+                    // Si es hoy, verificar hora
+                    if (fechaServicio.toDateString() === new Date().toDateString()) {
+                        const hora = m.hora || m.startTime || '00:00';
+                        const horaParts = hora.match(/(\d{1,2}):(\d{2})/);
+                        if (!horaParts) return true;
+                        
+                        const fechaHora = new Date();
+                        fechaHora.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
+                        
+                        return fechaHora > new Date(); // Solo futuras
+                    }
+                    
+                    return true; // Fecha futura
+                });
+            });
+            
+            return fechas.length > 0;
+        });
+    },
+    
+    /**
+     * Elimina servicios expirados del localStorage
+     * @returns {number} Cantidad de servicios eliminados
+     */
+    limpiarServiciosExpirados() {
+        try {
+            const servicios = JSON.parse(localStorage.getItem('agendaPro_servicios')) || [];
+            const serviciosValidos = this.filtrarServiciosConFuturo(servicios);
+            
+            if (serviciosValidos.length !== servicios.length) {
+                const eliminados = servicios.length - serviciosValidos.length;
+                localStorage.setItem('agendaPro_servicios', JSON.stringify(serviciosValidos));
+                
+                if (eliminados > 0) {
+                    console.log(`🧹 Limpiados ${eliminados} servicios expirados`);
+                    
+                    // Mostrar mensaje si existe el contenedor
+                    const msgEl = document.getElementById('expired-services-message');
+                    if (msgEl) {
+                        msgEl.style.display = 'block';
+                        msgEl.innerHTML = `<i class="fas fa-clock"></i> Se han eliminado ${eliminados} servicio(s) expirado(s) automáticamente.`;
+                        
+                        // Ocultar después de 5 segundos
+                        setTimeout(() => {
+                            msgEl.style.display = 'none';
+                        }, 5000);
+                    }
+                }
+                
+                return eliminados;
+            }
+            
+            return 0;
+        } catch (e) {
+            console.error('Error limpiando servicios expirados:', e);
+            return 0;
+        }
+    },
+    
+    /**
+     * Aplica clases de urgencia a un elemento basado en fecha/hora
+     * @param {HTMLElement} elemento - Elemento a modificar
+     * @param {string} fecha - Fecha YYYY-MM-DD
+     * @param {string} hora - Hora HH:MM
+     */
+    aplicarClaseUrgencia(elemento, fecha, hora) {
+        if (!elemento) return;
+        
+        // Quitar clases existentes
+        elemento.classList.remove('urgent-soon', 'urgent-now', 'expirado');
+        
+        const estado = this.calcularEstado(fecha, hora);
+        
+        if (estado === 'urgent-soon' || estado === 'urgent-now') {
+            elemento.classList.add(estado);
+        } else if (estado === 'expirado') {
+            elemento.classList.add('expirado');
+            // Opcional: ocultar elemento si está expirado
+            // elemento.style.display = 'none';
+        }
+    }
+};
+
+// Exportar al objeto window
+window.UrgenciaManager = UrgenciaManager;
 // ============================================
 // DASHBOARD FINANCIERO (NUEVO - FASE 3)
 // ============================================
@@ -1515,6 +1766,68 @@ function cargarServiciosExistentes() {
     let html = '';
 
     servicios.forEach(servicio => {
+        // ===== NUEVO: Calcular urgencia del servicio =====
+        let estadoUrgencia = 'normal';
+        let fechaMasCercana = null;
+        let horaMasCercana = null;
+        
+        // Encontrar la fecha/hora más próxima con cupos
+        if (servicio.disponibilidad && typeof servicio.disponibilidad === 'object') {
+            const ahora = new Date();
+            const fechas = Object.keys(servicio.disponibilidad).sort();
+            
+            for (const fecha of fechas) {
+                const modulos = servicio.disponibilidad[fecha] || [];
+                const modulosConCupos = modulos.filter(m => Number(m.cupos || 0) > 0);
+                
+                if (modulosConCupos.length === 0) continue;
+                
+                // Construir fecha
+                const partes = fecha.split('-');
+                if (partes.length !== 3) continue;
+                
+                const fechaObj = new Date(partes[0], partes[1] - 1, partes[2]);
+                
+                // Si es fecha pasada, ignorar
+                if (fechaObj < new Date(ahora.setHours(0, 0, 0, 0))) continue;
+                
+                // Si es hoy, verificar horas futuras
+                if (fechaObj.toDateString() === new Date().toDateString()) {
+                    for (const mod of modulosConCupos) {
+                        const hora = mod.hora || mod.startTime || '00:00';
+                        const horaParts = hora.match(/(\d{1,2}):(\d{2})/);
+                        if (!horaParts) continue;
+                        
+                        const fechaHora = new Date();
+                        fechaHora.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
+                        
+                        if (fechaHora > new Date()) {
+                            fechaMasCercana = fecha;
+                            horaMasCercana = hora;
+                            break;
+                        }
+                    }
+                } else {
+                    // Fecha futura, tomar primera hora
+                    fechaMasCercana = fecha;
+                    horaMasCercana = modulosConCupos[0].hora || modulosConCupos[0].startTime || '00:00';
+                }
+                
+                if (fechaMasCercana) break;
+            }
+        }
+        
+        // Calcular estado de urgencia si hay fecha
+        if (fechaMasCercana) {
+            estadoUrgencia = UrgenciaManager.calcularEstado(fechaMasCercana, horaMasCercana);
+        } else {
+            estadoUrgencia = 'expirado'; // No hay fechas futuras con cupos
+        }
+        
+        // Clases adicionales para la tarjeta
+        const urgenciaClass = estadoUrgencia !== 'normal' && estadoUrgencia !== 'expirado' ? estadoUrgencia : '';
+        const expiradoClass = estadoUrgencia === 'expirado' ? 'service-no-dates' : '';
+
         let fechasInfo = '';
         let fechasMeta = '';
 
@@ -1599,8 +1912,13 @@ function cargarServiciosExistentes() {
             `;
         }
 
+        // ===== MODIFICADO: Añadir clases de urgencia a la tarjeta =====
         html += `
-        <div class="service-card-admin" data-service-id="${servicio.id}">
+        <div class="service-card-admin ${urgenciaClass} ${expiradoClass}" 
+             data-service-id="${servicio.id}"
+             data-urgencia="${estadoUrgencia}"
+             data-fecha-cercana="${fechaMasCercana || ''}"
+             data-hora-cercana="${horaMasCercana || ''}">
             <div class="service-card-header">
                 <img src="${servicio.imagen}" alt="${servicio.nombre}" class="service-card-image">
                 
@@ -1617,6 +1935,11 @@ function cargarServiciosExistentes() {
                 <div class="service-status ${servicio.activo ? 'active' : 'inactive'}">
                     ${servicio.activo ? 'Activo' : 'Inactivo'}
                 </div>
+                
+                <!-- ===== NUEVO: Badge de urgencia ===== -->
+                ${estadoUrgencia === 'urgent-now' ? '<span class="service-urgent-badge urgent-now"><i class="fas fa-exclamation-circle"></i> URGENTE</span>' : ''}
+                ${estadoUrgencia === 'urgent-soon' ? '<span class="service-urgent-badge urgent-soon"><i class="fas fa-clock"></i> Próximo</span>' : ''}
+                ${estadoUrgencia === 'expirado' ? '<span class="service-urgent-badge expirado"><i class="fas fa-hourglass-end"></i> Sin fechas</span>' : ''}
             </div>
             
             <div class="service-card-body">
@@ -1978,6 +2301,8 @@ window.actualizarStatsHeader = actualizarStatsHeader;
 function configurarFiltros() {
     const filtroCategoria = document.getElementById('filter-category');
     const filtroEstado = document.getElementById('filter-status');
+    // ===== NUEVO =====
+    const filtroUrgencia = document.getElementById('filter-urgency');
     const btnActualizar = document.getElementById('refresh-services');
 
     if (filtroCategoria) {
@@ -1986,6 +2311,11 @@ function configurarFiltros() {
 
     if (filtroEstado) {
         filtroEstado.addEventListener('change', aplicarFiltros);
+    }
+
+    // ===== NUEVO =====
+    if (filtroUrgencia) {
+        filtroUrgencia.addEventListener('change', aplicarFiltros);
     }
 
     if (btnActualizar) {
@@ -2000,6 +2330,8 @@ window.configurarFiltros = configurarFiltros;
 function aplicarFiltros() {
     const categoria = document.getElementById('filter-category')?.value || 'all';
     const estado = document.getElementById('filter-status')?.value || 'all';
+    // ===== NUEVO: Filtro de urgencia =====
+    const urgencia = document.getElementById('filter-urgency')?.value || 'all';
 
     const tarjetas = document.querySelectorAll('.service-card-admin');
 
@@ -2021,13 +2353,28 @@ function aplicarFiltros() {
 
         let mostrar = true;
 
+        // Filtro por categoría
         if (categoria !== 'all' && servicio.categoria !== categoria) {
             mostrar = false;
         }
 
+        // Filtro por estado
         if (estado !== 'all') {
             const estaActivo = servicio.activo;
             if ((estado === 'active' && !estaActivo) || (estado === 'inactive' && estaActivo)) {
+                mostrar = false;
+            }
+        }
+
+        // ===== NUEVO: Filtro por urgencia =====
+        if (mostrar && urgencia !== 'all') {
+            const urgenciaTarjeta = tarjeta.dataset.urgencia || 'normal';
+            
+            if (urgencia === 'urgent-soon' && urgenciaTarjeta !== 'urgent-soon') {
+                mostrar = false;
+            } else if (urgencia === 'urgent-now' && urgenciaTarjeta !== 'urgent-now') {
+                mostrar = false;
+            } else if (urgencia === 'normal' && (urgenciaTarjeta === 'urgent-soon' || urgenciaTarjeta === 'urgent-now')) {
                 mostrar = false;
             }
         }
@@ -2862,8 +3209,18 @@ function _renderCitasBase(contenedorId, opciones = {}) {
         } catch (e) { }
         const hora = c.hora || '—';
         const editado = (c.editado) ? ' <span style="color:#ff9800;">(Editado)</span>' : '';
-
-        html += `<tr data-id="${c.id}">`;
+        
+        // ===== NUEVO: Calcular urgencia de la cita =====
+        const estadoUrgencia = UrgenciaManager.calcularEstado(c.fecha, c.hora);
+        const urgenciaClass = (estadoUrgencia === 'urgent-soon' || estadoUrgencia === 'urgent-now') ? estadoUrgencia : '';
+        
+        // Si está expirada, no mostrar (para cliente)
+        const esAdmin = opciones.mostrarEditado || opciones.mostrarFinalizar;
+        if (estadoUrgencia === 'expirado' && !esAdmin) {
+            return; // Omitir esta cita para clientes
+        }
+        
+        html += `<tr data-id="${c.id}" class="${urgenciaClass}" data-urgencia="${estadoUrgencia}">`;
         html += `<td>${escapeHtml(nombre)}</td>`;
         html += `<td>${escapeHtml(telefono)}</td>`;
         html += `<td>${escapeHtml(servicio)}${editado}</td>`;
@@ -3014,10 +3371,13 @@ window.renderMisReservas = renderMisReservas;
 function iniciarCliente() {
     currentFilterTerm = '';
     currentFilterDate = '';
-    currentFilterCategory = 'todos'; // <-- AÑADIR ESTA LÍNEA
+    currentFilterCategory = 'todos';
     cargarServiciosParaCliente();
     configurarBuscadorCliente();
     configurarFiltroFecha();
+    
+    // ===== NUEVO =====
+    configurarBotonesExportacion();
 
     const session = getSession();
     if (session && session.rol === 'invitado') {
@@ -3358,7 +3718,187 @@ function aplicarFiltrosCombinados() {
     }
 }
 window.aplicarFiltrosCombinados = aplicarFiltrosCombinados;
+// ============================================
+// EXPORTACIÓN DE SERVICIOS A CSV (NUEVO)
+// ============================================
 
+function exportarServiciosCSV() {
+    try {
+        // Obtener servicios activos
+        const servicios = JSON.parse(localStorage.getItem('agendaPro_servicios')) || [];
+        const serviciosActivos = servicios.filter(s => s.activo === true);
+        
+        // Aplicar los mismos filtros que en la UI
+        let serviciosFiltrados = serviciosActivos;
+        
+        // Filtrar por término de búsqueda
+        const searchInput = document.querySelector('.search-box input');
+        if (searchInput && searchInput.value) {
+            const term = searchInput.value.toLowerCase().trim();
+            serviciosFiltrados = serviciosFiltrados.filter(s => 
+                s.nombre.toLowerCase().includes(term)
+            );
+        }
+        
+        // Filtrar por categoría
+        if (currentFilterCategory && currentFilterCategory !== 'todos') {
+            serviciosFiltrados = serviciosFiltrados.filter(s => 
+                s.categoria === currentFilterCategory
+            );
+        }
+        
+        // Filtrar por fecha
+        if (currentFilterDate) {
+            serviciosFiltrados = serviciosFiltrados.filter(s => 
+                s.fechas && s.fechas.includes(currentFilterDate)
+            );
+        }
+        
+        if (serviciosFiltrados.length === 0) {
+            mostrarToast('No hay servicios para exportar con los filtros actuales', 'warning');
+            return;
+        }
+        
+        // Formatear datos para CSV
+        const cabeceras = ['ID', 'Nombre', 'Categoría', 'Precio', 'Descripción', 'Fechas Disponibles', 'Horarios', 'Estado'];
+        
+        const filas = serviciosFiltrados.map(s => {
+            // Formatear fechas
+            let fechasStr = '';
+            if (s.fechas && s.fechas.length > 0) {
+                fechasStr = s.fechas.join('; ');
+            }
+            
+            // Formatear horarios
+            let horariosStr = '';
+            if (s.disponibilidad && typeof s.disponibilidad === 'object') {
+                const horariosUnicos = new Set();
+                Object.values(s.disponibilidad).forEach(mods => {
+                    (mods || []).forEach(m => {
+                        if (m.hora) horariosUnicos.add(m.hora);
+                    });
+                });
+                horariosStr = Array.from(horariosUnicos).join('; ');
+            }
+            
+            return [
+                s.id,
+                s.nombre,
+                s.categoria,
+                s.precio,
+                (s.descripcion || '').replace(/,/g, ';'), // Reemplazar comas para no romper CSV
+                fechasStr,
+                horariosStr,
+                s.activo ? 'Activo' : 'Inactivo'
+            ];
+        });
+        
+        // Generar CSV
+        const csvContent = [
+            cabeceras.join(','),
+            ...filas.map(f => f.map(cell => {
+                // Escapar comillas y encerrar en comillas dobles
+                const escaped = String(cell).replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(','))
+        ].join('\n');
+        
+        // Descargar archivo
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' }); // Añadir BOM para UTF-8
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        const fechaStr = new Date().toISOString().slice(0,10);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `servicios_${fechaStr}_filtrados.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        mostrarToast(`Exportados ${serviciosFiltrados.length} servicios`, 'success');
+        
+    } catch (e) {
+        console.error('Error exportando CSV:', e);
+        mostrarToast('Error al exportar CSV', 'error');
+    }
+}
+
+// ============================================
+// CONFIGURAR BOTONES DE EXPORTACIÓN
+// ============================================
+
+function configurarBotonesExportacion() {
+    // Botón en admin
+    const btnAdmin = document.getElementById('export-services-csv');
+    if (btnAdmin) {
+        btnAdmin.addEventListener('click', function() {
+            // En admin, exportar todos los servicios (sin filtros)
+            const servicios = JSON.parse(localStorage.getItem('agendaPro_servicios')) || [];
+            
+            if (servicios.length === 0) {
+                mostrarToast('No hay servicios para exportar', 'warning');
+                return;
+            }
+            
+            // Similar a exportarServiciosCSV pero sin filtros
+            const cabeceras = ['ID', 'Nombre', 'Categoría', 'Precio', 'Descripción', 'Fechas Disponibles', 'Horarios', 'Estado', 'Destacado'];
+            
+            const filas = servicios.map(s => {
+                let fechasStr = s.fechas ? s.fechas.join('; ') : '';
+                
+                let horariosStr = '';
+                if (s.disponibilidad) {
+                    const horarios = new Set();
+                    Object.values(s.disponibilidad).forEach(mods => {
+                        (mods || []).forEach(m => {
+                            if (m.hora) horarios.add(m.hora);
+                        });
+                    });
+                    horariosStr = Array.from(horarios).join('; ');
+                }
+                
+                return [
+                    s.id,
+                    s.nombre,
+                    s.categoria,
+                    s.precio,
+                    (s.descripcion || '').replace(/,/g, ';'),
+                    fechasStr,
+                    horariosStr,
+                    s.activo ? 'Activo' : 'Inactivo',
+                    s.destacado ? 'Sí' : 'No'
+                ];
+            });
+            
+            const csvContent = [
+                cabeceras.join(','),
+                ...filas.map(f => f.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            ].join('\n');
+            
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', `todos_servicios_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            mostrarToast(`Exportados ${servicios.length} servicios`, 'success');
+        });
+    }
+    
+    // Botón en cliente
+    const btnCliente = document.getElementById('export-filtered-csv');
+    if (btnCliente) {
+        btnCliente.addEventListener('click', exportarServiciosCSV);
+    }
+}
 // ============================================
 // RESERVA Y REPROGRAMACIÓN
 // ============================================
@@ -4348,6 +4888,15 @@ function renderCarrito() {
             const fecha = escapeHtml(cita.fecha || '—');
             const hora = escapeHtml(limpiarHora(cita.hora || '—'));
             const precio = formatearPeso(cita.precio || 0);
+            
+            // ===== NUEVO: Calcular urgencia =====
+            const estadoUrgencia = UrgenciaManager.calcularEstado(cita.fecha, cita.hora);
+            const urgenciaClass = (estadoUrgencia === 'urgent-soon' || estadoUrgencia === 'urgent-now') ? estadoUrgencia : '';
+            
+            // Si está expirada, no mostrar en carrito
+            if (estadoUrgencia === 'expirado') {
+                return; // Omitir esta cita
+            }
 
             let puedeReagendar = false;
             let bloqueadoMsg = 'Cambio bloqueado';
@@ -4413,10 +4962,11 @@ function renderCarrito() {
                 </button>`;
             }
 
-            const itemClass = puedeReagendar ? 'cart-item' : 'cart-item locked';
+            // Modificar la línea del div principal para incluir la clase de urgencia
+            const itemClass = puedeReagendar ? `cart-item ${urgenciaClass}` : `cart-item locked ${urgenciaClass}`;
 
             htmlAcumulado += `
-                <div class="${itemClass}">
+                <div class="${itemClass}" data-urgencia="${estadoUrgencia}">
                     <div class="cart-item-details">
                         <strong>${servicioNombre}</strong>
                         <br><small class="cart-item-date">${fecha} - ${hora}</small>
@@ -4529,13 +5079,50 @@ function cerrarSesion() {
     window.location.href = 'login.html';
 }
 window.cerrarSesion = cerrarSesion;
-
 // ============================================
-// INICIALIZACIÓN PRINCIPAL
+// INICIALIZACIÓN DEL SISTEMA DE URGENCIAS
+// ============================================
+
+function iniciarSistemaUrgencias() {
+    // Limpiar servicios expirados al cargar
+    UrgenciaManager.limpiarServiciosExpirados();
+    
+    // Configurar intervalo de limpieza cada 5 minutos
+    setInterval(() => {
+        const eliminados = UrgenciaManager.limpiarServiciosExpirados();
+        
+        if (eliminados > 0) {
+            // Recargar vistas si es necesario
+            if (typeof cargarServiciosExistentes === 'function') {
+                cargarServiciosExistentes();
+            }
+            if (typeof cargarServiciosParaCliente === 'function') {
+                cargarServiciosParaCliente();
+            }
+            if (typeof renderAdminAppointments === 'function') {
+                renderAdminAppointments();
+            }
+            if (typeof renderCarrito === 'function') {
+                renderCarrito();
+            }
+        }
+    }, 5 * 60 * 1000); // 5 minutos
+}
+// ============================================
+// INICIALIZACIÓN PRINCIPAL (MODIFICADA CON SISTEMA DE URGENCIAS)
 // ============================================
 document.addEventListener('DOMContentLoaded', function () {
     CitasManager.limpiar({ soloSinId: true, soloCompletadas: true, soloInvalidas: true });
     CitasManager.sanear();
+    
+    // ===== NUEVO =====
+    configurarLimpiezaAutomatica();
+    // ===== FIN NUEVO =====
+    
+    // ✅ NUEVO: Iniciar sistema de urgencias
+    if (typeof iniciarSistemaUrgencias === 'function') {
+        iniciarSistemaUrgencias();
+    }
     
     // ✅ NUEVO: Limpiar notificaciones admin antiguas al iniciar (más de 7 días)
     if (typeof NotificacionesAdminManager !== 'undefined') {

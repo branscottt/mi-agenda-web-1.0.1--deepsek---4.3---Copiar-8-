@@ -8,7 +8,22 @@ FASE 2: El Cerebro del Admin (Gestión de Módulos)
 [-] 2.3 Función de Programación Rápida: Herramienta para replicar horarios en varios días (ahorro de tiempo para el Admin).
 ·FASE 3: Dashboard y Finanzas (Inteligencia de Negocio)
 [-] 3.1 Estadísticas Triples: Visualización de ventas Diario / Semanal / Mensual con filtros de calendario.
-[ ] 3.2 Porcentaje de Conversión: Cálculo automático de "Citas completadas vs. Agendadas".
+[para mas adelante] 3.2 Porcentaje de Conversión: Cálculo automático de "Citas completadas vs. Agendadas".
+## ⏱️ EXTENSIÓN FUTURA (FASE 4+): Métricas de Negocio
+
+*No implementar ahora - mantener como backlog*
+
+### Posibles funcionalidades a futuro:
+- **Tasa de No-Show**: % de clientes que no asisten
+- **Pérdida económica**: Cálculo automático de ingresos no percibidos
+- **Ranking de clientes**: Identificar clientes problemáticos
+- **Alertas automáticas**: Notificar cuando un cliente supere X no-shows
+- **Recomendaciones**: Sugerir recordatorios adicionales
+
+### Condiciones para implementar:
+1. Base de usuarios estable (>50 citas/mes)
+2. Solicitudes explícitas de clientes
+3. Tiempo de desarrollo dedicado
 ·[ ] 3.3 Notificaciones de Urgencia: Sistema de colores dinámico (Morado para lo próximo, Rojo fuerte para citas en < 2 horas).
 FASE 4: Experiencia del Cliente (Catálogo y Reserva)
 [-] 4.1 Buscador y Filtros: Búsqueda por nombre de módulo y filtrado por fechas disponibles.

@@ -5097,3 +5097,179 @@ body {
     align-items: center;
     justify-content: center;
 }
+/* ===== SISTEMA DE URGENCIAS VISUAL - MORADO/ROJO FLÚOR ===== */
+
+/* Clase base para bordes luminosos */
+.urgent-glow {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.urgent-glow::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, transparent 30%, rgba(179, 0, 255, 0.5) 50%, transparent 70%);
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.urgent-glow:hover::before {
+    opacity: 1;
+}
+
+/* MORADO FLÚOR - Próximo (2-24h) */
+.urgent-soon {
+    border: 2px solid #b300ff !important;
+    box-shadow: 0 0 15px #b300ff, 0 0 30px rgba(179, 0, 255, 0.3) !important;
+    animation: pulse-purple 2s infinite ease-in-out;
+}
+
+.urgent-soon .service-card-header {
+    border-bottom: 1px solid #b300ff;
+}
+
+.urgent-soon .service-card-title h4 {
+    color: #b300ff;
+    text-shadow: 0 0 8px rgba(179, 0, 255, 0.5);
+}
+
+/* ROJO FLÚOR - Urgente (<2h) */
+.urgent-now {
+    border: 3px solid #ff1744 !important;
+    box-shadow: 0 0 20px #ff1744, 0 0 40px rgba(255, 23, 68, 0.4) !important;
+    animation: pulse-red 1.5s infinite ease-in-out;
+    position: relative;
+}
+
+.urgent-now::after {
+    content: '⚠️ URGENTE';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #ff1744;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 15px #ff1744;
+    z-index: 10;
+}
+
+.urgent-now .service-card-title h4 {
+    color: #ff1744;
+    text-shadow: 0 0 8px rgba(255, 23, 68, 0.5);
+}
+
+/* Para citas en tabla */
+.appointments-table .urgent-soon td {
+    background: rgba(179, 0, 255, 0.1) !important;
+    border-left: 4px solid #b300ff;
+}
+
+.appointments-table .urgent-now td {
+    background: rgba(255, 23, 68, 0.1) !important;
+    border-left: 4px solid #ff1744;
+    font-weight: 600;
+}
+
+.appointments-table .urgent-now td:first-child::before {
+    content: '⚠️ ';
+    color: #ff1744;
+}
+
+/* Para items del carrito */
+.cart-item.urgent-soon {
+    border-left: 4px solid #b300ff;
+    background: rgba(179, 0, 255, 0.05);
+}
+
+.cart-item.urgent-now {
+    border-left: 4px solid #ff1744;
+    background: rgba(255, 23, 68, 0.05);
+}
+
+/* Animaciones */
+@keyframes pulse-purple {
+    0% {
+        box-shadow: 0 0 5px #b300ff, 0 0 10px #b300ff;
+    }
+    50% {
+        box-shadow: 0 0 20px #b300ff, 0 0 30px #b300ff;
+    }
+    100% {
+        box-shadow: 0 0 5px #b300ff, 0 0 10px #b300ff;
+    }
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 5px #ff1744, 0 0 10px #ff1744;
+    }
+    50% {
+        box-shadow: 0 0 25px #ff1744, 0 0 50px #ff1744;
+    }
+    100% {
+        box-shadow: 0 0 5px #ff1744, 0 0 10px #ff1744;
+    }
+}
+
+/* Mensaje de expirados */
+#expired-services-message {
+    animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Badge para servicios sin fechas */
+.service-no-dates {
+    opacity: 0.6;
+    filter: grayscale(0.5);
+    border: 1px dashed #ff1744;
+}
+
+.service-no-dates .service-card-header::after {
+    content: 'EXPIRADO';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 23, 68, 0.8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 1rem;
+    z-index: 20;
+    white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .urgent-now::after {
+        font-size: 0.6rem;
+        padding: 2px 6px;
+    }
+    
+    .service-no-dates .service-card-header::after {
+        font-size: 0.8rem;
+        padding: 4px 8px;
+    }
+}
