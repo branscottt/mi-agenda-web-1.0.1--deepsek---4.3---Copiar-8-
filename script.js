@@ -2528,22 +2528,20 @@ function configurarFiltros() {
 }
 window.configurarFiltros = configurarFiltros;
 
-function aplicarFiltros() {
+async function aplicarFiltros() {
     const categoria = document.getElementById('filter-category')?.value || 'all';
     const estado = document.getElementById('filter-status')?.value || 'all';
     const urgencia = document.getElementById('filter-urgency')?.value || 'all';
 
     const tarjetas = document.querySelectorAll('.service-card-admin');
+    const servicios = await ServiciosManager.getAll();
 
-    if (tarjetas.length === 0) {
-        return;
-    }
+    if (tarjetas.length === 0) return;
 
     let visibleCount = 0;
 
     tarjetas.forEach(tarjeta => {
-        const serviceId = parseInt(tarjeta.getAttribute('data-service-id'));
-        const servicios = JSON.parse(localStorage.getItem('agendaPro_servicios')) || [];
+        const serviceId = tarjeta.getAttribute('data-service-id');
         const servicio = servicios.find(s => String(s.id) === String(serviceId));
 
         if (!servicio) {
@@ -2576,12 +2574,8 @@ function aplicarFiltros() {
             }
         }
 
-        if (mostrar) {
-            tarjeta.style.display = 'block';
-            visibleCount++;
-        } else {
-            tarjeta.style.display = 'none';
-        }
+        tarjeta.style.display = mostrar ? 'block' : 'none';
+        if (mostrar) visibleCount++;
     });
 
     if (visibleCount === 0 && tarjetas.length > 0) {
