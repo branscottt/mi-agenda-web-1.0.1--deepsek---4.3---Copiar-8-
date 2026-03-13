@@ -24,7 +24,7 @@ FASE 2: El Cerebro del Admin (Gestión de Módulos)
 1. Base de usuarios estable (>50 citas/mes)
 2. Solicitudes explícitas de clientes
 3. Tiempo de desarrollo dedicado
-·[ ] 3.3 Notificaciones de Urgencia: Sistema de colores dinámico (Morado para lo próximo, Rojo fuerte para citas en < 2 horas).
+·[-] 3.3 Notificaciones de Urgencia: Sistema de colores dinámico (Morado para lo próximo, Rojo fuerte para citas en < 2 horas).
 FASE 4: Experiencia del Cliente (Catálogo y Reserva)
 [-] 4.1 Buscador y Filtros: Búsqueda por nombre de módulo y filtrado por fechas disponibles.
 [-] 4.2 Proceso de Reserva Blindado: Popup de condiciones (No reembolso, límite de 24h para cambios) con doble validación ("¿Realmente leyó las condiciones?").
@@ -41,3 +41,122 @@ Checkpoint Obligatorio: Al terminar cada punto de la lista y verificar que funci
 < 500 líneas: Código entero.
 500 - 1500 líneas: Código en partes (Máximo 3).
 > 1500 líneas: Cirugía quirúrgica con guía visual de contexto.
+
+4. Roadmap de Implementación (8 Fases)
+FASE 1: FUNDACIÓN (Semanas 1-4)
+
+Objetivo: Establecer la base multi-tenant con autenticación profesional
+Semana	Tareas	Entregables
+1	• Diseño de arquitectura de base de datos
+• Creación de tablas SQL
+• Script de migración de LocalStorage a SQL	• Esquema DB documentado
+• Datos migrados exitosamente
+2	• Implementación de API de base de datos
+• Sistema de conexiones y pooling
+• Capa de abstracción DB	• API DB funcional
+• Tests de integración
+3	• Login mejorado con email/contraseña
+• Registro de nuevos negocios (tenants)
+• Recuperación de contraseña	• Sistema de autenticación básico
+• Flujo de registro completo
+4	• Google OAuth
+• JWT tokens
+• Protección de rutas con tenant_id	• Login con Google
+• Sesiones seguras
+FASE 2: SEGURIDAD Y SUSCRIPCIONES (Semanas 5-8)
+
+Objetivo: Implementar seguridad avanzada y sistema de pagos
+Semana	Tareas	Entregables
+5	• Encriptación de datos (bcrypt)
+• Rate limiting por IP/tenant
+• Validación server-side	• Sistema de seguridad base
+• Prevención de ataques
+6	• Logs de auditoría
+• Anti-CSRF tokens
+• Headers de seguridad	• Trazabilidad completa
+• Cumplimiento OWASP
+7	• Diseño de planes (Freemium/Pro/Empresa)
+• Integración con Stripe
+• Webhooks de pagos	• Modelo de suscripción
+• Pagos funcionales
+8	• Portal de facturación
+• Límites por plan
+• Períodos de prueba	• Gestión de suscripciones
+• Enforce de límites
+FASE 3: PERSONALIZACIÓN Y UX (Semanas 9-11)
+
+Objetivo: Permitir personalización visual y mejorar experiencia
+Semana	Tareas	Entregables
+9	• Editor de temas (colores, tipografías)
+• Generación de CSS dinámico
+• Temas predefinidos	• Personalización visual básica
+10	• Vista previa en tiempo real
+• Logo y favicon personalizable
+• Reset/restaurar tema	• Editor completo
+11	• Mejoras de UX generales
+• Feedback visual de personalización
+• Guardado de preferencias	• Experiencia pulida
+FASE 4: DASHBOARD Y ANALÍTICAS (Semanas 12-14)
+
+Objetivo: Dashboards profesionales y reportes
+Semana	Tareas	Entregables
+12	• Dashboard mejorado con métricas real-time
+• Gráficos interactivos (Chart.js mejorado)
+• Comparativas	• Dashboard profesional
+13	• Reportes programados por email
+• Exportación PDF/Excel
+• Múltiples formatos	• Sistema de reporting
+14	• Forecast de ingresos
+• Análisis de clientes
+• Segmentación básica	• Analítica predictiva
+FASE 5: NOTIFICACIONES AVANZADAS (Semanas 15-16)
+
+Objetivo: Comunicación multicanal confiable
+Semana	Tareas	Entregables
+15	• Email transaccional (SendGrid)
+• Plantillas personalizables
+• Seguimiento de aperturas	• Emails profesionales
+16	• Integración con WhatsApp Business API
+• Mensajes programados
+• Centro de notificaciones	• Comunicación multicanal
+FASE 6: API Y WEBHOOKS (Semanas 17-19)
+
+Objetivo: Abrir el sistema a integraciones externas
+Semana	Tareas	Entregables
+17	• Diseño de API REST
+• Autenticación con API keys
+• Endpoints principales	• API base
+18	• Documentación Swagger
+• Rate limiting por API key
+• Versionado	• API documentada
+19	• Sistema de webhooks
+• Eventos configurables
+• Reintentos y logs	• Webhooks funcionales
+FASE 7: IMPORTACIÓN/EXPORTACIÓN (Semanas 20-21)
+
+Objetivo: Facilitar migración y backup
+Semana	Tareas	Entregables
+20	• Importación masiva desde CSV/Excel
+• Validación y reporte de errores
+• Mapeo de columnas	• Importador funcional
+21	• Exportación avanzada
+• Integración con Google Calendar
+• Sincronización bidireccional	• Exportador completo
+FASE 8: PWA Y OFFLINE (Semanas 22-24)
+
+Objetivo: Experiencia mobile-first offline
+Semana	Tareas	Entregables
+22	• Service Workers
+• Cache de assets
+• Funcionalidad offline básica	• PWA base
+23	• Instalable en móvil
+• Icono y splash screen
+• Notificaciones push	• PWA completa
+24	• Sincronización en segundo plano
+• Cola de acciones offline
+• Resolución de conflictos	• Offline-first funcional
+
+Opción C: Backend como Servicio (Mínima configuración)
+Servicio	Qué hace	URL
+Supabase	Postgres + Auth + APIs automáticas	https://supabase.com/
+contraseña: supabase fPZXFfmacRkESFmH
