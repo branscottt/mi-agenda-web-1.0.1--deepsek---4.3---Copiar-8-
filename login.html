@@ -47,7 +47,16 @@
                             <div class="role-badge admin-badge">Requiere contraseña</div>
                         </div>
                     </div>
-                    
+                    <!-- Tarjeta Super Admin (nueva) -->
+                    <div class="role-card" id="superadmin-role">
+                       <div class="role-icon">
+                          <i class="fas fa-crown"></i>
+                       </div>
+                       <h3>Acceso Super Admin</h3>
+                       <p>Gestión global de tenants y usuarios</p>
+                       <div class="role-badge superadmin-badge">Requiere contraseña especial</div>
+                    </div>
+
                     <!-- Formulario contraseña Admin -->
                     <div class="admin-login" id="admin-login-form">
                         <h3>Verificación de Administrador</h3>
@@ -60,7 +69,20 @@
                         </div>
                         <button class="btn-secondary" id="cancel-admin">Cancelar</button>
                     </div>
-                    
+
+                    <!-- Formulario Super Admin -->
+                    <div class="superadmin-login" id="superadmin-login-form" style="display:none;">
+                        <h3>Verificación de Super Administrador</h3>
+                        <div class="form-group">
+                            <div class="input-with-icon">
+                                <i class="fas fa-lock"></i>
+                                <input type="password" id="superadmin-password" placeholder="Contraseña: super123">
+                            </div>
+                            <button class="btn-grad" id="submit-superadmin">Acceder como Super Admin</button>
+                        </div>
+                        <button class="btn-secondary" id="cancel-superadmin">Cancelar</button>
+                    </div>
+
                     <!-- Token rápido -->
                     <div class="token-quick">
                         <div class="divider">
@@ -113,6 +135,7 @@
                     <ul>
                         <li><strong>Cliente:</strong> Click en tarjeta "Cliente"</li>
                         <li><strong>Admin:</strong> Contraseña: <code>admin123</code></li>
+                        <li><strong>Super Admin:</strong> Contraseña: <code>super123</code> (usuario: super@demo.com)</li>
                         <li><strong>Tokens:</strong> <code>CLIENT-2024</code> o <code>ADMIN-2024</code></li>
                     </ul>
                 </div>

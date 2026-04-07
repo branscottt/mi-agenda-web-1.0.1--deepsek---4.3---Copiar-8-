@@ -1195,14 +1195,17 @@ function inicializarFechasDashboard() {
 }
 
 // Sobrescribir iniciarAdmin
-const originalIniciarAdmin = window.iniciarAdmin;
-window.iniciarAdmin = async function() {
-    if (originalIniciarAdmin) await originalIniciarAdmin();
-    
-    inicializarFechasDashboard();
-    await actualizarDashboardFinanzas();
-    configurarDashboardEventos();
-};
+
+// Sobrescribir iniciarAdmin solo en admin.html (no en superadmin)
+if (document.querySelector('.admin-screen') && !document.querySelector('.superadmin-screen')) {
+    const originalIniciarAdmin = window.iniciarAdmin;
+    window.iniciarAdmin = async function() {
+        if (originalIniciarAdmin) await originalIniciarAdmin();
+        inicializarFechasDashboard();
+        await actualizarDashboardFinanzas();
+        configurarDashboardEventos();
+    };
+}
 
 window.actualizarDashboardFinanzas = actualizarDashboardFinanzas;
 window.exportarVentasCSV = exportarVentasCSV;
@@ -1609,7 +1612,7 @@ async function verificarProteccionRutas() {
         const session = await getSession();
         const pathname = (window.location.pathname || '').split('/').pop() || '';
 
-        console.log('Verificando ruta:', pathname, 'Sesión:', session ? '✅' : '❌');
+        console.log('Verificando ruta:', pathname, 'Sesión:', session ? '✅' : '❌', 'Rol:', session?.rol);
 
         // Si NO hay sesión
         if (!session) {
@@ -1623,7 +1626,7 @@ async function verificarProteccionRutas() {
 
         // Si HAY sesión
         if (session) {
-            // Si estamos en admin.html, verificar rol
+            // ========== ADMIN ==========
             if (pathname === 'admin.html') {
                 if (session.rol !== 'admin') {
                     console.log('No eres admin, redirigiendo a cliente');
@@ -1632,9 +1635,21 @@ async function verificarProteccionRutas() {
                 return;
             }
 
-            // Si estamos en login.html, redirigir según rol
+            // ========== SUPERADMIN (rol "super_admin") ==========
+            if (pathname === 'superadmin.html') {
+                if (session.rol !== 'super_admin') {
+                    console.log('No eres superadmin, redirigiendo a cliente');
+                    window.location.href = 'cliente.html';
+                }
+                return;
+            }
+
+            // ========== LOGIN / RAÍZ ==========
             if (pathname === 'login.html' || pathname === '') {
-                if (session.rol === 'admin') {
+                if (session.rol === 'super_admin') {
+                    console.log('Sesión activa como superadmin, redirigiendo a superadmin');
+                    window.location.href = 'superadmin.html';
+                } else if (session.rol === 'admin') {
                     console.log('Sesión activa como admin, redirigiendo a admin');
                     window.location.href = 'admin.html';
                 } else {
@@ -1795,15 +1810,14 @@ window.crearDatosEjemplo = crearDatosEjemplo;
 async function iniciarAdmin() {
     console.log('Iniciando admin...');
     
-    // Verificar que tenemos sesión de admin
     const session = await getSession();
-    if (!session || session.rol !== 'admin') {
-        console.log('No hay sesión de admin, redirigiendo...');
+    // Permitir admin o super_admin
+    if (!session || (session.rol !== 'admin' && session.rol !== 'super_admin')) {
+        console.log('No hay sesión de admin/superadmin, redirigiendo...');
         window.location.href = 'login.html';
         return;
     }
     
-    // VERIFICAR PERMISOS
     const permisosOK = await verificarPermisosAdmin();
     if (!permisosOK) {
         mostrarToast('⚠️ Problema de permisos. Revisa las políticas RLS en Supabase.', 'warning');
@@ -1824,13 +1838,245 @@ async function iniciarAdmin() {
     initCalendar();
     initModules();
     if (typeof generarNotificaciones === 'function') await generarNotificaciones();
-    
     if (typeof setupNotificacionesListeners === 'function') setupNotificacionesListeners();
     
-    console.log('Admin iniciado correctamente');
+    console.log('Admin/SuperAdmin iniciado correctamente');
+}
+window.iniciarAdmin = iniciarAdmin;
+
+// Alias para superadmin.html (evita modificar el HTML)
+// ============================================
+// FUNCIONES DE SUPER ADMIN (Panel de Tenants)
+// ============================================
+async function iniciarSuperAdmin() {
+    console.log('Iniciando Super Admin...');
+    
+    const session = await getSession();
+    if (!session || session.rol !== 'super_admin') {
+        console.log('No eres superadmin, redirigiendo...');
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    // Mostrar nombre del superadmin
+    const userNameSpan = document.getElementById('super-user-name');
+    if (userNameSpan) userNameSpan.textContent = session.nombre || 'Super Admin';
+    
+    // Cargar datos
+    await cargarTenants();
+    await cargarUsuarios();
+    
+    // Configurar modal
+    configurarModalTenant();
+    
+    // ========== NUEVO: Cerrar sesión ==========
+    const logoutBtn = document.getElementById('logout-super');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            cerrarSesion();
+        });
+    }
+    // ==========================================
+    
+    console.log('Super Admin iniciado correctamente');
 }
 
-window.iniciarAdmin = iniciarAdmin;
+
+
+// Cargar lista de tenants
+async function cargarTenants() {
+    const container = document.getElementById('tenants-list');
+    if (!container) return;
+    
+    const { data: tenants, error } = await supabaseClient
+        .from('tenants')
+        .select('*')
+        .order('fecha_registro', { ascending: false });
+    
+    if (error) {
+        console.error('Error cargando tenants:', error);
+        container.innerHTML = '<div class="empty-state">Error al cargar tenants</div>';
+        return;
+    }
+    
+    const totalTenants = document.getElementById('total-tenants');
+    if (totalTenants) totalTenants.textContent = tenants.length;
+    
+    if (tenants.length === 0) {
+        container.innerHTML = '<div class="empty-state">No hay tenants registrados</div>';
+        return;
+    }
+    
+    let html = '';
+    tenants.forEach(tenant => {
+        html += `
+            <div class="service-card-admin" data-tenant-id="${tenant.id}">
+                <div class="service-card-header">
+                    <div class="service-card-category">${tenant.plan || 'freemium'}</div>
+                    <div class="service-status ${tenant.estado === 'activo' ? 'active' : 'inactive'}">
+                        ${tenant.estado || 'activo'}
+                    </div>
+                </div>
+                <div class="service-card-body">
+                    <h4>${escapeHtml(tenant.nombre_negocio)}</h4>
+                    <p><i class="fas fa-envelope"></i> ${escapeHtml(tenant.email_contacto)}</p>
+                    <p><i class="fas fa-calendar-alt"></i> ${new Date(tenant.fecha_registro).toLocaleDateString()}</p>
+                    <div class="service-card-actions">
+                        <button class="btn-secondary btn-small editar-tenant" data-id="${tenant.id}">
+                            <i class="fas fa-edit"></i> Editar
+                        </button>
+                        <button class="btn-small danger eliminar-tenant" data-id="${tenant.id}">
+                            <i class="fas fa-trash"></i> Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // Eventos de editar/eliminar
+    document.querySelectorAll('.editar-tenant').forEach(btn => {
+        btn.addEventListener('click', () => editarTenant(btn.dataset.id));
+    });
+    document.querySelectorAll('.eliminar-tenant').forEach(btn => {
+        btn.addEventListener('click', () => eliminarTenant(btn.dataset.id));
+    });
+}
+
+// Cargar lista de usuarios (solo lectura)
+async function cargarUsuarios() {
+    const tbody = document.getElementById('users-tbody');
+    if (!tbody) return;
+    
+    // Nota: Para obtener usuarios de auth necesitas usar admin API o RPC.
+    // Como simplificación, usamos la tabla `tenants` y luego hacemos consulta a auth.users? No directamente.
+    // En su lugar, creamos una vista o RPC. Por ahora, mostraremos solo los tenants con info de contacto.
+    // Alternativa: usar el endpoint de admin (requiere service_role key, no recomendado en cliente).
+    // Para demo, mostraremos solo los tenants como "usuarios representativos".
+    
+    const { data: tenants, error } = await supabaseClient
+        .from('tenants')
+        .select('id, nombre_negocio, email_contacto, fecha_registro');
+    
+    if (error) {
+        tbody.innerHTML = '<tr><td colspan="5">Error cargando usuarios</td></tr>';
+        return;
+    }
+    
+    const totalUsers = document.getElementById('total-users');
+    if (totalUsers) totalUsers.textContent = tenants.length;
+    
+    if (tenants.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    tenants.forEach(t => {
+        html += `
+            <tr>
+                <td>${escapeHtml(t.email_contacto)}</td>
+                <td>${escapeHtml(t.nombre_negocio)}</td>
+                <td>admin</td>
+                <td>${t.id.substring(0, 8)}...</td>
+                <td>${new Date(t.fecha_registro).toLocaleDateString()}</td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+}
+
+// Configurar modal para crear/editar tenant
+function configurarModalTenant() {
+    const modal = document.getElementById('tenant-modal');
+    const closeBtn = document.querySelector('.modal-close');
+    const cancelBtn = document.getElementById('cancel-modal');
+    const form = document.getElementById('tenant-form');
+    const btnNew = document.getElementById('btn-new-tenant');
+    
+    if (!modal) return;
+    
+    const abrirModal = (titulo, tenant = null) => {
+        document.getElementById('modal-title').textContent = titulo;
+        document.getElementById('tenant-id').value = tenant?.id || '';
+        document.getElementById('tenant-nombre').value = tenant?.nombre_negocio || '';
+        document.getElementById('tenant-email').value = tenant?.email_contacto || '';
+        document.getElementById('tenant-plan').value = tenant?.plan || 'freemium';
+        document.getElementById('tenant-estado').value = tenant?.estado || 'activo';
+        modal.style.display = 'flex';
+    };
+    
+    const cerrarModal = () => {
+        modal.style.display = 'none';
+        form.reset();
+    };
+    
+    if (btnNew) btnNew.addEventListener('click', () => abrirModal('Nuevo Tenant'));
+    if (closeBtn) closeBtn.addEventListener('click', cerrarModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', cerrarModal);
+    
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('tenant-id').value;
+        const data = {
+            nombre_negocio: document.getElementById('tenant-nombre').value,
+            email_contacto: document.getElementById('tenant-email').value,
+            plan: document.getElementById('tenant-plan').value,
+            estado: document.getElementById('tenant-estado').value
+        };
+        
+        let result;
+        if (id) {
+            result = await supabaseClient.from('tenants').update(data).eq('id', id);
+        } else {
+            data.fecha_registro = new Date().toISOString();
+            result = await supabaseClient.from('tenants').insert(data);
+        }
+        
+        if (result.error) {
+            mostrarToast('Error: ' + result.error.message, 'error');
+        } else {
+            mostrarToast(id ? 'Tenant actualizado' : 'Tenant creado', 'success');
+            cerrarModal();
+            await cargarTenants();
+            await cargarUsuarios();
+        }
+    });
+}
+
+async function editarTenant(id) {
+    const { data, error } = await supabaseClient.from('tenants').select('*').eq('id', id).single();
+    if (error) {
+        mostrarToast('Error cargando tenant', 'error');
+        return;
+    }
+    configurarModalTenant(); // asegurar eventos
+    const modal = document.getElementById('tenant-modal');
+    if (modal) {
+        document.getElementById('modal-title').textContent = 'Editar Tenant';
+        document.getElementById('tenant-id').value = data.id;
+        document.getElementById('tenant-nombre').value = data.nombre_negocio;
+        document.getElementById('tenant-email').value = data.email_contacto;
+        document.getElementById('tenant-plan').value = data.plan;
+        document.getElementById('tenant-estado').value = data.estado;
+        modal.style.display = 'flex';
+    }
+}
+
+async function eliminarTenant(id) {
+    if (!confirm('¿Eliminar este tenant? Se perderán todos sus servicios y citas.')) return;
+    const { error } = await supabaseClient.from('tenants').delete().eq('id', id);
+    if (error) {
+        mostrarToast('Error: ' + error.message, 'error');
+    } else {
+        mostrarToast('Tenant eliminado', 'success');
+        await cargarTenants();
+        await cargarUsuarios();
+    }
+}
 
 function probarEventosBasicos() {
     const btnVolver = document.querySelector('.btn-back');
@@ -5302,88 +5548,16 @@ function iniciarLogin() {
     // ============================================
     const clientRoleCard = document.getElementById('client-role');
     if (clientRoleCard) {
-        console.log('✅ Tarjeta cliente encontrada');
-        
         clientRoleCard.addEventListener('click', async function(e) {
             e.preventDefault();
-            console.log('Acceso cliente clicked');
-            
             try {
-                // Intentar login con credenciales de demo
-                const email = 'cliente@demo.com';
-                const password = 'demo123';
-                
                 const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: email,
-                    password: password
+                    email: 'cliente@demo.com',
+                    password: 'demo123'
                 });
-                
-                if (error) {
-                    console.error('Error login cliente:', error);
-                    
-                    // Si no existe, lo creamos
-                    if (error.message.includes('Invalid login credentials')) {
-                        mostrarMensaje('Creando usuario cliente...', 'info');
-                        
-                        // Crear o obtener tenant
-                        let { data: tenants, error: tenantError } = await supabaseClient
-                            .from('tenants')
-                            .select('id')
-                            .eq('email_contacto', 'demo@agendapro.com')
-                            .limit(1);
-                            
-                        let tenantId = tenants?.[0]?.id;
-                        
-                        if (!tenantId) {
-                            const { data: newTenant, error: createError } = await supabaseClient
-                                .from('tenants')
-                                .insert({ 
-                                    nombre_negocio: 'Demo Business',
-                                    email_contacto: 'demo@agendapro.com',
-                                    plan: 'freemium'
-                                })
-                                .select()
-                                .single();
-                            
-                            if (createError && createError.code !== '23505') {
-                                console.error('Error creando tenant:', createError);
-                            }
-                            
-                            tenantId = newTenant?.id || '00000000-0000-0000-0000-000000000001';
-                        }
-                        
-                        // Crear usuario cliente
-                        const { error: signUpError } = await supabaseClient.auth.signUp({
-                            email: email,
-                            password: password,
-                            options: {
-                                data: {
-                                    nombre: 'Cliente Demo',
-                                    rol: 'cliente',
-                                    tenant_id: tenantId
-                                }
-                            }
-                        });
-                        
-                        if (signUpError) throw signUpError;
-                        
-                        // Login de nuevo
-                        const { data: retryData, error: retryError } = await supabaseClient.auth.signInWithPassword({
-                            email: email,
-                            password: password
-                        });
-                        
-                        if (retryError) throw retryError;
-                    } else {
-                        throw error;
-                    }
-                }
-                
+                if (error) throw error;
                 mostrarMensaje('Acceso como Cliente', 'success');
-                setTimeout(() => {
-                    window.location.href = 'cliente.html';
-                }, 800);
-                
+                setTimeout(() => { window.location.href = 'cliente.html'; }, 800);
             } catch (err) {
                 console.error('Error en acceso cliente:', err);
                 mostrarMensaje('Error al acceder: ' + err.message, 'error');
@@ -5392,7 +5566,7 @@ function iniciarLogin() {
     }
 
     // ============================================
-    // ACCESO ADMIN (botón con contraseña)
+    // ACCESO ADMIN (con contraseña)
     // ============================================
     const adminRoleCard = document.getElementById('admin-role');
     const adminLoginForm = document.getElementById('admin-login-form');
@@ -5401,9 +5575,6 @@ function iniciarLogin() {
     const adminPassword = document.getElementById('admin-password');
 
     if (adminRoleCard && adminLoginForm) {
-        console.log('✅ Tarjeta admin encontrada');
-        
-        // Mostrar formulario admin al hacer click
         adminRoleCard.addEventListener('click', function(e) {
             e.preventDefault();
             adminLoginForm.style.display = 'block';
@@ -5423,92 +5594,71 @@ function iniciarLogin() {
     if (submitAdmin) {
         submitAdmin.addEventListener('click', async function(e) {
             e.preventDefault();
-            
             const pwd = adminPassword?.value || '';
-            
-            // Verificar contraseña (puedes cambiarla)
             if (pwd !== 'admin123') {
                 mostrarMensaje('Contraseña incorrecta', 'error');
                 return;
             }
-            
             try {
-                const email = 'admin@demo.com';
-                const password = 'demo123';
-                
                 const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: email,
-                    password: password
+                    email: 'admin@demo.com',
+                    password: 'demo123'
                 });
-                
-                if (error) {
-                    console.error('Error login admin:', error);
-                    
-                    if (error.message.includes('Invalid login credentials')) {
-                        mostrarMensaje('Creando usuario admin...', 'info');
-                        
-                        // Crear o obtener tenant
-                        let { data: tenants, error: tenantError } = await supabaseClient
-                            .from('tenants')
-                            .select('id')
-                            .eq('email_contacto', 'demo@agendapro.com')
-                            .limit(1);
-                            
-                        let tenantId = tenants?.[0]?.id;
-                        
-                        if (!tenantId) {
-                            const { data: newTenant, error: createError } = await supabaseClient
-                                .from('tenants')
-                                .insert({ 
-                                    nombre_negocio: 'Demo Business',
-                                    email_contacto: 'demo@agendapro.com',
-                                    plan: 'freemium'
-                                })
-                                .select()
-                                .single();
-                            
-                            if (createError && createError.code !== '23505') {
-                                console.error('Error creando tenant:', createError);
-                            }
-                            
-                            tenantId = newTenant?.id || '00000000-0000-0000-0000-000000000001';
-                        }
-                        
-                        // Crear admin
-                        const { error: signUpError } = await supabaseClient.auth.signUp({
-                            email: email,
-                            password: password,
-                            options: {
-                                data: {
-                                    nombre: 'Administrador',
-                                    rol: 'admin',
-                                    tenant_id: tenantId
-                                }
-                            }
-                        });
-                        
-                        if (signUpError) throw signUpError;
-                        
-                        // Login de nuevo
-                        const { data: retryData, error: retryError } = await supabaseClient.auth.signInWithPassword({
-                            email: email,
-                            password: password
-                        });
-                        
-                        if (retryError) throw retryError;
-                    } else {
-                        throw error;
-                    }
-                }
-                
+                if (error) throw error;
                 mostrarMensaje('Acceso administrador', 'success');
-                setTimeout(() => {
-                    window.location.href = 'admin.html';
-                }, 800);
-                
+                setTimeout(() => { window.location.href = 'admin.html'; }, 800);
             } catch (err) {
                 console.error('Error admin login:', err);
                 mostrarMensaje('Error al acceder como admin: ' + err.message, 'error');
+            }
+        });
+    }
+
+    // ============================================
+    // ACCESO SUPER ADMIN (NUEVO)
+    // ============================================
+    const superadminRoleCard = document.getElementById('superadmin-role');
+    const superadminLoginForm = document.getElementById('superadmin-login-form');
+    const cancelSuperadmin = document.getElementById('cancel-superadmin');
+    const submitSuperadmin = document.getElementById('submit-superadmin');
+    const superadminPassword = document.getElementById('superadmin-password');
+
+    if (superadminRoleCard && superadminLoginForm) {
+        superadminRoleCard.addEventListener('click', function(e) {
+            e.preventDefault();
+            superadminLoginForm.style.display = 'block';
+            superadminRoleCard.style.opacity = '0.5';
+        });
+    }
+
+    if (cancelSuperadmin && superadminLoginForm) {
+        cancelSuperadmin.addEventListener('click', function(e) {
+            e.preventDefault();
+            superadminLoginForm.style.display = 'none';
+            if (superadminRoleCard) superadminRoleCard.style.opacity = '1';
+            if (superadminPassword) superadminPassword.value = '';
+        });
+    }
+
+    if (submitSuperadmin) {
+        submitSuperadmin.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const pwd = superadminPassword?.value || '';
+            if (pwd !== 'super123') {
+                mostrarMensaje('Contraseña de super administrador incorrecta', 'error');
+                return;
+            }
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: 'super@demo.com',
+                    password: 'demo123'
+                });
+                if (error) throw error;
+                mostrarMensaje('Acceso como Super Administrador', 'success');
+                setTimeout(() => { window.location.href = 'superadmin.html'; }, 800);
+            } catch (err) {
+                console.error(err);
+                mostrarMensaje('Error al acceder como super admin: ' + err.message, 'error');
             }
         });
     }
@@ -5520,97 +5670,28 @@ function iniciarLogin() {
     const tokenBtn = document.getElementById('submit-token');
     
     if (tokenBtn && tokenInput) {
-        console.log('✅ Token login encontrado');
-        
         tokenBtn.addEventListener('click', async function(e) {
             e.preventDefault();
             const raw = tokenInput.value.trim();
-            
             if (!raw) {
                 mostrarMensaje('Ingresa un token', 'warning');
                 return;
             }
-            
             const token = raw.toUpperCase();
             const isAdmin = token.includes('ADMIN');
-            
             try {
                 const email = isAdmin ? 'admin@demo.com' : 'cliente@demo.com';
                 const password = 'demo123';
-                
-                console.log('Token login - email:', email);
-                
                 const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
-                
-                if (error) {
-                    console.error('Token login error:', error);
-                    
-                    if (error.message.includes('Invalid login credentials')) {
-                        mostrarMensaje('Creando usuario...', 'info');
-                        
-                        // Crear tenant
-                        let { data: tenants } = await supabaseClient
-                            .from('tenants')
-                            .select('id')
-                            .eq('email_contacto', 'demo@agendapro.com')
-                            .limit(1);
-                            
-                        let tenantId = tenants?.[0]?.id;
-                        
-                        if (!tenantId) {
-                            const { data: newTenant } = await supabaseClient
-                                .from('tenants')
-                                .insert({ 
-                                    nombre_negocio: 'Demo Business',
-                                    email_contacto: 'demo@agendapro.com',
-                                    plan: 'freemium'
-                                })
-                                .select()
-                                .single();
-                            
-                            tenantId = newTenant?.id || '00000000-0000-0000-0000-000000000001';
-                        }
-                        
-                        // Crear usuario
-                        const { error: signUpError } = await supabaseClient.auth.signUp({
-                            email: email,
-                            password: password,
-                            options: {
-                                data: {
-                                    nombre: isAdmin ? 'Administrador' : 'Cliente Demo',
-                                    rol: isAdmin ? 'admin' : 'cliente',
-                                    tenant_id: tenantId
-                                }
-                            }
-                        });
-                        
-                        if (signUpError) throw signUpError;
-                        
-                        // Login de nuevo
-                        const { data: retryData, error: retryError } = await supabaseClient.auth.signInWithPassword({
-                            email: email,
-                            password: password
-                        });
-                        
-                        if (retryError) throw retryError;
-                    } else {
-                        throw error;
-                    }
-                }
-                
+                if (error) throw error;
                 mostrarMensaje(`Acceso como ${isAdmin ? 'admin' : 'cliente'}`, 'success');
-                
                 setTimeout(() => {
-                    if (isAdmin) {
-                        window.location.href = 'admin.html';
-                    } else {
-                        window.location.href = 'cliente.html';
-                    }
+                    if (isAdmin) window.location.href = 'admin.html';
+                    else window.location.href = 'cliente.html';
                 }, 800);
-                
             } catch (error) {
                 console.error('Error en token login:', error);
                 mostrarMensaje('Error al iniciar sesión: ' + error.message, 'error');
@@ -5623,11 +5704,8 @@ function iniciarLogin() {
     // ============================================
     const registerForm = document.getElementById('register-form');
     if (registerForm) {
-        console.log('✅ Formulario de registro encontrado');
-        
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
             const inputs = this.querySelectorAll('input');
             const nombre = inputs[0]?.value?.trim() || '';
             const email = inputs[1]?.value?.trim().toLowerCase() || '';
@@ -5638,14 +5716,12 @@ function iniciarLogin() {
                 mostrarMensaje('Completa todos los campos', 'warning'); 
                 return; 
             }
-            
             if (pass !== pass2) { 
                 mostrarMensaje('Las contraseñas no coinciden', 'error'); 
                 return; 
             }
 
             try {
-                // Crear tenant para el usuario
                 const { data: tenant, error: tenantError } = await supabaseClient
                     .from('tenants')
                     .insert({ 
@@ -5656,13 +5732,9 @@ function iniciarLogin() {
                     .select()
                     .single();
 
-                if (tenantError) {
-                    console.error('Error creando tenant:', tenantError);
-                    mostrarMensaje('Error al crear el negocio', 'error');
-                    return;
-                }
+                if (tenantError) throw tenantError;
 
-                const { data, error } = await supabaseClient.auth.signUp({
+                const { error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: pass,
                     options: {
@@ -5673,7 +5745,6 @@ function iniciarLogin() {
                         }
                     }
                 });
-                
                 if (error) throw error;
                 
                 mostrarMensaje(`Cuenta creada. Bienvenido ${nombre}`, 'success');
@@ -5686,7 +5757,6 @@ function iniciarLogin() {
     }
 }
 window.iniciarLogin = iniciarLogin;
-
 // ============================================
 // FUNCIÓN DE DIAGNÓSTICO
 // ============================================
