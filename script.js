@@ -1626,10 +1626,10 @@ async function verificarProteccionRutas() {
 
         // Si HAY sesión
         if (session) {
+           
             // ========== ADMIN ==========
             if (pathname === 'admin.html') {
                 if (session.rol !== 'admin') {
-                    console.log('No eres admin, redirigiendo a cliente');
                     window.location.href = 'cliente.html';
                 }
                 return;
@@ -1640,6 +1640,14 @@ async function verificarProteccionRutas() {
                 if (session.rol !== 'super_admin') {
                     console.log('No eres superadmin, redirigiendo a cliente');
                     window.location.href = 'cliente.html';
+                }
+                return;
+            }
+
+            // Si es super_admin, solo puede ver superadmin.html
+            if (session.rol === 'super_admin') {
+                if (pathname !== 'superadmin.html' && pathname !== 'login.html') {
+                    window.location.href = 'superadmin.html';
                 }
                 return;
             }
@@ -1884,120 +1892,99 @@ async function iniciarSuperAdmin() {
 
 
 
-// Cargar lista de tenants
 async function cargarTenants() {
+    const { data, error } = await supabaseClient.from('tenants').select('*').order('fecha_registro', { ascending: false });
+    if (error) throw error;
+    currentTenants = data;
+    renderTenants(data);
+}
+
+function renderTenants(tenants) {
     const container = document.getElementById('tenants-list');
     if (!container) return;
-    
-    const { data: tenants, error } = await supabaseClient
-        .from('tenants')
-        .select('*')
-        .order('fecha_registro', { ascending: false });
-    
-    if (error) {
-        console.error('Error cargando tenants:', error);
-        container.innerHTML = '<div class="empty-state">Error al cargar tenants</div>';
-        return;
-    }
-    
-    const totalTenants = document.getElementById('total-tenants');
-    if (totalTenants) totalTenants.textContent = tenants.length;
-    
-    if (tenants.length === 0) {
+    if (!tenants.length) {
         container.innerHTML = '<div class="empty-state">No hay tenants registrados</div>';
         return;
     }
-    
-    let html = '';
-    tenants.forEach(tenant => {
+    let html = '<div class="tenants-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;">';
+    tenants.forEach(t => {
         html += `
-            <div class="service-card-admin" data-tenant-id="${tenant.id}">
-                <div class="service-card-header">
-                    <div class="service-card-category">${tenant.plan || 'freemium'}</div>
-                    <div class="service-status ${tenant.estado === 'activo' ? 'active' : 'inactive'}">
-                        ${tenant.estado || 'activo'}
-                    </div>
+            <div class="tenant-card glass-panel" data-id="${t.id}" style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0 0 8px 0;">${escapeHtml(t.nombre_negocio)}</h4>
+                    <span class="role-badge-cliente" style="background:#ffd700; color:#000; padding:4px 8px; border-radius:20px;">${t.plan || 'freemium'}</span>
                 </div>
-                <div class="service-card-body">
-                    <h4>${escapeHtml(tenant.nombre_negocio)}</h4>
-                    <p><i class="fas fa-envelope"></i> ${escapeHtml(tenant.email_contacto)}</p>
-                    <p><i class="fas fa-calendar-alt"></i> ${new Date(tenant.fecha_registro).toLocaleDateString()}</p>
-                    <div class="service-card-actions">
-                        <button class="btn-secondary btn-small editar-tenant" data-id="${tenant.id}">
-                            <i class="fas fa-edit"></i> Editar
-                        </button>
-                        <button class="btn-small danger eliminar-tenant" data-id="${tenant.id}">
-                            <i class="fas fa-trash"></i> Eliminar
-                        </button>
-                    </div>
+                <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto)}</p>
+                <p><i class="fas fa-calendar"></i> ${new Date(t.fecha_registro).toLocaleDateString()}</p>
+                <div class="tenant-actions" style="margin-top:12px; display:flex; gap:8px;">
+                    <button class="btn-small" onclick="editarTenant('${t.id}')"><i class="fas fa-edit"></i> Editar</button>
+                    <button class="btn-small danger" onclick="eliminarTenant('${t.id}')"><i class="fas fa-trash"></i> Eliminar</button>
                 </div>
             </div>
         `;
     });
-    
+    html += '</div>';
     container.innerHTML = html;
-    
-    // Eventos de editar/eliminar
-    document.querySelectorAll('.editar-tenant').forEach(btn => {
-        btn.addEventListener('click', () => editarTenant(btn.dataset.id));
-    });
-    document.querySelectorAll('.eliminar-tenant').forEach(btn => {
-        btn.addEventListener('click', () => eliminarTenant(btn.dataset.id));
-    });
 }
 
 // Cargar lista de usuarios (solo lectura)
 async function cargarUsuarios() {
-    const tbody = document.getElementById('users-tbody');
-    if (!tbody) return;
-    
-    // Nota: Para obtener usuarios de auth necesitas usar admin API o RPC.
-    // Como simplificación, usamos la tabla `tenants` y luego hacemos consulta a auth.users? No directamente.
-    // En su lugar, creamos una vista o RPC. Por ahora, mostraremos solo los tenants con info de contacto.
-    // Alternativa: usar el endpoint de admin (requiere service_role key, no recomendado en cliente).
-    // Para demo, mostraremos solo los tenants como "usuarios representativos".
-    
-    const { data: tenants, error } = await supabaseClient
-        .from('tenants')
-        .select('id, nombre_negocio, email_contacto, fecha_registro');
-    
+    const { data, error } = await supabaseClient.from('usuarios_con_rol').select('*');
     if (error) {
-        tbody.innerHTML = '<tr><td colspan="5">Error cargando usuarios</td></tr>';
+        console.error(error);
+        document.getElementById('users-list-body').innerHTML = '<tr><td colspan="5">Error cargando usuarios. Asegúrate de tener la vista "usuarios_con_rol".</td></tr>';
         return;
     }
-    
-    const totalUsers = document.getElementById('total-users');
-    if (totalUsers) totalUsers.textContent = tenants.length;
-    
-    if (tenants.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados</td></tr>';
+    currentUsers = data;
+    renderUsuarios(data);
+}
+
+function renderUsuarios(users) {
+    const tbody = document.getElementById('users-list-body');
+    if (!tbody) return;
+    if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="5">No hay usuarios</td></tr>';
         return;
     }
-    
     let html = '';
-    tenants.forEach(t => {
-        html += `
-            <tr>
-                <td>${escapeHtml(t.email_contacto)}</td>
-                <td>${escapeHtml(t.nombre_negocio)}</td>
-                <td>admin</td>
-                <td>${t.id.substring(0, 8)}...</td>
-                <td>${new Date(t.fecha_registro).toLocaleDateString()}</td>
-            </tr>
-        `;
+    users.forEach(u => {
+        let rolClass = '';
+        if (u.rol === 'super_admin') rolClass = 'role-badge-super';
+        else if (u.rol === 'admin') rolClass = 'role-badge-admin';
+        else rolClass = 'role-badge-cliente';
+        
+        html += `<tr>
+            <td>${escapeHtml(u.email)}</td>
+            <td>${escapeHtml(u.nombre || '-')}</td>
+            <td><span class="${rolClass}">${escapeHtml(u.rol)}</span></td>
+            <td>${escapeHtml(u.tenant_id || '-')}</td>
+            <td>
+                <select onchange="cambiarRol('${u.id}', this.value)" class="filter-select" style="padding:4px;">
+                    <option value="cliente" ${u.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
+                    <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Admin</option>
+                    <option value="super_admin" ${u.rol === 'super_admin' ? 'selected' : ''}>Super Admin</option>
+                </select>
+                ${u.rol !== 'super_admin' ? `<button class="btn-small danger" style="margin-left:8px;" onclick="eliminarUsuario('${u.id}')"><i class="fas fa-trash"></i></button>` : ''}
+            </td>
+        </tr>`;
     });
     tbody.innerHTML = html;
 }
 
 // Configurar modal para crear/editar tenant
+let modalTenantInitialized = false;
+
 function configurarModalTenant() {
+    if (modalTenantInitialized) return;
+    modalTenantInitialized = true;
+    
     const modal = document.getElementById('tenant-modal');
     const closeBtn = document.querySelector('.modal-close');
     const cancelBtn = document.getElementById('cancel-modal');
     const form = document.getElementById('tenant-form');
     const btnNew = document.getElementById('btn-new-tenant');
     
-    if (!modal) return;
+    if (!modal || !form) return;
     
     const abrirModal = (titulo, tenant = null) => {
         document.getElementById('modal-title').textContent = titulo;
@@ -2043,6 +2030,7 @@ function configurarModalTenant() {
             cerrarModal();
             await cargarTenants();
             await cargarUsuarios();
+            await cargarEstadisticasGlobales();
         }
     });
 }
@@ -2053,7 +2041,7 @@ async function editarTenant(id) {
         mostrarToast('Error cargando tenant', 'error');
         return;
     }
-    configurarModalTenant(); // asegurar eventos
+    // asegurar eventos
     const modal = document.getElementById('tenant-modal');
     if (modal) {
         document.getElementById('modal-title').textContent = 'Editar Tenant';
@@ -5494,10 +5482,22 @@ document.addEventListener('DOMContentLoaded', async function () {
     await verificarProteccionRutas();
     popupEl = document.getElementById('popup-reserva');
 
-    if (document.querySelector('.admin-screen')) {
+    // ========== NUEVA LÓGICA: diferenciar superadmin ==========
+    const esSuperAdmin = document.querySelector('.superadmin-screen');
+    const esAdminNormal = document.querySelector('.admin-screen') && !esSuperAdmin;
+    const esCliente = document.querySelector('.client-screen');
+
+    if (esSuperAdmin) {
+        // Solo ejecutar iniciarSuperAdmin (ya lo hace el script en superadmin.html)
+        // No ejecutar iniciarAdmin
+        if (typeof iniciarSuperAdmin === 'function') {
+            // La llamada ya existe en el HTML, no la duplicamos
+            // Pero nos aseguramos de que no se llame dos veces
+        }
+    } else if (esAdminNormal) {
         await iniciarAdmin();
         if (typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
-    } else if (document.querySelector('.client-screen')) {
+    } else if (esCliente) {
         await iniciarCliente();
         if (typeof renderMisReservas === 'function') renderMisReservas();
         if (typeof renderCarrito === 'function') renderCarrito();
@@ -5810,54 +5810,391 @@ async function diagnosticarSistema() {
 // Exponer globalmente
 window.diagnosticarSistema = diagnosticarSistema;
 
-// ============================================
-// FUNCIÓN DE DIAGNÓSTICO
-// ============================================
-async function diagnosticarSistema() {
-    console.log('🔍 DIAGNÓSTICO DEL SISTEMA');
-    console.log('==========================');
+
+
+// ========== EXTENSIÓN SUPER ADMIN (TABS, ESTADÍSTICAS GLOBALES, SERVICIOS Y CITAS) ==========
+// Estas funciones complementan las existentes (iniciarSuperAdmin, cargarTenants, etc.)
+// No duplican nombres, solo añaden nuevas capacidades.
+
+// --- Variables globales adicionales ---
+let currentSuperTab = 'tenants';
+
+// --- Sobrescribimos iniciarSuperAdmin para incluir nuevas inicializaciones ---
+// (Guardamos la función original si existe)
+const _originalIniciarSuperAdmin = window.iniciarSuperAdmin;
+window.iniciarSuperAdmin = async function() {
+    // Llamar a la función original si existe (para mantener compatibilidad)
+    if (typeof _originalIniciarSuperAdmin === 'function') {
+        await _originalIniciarSuperAdmin();
+    }
+    
+    // Configurar tabs
+    setupSuperAdminTabs();
+    
+    // Cargar estadísticas globales
+    await cargarEstadisticasGlobales();
+    
+    // Event listeners para botones de refresco
+    document.getElementById('btn-refresh-users')?.addEventListener('click', () => cargarUsuariosSuper());
+    document.getElementById('btn-refresh-servicios')?.addEventListener('click', cargarServiciosGlobales);
+    document.getElementById('btn-refresh-citas')?.addEventListener('click', cargarCitasGlobales);
+    
+    // Cargar datos iniciales de los tabs adicionales (se cargan bajo demanda al cambiar de pestaña)
+    // Para evitar múltiples cargas, usaremos flags.
+    window._serviciosCargados = false;
+    window._citasCargadas = false;
+};
+
+// --- Configuración de Tabs ---
+function setupSuperAdminTabs() {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', async () => {
+            const targetId = tab.dataset.tab;
+            
+            // Cambiar clase activa
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Mostrar contenido correspondiente
+            contents.forEach(c => c.style.display = 'none');
+            document.getElementById(`tab-${targetId}`).style.display = 'block';
+            
+            // Cargar datos bajo demanda
+            if (targetId === 'usuarios') {
+                await cargarUsuariosSuper();
+            } else if (targetId === 'servicios' && !window._serviciosCargados) {
+                await cargarServiciosGlobales();
+                window._serviciosCargados = true;
+            } else if (targetId === 'citas' && !window._citasCargadas) {
+                await cargarCitasGlobales();
+                window._citasCargadas = true;
+            }
+        });
+    });
+}
+
+// --- Estadísticas globales ---
+async function cargarEstadisticasGlobales() {
+    try {
+        // Tenants
+        const { count: tenantsCount } = await supabaseClient.from('tenants').select('*', { count: 'exact', head: true });
+        document.getElementById('total-tenants').innerText = tenantsCount || 0;
+        
+        // Servicios globales
+        const { count: serviciosCount } = await supabaseClient.from('servicios').select('*', { count: 'exact', head: true });
+        document.getElementById('total-servicios').innerText = serviciosCount || 0;
+        
+        // Citas globales
+        const { count: citasCount } = await supabaseClient.from('citas').select('*', { count: 'exact', head: true });
+        document.getElementById('total-citas').innerText = citasCount || 0;
+        
+        // Usuarios (si tienes una tabla 'usuarios' o vista 'usuarios_con_rol')
+        const { count: usersCount } = await supabaseClient.from('usuarios_con_rol').select('*', { count: 'exact', head: true });
+        document.getElementById('total-usuarios').innerText = usersCount || 0;
+    } catch (e) {
+        console.error('Error en estadísticas globales:', e);
+    }
+}
+
+// --- Usuarios con acciones (reemplaza la tabla simple) ---
+async function cargarUsuariosSuper() {
+    const tbody = document.getElementById('users-list-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '<tr><td colspan="5">Cargando...</td></tr>';
     
     try {
-        // 1. Verificar sesión
-        const session = await getSession();
-        console.log('📌 Sesión actual:', session);
+        // Usamos la vista usuarios_con_rol en lugar de tabla 'usuarios'
+        const { data: users, error } = await supabaseClient
+            .from('usuarios_con_rol')
+            .select('*')
+            .order('created_at', { ascending: false });
         
-        if (!session) {
-            console.log('❌ No hay sesión activa');
+        if (error) throw error;
+        
+        if (!users || users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados</td></tr>';
             return;
         }
         
-        // 2. Verificar tenant en BD
-        const cleanTenantId = String(session.tenant_id).trim();
-        console.log('🏢 Buscando tenant:', cleanTenantId);
-        
-        const { data: tenant, error: tenantError } = await supabaseClient
-            .from('tenants')
-            .select('*')
-            .eq('id', cleanTenantId)
-            .maybeSingle();
+        let html = '';
+        users.forEach(user => {
+            let rolBadge = '';
+            if (user.rol === 'super_admin') rolBadge = '<span class="role-badge-super">Super Admin</span>';
+            else if (user.rol === 'admin') rolBadge = '<span class="role-badge-admin">Admin</span>';
+            else rolBadge = '<span class="role-badge-cliente">Cliente</span>';
             
-        if (tenantError) {
-            console.error('❌ Error verificando tenant:', tenantError);
-        } else if (tenant) {
-            console.log('✅ Tenant encontrado:', tenant);
-        } else {
-            console.log('❌ Tenant NO encontrado en BD');
+            html += `<tr>
+                <td>${escapeHtml(user.email)}</td>
+                <td>${escapeHtml(user.nombre || '-')}</td>
+                <td>${rolBadge}</td>
+                <td>${escapeHtml(user.tenant_id || 'N/A')}</td>
+                <td class="action-icons">
+                    ${user.rol !== 'super_admin' ? `
+                        <select onchange="cambiarRol('${user.id}', this.value)" class="filter-select" style="padding:4px; width:100px;">
+                            <option value="cliente" ${user.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
+                            <option value="admin" ${user.rol === 'admin' ? 'selected' : ''}>Admin</option>
+                            <option value="super_admin" ${user.rol === 'super_admin' ? 'selected' : ''}>Super Admin</option>
+                        </select>
+                        <button class="btn-small danger" style="margin-left:8px;" onclick="eliminarUsuario('${user.id}')"><i class="fas fa-trash"></i></button>
+                    ` : '<span>—</span>'}
+                </td>
+            </tr>`;
+        });
+        
+        tbody.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error cargando usuarios:', error);
+        tbody.innerHTML = '<tr><td colspan="5">Error al cargar usuarios</td></tr>';
+    }
+}
+
+async function cambiarRolUsuario(userId, currentRole) {
+    const nuevoRol = currentRole === 'admin' ? 'estilista' : 'admin';
+    if (!confirm(`¿Cambiar rol de ${currentRole} a ${nuevoRol}?`)) return;
+    
+    try {
+        const { error } = await supabase
+            .from('usuarios')
+            .update({ rol: nuevoRol })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        alert('Rol actualizado correctamente');
+        await cargarUsuariosSuper();
+    } catch (error) {
+        console.error('Error cambiando rol:', error);
+        alert('Error al cambiar el rol');
+    }
+}
+window.cambiarRol = async (userId, nuevoRol) => {
+    // Asumiendo que tienes una tabla 'usuarios' o vista actualizable
+    const { error } = await supabaseClient.from('usuarios_con_rol').update({ rol: nuevoRol }).eq('id', userId);
+    if (error) {
+        mostrarToast('Error al cambiar rol: ' + error.message, 'error');
+    } else {
+        mostrarToast(`Rol cambiado a ${nuevoRol}`, 'success');
+        cargarUsuarios();
+    }
+};
+
+async function eliminarUsuario(userId) {
+    if (!confirm('¿Eliminar este usuario? Esta acción no se puede deshacer.')) return;
+    
+    try {
+        const { error } = await supabase
+            .from('usuarios')
+            .delete()
+            .eq('id', userId);
+        
+        if (error) throw error;
+        alert('Usuario eliminado');
+        await cargarUsuariosSuper();
+        await cargarEstadisticasGlobales(); // actualizar contador
+    } catch (error) {
+        console.error('Error eliminando usuario:', error);
+        alert('Error al eliminar usuario');
+    }
+}
+window.eliminarUsuario = async (userId) => {
+    if (!confirm('¿Eliminar este usuario permanentemente?')) return;
+    // Opción 1: si usas auth.admin (requiere service_role key)
+    // const { error } = await supabaseClient.auth.admin.deleteUser(userId);
+    // Opción 2: si tienes una tabla 'usuarios' que puedes eliminar directamente
+    const { error } = await supabaseClient.from('usuarios_con_rol').delete().eq('id', userId);
+    if (error) {
+        mostrarToast('Error al eliminar usuario: ' + error.message, 'error');
+    } else {
+        mostrarToast('Usuario eliminado', 'success');
+        cargarUsuarios();
+        cargarEstadisticasGlobales();
+    }
+};
+// --- Servicios globales (solo lectura) ---
+async function cargarServiciosGlobales() {
+    const container = document.getElementById('servicios-global-list');
+    if (!container) return;
+    
+    container.innerHTML = '<p>Cargando servicios...</p>';
+    
+    try {
+        const { data: servicios, error } = await supabaseClient
+            .from('servicios')
+            .select(`
+                *,
+                tenants (nombre_negocio)
+            `)
+            .order('nombre');
+        
+        if (error) throw error;
+        
+        if (!servicios || servicios.length === 0) {
+            container.innerHTML = '<p>No hay servicios registrados</p>';
+            return;
         }
         
-        // 3. Verificar servicios
-        const servicios = await ServiciosManager.getAll();
-        console.log(`📦 Servicios encontrados: ${servicios.length}`);
+        let html = '<div class="services-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:15px;">';
+        servicios.forEach(s => {
+            html += `
+                <div class="service-card glass-panel" style="padding:15px;">
+                    <h4>${escapeHtml(s.nombre)}</h4>
+                    <p><i class="fas fa-building"></i> ${escapeHtml(s.tenants?.nombre_negocio || 'Desconocido')}</p>
+                    <p><i class="fas fa-clock"></i> ${s.duracion || '?'} min</p>
+                    <p><i class="fas fa-dollar-sign"></i> ${formatearPeso(s.precio)}</p>
+                </div>
+            `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
         
-        // 4. Verificar citas
-        const citas = await CitasManager.getAll();
-        console.log(`📅 Citas encontradas: ${citas.length}`);
-        
-        console.log('✅ Diagnóstico completado');
-        
-    } catch (e) {
-        console.error('Error en diagnóstico:', e);
+    } catch (error) {
+        console.error('Error cargando servicios globales:', error);
+        container.innerHTML = '<p>Error al cargar servicios</p>';
     }
+}
+
+// --- Citas globales (solo lectura) ---
+async function cargarCitasGlobales() {
+    const tbody = document.getElementById('citas-global-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '<tr><td colspan="6">Cargando citas...</td></tr>';
+    
+    try {
+        const { data: citas, error } = await supabaseClient
+            .from('citas')
+            .select(`
+                id,
+                fecha,
+                hora,
+                tenant_id,
+                contacto,
+                servicios (nombre),
+                tenants (nombre_negocio)
+            `)
+            .order('fecha', { ascending: false })
+            .limit(100);
+        
+        if (error) throw error;
+        
+        if (!citas || citas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6">No hay citas registradas</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        citas.forEach(c => {
+            const tenantNombre = c.tenants?.nombre_negocio || 'N/A';
+            const servicioNombre = c.servicios?.nombre || 'N/A';
+            const clienteNombre = c.contacto?.nombre || 'Anónimo';
+            html += `<tr>
+                <td>${c.id?.slice(0,8)}</td>
+                <td>${escapeHtml(tenantNombre)}</td>
+                <td>${escapeHtml(servicioNombre)}</td>
+                <td>${escapeHtml(clienteNombre)}</td>
+                <td>${c.fecha || ''}</td>
+                <td>${c.hora || ''}</td>
+            </tr>`;
+        });
+        
+        tbody.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error cargando citas globales:', error);
+        tbody.innerHTML = '<tr><td colspan="6">Error al cargar citas</td></tr>';
+    }
+}
+
+// --- Sobrescribir cargarTenants para usar el nuevo contenedor grid ---
+const _originalCargarTenants = window.cargarTenants;
+window.cargarTenants = async function() {
+    // Si existe función original, la ejecutamos primero
+    if (typeof _originalCargarTenants === 'function') {
+        await _originalCargarTenants();
+    }
+    
+    // Ahora cargamos en el nuevo contenedor 'tenants-list' (grid)
+    const container = document.getElementById('tenants-list');
+    if (!container) return;
+    
+    try {
+        const { data: tenants, error } = await supabaseClient
+            .from('tenants')
+            .select('*')
+            .order('fecha_registro', { ascending: false });  // ← CORREGIDO: fecha_registro
+        
+        if (error) throw error;
+        
+        if (!tenants || tenants.length === 0) {
+            container.innerHTML = '<p>No hay tenants registrados</p>';
+            return;
+        }
+        
+        let html = '';
+        tenants.forEach(t => {
+            html += `
+                <div class="tenant-card glass-panel" style="padding:20px;">
+                    <div class="tenant-header">
+                        <h4>${escapeHtml(t.nombre_negocio)}</h4>   <!-- ← CORREGIDO: nombre_negocio -->
+                        <span class="badge ${t.plan}">${t.plan}</span>
+                    </div>
+                    <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
+                    <p><i class="fas fa-circle"></i> Estado: ${t.estado || 'activo'}</p>
+                    <div class="tenant-actions" style="margin-top:15px;">
+                        <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
+                        <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+        // Adjuntar eventos a los íconos
+        document.querySelectorAll('.edit-tenant').forEach(icon => {
+            icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
+        });
+        document.querySelectorAll('.delete-tenant').forEach(icon => {
+            icon.addEventListener('click', () => eliminarTenant(icon.dataset.id));
+        });
+        
+    } catch (error) {
+        console.error('Error en cargarTenants extendido:', error);
+    }
+};
+
+// Función auxiliar para abrir modal con datos del tenant (si no existe)
+async function abrirModalEditarTenant(tenantId) {
+    // Asumiendo que ya tienes una función que maneja el modal, aquí solo un ejemplo:
+    try {
+        const { data: tenant } = await supabaseClient
+            .from('tenants')
+            .select('*')
+            .eq('id', tenantId)
+            .single();
+        
+        if (tenant) {
+            document.getElementById('tenant-id').value = tenant.id;
+            document.getElementById('tenant-nombre').value = tenant.nombre;
+            document.getElementById('tenant-email').value = tenant.email_contacto || '';
+            document.getElementById('tenant-plan').value = tenant.plan || 'freemium';
+            document.getElementById('tenant-estado').value = tenant.estado || 'activo';
+            document.getElementById('modal-title').textContent = 'Editar Tenant';
+            document.getElementById('tenant-modal').style.display = 'flex';
+        }
+    } catch (error) {
+        console.error('Error abriendo modal:', error);
+    }
+}
+
+// --- Inicialización segura ---
+// Si la variable supabase no está definida globalmente, la declaramos (ya debería estarlo en script.js)
+if (typeof supabase === 'undefined') {
+    console.warn('supabase no definido. Asegúrate de inicializar el cliente en script.js');
 }
 
 // Exponer globalmente
