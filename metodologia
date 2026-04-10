@@ -160,3 +160,42 @@ Opción C: Backend como Servicio (Mínima configuración)
 Servicio	Qué hace	URL
 Supabase	Postgres + Auth + APIs automáticas	https://supabase.com/
 contraseña: supabase fPZXFfmacRkESFmH
+
+1
+(-)1.1. Crear rol super-admin en auth.users (en user_metadata).
+()1.2. Crear página super-admin.html (protegida solo para tu email).
+()1.3. Mostrar tabla de todos los tenants con su info (plan, fecha registro).
+()1.4. Permitir ver el dashboard financiero global (ingresos de todas las suscripciones).
+
+2
+()2.1. SQL: Crear tabla subscriptions (id, tenant_id, plan (text), status ('active', 'inactive', 'trial'), start_date, end_date, stripe_session_id).
+()2.2. Backend (JS): Crear SuscripcionManager en JS para interactuar con esta tabla.
+()2.3. Frontend: Crear página planes.html con 3 tarjetas de precios (Freemium, Pro, Premium).
+()2.4. Integración: Integrar pasarela de pago (Stripe es el estándar). Esto requiere un backend pequeño (Edge Function de Supabase) para crear sesiones de pago seguras.
+()2.5. Webhook: Configurar un webhook en Stripe que, cuando el pago sea exitoso, llame a una Edge Function para activar la suscripción en tu BD (cambiar status a 'active').
+()2.6. Lógica de negocio: Modificar getCurrentTenantId() (o una función nueva) para que también verifique si la suscripción del tenant está activa. Si no lo está, limitar funcionalidades (ej. no puede crear más de X servicios).
+
+3
+()3.1. SQL: Crear tabla tenant_config (tenant_id PK, primary_color text, secondary_color text, logo_url text, custom_css text).
+()3.2. Backend (JS): Crear ConfigManager en JS para leer y guardar esta configuración.
+()3.3. Frontend (Admin): Crear una nueva pestaña en admin.html llamada "Personalizar".
+()3.4. Agregar un selector de color para primario/secundario y un campo para subir logo (a Supabase Storage).
+()3.5. Agregar un área de texto para que peguen CSS personalizado (¡con advertencias de seguridad!).
+()3.6. Frontend (Cliente): En cliente.html, leer la tenant_config al inicio y aplicar las variables CSS en línea (<style>) o inyectando el CSS.
+
+4
+()4.1. Supabase: Habilitar el proveedor "Google" en el panel de autenticación de Supabase.
+()4.2. HTML/JS: Modificar login.html para agregar un botón "Iniciar sesión con Google".
+()4.3. JS: Usar supabaseClient.auth.signInWithOAuth({ provider: 'google' }).
+()4.4. Redirección: Configurar en Supabase las URLs de redirección (a cliente.html o admin.html).
+()4.5. Post-Login: En la página de destino, verificar si es un usuario nuevo. Si es nuevo, crear un tenant por defecto para él y asociarlo.
+
+5
+()5.1. En super-admin.html, crear sección de "Métricas Globales".
+()5.2. JS (Super-Admin): Crear función que consulte la tabla subscriptions y cuente cuántos 'active' hay por plan, y calcule el ingreso mensual recurrente (MRR).
+()5.3. Mostrar gráfico de crecimiento de tenants.
+
+6
+()6.1. En admin.html, crear sección "Mi Suscripción".
+()6.2. Mostrar el plan actual, fecha de renovación y un botón para "Cancelar Suscripción".
+()6.3. Botón para "Actualizar método de pago" que redirija a un portal de Stripe (Customer Portal).
