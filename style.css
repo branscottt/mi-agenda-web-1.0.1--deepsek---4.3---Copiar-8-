@@ -5536,3 +5536,88 @@ body {
     color: #ffd700;
     text-shadow: 0 0 10px #ffd700;
 }
+
+/* Tabla de tenants (superadmin) */
+.tenants-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(30, 30, 40, 0.6);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 20px;
+}
+.tenants-table th,
+.tenants-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.tenants-table th {
+    background: rgba(179, 0, 255, 0.2);
+    color: #b300ff;
+    font-weight: 600;
+}
+.tenants-table tr:hover {
+    background: rgba(179, 0, 255, 0.05);
+}
+.tenants-table .tenant-actions {
+    display: flex;
+    gap: 8px;
+}
+.tenants-table .tenant-actions button {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+}
+
+/* Badges para planes */
+.badge.freemium {
+    background: rgba(0, 184, 148, 0.2);
+    color: #00b894;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+}
+.badge.premium {
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+}
+.badge.enterprise {
+    background: rgba(179, 0, 255, 0.2);
+    color: #b300ff;
+}
+/* Responsive: scroll horizontal en móvil */
+@media (max-width: 768px) {
+    .tenants-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+
+#subscription-modal .modal-content {
+    max-width: 500px;
+}
+
+.subscription-info {
+    background: linear-gradient(145deg, rgba(20,15,30,0.8), rgba(30,20,40,0.9));
+    border-left: 4px solid #b300ff;
+}
+.subscription-info .flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+.status-badge.active {
+    color: #00b894;
+    background: rgba(0,184,148,0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+.status-badge.inactive {
+    color: #e74c3c;
+}
+.status-badge.trial {
+    color: #fdcb6e;
+}

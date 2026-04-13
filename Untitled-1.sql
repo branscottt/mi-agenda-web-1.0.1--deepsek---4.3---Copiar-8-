@@ -218,3 +218,86 @@ SELECT
     last_sign_in_at
 FROM auth.users
 WHERE raw_user_meta_data->>'rol' IS NOT NULL;
+
+-- Crear tabla subscriptions
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    plan TEXT NOT NULL CHECK (plan IN ('freemium', 'premium', 'enterprise')),
+    status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'trial')),
+    start_date TIMESTAMPTZ NOT NULL DEFAULT now(),
+    end_date TIMESTAMPTZ,
+    stripe_session_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Índices (corregido con IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_id ON public.subscriptions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON public.subscriptions(status);
+
+-- Trigger para actualizar updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Evita error si el trigger ya existe
+DROP TRIGGER IF EXISTS update_subscriptions_updated_at ON public.subscriptions;
+CREATE TRIGGER update_subscriptions_updated_at
+    BEFORE UPDATE ON public.subscriptions
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Políticas RLS
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- Eliminar políticas existentes para evitar duplicados
+DROP POLICY IF EXISTS "Super admin todo en subscriptions" ON public.subscriptions;
+DROP POLICY IF EXISTS "Admin ve sus suscripciones" ON public.subscriptions;
+
+-- Super admin: todo
+CREATE POLICY "Super admin todo en subscriptions" ON public.subscriptions
+    FOR ALL TO authenticated
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
+
+-- Admin (tenant) solo lectura de sus propias suscripciones
+CREATE POLICY "Admin ve sus suscripciones" ON public.subscriptions
+    FOR SELECT TO authenticated
+    USING (tenant_id = public.get_user_tenant_id() AND (auth.jwt() ->> 'user_metadata')::jsonb ->> 'rol' = 'admin');
+
+    -- =====================================================
+-- FIX: Trigger para suscripción automática + suscripción del tenant demo existente
+-- =====================================================
+
+-- 1. Asegurar que la función existe (idempotente)
+CREATE OR REPLACE FUNCTION public.create_initial_subscription()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.subscriptions (tenant_id, plan, status, start_date)
+    VALUES (NEW.id, COALESCE(NEW.plan, 'freemium'), 'active', now());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Eliminar trigger si ya existe y volver a crearlo
+DROP TRIGGER IF EXISTS trg_create_subscription_on_tenant ON public.tenants;
+CREATE TRIGGER trg_create_subscription_on_tenant
+    AFTER INSERT ON public.tenants
+    FOR EACH ROW
+    EXECUTE FUNCTION public.create_initial_subscription();
+
+-- 3. Insertar suscripción para el tenant demo si aún no la tiene
+INSERT INTO public.subscriptions (tenant_id, plan, status, start_date)
+SELECT 'd7741079-3f87-4ce7-872c-8b1d4d90e8da', 'freemium', 'active', now()
+WHERE NOT EXISTS (
+    SELECT 1 FROM public.subscriptions 
+    WHERE tenant_id = 'd7741079-3f87-4ce7-872c-8b1d4d90e8da'
+);
+
+-- 4. Verificar (opcional, muestra resultado)
+SELECT * FROM public.subscriptions WHERE tenant_id = 'd7741079-3f87-4ce7-872c-8b1d4d90e8da';

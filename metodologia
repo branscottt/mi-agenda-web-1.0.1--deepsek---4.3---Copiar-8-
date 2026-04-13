@@ -163,12 +163,12 @@ contraseña: supabase fPZXFfmacRkESFmH
 
 1
 (-)1.1. Crear rol super-admin en auth.users (en user_metadata).
-()1.2. Crear página super-admin.html (protegida solo para tu email).
-()1.3. Mostrar tabla de todos los tenants con su info (plan, fecha registro).
-()1.4. Permitir ver el dashboard financiero global (ingresos de todas las suscripciones).
+(-)1.2. Crear página super-admin.html (protegida solo para tu email).
+(-)1.3. Mostrar tabla de todos los tenants con su info (plan, fecha registro).
+
 
 2
-()2.1. SQL: Crear tabla subscriptions (id, tenant_id, plan (text), status ('active', 'inactive', 'trial'), start_date, end_date, stripe_session_id).
+(-)2.1. SQL: Crear tabla subscriptions (id, tenant_id, plan (text), status ('active', 'inactive', 'trial'), start_date, end_date, stripe_session_id).
 ()2.2. Backend (JS): Crear SuscripcionManager en JS para interactuar con esta tabla.
 ()2.3. Frontend: Crear página planes.html con 3 tarjetas de precios (Freemium, Pro, Premium).
 ()2.4. Integración: Integrar pasarela de pago (Stripe es el estándar). Esto requiere un backend pequeño (Edge Function de Supabase) para crear sesiones de pago seguras.

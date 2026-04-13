@@ -98,6 +98,37 @@ async function verificarPermisosAdmin() {
         return false;
     }
 }
+
+async function cargarSuscripcionTenant() {
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return;
+    const { data, error } = await supabaseClient
+        .from('subscriptions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'active')
+        .order('start_date', { ascending: false })
+        .limit(1);
+    if (error) {
+        console.error('Error cargando suscripción tenant:', error);
+        return;
+    }
+    const container = document.getElementById('tenant-subscription-info');
+    if (!container) return;
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="glass-panel" style="padding:15px;"><i class="fas fa-exclamation-triangle"></i> No hay suscripción activa. Contacta al administrador.</div>';
+        return;
+    }
+    const sub = data[0];
+    document.getElementById('sub-plan-display').textContent = sub.plan.toUpperCase();
+    const start = new Date(sub.start_date).toLocaleDateString();
+    const end = sub.end_date ? new Date(sub.end_date).toLocaleDateString() : 'Indefinido';
+    document.getElementById('sub-dates-display').textContent = `${start} → ${end}`;
+    const statusSpan = document.getElementById('sub-status-display');
+    statusSpan.textContent = sub.status.toUpperCase();
+    statusSpan.className = `status-badge ${sub.status}`;
+}
+
 // Función para crear usuarios de prueba
 async function crearUsuariosPrueba() {
     try {
@@ -1848,6 +1879,9 @@ async function iniciarAdmin() {
     if (typeof generarNotificaciones === 'function') await generarNotificaciones();
     if (typeof setupNotificacionesListeners === 'function') setupNotificacionesListeners();
     
+    // ⬇️ NUEVA LLAMADA: cargar información de suscripción del tenant
+    await cargarSuscripcionTenant();
+    
     console.log('Admin/SuperAdmin iniciado correctamente');
 }
 window.iniciarAdmin = iniciarAdmin;
@@ -1893,11 +1927,157 @@ async function iniciarSuperAdmin() {
 
 
 async function cargarTenants() {
-    const { data, error } = await supabaseClient.from('tenants').select('*').order('fecha_registro', { ascending: false });
-    if (error) throw error;
-    currentTenants = data;
-    renderTenants(data);
+    const container = document.getElementById('tenants-list');
+    if (!container) return;
+    try {
+        const { data: tenants, error } = await supabaseClient
+            .from('tenants')
+            .select(`
+                *,
+                subscriptions (
+                    id, plan, status, start_date, end_date
+                )
+            `)
+            .order('fecha_registro', { ascending: false });
+        if (error) throw error;
+        if (!tenants || tenants.length === 0) {
+            container.innerHTML = '<p>No hay tenants registrados</p>';
+            return;
+        }
+        let html = '';
+        tenants.forEach(t => {
+            // Obtener suscripción activa (la primera ordenada por start_date desc, o la que tiene status 'active')
+            let activeSub = null;
+            if (t.subscriptions && t.subscriptions.length) {
+                activeSub = t.subscriptions.find(sub => sub.status === 'active') || t.subscriptions[0];
+            }
+            const planName = activeSub ? activeSub.plan : (t.plan || 'freemium');
+            const statusSub = activeSub ? activeSub.status : 'active';
+            const endDate = activeSub?.end_date ? new Date(activeSub.end_date).toLocaleDateString() : 'N/A';
+            html += `
+                <div class="tenant-card glass-panel" data-id="${t.id}">
+                    <div class="tenant-header">
+                        <h4>${escapeHtml(t.nombre_negocio)}</h4>
+                        <span class="badge ${planName}">${planName}</span>
+                    </div>
+                    <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
+                    <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
+                    <p><i class="fas fa-ticket-alt"></i> Suscripción: ${statusSub} ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
+                    <div class="tenant-actions" style="margin-top:15px;">
+                        <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
+                        <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
+                        <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff; margin-left:10px;"></i>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        // Re-asignar eventos
+        document.querySelectorAll('.edit-tenant').forEach(icon => {
+            icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
+        });
+        document.querySelectorAll('.delete-tenant').forEach(icon => {
+            icon.addEventListener('click', () => eliminarTenant(icon.dataset.id));
+        });
+        document.querySelectorAll('.manage-sub').forEach(icon => {
+            icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
+        });
+    } catch (error) {
+        console.error('Error en cargarTenants:', error);
+    }
 }
+
+// Variable global para el modal
+let currentSubTenantId = null;
+
+async function abrirModalGestionSuscripcion(tenantId) {
+    currentSubTenantId = tenantId;
+    document.getElementById('subscription-modal-title').textContent = 'Gestionar Suscripción';
+    document.getElementById('sub-tenant-id').value = tenantId;
+    // Limpiar campos
+    document.getElementById('sub-plan').value = 'freemium';
+    document.getElementById('sub-status').value = 'active';
+    document.getElementById('sub-start-date').value = '';
+    document.getElementById('sub-end-date').value = '';
+    document.getElementById('sub-stripe-id').value = '';
+    // Cargar suscripción activa existente
+    await cargarDatosSuscripcion(tenantId);
+    document.getElementById('subscription-modal').style.display = 'flex';
+}
+
+async function cargarDatosSuscripcion(tenantId) {
+    const { data, error } = await supabaseClient
+        .from('subscriptions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'active')
+        .order('start_date', { ascending: false })
+        .limit(1);
+    if (error) {
+        console.error('Error cargando suscripción:', error);
+        return;
+    }
+    if (data && data.length > 0) {
+        const sub = data[0];
+        document.getElementById('sub-plan').value = sub.plan;
+        document.getElementById('sub-status').value = sub.status;
+        if (sub.start_date) {
+            const startLocal = new Date(sub.start_date).toISOString().slice(0,16);
+            document.getElementById('sub-start-date').value = startLocal;
+        }
+        if (sub.end_date) {
+            const endLocal = new Date(sub.end_date).toISOString().slice(0,16);
+            document.getElementById('sub-end-date').value = endLocal;
+        }
+        if (sub.stripe_session_id) {
+            document.getElementById('sub-stripe-id').value = sub.stripe_session_id;
+        }
+    }
+}
+
+async function guardarSuscripcion() {
+    const tenantId = document.getElementById('sub-tenant-id').value;
+    const plan = document.getElementById('sub-plan').value;
+    const status = document.getElementById('sub-status').value;
+    const startDate = document.getElementById('sub-start-date').value;
+    const endDate = document.getElementById('sub-end-date').value || null;
+    const stripeId = document.getElementById('sub-stripe-id').value || null;
+
+    // Validar
+    if (!startDate) {
+        mostrarToast('La fecha de inicio es obligatoria', 'error');
+        return;
+    }
+
+    // Crear nueva suscripción (histórico)
+    const newSub = {
+        tenant_id: tenantId,
+        plan: plan,
+        status: status,
+        start_date: new Date(startDate).toISOString(),
+        end_date: endDate ? new Date(endDate).toISOString() : null,
+        stripe_session_id: stripeId
+    };
+
+    const { error } = await supabaseClient.from('subscriptions').insert(newSub);
+    if (error) {
+        mostrarToast('Error al guardar: ' + error.message, 'error');
+    } else {
+        mostrarToast('Suscripción actualizada correctamente', 'success');
+        document.getElementById('subscription-modal').style.display = 'none';
+        await cargarTenants(); // refrescar lista
+    }
+}
+
+// Event listeners del modal
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('subscription-modal');
+    if (modal) {
+        modal.querySelector('.modal-close').addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('cancel-sub-modal')?.addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('save-subscription')?.addEventListener('click', guardarSuscripcion);
+    }
+});
 
 function renderTenants(tenants) {
     const container = document.getElementById('tenants-list');
@@ -1906,25 +2086,52 @@ function renderTenants(tenants) {
         container.innerHTML = '<div class="empty-state">No hay tenants registrados</div>';
         return;
     }
-    let html = '<div class="tenants-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;">';
+    let html = `
+        <table class="tenants-table">
+            <thead>
+                <tr>
+                    <th>Nombre del negocio</th>
+                    <th>Email contacto</th>
+                    <th>Plan</th>
+                    <th>Fecha registro</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
     tenants.forEach(t => {
+        const fecha = new Date(t.fecha_registro).toLocaleDateString('es-ES');
         html += `
-            <div class="tenant-card glass-panel" data-id="${t.id}" style="padding:16px; border-radius:12px; background:rgba(255,255,255,0.03);">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h4 style="margin:0 0 8px 0;">${escapeHtml(t.nombre_negocio)}</h4>
-                    <span class="role-badge-cliente" style="background:#ffd700; color:#000; padding:4px 8px; border-radius:20px;">${t.plan || 'freemium'}</span>
-                </div>
-                <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto)}</p>
-                <p><i class="fas fa-calendar"></i> ${new Date(t.fecha_registro).toLocaleDateString()}</p>
-                <div class="tenant-actions" style="margin-top:12px; display:flex; gap:8px;">
-                    <button class="btn-small" onclick="editarTenant('${t.id}')"><i class="fas fa-edit"></i> Editar</button>
-                    <button class="btn-small danger" onclick="eliminarTenant('${t.id}')"><i class="fas fa-trash"></i> Eliminar</button>
-                </div>
-            </div>
+            <tr data-id="${t.id}">
+                <td>${escapeHtml(t.nombre_negocio)}</td>
+                <td>${escapeHtml(t.email_contacto || '—')}</td>
+                <td><span class="badge ${t.plan}">${t.plan || 'freemium'}</span></td>
+                <td>${fecha}</td>
+                <td>${escapeHtml(t.estado || 'activo')}</td>
+                <td class="tenant-actions">
+                    <button class="btn-small edit-tenant" data-id="${t.id}"><i class="fas fa-edit"></i> Editar</button>
+                    <button class="btn-small danger delete-tenant" data-id="${t.id}"><i class="fas fa-trash"></i> Eliminar</button>
+                </td>
+            </tr>
         `;
     });
-    html += '</div>';
+    html += `</tbody></table>`;
     container.innerHTML = html;
+
+    // Re-asignar eventos (los eventos globales ya existen, pero por si acaso)
+    document.querySelectorAll('.edit-tenant').forEach(btn => {
+        btn.removeEventListener('click', window._editHandler);
+        const handler = (e) => editarTenant(btn.dataset.id);
+        btn.addEventListener('click', handler);
+        window._editHandler = handler;
+    });
+    document.querySelectorAll('.delete-tenant').forEach(btn => {
+        btn.removeEventListener('click', window._deleteHandler);
+        const handler = (e) => eliminarTenant(btn.dataset.id);
+        btn.addEventListener('click', handler);
+        window._deleteHandler = handler;
+    });
 }
 
 // Cargar lista de usuarios (solo lectura)
@@ -5891,9 +6098,26 @@ async function cargarEstadisticasGlobales() {
         const { count: citasCount } = await supabaseClient.from('citas').select('*', { count: 'exact', head: true });
         document.getElementById('total-citas').innerText = citasCount || 0;
         
-        // Usuarios (si tienes una tabla 'usuarios' o vista 'usuarios_con_rol')
+        // Usuarios (vista usuarios_con_rol)
         const { count: usersCount } = await supabaseClient.from('usuarios_con_rol').select('*', { count: 'exact', head: true });
         document.getElementById('total-usuarios').innerText = usersCount || 0;
+
+        // Suscripciones activas (versión segura, sin error de asignación)
+        try {
+            const { count, error } = await supabaseClient
+                .from('subscriptions')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'active');
+            if (!error) {
+                const subscriptionsActive = count || 0;
+                const el = document.getElementById('total-subscripciones');
+                if (el) el.innerText = subscriptionsActive;
+            } else {
+                console.error('Error consultando suscripciones activas:', error);
+            }
+        } catch (subErr) {
+            console.error('Excepción al contar suscripciones activas:', subErr);
+        }
     } catch (e) {
         console.error('Error en estadísticas globales:', e);
     }

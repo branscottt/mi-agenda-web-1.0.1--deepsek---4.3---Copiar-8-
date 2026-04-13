@@ -37,7 +37,15 @@
                     </button>
             </div>
         </header>
-        
+
+        <!-- Dentro de <div class="admin-screen">, después del header -->
+        <div class="subscription-info glass-panel" id="tenant-subscription-info" style="margin-bottom: 20px; padding: 15px;">
+            <div class="flex-between">
+                <span><i class="fas fa-tag"></i> Plan actual: <strong id="sub-plan-display">Cargando...</strong></span>
+                <span><i class="fas fa-calendar-alt"></i> Vigencia: <span id="sub-dates-display">...</span></span>
+                <span class="status-badge" id="sub-status-display"></span>
+            </div>
+        </div>
         <!-- Estadísticas -->
         <div class="stats-container">
             <div class="stat-box">
