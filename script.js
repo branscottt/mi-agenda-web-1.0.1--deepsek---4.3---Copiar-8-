@@ -100,33 +100,25 @@ async function verificarPermisosAdmin() {
 }
 
 async function cargarSuscripcionTenant() {
-    const tenantId = await getCurrentTenantId();
-    if (!tenantId) return;
-    const { data, error } = await supabaseClient
-        .from('subscriptions')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .order('start_date', { ascending: false })
-        .limit(1);
-    if (error) {
-        console.error('Error cargando suscripción tenant:', error);
-        return;
-    }
     const container = document.getElementById('tenant-subscription-info');
     if (!container) return;
-    if (!data || data.length === 0) {
-        container.innerHTML = '<div class="glass-panel" style="padding:15px;"><i class="fas fa-exclamation-triangle"></i> No hay suscripción activa. Contacta al administrador.</div>';
-        return;
+    try {
+        const suscripcion = await SuscripcionManager.getCurrent();
+        if (!suscripcion) {
+            container.innerHTML = '<div class="glass-panel" style="padding:15px;"><i class="fas fa-exclamation-triangle"></i> No hay suscripción activa. Contacta al administrador.</div>';
+            return;
+        }
+        document.getElementById('sub-plan-display').textContent = suscripcion.plan.toUpperCase();
+        const start = new Date(suscripcion.start_date).toLocaleDateString();
+        const end = suscripcion.end_date ? new Date(suscripcion.end_date).toLocaleDateString() : 'Indefinido';
+        document.getElementById('sub-dates-display').textContent = `${start} → ${end}`;
+        const statusSpan = document.getElementById('sub-status-display');
+        statusSpan.textContent = suscripcion.status.toUpperCase();
+        statusSpan.className = `status-badge ${suscripcion.status}`;
+    } catch (e) {
+        console.error('Error cargando suscripción:', e);
+        container.innerHTML = '<div class="glass-panel" style="padding:15px;"><i class="fas fa-exclamation-triangle"></i> Error al cargar suscripción.</div>';
     }
-    const sub = data[0];
-    document.getElementById('sub-plan-display').textContent = sub.plan.toUpperCase();
-    const start = new Date(sub.start_date).toLocaleDateString();
-    const end = sub.end_date ? new Date(sub.end_date).toLocaleDateString() : 'Indefinido';
-    document.getElementById('sub-dates-display').textContent = `${start} → ${end}`;
-    const statusSpan = document.getElementById('sub-status-display');
-    statusSpan.textContent = sub.status.toUpperCase();
-    statusSpan.className = `status-badge ${sub.status}`;
 }
 
 // Función para crear usuarios de prueba
@@ -914,6 +906,126 @@ const NotificacionesAdminManager = {
 };
 
 window.NotificacionesAdminManager = NotificacionesAdminManager;
+
+const SuscripcionManager = {
+    /**
+     * Obtiene la suscripción activa más reciente del tenant actual
+     * @returns {Promise<Object|null>}
+     */
+    async getCurrent() {
+        try {
+            const tenantId = await getCurrentTenantId();
+            if (!tenantId) return null;
+            const { data, error } = await supabaseClient
+                .from('subscriptions')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .eq('status', 'active')
+                .order('start_date', { ascending: false })
+                .limit(1);
+            if (error) throw error;
+            return data?.[0] || null;
+        } catch (e) {
+            console.error('SuscripcionManager.getCurrent error:', e);
+            return null;
+        }
+    },
+
+    /**
+     * Obtiene todas las suscripciones de un tenant (histórico)
+     * @param {string} tenantId - UUID del tenant
+     * @returns {Promise<Array>}
+     */
+    async getAllForTenant(tenantId) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('subscriptions')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .order('start_date', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        } catch (e) {
+            console.error('SuscripcionManager.getAllForTenant error:', e);
+            return [];
+        }
+    },
+
+    /**
+     * Crea una nueva suscripción
+     * @param {Object} data - { tenant_id, plan, status, start_date, end_date?, stripe_session_id? }
+     * @returns {Promise<Object|null>} La suscripción creada o null si error
+     */
+    async create(data) {
+        try {
+            const { data: newSub, error } = await supabaseClient
+                .from('subscriptions')
+                .insert(data)
+                .select()
+                .single();
+            if (error) throw error;
+            return newSub;
+        } catch (e) {
+            console.error('SuscripcionManager.create error:', e);
+            mostrarToast('Error al crear suscripción: ' + e.message, 'error');
+            return null;
+        }
+    },
+
+    /**
+     * Actualiza una suscripción existente
+     * @param {string} id - UUID de la suscripción
+     * @param {Object} updates - Campos a modificar
+     * @returns {Promise<boolean>}
+     */
+    async update(id, updates) {
+        try {
+            const { error } = await supabaseClient
+                .from('subscriptions')
+                .update(updates)
+                .eq('id', id);
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.error('SuscripcionManager.update error:', e);
+            mostrarToast('Error al actualizar suscripción', 'error');
+            return false;
+        }
+    },
+
+    /**
+     * Cancela una suscripción (cambia estado a 'inactive')
+     * @param {string} id 
+     * @returns {Promise<boolean>}
+     */
+    async cancel(id) {
+        return this.update(id, { status: 'inactive' });
+    },
+
+    /**
+     * Renueva una suscripción creando un nuevo registro con estado 'active'
+     * @param {string} oldSubscriptionId - ID de la suscripción anterior (se dejará como 'inactive')
+     * @param {Object} renewalData - { tenant_id, plan, start_date, end_date?, stripe_session_id? }
+     * @returns {Promise<Object|null>} Nueva suscripción
+     */
+    async renew(oldSubscriptionId, renewalData) {
+        try {
+            // Primero desactivar la anterior
+            await this.update(oldSubscriptionId, { status: 'inactive' });
+            // Crear la nueva
+            const newSub = await this.create({
+                ...renewalData,
+                status: 'active'
+            });
+            return newSub;
+        } catch (e) {
+            console.error('SuscripcionManager.renew error:', e);
+            mostrarToast('Error al renovar suscripción', 'error');
+            return null;
+        }
+    }
+};
+window.SuscripcionManager = SuscripcionManager;
 
 // Función para crear notificación de cambio admin
 async function crearNotificacionCambioAdmin(citaOriginal, citaNueva) {
@@ -2006,31 +2118,21 @@ async function abrirModalGestionSuscripcion(tenantId) {
 }
 
 async function cargarDatosSuscripcion(tenantId) {
-    const { data, error } = await supabaseClient
-        .from('subscriptions')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .order('start_date', { ascending: false })
-        .limit(1);
-    if (error) {
-        console.error('Error cargando suscripción:', error);
-        return;
-    }
-    if (data && data.length > 0) {
-        const sub = data[0];
-        document.getElementById('sub-plan').value = sub.plan;
-        document.getElementById('sub-status').value = sub.status;
-        if (sub.start_date) {
-            const startLocal = new Date(sub.start_date).toISOString().slice(0,16);
+    const suscripciones = await SuscripcionManager.getAllForTenant(tenantId);
+    const activa = suscripciones.find(s => s.status === 'active');
+    if (activa) {
+        document.getElementById('sub-plan').value = activa.plan;
+        document.getElementById('sub-status').value = activa.status;
+        if (activa.start_date) {
+            const startLocal = new Date(activa.start_date).toISOString().slice(0,16);
             document.getElementById('sub-start-date').value = startLocal;
         }
-        if (sub.end_date) {
-            const endLocal = new Date(sub.end_date).toISOString().slice(0,16);
+        if (activa.end_date) {
+            const endLocal = new Date(activa.end_date).toISOString().slice(0,16);
             document.getElementById('sub-end-date').value = endLocal;
         }
-        if (sub.stripe_session_id) {
-            document.getElementById('sub-stripe-id').value = sub.stripe_session_id;
+        if (activa.stripe_session_id) {
+            document.getElementById('sub-stripe-id').value = activa.stripe_session_id;
         }
     }
 }
@@ -2043,13 +2145,11 @@ async function guardarSuscripcion() {
     const endDate = document.getElementById('sub-end-date').value || null;
     const stripeId = document.getElementById('sub-stripe-id').value || null;
 
-    // Validar
     if (!startDate) {
         mostrarToast('La fecha de inicio es obligatoria', 'error');
         return;
     }
 
-    // Crear nueva suscripción (histórico)
     const newSub = {
         tenant_id: tenantId,
         plan: plan,
@@ -2059,10 +2159,8 @@ async function guardarSuscripcion() {
         stripe_session_id: stripeId
     };
 
-    const { error } = await supabaseClient.from('subscriptions').insert(newSub);
-    if (error) {
-        mostrarToast('Error al guardar: ' + error.message, 'error');
-    } else {
+    const result = await SuscripcionManager.create(newSub);
+    if (result) {
         mostrarToast('Suscripción actualizada correctamente', 'success');
         document.getElementById('subscription-modal').style.display = 'none';
         await cargarTenants(); // refrescar lista
