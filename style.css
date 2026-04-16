@@ -5621,3 +5621,26 @@ body {
 .status-badge.trial {
     color: #fdcb6e;
 }
+
+/* Estilos para página de planes */
+.plan-card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+}
+.plan-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+.plan-price {
+    margin: 20px 0;
+    font-size: 1.2rem;
+    color: var(--text-light);
+}
+.plan-card ul li {
+    margin-bottom: 10px;
+    color: var(--text-muted);
+}
+.select-plan-btn {
+    width: 100%;
+    justify-content: center;
+}

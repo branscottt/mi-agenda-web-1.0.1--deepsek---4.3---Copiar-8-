@@ -170,7 +170,7 @@ contraseña: supabase fPZXFfmacRkESFmH
 2
 (-)2.1. SQL: Crear tabla subscriptions (id, tenant_id, plan (text), status ('active', 'inactive', 'trial'), start_date, end_date, stripe_session_id).
 (-)2.2. Backend (JS): Crear SuscripcionManager en JS para interactuar con esta tabla.
-()2.3. Frontend: Crear página planes.html con 3 tarjetas de precios (Freemium, Pro, Premium).
+(-)2.3. Frontend: Crear página planes.html con 3 tarjetas de precios (Freemium, Pro, Premium).
 ()2.4. Integración: Integrar pasarela de pago (Stripe es el estándar). Esto requiere un backend pequeño (Edge Function de Supabase) para crear sesiones de pago seguras.
 ()2.5. Webhook: Configurar un webhook en Stripe que, cuando el pago sea exitoso, llame a una Edge Function para activar la suscripción en tu BD (cambiar status a 'active').
 ()2.6. Lógica de negocio: Modificar getCurrentTenantId() (o una función nueva) para que también verifique si la suscripción del tenant está activa. Si no lo está, limitar funcionalidades (ej. no puede crear más de X servicios).

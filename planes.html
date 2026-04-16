@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planes - Agenda Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="login-screen">
+        <div class="glass-panel login-panel" style="max-width: 1200px;">
+            <div class="logo-header">
+                <i class="fas fa-calendar-alt"></i>
+                <h1>Planes y Precios</h1>
+                <p class="tagline">Elige el plan que mejor se adapte a tu negocio</p>
+            </div>
+            <div class="planes-container" id="planes-container">
+                <!-- Tarjetas se generarán con JS -->
+            </div>
+            <div class="screen-navigation" style="margin-top: 40px;">
+                <div class="nav-cards">
+                    <a href="login.html" class="nav-card">
+                        <div class="nav-number">←</div>
+                        <h4>Volver al Login</h4>
+                    </a>
+                    <a href="admin.html" class="nav-card">
+                        <div class="nav-number">→</div>
+                        <h4>Panel Admin</h4>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="login-background">
+            <div class="bg-circle circle-1"></div>
+            <div class="bg-circle circle-2"></div>
+            <div class="bg-circle circle-3"></div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    <script src="planes.js"></script>
+</body>
+</html>

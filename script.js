@@ -1027,6 +1027,137 @@ const SuscripcionManager = {
 };
 window.SuscripcionManager = SuscripcionManager;
 
+// ============================================
+// PLANES Y SUSCRIPCIONES (para página planes.html)
+// ============================================
+const planesData = {
+    freemium: { nombre: 'Freemium', precio: 'Gratis', periodo: 'siempre', features: ['Hasta 10 servicios', 'Hasta 50 citas/mes', 'Soporte email'], color: '#00b894' },
+    premium: { nombre: 'Pro', precio: '$29.900', periodo: '/mes', features: ['Servicios ilimitados', 'Citas ilimitadas', 'Estadísticas avanzadas', 'Soporte prioritario'], color: '#b300ff' },
+    enterprise: { nombre: 'Premium', precio: '$59.900', periodo: '/mes', features: ['Todo lo de Pro', 'API personalizada', 'Onboarding dedicado', 'SLA 99.9%'], color: '#ffd700' }
+};
+
+async function cargarPlanes() {
+    const container = document.getElementById('planes-container');
+    if (!container) return;
+    
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    let rol = session?.user?.user_metadata?.rol;
+    let tenantId = session?.user?.user_metadata?.tenant_id;
+    let suscripcionActual = null;
+    
+    if (rol === 'admin' && tenantId) {
+        suscripcionActual = await SuscripcionManager.getCurrent();
+    }
+    
+    let html = '<div class="stats-container" style="grid-template-columns: repeat(3,1fr); gap: 25px;">';
+    for (const [key, plan] of Object.entries(planesData)) {
+        const isCurrent = suscripcionActual && suscripcionActual.plan === key;
+        html += `
+            <div class="stat-box plan-card" data-plan="${key}" style="text-align: center; border-top: 4px solid ${plan.color};">
+                <h3 style="color: ${plan.color};">${plan.nombre}</h3>
+                <div class="plan-price"><span style="font-size: 2rem; font-weight: bold;">${plan.precio}</span> ${plan.periodo}</div>
+                <ul style="list-style: none; padding: 0; margin: 20px 0; text-align: left;">
+                    ${plan.features.map(f => `<li><i class="fas fa-check" style="color: ${plan.color}; margin-right: 8px;"></i> ${f}</li>`).join('')}
+                </ul>
+                <button class="btn-grad select-plan-btn" data-plan="${key}" ${isCurrent ? 'disabled' : ''} style="${isCurrent ? 'opacity:0.6; cursor:not-allowed;' : ''}">
+                    ${isCurrent ? 'Plan actual' : 'Seleccionar plan'}
+                </button>
+            </div>
+        `;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    
+    document.querySelectorAll('.select-plan-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const planKey = btn.dataset.plan;
+            await solicitarCambioPlan(planKey);
+        });
+    });
+}
+
+async function solicitarCambioPlan(planKey) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+        mostrarToast('Debes iniciar sesión como administrador', 'warning');
+        setTimeout(() => window.location.href = 'login.html?redirect=planes', 1500);
+        return;
+    }
+    const rol = session.user.user_metadata?.rol;
+    if (rol !== 'admin') {
+        mostrarToast('Solo los administradores del negocio pueden cambiar el plan', 'error');
+        return;
+    }
+
+    const suscripcion = await SuscripcionManager.getCurrent();
+    if (!suscripcion) {
+        mostrarToast('No se encontró suscripción activa', 'error');
+        return;
+    }
+
+    const planMap = { freemium: 'freemium', premium: 'premium', enterprise: 'enterprise' };
+    const nuevoPlan = planMap[planKey];
+    if (!nuevoPlan) return;
+
+    const planAnterior = suscripcion.plan;
+    const tenantId = suscripcion.tenant_id;
+
+    const ok = await SuscripcionManager.update(suscripcion.id, { plan: nuevoPlan, status: 'active' });
+    if (ok) {
+        await crearNotificacionCambioPlan(tenantId, planAnterior, nuevoPlan);
+        mostrarToast(`Plan actualizado a ${planesData[planKey].nombre}`, 'success');
+        await cargarPlanes();
+        // ⬇️ Esta línea actualiza el panel admin si está visible
+        if (typeof cargarSuscripcionTenant === 'function') cargarSuscripcionTenant();
+    } else {
+        mostrarToast('Error al cambiar el plan', 'error');
+    }
+}
+
+// ============================================
+// NOTIFICACIÓN DE CAMBIO DE PLAN (para superadmin)
+// ============================================
+async function crearNotificacionCambioPlan(tenantId, planAnterior, planNuevo) {
+    try {
+        // Obtener nombre del negocio
+        const { data: tenant, error: tenantError } = await supabaseClient
+            .from('tenants')
+            .select('nombre_negocio')
+            .eq('id', tenantId)
+            .single();
+
+        if (tenantError) {
+            console.error('Error obteniendo tenant para notificación:', tenantError);
+            return;
+        }
+
+        const notif = {
+            tenant_id: tenantId,
+            tipo: 'cambio_plan',
+            cita_id: null,
+            fecha_original: null,
+            hora_original: null,
+            fecha_nueva: null,
+            hora_nueva: null,
+            cliente: { nombre: tenant?.nombre_negocio || 'Tenant' },
+            leido: false,
+            creado_en: new Date().toISOString(),
+            metadata: { plan_anterior: planAnterior, plan_nuevo: planNuevo }
+        };
+
+        const { error: insertError } = await supabaseClient
+            .from('notificaciones_admin')
+            .insert(notif);
+
+        if (insertError) {
+            console.error('Error insertando notificación de cambio de plan:', insertError);
+        } else {
+            console.log(`✅ Notificación de cambio de plan creada para tenant ${tenantId}`);
+        }
+    } catch (e) {
+        console.error('Error en crearNotificacionCambioPlan:', e);
+    }
+}
 // Función para crear notificación de cambio admin
 async function crearNotificacionCambioAdmin(citaOriginal, citaNueva) {
     try {
@@ -5787,18 +5918,14 @@ document.addEventListener('DOMContentLoaded', async function () {
     await verificarProteccionRutas();
     popupEl = document.getElementById('popup-reserva');
 
-    // ========== NUEVA LÓGICA: diferenciar superadmin ==========
+        // ========== NUEVA LÓGICA: diferenciar superadmin / admin / cliente / planes ==========
     const esSuperAdmin = document.querySelector('.superadmin-screen');
     const esAdminNormal = document.querySelector('.admin-screen') && !esSuperAdmin;
     const esCliente = document.querySelector('.client-screen');
+    const esPlanes = document.getElementById('planes-container'); // <-- NUEVO
 
     if (esSuperAdmin) {
-        // Solo ejecutar iniciarSuperAdmin (ya lo hace el script en superadmin.html)
-        // No ejecutar iniciarAdmin
-        if (typeof iniciarSuperAdmin === 'function') {
-            // La llamada ya existe en el HTML, no la duplicamos
-            // Pero nos aseguramos de que no se llame dos veces
-        }
+        // No hacer nada aquí, se inicia desde superadmin.html
     } else if (esAdminNormal) {
         await iniciarAdmin();
         if (typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
@@ -5806,6 +5933,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         await iniciarCliente();
         if (typeof renderMisReservas === 'function') renderMisReservas();
         if (typeof renderCarrito === 'function') renderCarrito();
+    } else if (esPlanes) {
+        // Página de planes
+        await cargarPlanes();
     } else {
         iniciarLogin();
     }
