@@ -957,20 +957,29 @@ const SuscripcionManager = {
      * @returns {Promise<Object|null>} La suscripción creada o null si error
      */
     async create(data) {
-        try {
-            const { data: newSub, error } = await supabaseClient
-                .from('subscriptions')
-                .insert(data)
-                .select()
-                .single();
-            if (error) throw error;
-            return newSub;
-        } catch (e) {
-            console.error('SuscripcionManager.create error:', e);
-            mostrarToast('Error al crear suscripción: ' + e.message, 'error');
-            return null;
+    try {
+        // Calcular end_date si no viene explícito y el plan tiene duración
+        let endDate = data.end_date;
+        if (!endDate && data.plan && planesData[data.plan]?.duracionMeses) {
+            const duracionMeses = planesData[data.plan].duracionMeses;
+            const calculatedEnd = new Date();
+            calculatedEnd.setMonth(calculatedEnd.getMonth() + duracionMeses);
+            endDate = calculatedEnd.toISOString();
         }
-    },
+        const newData = { ...data, end_date: endDate };
+        const { data: newSub, error } = await supabaseClient
+            .from('subscriptions')
+            .insert(newData)
+            .select()
+            .single();
+        if (error) throw error;
+        return newSub;
+    } catch (e) {
+        console.error('SuscripcionManager.create error:', e);
+        mostrarToast('Error al crear suscripción: ' + e.message, 'error');
+        return null;
+    }
+},
 
     /**
      * Actualiza una suscripción existente
@@ -1031,26 +1040,53 @@ window.SuscripcionManager = SuscripcionManager;
 // PLANES Y SUSCRIPCIONES (para página planes.html)
 // ============================================
 const planesData = {
-    freemium: { nombre: 'Freemium', precio: 'Gratis', periodo: 'siempre', features: ['Hasta 10 servicios', 'Hasta 50 citas/mes', 'Soporte email'], color: '#00b894' },
-    premium: { nombre: 'Pro', precio: '$29.900', periodo: '/mes', features: ['Servicios ilimitados', 'Citas ilimitadas', 'Estadísticas avanzadas', 'Soporte prioritario'], color: '#b300ff' },
-    enterprise: { nombre: 'Premium', precio: '$59.900', periodo: '/mes', features: ['Todo lo de Pro', 'API personalizada', 'Onboarding dedicado', 'SLA 99.9%'], color: '#ffd700' }
+    freemium: { 
+        nombre: 'Freemium', 
+        precio: 'Gratis', 
+        periodo: 'siempre', 
+        features: ['Hasta 10 servicios', 'Hasta 50 citas/mes', 'Soporte email'], 
+        color: '#00b894',
+        soloSuperAdmin: true   // ← nuevo flag
+    },
+    pro: { 
+        nombre: 'Pro', 
+        precio: '$5.000', 
+        periodo: '/mes', 
+        features: ['Servicios ilimitados', 'Citas ilimitadas', 'Estadísticas avanzadas', 'Soporte prioritario'], 
+        color: '#b300ff',
+        duracionMeses: 1
+    },
+    premium_anual: { 
+        nombre: 'Premium', 
+        precio: '$36.000', 
+        periodo: '/año', 
+        features: ['Todo lo de Pro', 'Personalización de diseño (admin y cliente)', 'Onboarding dedicado', 'SLA 99.9%'], 
+        color: '#ffd700',
+        duracionMeses: 12
+    }
 };
 
 async function cargarPlanes() {
     const container = document.getElementById('planes-container');
     if (!container) return;
     
+    // Obtener sesión y determinar si es super_admin
     const { data: { session } } = await supabaseClient.auth.getSession();
     let rol = session?.user?.user_metadata?.rol;
     let tenantId = session?.user?.user_metadata?.tenant_id;
     let suscripcionActual = null;
+    const esSuperAdmin = (rol === 'super_admin');
     
     if (rol === 'admin' && tenantId) {
         suscripcionActual = await SuscripcionManager.getCurrent();
     }
     
     let html = '<div class="stats-container" style="grid-template-columns: repeat(3,1fr); gap: 25px;">';
+    
     for (const [key, plan] of Object.entries(planesData)) {
+        // ⭐ FILTRO: ocultar plan Freemium si NO es super_admin
+        if (plan.soloSuperAdmin && !esSuperAdmin) continue;
+        
         const isCurrent = suscripcionActual && suscripcionActual.plan === key;
         html += `
             <div class="stat-box plan-card" data-plan="${key}" style="text-align: center; border-top: 4px solid ${plan.color};">
@@ -1084,8 +1120,14 @@ async function solicitarCambioPlan(planKey) {
         return;
     }
     const rol = session.user.user_metadata?.rol;
-    if (rol !== 'admin') {
+    if (rol !== 'admin' && rol !== 'super_admin') {
         mostrarToast('Solo los administradores del negocio pueden cambiar el plan', 'error');
+        return;
+    }
+
+    // Restricción: Freemium solo para superadmin
+    if (planKey === 'freemium' && rol !== 'super_admin') {
+        mostrarToast('El plan Freemium solo puede ser asignado por el Super Administrador', 'error');
         return;
     }
 
@@ -1095,19 +1137,32 @@ async function solicitarCambioPlan(planKey) {
         return;
     }
 
-    const planMap = { freemium: 'freemium', premium: 'premium', enterprise: 'enterprise' };
-    const nuevoPlan = planMap[planKey];
-    if (!nuevoPlan) return;
-
+    const nuevoPlan = planKey; // 'freemium', 'pro', 'premium_anual'
     const planAnterior = suscripcion.plan;
     const tenantId = suscripcion.tenant_id;
 
-    const ok = await SuscripcionManager.update(suscripcion.id, { plan: nuevoPlan, status: 'active' });
+    // Calcular end_date según el nuevo plan
+    let endDate = null;
+    const duracionMeses = planesData[nuevoPlan]?.duracionMeses;
+    if (duracionMeses) {
+        endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + duracionMeses);
+        endDate = endDate.toISOString();
+    }
+
+    const updates = { 
+        plan: nuevoPlan, 
+        status: 'active',
+        end_date: endDate
+    };
+    // También actualizar start_date si se requiere (opcional, se mantiene la actual)
+    // Para mantener historial, se podría crear una nueva suscripción en vez de actualizar.
+    // Pero por simplicidad, actualizamos la existente.
+    const ok = await SuscripcionManager.update(suscripcion.id, updates);
     if (ok) {
         await crearNotificacionCambioPlan(tenantId, planAnterior, nuevoPlan);
-        mostrarToast(`Plan actualizado a ${planesData[planKey].nombre}`, 'success');
+        mostrarToast(`Plan actualizado a ${planesData[nuevoPlan].nombre}`, 'success');
         await cargarPlanes();
-        // ⬇️ Esta línea actualiza el panel admin si está visible
         if (typeof cargarSuscripcionTenant === 'function') cargarSuscripcionTenant();
     } else {
         mostrarToast('Error al cambiar el plan', 'error');
@@ -2237,12 +2292,20 @@ async function abrirModalGestionSuscripcion(tenantId) {
     currentSubTenantId = tenantId;
     document.getElementById('subscription-modal-title').textContent = 'Gestionar Suscripción';
     document.getElementById('sub-tenant-id').value = tenantId;
-    // Limpiar campos
-    document.getElementById('sub-plan').value = 'freemium';
+    
+    // === NUEVO: actualizar las opciones del select con los planes correctos ===
+    document.getElementById('sub-plan').innerHTML = `
+        <option value="freemium">Freemium</option>
+        <option value="pro">Pro ($5.000/mes)</option>
+        <option value="premium_anual">Premium Anual ($36.000/año)</option>
+    `;
+    // ================================================================
+    
     document.getElementById('sub-status').value = 'active';
     document.getElementById('sub-start-date').value = '';
     document.getElementById('sub-end-date').value = '';
     document.getElementById('sub-stripe-id').value = '';
+    
     // Cargar suscripción activa existente
     await cargarDatosSuscripcion(tenantId);
     document.getElementById('subscription-modal').style.display = 'flex';
@@ -6564,20 +6627,25 @@ async function cargarCitasGlobales() {
 // --- Sobrescribir cargarTenants para usar el nuevo contenedor grid ---
 const _originalCargarTenants = window.cargarTenants;
 window.cargarTenants = async function() {
-    // Si existe función original, la ejecutamos primero
+    // Si existe función original, la ejecutamos primero (por compatibilidad)
     if (typeof _originalCargarTenants === 'function') {
         await _originalCargarTenants();
     }
     
-    // Ahora cargamos en el nuevo contenedor 'tenants-list' (grid)
     const container = document.getElementById('tenants-list');
     if (!container) return;
     
     try {
+        // Obtener tenants junto con sus suscripciones
         const { data: tenants, error } = await supabaseClient
             .from('tenants')
-            .select('*')
-            .order('fecha_registro', { ascending: false });  // ← CORREGIDO: fecha_registro
+            .select(`
+                *,
+                subscriptions (
+                    id, plan, status, start_date, end_date
+                )
+            `)
+            .order('fecha_registro', { ascending: false });
         
         if (error) throw error;
         
@@ -6586,19 +6654,38 @@ window.cargarTenants = async function() {
             return;
         }
         
+        // Mapeo de nombres de planes para mostrar
+        const planDisplayNames = {
+            'freemium': 'Freemium',
+            'pro': 'Pro',
+            'premium_anual': 'Premium Anual'
+        };
+        
         let html = '';
         tenants.forEach(t => {
+            // Obtener suscripción activa (status 'active') o la más reciente
+            let activeSub = null;
+            if (t.subscriptions && t.subscriptions.length) {
+                activeSub = t.subscriptions.find(sub => sub.status === 'active') || t.subscriptions[0];
+            }
+            const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
+            const planDisplay = planDisplayNames[planKey] || planKey;
+            const statusSub = activeSub ? activeSub.status : 'active';
+            const endDate = activeSub?.end_date ? new Date(activeSub.end_date).toLocaleDateString() : 'N/A';
+            
             html += `
                 <div class="tenant-card glass-panel" style="padding:20px;">
                     <div class="tenant-header">
-                        <h4>${escapeHtml(t.nombre_negocio)}</h4>   <!-- ← CORREGIDO: nombre_negocio -->
-                        <span class="badge ${t.plan}">${t.plan}</span>
+                        <h4>${escapeHtml(t.nombre_negocio)}</h4>
+                        <span class="badge ${planKey}">${planDisplay}</span>
                     </div>
                     <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
-                    <p><i class="fas fa-circle"></i> Estado: ${t.estado || 'activo'}</p>
+                    <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
+                    <p><i class="fas fa-ticket-alt"></i> Suscripción: ${statusSub} ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
                     <div class="tenant-actions" style="margin-top:15px;">
                         <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
                         <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
+                        <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff; margin-left:10px;"></i>
                     </div>
                 </div>
             `;
@@ -6606,12 +6693,15 @@ window.cargarTenants = async function() {
         
         container.innerHTML = html;
         
-        // Adjuntar eventos a los íconos
+        // Re-asignar eventos
         document.querySelectorAll('.edit-tenant').forEach(icon => {
             icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
         });
         document.querySelectorAll('.delete-tenant').forEach(icon => {
             icon.addEventListener('click', () => eliminarTenant(icon.dataset.id));
+        });
+        document.querySelectorAll('.manage-sub').forEach(icon => {
+            icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
         });
         
     } catch (error) {

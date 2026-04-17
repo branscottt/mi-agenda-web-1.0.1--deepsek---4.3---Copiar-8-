@@ -171,31 +171,37 @@ contraseña: supabase fPZXFfmacRkESFmH
 (-)2.1. SQL: Crear tabla subscriptions (id, tenant_id, plan (text), status ('active', 'inactive', 'trial'), start_date, end_date, stripe_session_id).
 (-)2.2. Backend (JS): Crear SuscripcionManager en JS para interactuar con esta tabla.
 (-)2.3. Frontend: Crear página planes.html con 3 tarjetas de precios (Freemium, Pro, Premium).
-()2.4. Integración: Integrar pasarela de pago (Stripe es el estándar). Esto requiere un backend pequeño (Edge Function de Supabase) para crear sesiones de pago seguras.
-()2.5. Webhook: Configurar un webhook en Stripe que, cuando el pago sea exitoso, llame a una Edge Function para activar la suscripción en tu BD (cambiar status a 'active').
-()2.6. Lógica de negocio: Modificar getCurrentTenantId() (o una función nueva) para que también verifique si la suscripción del tenant está activa. Si no lo está, limitar funcionalidades (ej. no puede crear más de X servicios).
 
-3
-()3.1. SQL: Crear tabla tenant_config (tenant_id PK, primary_color text, secondary_color text, logo_url text, custom_css text).
-()3.2. Backend (JS): Crear ConfigManager en JS para leer y guardar esta configuración.
-()3.3. Frontend (Admin): Crear una nueva pestaña en admin.html llamada "Personalizar".
-()3.4. Agregar un selector de color para primario/secundario y un campo para subir logo (a Supabase Storage).
-()3.5. Agregar un área de texto para que peguen CSS personalizado (¡con advertencias de seguridad!).
-()3.6. Frontend (Cliente): En cliente.html, leer la tenant_config al inicio y aplicar las variables CSS en línea (<style>) o inyectando el CSS.
+Fase 1: Preparación de Datos y Gestión de Configuración (Sin Costos)
+ID	Acción
+()3.1	Ejecutar script SQL en Supabase para crear la tabla tenant_config.
+()3.2	Implementar ConfigManager en JS para leer y guardar la configuración en la base de datos.
+()3.3	Añadir una nueva pestaña/sección en admin.html llamada "Personalizar".
+()3.4	Implementar selectores de color (primario/secundario) y la lógica para subir logo a Supabase Storage.
+()3.5	Añadir un campo de texto para que el administrador pueda pegar CSS personalizado (con advertencias de seguridad).
+()3.6	Modificar cliente.html para que lea la configuración del tenant y aplique los estilos personalizados al cargar la página.
+Fase 2: Login Social y Mejoras de Acceso (Sin Costos)
+ID	Acción
+()4.1	Activar el proveedor "Google" en el panel de autenticación de Supabase.
+()4.2	Modificar login.html y su JS asociado para añadir el botón "Iniciar sesión con Google".
+()4.3	Implementar la llamada a supabaseClient.auth.signInWithOAuth({ provider: 'google' }).
+()4.4	Configurar en el panel de Supabase las URLs de redirección válidas (a cliente.html o admin.html).
+()4.5	En la página de destino, añadir la lógica para detectar si es un usuario nuevo. Si lo es, crear un tenant por defecto y asociarlo a su cuenta.
+Fase 3: Lógica de Negocio y Monetización (Sin Costos Reales)
+ID	Acción
+()2.6	Modificar getCurrentTenantId() (o crear una función nueva) para que verifique si la suscripción del tenant está activa. Si no lo está, limitar funcionalidades en el frontend (ej. no puede crear más de X servicios).
+()6.1	Añadir una nueva sección en admin.html llamada "Mi Suscripción".
+()6.2	Mostrar el plan actual, la fecha de renovación y un botón para "Cancelar Suscripción" (solo modificará el estado en tu BD, no en el gateway de pago).
+()5.1	Añadir una nueva sección en super-admin.html llamada "Métricas Globales".
+()5.2	Crear una función que consulte la tabla subscriptions, cuente las suscripciones activas por plan y calcule el Ingreso Mensual Recurrente (MRR) simulado.
+()5.3	Implementar un gráfico que muestre la evolución en el tiempo de los tenants registrados en la plataforma.
+Fase 4: Integración de Pagos Reales con Mercado Pago (Último Paso, Comisiones por Venta)
 
-4
-()4.1. Supabase: Habilitar el proveedor "Google" en el panel de autenticación de Supabase.
-()4.2. HTML/JS: Modificar login.html para agregar un botón "Iniciar sesión con Google".
-()4.3. JS: Usar supabaseClient.auth.signInWithOAuth({ provider: 'google' }).
-()4.4. Redirección: Configurar en Supabase las URLs de redirección (a cliente.html o admin.html).
-()4.5. Post-Login: En la página de destino, verificar si es un usuario nuevo. Si es nuevo, crear un tenant por defecto para él y asociarlo.
+    Nota: Esta fase es la única que tendrá costos asociados (comisiones de Mercado Pago por cada transacción exitosa). No hay costos fijos mensuales ni de implementación.
 
-5
-()5.1. En super-admin.html, crear sección de "Métricas Globales".
-()5.2. JS (Super-Admin): Crear función que consulte la tabla subscriptions y cuente cuántos 'active' hay por plan, y calcule el ingreso mensual recurrente (MRR).
-()5.3. Mostrar gráfico de crecimiento de tenants.
-
-6
-()6.1. En admin.html, crear sección "Mi Suscripción".
-()6.2. Mostrar el plan actual, fecha de renovación y un botón para "Cancelar Suscripción".
-()6.3. Botón para "Actualizar método de pago" que redirija a un portal de Stripe (Customer Portal).
+ID	Acción
+()4.6	Crear una cuenta gratuita en Mercado Pago Chile. Obtener las credenciales: Access Token y Public Key.
+()4.7	Implementar una Edge Function en Supabase que reciba plan (pro o premium_anual) y devuelva un preference_id de Mercado Pago para una suscripción recurrente (usando la API de Suscripciones de Mercado Pago).
+()4.8	En la sección "Mi Suscripción" de admin.html, añadir un botón "Actualizar método de pago" que llame a la Edge Function y redirija al checkout de Mercado Pago.
+()4.9	Configurar un webhook en Mercado Pago que apunte a otra Edge Function en Supabase. Cuando el pago sea exitoso, esta función actualizará la suscripción en tu BD (cambiar status a active y actualizar fechas).
+()4.10	(Opcional) Agregar lógica en el frontend para consultar el estado de la suscripción desde Mercado Pago periódicamente, como respaldo.

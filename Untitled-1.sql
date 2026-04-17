@@ -270,7 +270,21 @@ CREATE POLICY "Admin ve sus suscripciones" ON public.subscriptions
     FOR SELECT TO authenticated
     USING (tenant_id = public.get_user_tenant_id() AND (auth.jwt() ->> 'user_metadata')::jsonb ->> 'rol' = 'admin');
 
-    -- =====================================================
+-- Eliminar política si ya existe (para evitar error 42710)
+DROP POLICY IF EXISTS "Admin actualiza su suscripción" ON public.subscriptions;
+
+-- Política para que admin pueda actualizar su propia suscripción
+CREATE POLICY "Admin actualiza su suscripción" ON public.subscriptions
+    FOR UPDATE TO authenticated
+    USING (
+        tenant_id = public.get_user_tenant_id() 
+        AND (auth.jwt() ->> 'user_metadata')::jsonb ->> 'rol' = 'admin'
+    )
+    WITH CHECK (
+        tenant_id = public.get_user_tenant_id() 
+        AND (auth.jwt() ->> 'user_metadata')::jsonb ->> 'rol' = 'admin'
+    );
+   -- =====================================================
 -- FIX: Trigger para suscripción automática + suscripción del tenant demo existente
 -- =====================================================
 
