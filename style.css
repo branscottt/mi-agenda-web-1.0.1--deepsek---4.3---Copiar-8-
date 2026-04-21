@@ -5644,3 +5644,58 @@ body {
     width: 100%;
     justify-content: center;
 }
+
+/* Panel de personalización */
+.customization-panel {
+    margin-top: 30px;
+}
+#custom-css {
+    font-family: 'Courier New', monospace;
+    background: rgba(30,30,40,0.8);
+    color: #f8f9fa;
+    border: 1px solid rgba(179,0,255,0.3);
+    border-radius: 12px;
+    padding: 12px;
+    width: 100%;
+    resize: vertical;
+}
+#customization-feedback {
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+#customization-feedback.success {
+    color: #00b894;
+}
+#customization-feedback.error {
+    color: #e74c3c;
+}
+
+.solicitud-item {
+    background: rgba(30,30,40,0.7);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 4px solid #b300ff;
+}
+.solicitud-item .solicitud-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+.solicitud-item .solicitud-tenant {
+    font-weight: bold;
+    color: #b300ff;
+}
+.solicitud-item .solicitud-fecha {
+    color: #aaa;
+    font-size: 0.8rem;
+}
+.solicitud-item .solicitud-descripcion {
+    margin: 10px 0;
+    white-space: pre-wrap;
+}
+.solicitud-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}

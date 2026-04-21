@@ -315,3 +315,98 @@ WHERE NOT EXISTS (
 
 -- 4. Verificar (opcional, muestra resultado)
 SELECT * FROM public.subscriptions WHERE tenant_id = 'd7741079-3f87-4ce7-872c-8b1d4d90e8da';
+
+-- =====================================================
+-- MIGRACIÓN TAREA #5 (con modificación del constraint)
+-- =====================================================
+DO $$
+BEGIN
+    -- 1. Eliminar constraint antiguo
+    ALTER TABLE public.subscriptions DROP CONSTRAINT IF EXISTS subscriptions_plan_check;
+    
+    -- 2. Crear nuevo constraint con los planes finales
+    ALTER TABLE public.subscriptions ADD CONSTRAINT subscriptions_plan_check
+        CHECK (plan IN ('freemium', 'pro', 'premium_anual'));
+    
+    -- 3. Renombrar planes
+    UPDATE public.subscriptions
+    SET plan = CASE
+        WHEN plan = 'premium' THEN 'pro'
+        WHEN plan = 'enterprise' THEN 'premium_anual'
+        ELSE plan
+    END;
+    
+    -- 4. Recalcular end_date para 'pro' activas sin fecha fin
+    UPDATE public.subscriptions
+    SET end_date = start_date + INTERVAL '1 month'
+    WHERE plan = 'pro' AND status = 'active' AND end_date IS NULL;
+    
+    -- 5. Recalcular end_date para 'premium_anual' activas sin fecha fin
+    UPDATE public.subscriptions
+    SET end_date = start_date + INTERVAL '1 year'
+    WHERE plan = 'premium_anual' AND status = 'active' AND end_date IS NULL;
+    
+    -- 6. Asegurar que freemium tenga end_date NULL
+    UPDATE public.subscriptions
+    SET end_date = NULL
+    WHERE plan = 'freemium';
+    
+    RAISE NOTICE '✅ Migración Tarea #5 completada';
+END $$;
+
+-- (Opcional) Verificar resultado
+SELECT * FROM public.subscriptions WHERE tenant_id = 'd7741079-3f87-4ce7-872c-8b1d4d90e8da';
+
+-- Crear tabla tenant_config
+CREATE TABLE IF NOT EXISTS public.tenant_config (
+    tenant_id UUID PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+    primary_color TEXT DEFAULT '#9d4edd',
+    secondary_color TEXT DEFAULT '#ff6d00',
+    logo_url TEXT,
+    custom_css TEXT,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Índice (opcional)
+CREATE INDEX IF NOT EXISTS idx_tenant_config_tenant_id ON public.tenant_config(tenant_id);
+
+-- Trigger para actualizar updated_at
+CREATE OR REPLACE FUNCTION update_tenant_config_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_tenant_config_updated_at ON public.tenant_config;
+CREATE TRIGGER trg_tenant_config_updated_at
+    BEFORE UPDATE ON public.tenant_config
+    FOR EACH ROW
+    EXECUTE FUNCTION update_tenant_config_updated_at();
+
+-- Políticas RLS
+ALTER TABLE public.tenant_config ENABLE ROW LEVEL SECURITY;
+
+-- Super admin: todo
+CREATE POLICY "Super admin todo en tenant_config" ON public.tenant_config
+    FOR ALL TO authenticated
+    USING (public.is_super_admin())
+    WITH CHECK (public.is_super_admin());
+
+-- Admin (tenant) puede leer y actualizar su propia configuración
+CREATE POLICY "Admin gestiona su tenant_config" ON public.tenant_config
+    FOR ALL TO authenticated
+    USING (tenant_id = public.get_user_tenant_id() AND (auth.jwt() ->> 'user_metadata')::jsonb ->> 'rol' = 'admin')
+    WITH CHECK (tenant_id = public.get_user_tenant_id());
+
+-- Cliente (y cualquier rol autenticado) puede leer la configuración de su tenant
+CREATE POLICY "Lectura tenant_config por tenant" ON public.tenant_config
+    FOR SELECT TO authenticated
+    USING (tenant_id = public.get_user_tenant_id());
+
+-- Insertar configuración por defecto para tenants existentes (si no tienen)
+INSERT INTO public.tenant_config (tenant_id, primary_color, secondary_color)
+SELECT id, '#9d4edd', '#ff6d00'
+FROM public.tenants t
+WHERE NOT EXISTS (SELECT 1 FROM public.tenant_config c WHERE c.tenant_id = t.id);

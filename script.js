@@ -1037,6 +1037,298 @@ const SuscripcionManager = {
 window.SuscripcionManager = SuscripcionManager;
 
 // ============================================
+// GESTIÓN DE CONFIGURACIÓN VISUAL POR TENANT
+// ============================================
+const VisualConfigManager = {
+    /**
+     * Carga la configuración visual del tenant actual
+     * @returns {Promise<Object>} Configuración con primary_color, secondary_color, logo_url, custom_css
+     */
+    async loadConfig() {
+        try {
+            const tenantId = await getCurrentTenantId();
+            if (!tenantId) return this.getDefaultConfig();
+            
+            // Intentar desde localStorage (caché de sesión)
+            const cached = localStorage.getItem(`tenant_config_${tenantId}`);
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && parsed.primary_color) return parsed;
+                } catch(e) {}
+            }
+            
+            const { data, error } = await supabaseClient
+                .from('tenant_config')
+                .select('primary_color, secondary_color, logo_url, custom_css')
+                .eq('tenant_id', tenantId)
+                .maybeSingle();
+                
+            if (error) throw error;
+            
+            let config = this.getDefaultConfig();
+            if (data) {
+                config = {
+                    primary_color: data.primary_color || config.primary_color,
+                    secondary_color: data.secondary_color || config.secondary_color,
+                    logo_url: data.logo_url || config.logo_url,
+                    custom_css: data.custom_css || config.custom_css
+                };
+            }
+            // Guardar en caché
+            localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify(config));
+            return config;
+        } catch (e) {
+            console.error('Error cargando configuración visual:', e);
+            return this.getDefaultConfig();
+        }
+    },
+    
+    getDefaultConfig() {
+        return {
+            primary_color: '#9d4edd',
+            secondary_color: '#ff6d00',
+            logo_url: '',
+            custom_css: ''
+        };
+    },
+    
+        /**
+     * Guarda la configuración visual del tenant actual
+     * @param {Object} config - { primary_color, secondary_color, logo_url, custom_css }
+     * @returns {Promise<boolean>}
+     */
+    async saveConfig(config) {
+        try {
+            // ========== NUEVO: Verificar plan antes de guardar ==========
+            const suscripcion = await SuscripcionManager.getCurrent();
+            if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual')) {
+                mostrarToast('No tienes permisos para personalizar. Actualiza a un plan de pago.', 'error');
+                return false;
+            }
+            // ============================================================
+
+            const tenantId = await getCurrentTenantId();
+            if (!tenantId) throw new Error('No tenant ID');
+            
+            // Limpiar valores vacíos
+            const cleanConfig = {
+                tenant_id: tenantId,
+                primary_color: config.primary_color || this.getDefaultConfig().primary_color,
+                secondary_color: config.secondary_color || this.getDefaultConfig().secondary_color,
+                logo_url: config.logo_url || null,
+                custom_css: config.custom_css || null
+            };
+            
+            // Upsert
+            const { error } = await supabaseClient
+                .from('tenant_config')
+                .upsert(cleanConfig, { onConflict: 'tenant_id' });
+                
+            if (error) throw error;
+            
+            // Actualizar caché
+            localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify({
+                primary_color: cleanConfig.primary_color,
+                secondary_color: cleanConfig.secondary_color,
+                logo_url: cleanConfig.logo_url,
+                custom_css: cleanConfig.custom_css
+            }));
+            
+            // Aplicar estilos inmediatamente
+            this.applyStyles(cleanConfig);
+            return true;
+        } catch (e) {
+            console.error('Error guardando configuración visual:', e);
+            return false;
+        }
+    },
+
+    // Dentro de const VisualConfigManager = { ... }
+async loadConfigForTenant(tenantId) {
+    if (!tenantId) return this.getDefaultConfig();
+    try {
+        const cached = localStorage.getItem(`tenant_config_${tenantId}`);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.primary_color) return parsed;
+        }
+        const { data, error } = await supabaseClient
+            .from('tenant_config')
+            .select('primary_color, secondary_color, logo_url, custom_css')
+            .eq('tenant_id', tenantId)
+            .maybeSingle();
+        if (error) throw error;
+        let config = this.getDefaultConfig();
+        if (data) {
+            config = {
+                primary_color: data.primary_color || config.primary_color,
+                secondary_color: data.secondary_color || config.secondary_color,
+                logo_url: data.logo_url || config.logo_url,
+                custom_css: data.custom_css || config.custom_css
+            };
+        }
+        localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify(config));
+        return config;
+    } catch (e) {
+        console.error('Error cargando configuración para tenant', tenantId, e);
+        return this.getDefaultConfig();
+    }
+},
+
+async saveConfigForTenant(tenantId, config) {
+    if (!tenantId) throw new Error('Tenant ID requerido');
+    try {
+        const cleanConfig = {
+            tenant_id: tenantId,
+            primary_color: config.primary_color || this.getDefaultConfig().primary_color,
+            secondary_color: config.secondary_color || this.getDefaultConfig().secondary_color,
+            logo_url: config.logo_url || null,
+            custom_css: config.custom_css || null
+        };
+        const { error } = await supabaseClient
+            .from('tenant_config')
+            .upsert(cleanConfig, { onConflict: 'tenant_id' });
+        if (error) throw error;
+        localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify({
+            primary_color: cleanConfig.primary_color,
+            secondary_color: cleanConfig.secondary_color,
+            logo_url: cleanConfig.logo_url,
+            custom_css: cleanConfig.custom_css
+        }));
+        return true;
+    } catch (e) {
+        console.error('Error guardando configuración para tenant', tenantId, e);
+        return false;
+    }
+},
+    
+    /**
+     * Aplica los estilos dinámicos al documento
+     * @param {Object} config 
+     */
+    applyStyles(config) {
+        // Remover bloque de estilos personalizados anterior si existe
+        const oldStyle = document.getElementById('tenant-custom-styles');
+        if (oldStyle) oldStyle.remove();
+        
+        // Crear nuevo bloque <style>
+        const styleEl = document.createElement('style');
+        styleEl.id = 'tenant-custom-styles';
+        
+        let cssRules = `
+            :root {
+                --primary-color: ${config.primary_color};
+                --secondary-color: ${config.secondary_color};
+                --primary-glow: ${config.primary_color}80;
+            }
+            /* Ajustes adicionales para botones y bordes */
+            .btn-grad {
+                background: linear-gradient(90deg, ${config.primary_color}, ${config.secondary_color}) !important;
+            }
+            .btn-grad:hover {
+                background: linear-gradient(90deg, ${config.secondary_color}, ${config.primary_color}) !important;
+            }
+            .stat-box::before {
+                background: linear-gradient(to bottom, ${config.primary_color}, ${config.secondary_color});
+            }
+            .calendar-day.selected {
+                background: ${config.primary_color};
+            }
+            .service-card-category.belleza,
+            .service-card-category.bienestar,
+            .service-card-category.salud {
+                border-color: ${config.primary_color};
+                color: ${config.primary_color};
+            }
+        `;
+        
+        if (config.custom_css && config.custom_css.trim()) {
+            cssRules += `\n/* Custom CSS del tenant */\n${config.custom_css}`;
+        }
+        
+        styleEl.textContent = cssRules;
+        document.head.appendChild(styleEl);
+        
+        // Actualizar logo si existe
+        this.updateLogo(config.logo_url);
+    },
+    
+    updateLogo(logoUrl) {
+    // Buscar todos los elementos con clase 'tenant-logo' que sean imágenes
+    const logoImages = document.querySelectorAll('.tenant-logo img, img.tenant-logo');
+    logoImages.forEach(img => {
+        if (logoUrl && logoUrl.trim() !== '') {
+            img.src = logoUrl;
+            img.style.display = 'inline-block';
+        } else {
+            img.style.display = 'none';
+        }
+    });
+
+    // Opcional: también soportar elementos con background-image
+    const logoBgElements = document.querySelectorAll('.tenant-logo-bg');
+    logoBgElements.forEach(el => {
+        if (logoUrl && logoUrl.trim() !== '') {
+            el.style.backgroundImage = `url('${logoUrl}')`;
+            el.style.backgroundSize = 'contain';
+            el.style.backgroundRepeat = 'no-repeat';
+            el.style.backgroundPosition = 'center';
+        } else {
+            el.style.backgroundImage = 'none';
+        }
+    });
+
+    console.log('Logo actualizado:', logoUrl);
+}
+};
+
+async function enviarSolicitudCSS() {
+    const descripcion = document.getElementById('solicitud-descripcion').value.trim();
+    if (!descripcion) {
+        mostrarToast('Por favor, describe lo que deseas.', 'warning');
+        return false;
+    }
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) {
+        mostrarToast('Error: no se pudo identificar el tenant.', 'error');
+        return false;
+    }
+    // Obtener datos del tenant (nombre)
+    const { data: tenant, error: tenantError } = await supabaseClient
+        .from('tenants')
+        .select('nombre_negocio, email_contacto')
+        .eq('id', tenantId)
+        .single();
+    if (tenantError) {
+        console.error(tenantError);
+        mostrarToast('Error al obtener datos del tenant.', 'error');
+        return false;
+    }
+    const notif = {
+        tenant_id: tenantId,
+        tipo: 'solicitud_css_profesional',
+        cita_id: null,
+        fecha_original: null,
+        hora_original: null,
+        fecha_nueva: null,
+        hora_nueva: null,
+        cliente: { nombre: tenant.nombre_negocio, email: tenant.email_contacto },
+        leido: false,
+        creado_en: new Date().toISOString(),
+        metadata: { descripcion: descripcion }
+    };
+    const { error } = await supabaseClient.from('notificaciones_admin').insert(notif);
+    if (error) {
+        console.error(error);
+        mostrarToast('Error al enviar la solicitud.', 'error');
+        return false;
+    }
+    mostrarToast('Solicitud enviada. Un asesor se pondrá en contacto.', 'success');
+    return true;
+}
+
+// ============================================
 // PLANES Y SUSCRIPCIONES (para página planes.html)
 // ============================================
 const planesData = {
@@ -2146,9 +2438,101 @@ window.crearDatosEjemplo = crearDatosEjemplo;
 
 async function iniciarAdmin() {
     console.log('Iniciando admin...');
-    
+
+    // ========== NUEVO: Cargar configuración visual del tenant ==========
+    let visualConfig = null;
+    try {
+        visualConfig = await VisualConfigManager.loadConfig();
+        VisualConfigManager.applyStyles(visualConfig);
+    } catch (err) {
+        console.warn('Error al cargar configuración visual:', err);
+        visualConfig = VisualConfigManager.getDefaultConfig();
+    }
+
+    // ========== NUEVO: Verificar plan de suscripción y restringir personalización ==========
+    let suscripcion = null;
+    let esPlanPago = false;
+    try {
+        suscripcion = await SuscripcionManager.getCurrent();
+        esPlanPago = suscripcion && (suscripcion.plan === 'pro' || suscripcion.plan === 'premium_anual');
+    } catch(e) {
+        console.warn('Error obteniendo suscripción:', e);
+    }
+
+    const primaryInput = document.getElementById('primary-color');
+    const secondaryInput = document.getElementById('secondary-color');
+    const logoInput = document.getElementById('logo-url');
+    const customCssTextarea = document.getElementById('custom-css');
+    const saveBtn = document.querySelector('#customization-form button[type="submit"]');
+    const resetBtn = document.getElementById('reset-customization');
+    const formFields = [primaryInput, secondaryInput, logoInput, customCssTextarea];
+
+    if (!esPlanPago) {
+        // Deshabilitar campos y botón guardar
+        formFields.forEach(field => { if (field) field.disabled = true; });
+        if (saveBtn) saveBtn.disabled = true;
+        if (resetBtn) resetBtn.disabled = true;
+        // Mostrar mensaje de upgrade
+        let upgradeMsg = document.getElementById('upgrade-message');
+        if (!upgradeMsg) {
+            upgradeMsg = document.createElement('div');
+            upgradeMsg.id = 'upgrade-message';
+            upgradeMsg.className = 'warning-message';
+            upgradeMsg.style.cssText = 'background: rgba(255,193,7,0.2); border-left: 4px solid #ffc107; padding: 12px; margin: 15px 0; border-radius: 8px;';
+            upgradeMsg.innerHTML = `⚠️ <strong>Personalización visual disponible en planes Pro y Premium.</strong> <a href="planes.html" style="color: #ffc107;">Actualiza tu plan aquí</a>`;
+            const form = document.getElementById('customization-form');
+            if (form) form.parentNode.insertBefore(upgradeMsg, form);
+        }
+    } else {
+        // Asegurar que los campos estén habilitados (por si se recarga)
+        formFields.forEach(field => { if (field) field.disabled = false; });
+        if (saveBtn) saveBtn.disabled = false;
+        if (resetBtn) resetBtn.disabled = false;
+        const existingMsg = document.getElementById('upgrade-message');
+        if (existingMsg) existingMsg.remove();
+    }
+
+    // ========== NUEVO: Mostrar/ocultar botón de solicitud CSS según plan ==========
+    const solicitarContainer = document.getElementById('solicitar-css-container');
+    if (solicitarContainer) {
+        solicitarContainer.style.display = esPlanPago ? 'block' : 'none';
+    }
+    // Configurar evento del botón
+    const btnSolicitar = document.getElementById('btn-solicitar-css');
+    const modalSolicitud = document.getElementById('modal-solicitud-css');
+    const closeModal = document.getElementById('close-solicitud-modal');
+    const cancelarSolicitud = document.getElementById('cancelar-solicitud');
+    const enviarBtn = document.getElementById('enviar-solicitud');
+
+    if (btnSolicitar && modalSolicitud) {
+        btnSolicitar.onclick = () => { modalSolicitud.style.display = 'flex'; };
+        if (closeModal) closeModal.onclick = () => { modalSolicitud.style.display = 'none'; };
+        if (cancelarSolicitud) cancelarSolicitud.onclick = () => { modalSolicitud.style.display = 'none'; };
+        if (enviarBtn) {
+            enviarBtn.onclick = async () => {
+                const ok = await enviarSolicitudCSS();
+                if (ok) modalSolicitud.style.display = 'none';
+                const descInput = document.getElementById('solicitud-descripcion');
+                if (descInput) descInput.value = '';
+            };
+        }
+    }
+
+    // ========== RELLENAR FORMULARIO DE PERSONALIZACIÓN (solo si existen los campos) ==========
+    if (primaryInput) primaryInput.value = visualConfig.primary_color;
+    if (secondaryInput) secondaryInput.value = visualConfig.secondary_color;
+    if (logoInput) logoInput.value = visualConfig.logo_url || '';
+    if (customCssTextarea) customCssTextarea.value = visualConfig.custom_css || '';
+
+    // Listener en tiempo real para el logo
+    if (logoInput) {
+        logoInput.addEventListener('input', (e) => {
+            VisualConfigManager.updateLogo(e.target.value);
+        });
+    }
+
+    // ========== SESIÓN Y PERMISOS ==========
     const session = await getSession();
-    // Permitir admin o super_admin
     if (!session || (session.rol !== 'admin' && session.rol !== 'super_admin')) {
         console.log('No hay sesión de admin/superadmin, redirigiendo...');
         window.location.href = 'login.html';
@@ -2177,9 +2561,56 @@ async function iniciarAdmin() {
     if (typeof generarNotificaciones === 'function') await generarNotificaciones();
     if (typeof setupNotificacionesListeners === 'function') setupNotificacionesListeners();
     
-    // ⬇️ NUEVA LLAMADA: cargar información de suscripción del tenant
     await cargarSuscripcionTenant();
     
+    // ========== CONFIGURAR EVENTOS DEL FORMULARIO DE PERSONALIZACIÓN ==========
+    const customForm = document.getElementById('customization-form');
+    if (customForm) {
+        customForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newConfig = {
+                primary_color: document.getElementById('primary-color').value,
+                secondary_color: document.getElementById('secondary-color').value,
+                logo_url: document.getElementById('logo-url').value,
+                custom_css: document.getElementById('custom-css').value
+            };
+            const success = await VisualConfigManager.saveConfig(newConfig);
+            const feedback = document.getElementById('customization-feedback');
+            if (success) {
+                feedback.textContent = '✅ Configuración guardada y aplicada.';
+                feedback.className = 'success';
+                setTimeout(() => feedback.textContent = '', 3000);
+            } else {
+                feedback.textContent = '❌ Error al guardar. Revisa consola.';
+                feedback.className = 'error';
+            }
+        });
+        
+        const resetBtnForm = document.getElementById('reset-customization');
+        if (resetBtnForm) {
+            resetBtnForm.addEventListener('click', async () => {
+                const defaultConfig = VisualConfigManager.getDefaultConfig();
+                const primaryInput = document.getElementById('primary-color');
+                const secondaryInput = document.getElementById('secondary-color');
+                const logoInput = document.getElementById('logo-url');
+                const customCssTextarea = document.getElementById('custom-css');
+                if (primaryInput) primaryInput.value = defaultConfig.primary_color;
+                if (secondaryInput) secondaryInput.value = defaultConfig.secondary_color;
+                if (logoInput) logoInput.value = '';
+                if (customCssTextarea) customCssTextarea.value = '';
+                const success = await VisualConfigManager.saveConfig(defaultConfig);
+                const feedback = document.getElementById('customization-feedback');
+                if (success) {
+                    feedback.textContent = '✅ Configuración restablecida a valores por defecto.';
+                    feedback.className = 'success';
+                } else {
+                    feedback.textContent = '❌ Error al restablecer.';
+                    feedback.className = 'error';
+                }
+            });
+        }
+    }
+
     console.log('Admin/SuperAdmin iniciado correctamente');
 }
 window.iniciarAdmin = iniciarAdmin;
@@ -2227,36 +2658,41 @@ async function iniciarSuperAdmin() {
 async function cargarTenants() {
     const container = document.getElementById('tenants-list');
     if (!container) return;
+    
     try {
         const { data: tenants, error } = await supabaseClient
             .from('tenants')
             .select(`
                 *,
-                subscriptions (
-                    id, plan, status, start_date, end_date
-                )
+                subscriptions ( id, plan, status, start_date, end_date )
             `)
             .order('fecha_registro', { ascending: false });
+        
         if (error) throw error;
         if (!tenants || tenants.length === 0) {
             container.innerHTML = '<p>No hay tenants registrados</p>';
             return;
         }
+        
+        const planDisplayNames = {
+            'freemium': 'Freemium',
+            'pro': 'Pro',
+            'premium_anual': 'Premium Anual'
+        };
+        
         let html = '';
         tenants.forEach(t => {
-            // Obtener suscripción activa (la primera ordenada por start_date desc, o la que tiene status 'active')
-            let activeSub = null;
-            if (t.subscriptions && t.subscriptions.length) {
-                activeSub = t.subscriptions.find(sub => sub.status === 'active') || t.subscriptions[0];
-            }
-            const planName = activeSub ? activeSub.plan : (t.plan || 'freemium');
+            let activeSub = t.subscriptions?.find(sub => sub.status === 'active') || t.subscriptions?.[0];
+            const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
+            const planDisplay = planDisplayNames[planKey] || planKey;
             const statusSub = activeSub ? activeSub.status : 'active';
             const endDate = activeSub?.end_date ? new Date(activeSub.end_date).toLocaleDateString() : 'N/A';
+            
             html += `
-                <div class="tenant-card glass-panel" data-id="${t.id}">
+                <div class="tenant-card glass-panel" style="padding:20px;">
                     <div class="tenant-header">
                         <h4>${escapeHtml(t.nombre_negocio)}</h4>
-                        <span class="badge ${planName}">${planName}</span>
+                        <span class="badge ${planKey}">${planDisplay}</span>
                     </div>
                     <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
                     <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
@@ -2265,12 +2701,15 @@ async function cargarTenants() {
                         <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
                         <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
                         <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff; margin-left:10px;"></i>
+                        <i class="fas fa-palette edit-visual" data-id="${t.id}" style="cursor:pointer; color:#00b894; margin-left:10px;" title="Editar configuración visual"></i>
                     </div>
                 </div>
             `;
         });
+        
         container.innerHTML = html;
-        // Re-asignar eventos
+        
+        // Eventos existentes
         document.querySelectorAll('.edit-tenant').forEach(icon => {
             icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
         });
@@ -2280,10 +2719,18 @@ async function cargarTenants() {
         document.querySelectorAll('.manage-sub').forEach(icon => {
             icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
         });
+        // Evento para edición visual (NUEVO)
+        document.querySelectorAll('.edit-visual').forEach(icon => {
+            icon.addEventListener('click', () => abrirModalEditarVisualTenant(icon.dataset.id));
+        });
+        
     } catch (error) {
         console.error('Error en cargarTenants:', error);
     }
 }
+
+// Asegurar que la función sea global
+window.cargarTenants = cargarTenants;
 
 // Variable global para el modal
 let currentSubTenantId = null;
@@ -4282,6 +4729,10 @@ window.renderMisReservas = renderMisReservas;
 async function iniciarCliente() {
     console.log('Iniciando cliente...');
     
+    // Cargar configuración visual del tenant y aplicar
+    const visualConfig = await VisualConfigManager.loadConfig();
+    VisualConfigManager.applyStyles(visualConfig);
+    
     const session = await getSession();
     if (!session) {
         console.log('No hay sesión, redirigiendo a login');
@@ -5693,6 +6144,83 @@ async function confirmarCambioFecha(citaId, serviceId, citaActual) {
 window.confirmarCambioFecha = confirmarCambioFecha;
 
 // ============================================
+// MODAL PARA EDITAR CONFIGURACIÓN VISUAL (SUPERADMIN)
+// ============================================
+let visualConfigModal = null;
+
+function crearModalEditarVisualTenant() {
+    if (visualConfigModal) return visualConfigModal;
+    const modalHtml = `
+        <div id="modal-editar-visual" class="modal" style="display:none;">
+            <div class="modal-content glass-panel" style="max-width:500px;">
+                <span class="modal-close">&times;</span>
+                <h3>Editar configuración visual del tenant</h3>
+                <div class="form-group">
+                    <label>Color primario</label>
+                    <input type="color" id="edit-vis-primary" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Color secundario</label>
+                    <input type="color" id="edit-vis-secondary" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>URL del logo</label>
+                    <input type="text" id="edit-vis-logo" class="form-control" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>CSS personalizado</label>
+                    <textarea id="edit-vis-css" rows="4" class="form-control" placeholder="/* Estilos adicionales */"></textarea>
+                </div>
+                <div class="form-actions" style="margin-top:20px;">
+                    <button id="btn-guardar-visual" class="btn-grad">Guardar cambios</button>
+                    <button id="btn-cancelar-visual" class="btn-secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    visualConfigModal = document.getElementById('modal-editar-visual');
+    const closeSpan = visualConfigModal.querySelector('.modal-close');
+    const cancelBtn = document.getElementById('btn-cancelar-visual');
+    closeSpan.onclick = () => visualConfigModal.style.display = 'none';
+    cancelBtn.onclick = () => visualConfigModal.style.display = 'none';
+    window.onclick = (e) => { if (e.target === visualConfigModal) visualConfigModal.style.display = 'none'; };
+    return visualConfigModal;
+}
+
+async function abrirModalEditarVisualTenant(tenantId) {
+    const modal = crearModalEditarVisualTenant();
+    const config = await VisualConfigManager.loadConfigForTenant(tenantId);
+    document.getElementById('edit-vis-primary').value = config.primary_color;
+    document.getElementById('edit-vis-secondary').value = config.secondary_color;
+    document.getElementById('edit-vis-logo').value = config.logo_url || '';
+    document.getElementById('edit-vis-css').value = config.custom_css || '';
+    modal.style.display = 'flex';
+    modal.dataset.currentTenant = tenantId;
+    
+    // Remover listener anterior para evitar duplicados
+    const saveBtn = document.getElementById('btn-guardar-visual');
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    newSaveBtn.onclick = async () => {
+        const updatedConfig = {
+            primary_color: document.getElementById('edit-vis-primary').value,
+            secondary_color: document.getElementById('edit-vis-secondary').value,
+            logo_url: document.getElementById('edit-vis-logo').value,
+            custom_css: document.getElementById('edit-vis-css').value
+        };
+        const success = await VisualConfigManager.saveConfigForTenant(tenantId, updatedConfig);
+        if (success) {
+            mostrarToast('Configuración visual guardada correctamente', 'success');
+            modal.style.display = 'none';
+            await cargarTenants(); // refrescar lista (opcional)
+        } else {
+            mostrarToast('Error al guardar la configuración', 'error');
+        }
+    };
+}
+
+// ============================================
 // CARRITO (modificado para async)
 // ============================================
 async function renderCarrito() {
@@ -6336,11 +6864,13 @@ window.iniciarSuperAdmin = async function() {
     document.getElementById('btn-refresh-users')?.addEventListener('click', () => cargarUsuariosSuper());
     document.getElementById('btn-refresh-servicios')?.addEventListener('click', cargarServiciosGlobales);
     document.getElementById('btn-refresh-citas')?.addEventListener('click', cargarCitasGlobales);
+    document.getElementById('btn-refresh-solicitudes')?.addEventListener('click', cargarSolicitudesCSS);  // <-- NUEVO
     
     // Cargar datos iniciales de los tabs adicionales (se cargan bajo demanda al cambiar de pestaña)
     // Para evitar múltiples cargas, usaremos flags.
     window._serviciosCargados = false;
     window._citasCargadas = false;
+    window._solicitudesCargadas = false;   // <-- NUEVO
 };
 
 // --- Configuración de Tabs ---
@@ -6369,6 +6899,11 @@ function setupSuperAdminTabs() {
             } else if (targetId === 'citas' && !window._citasCargadas) {
                 await cargarCitasGlobales();
                 window._citasCargadas = true;
+            } else if (targetId === 'solicitudes') {
+                if (!window._solicitudesCargadas) {
+                    await cargarSolicitudesCSS();
+                    window._solicitudesCargadas = true;
+                }
             }
         });
     });
@@ -6624,90 +7159,116 @@ async function cargarCitasGlobales() {
     }
 }
 
-// --- Sobrescribir cargarTenants para usar el nuevo contenedor grid ---
-const _originalCargarTenants = window.cargarTenants;
-window.cargarTenants = async function() {
-    // Si existe función original, la ejecutamos primero (por compatibilidad)
-    if (typeof _originalCargarTenants === 'function') {
-        await _originalCargarTenants();
-    }
-    
-    const container = document.getElementById('tenants-list');
+async function cargarSolicitudesCSS() {
+    const container = document.getElementById('solicitudes-list');
     if (!container) return;
-    
+    container.innerHTML = '<p>Cargando solicitudes...</p>';
     try {
-        // Obtener tenants junto con sus suscripciones
-        const { data: tenants, error } = await supabaseClient
-            .from('tenants')
-            .select(`
-                *,
-                subscriptions (
-                    id, plan, status, start_date, end_date
-                )
-            `)
-            .order('fecha_registro', { ascending: false });
-        
+        const { data, error } = await supabaseClient
+            .from('notificaciones_admin')
+            .select('*, tenants(nombre_negocio)')
+            .eq('tipo', 'solicitud_css_profesional')
+            .order('creado_en', { ascending: false });
         if (error) throw error;
-        
-        if (!tenants || tenants.length === 0) {
-            container.innerHTML = '<p>No hay tenants registrados</p>';
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p>No hay solicitudes pendientes.</p>';
             return;
         }
-        
-        // Mapeo de nombres de planes para mostrar
-        const planDisplayNames = {
-            'freemium': 'Freemium',
-            'pro': 'Pro',
-            'premium_anual': 'Premium Anual'
-        };
-        
         let html = '';
-        tenants.forEach(t => {
-            // Obtener suscripción activa (status 'active') o la más reciente
-            let activeSub = null;
-            if (t.subscriptions && t.subscriptions.length) {
-                activeSub = t.subscriptions.find(sub => sub.status === 'active') || t.subscriptions[0];
-            }
-            const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
-            const planDisplay = planDisplayNames[planKey] || planKey;
-            const statusSub = activeSub ? activeSub.status : 'active';
-            const endDate = activeSub?.end_date ? new Date(activeSub.end_date).toLocaleDateString() : 'N/A';
-            
+        data.forEach(s => {
+            const tenantName = s.tenants?.nombre_negocio || 'Desconocido';
+            const fecha = new Date(s.creado_en).toLocaleString();
+            const descripcion = s.metadata?.descripcion || 'Sin descripción';
             html += `
-                <div class="tenant-card glass-panel" style="padding:20px;">
-                    <div class="tenant-header">
-                        <h4>${escapeHtml(t.nombre_negocio)}</h4>
-                        <span class="badge ${planKey}">${planDisplay}</span>
+                <div class="solicitud-item" data-id="${s.id}" data-tenant-id="${s.tenant_id}">
+                    <div class="solicitud-header">
+                        <span class="solicitud-tenant">${escapeHtml(tenantName)}</span>
+                        <span class="solicitud-fecha">${fecha}</span>
                     </div>
-                    <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
-                    <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
-                    <p><i class="fas fa-ticket-alt"></i> Suscripción: ${statusSub} ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
-                    <div class="tenant-actions" style="margin-top:15px;">
-                        <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
-                        <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
-                        <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff; margin-left:10px;"></i>
+                    <div class="solicitud-descripcion">${escapeHtml(descripcion)}</div>
+                    <div class="solicitud-actions">
+                        <button class="btn-grad btn-small aplicar-css" data-id="${s.id}" data-tenant="${s.tenant_id}"><i class="fas fa-code"></i> Aplicar CSS</button>
+                        <button class="btn-secondary btn-small descartar-solicitud" data-id="${s.id}"><i class="fas fa-trash"></i> Descartar</button>
                     </div>
                 </div>
             `;
         });
-        
         container.innerHTML = html;
-        
-        // Re-asignar eventos
-        document.querySelectorAll('.edit-tenant').forEach(icon => {
-            icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
+        // Eventos
+        document.querySelectorAll('.aplicar-css').forEach(btn => {
+            btn.addEventListener('click', () => abrirModalAplicarCSS(btn.dataset.id, btn.dataset.tenant));
         });
-        document.querySelectorAll('.delete-tenant').forEach(icon => {
-            icon.addEventListener('click', () => eliminarTenant(icon.dataset.id));
+        document.querySelectorAll('.descartar-solicitud').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (confirm('¿Descartar esta solicitud?')) {
+                    const { error } = await supabaseClient.from('notificaciones_admin').delete().eq('id', btn.dataset.id);
+                    if (error) mostrarToast('Error al descartar', 'error');
+                    else {
+                        mostrarToast('Solicitud descartada', 'success');
+                        cargarSolicitudesCSS();
+                    }
+                }
+            });
         });
-        document.querySelectorAll('.manage-sub').forEach(icon => {
-            icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
-        });
-        
-    } catch (error) {
-        console.error('Error en cargarTenants extendido:', error);
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<p>Error al cargar solicitudes.</p>';
     }
-};
+}
+
+async function abrirModalAplicarCSS(solicitudId, tenantId) {
+    // Crear modal dinámico o reutilizar uno existente
+    let modal = document.getElementById('modal-aplicar-css');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-aplicar-css';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content glass-panel">
+                <span class="modal-close">&times;</span>
+                <h3>Aplicar CSS personalizado</h3>
+                <textarea id="aplicar-css-text" rows="6" style="width:100%; margin:15px 0; padding:10px; background:rgba(255,255,255,0.05); color:#fff;" placeholder="Escribe aquí el CSS personalizado..."></textarea>
+                <div class="form-actions">
+                    <button id="guardar-css-tenant" class="btn-grad">Guardar y marcar como atendida</button>
+                    <button id="cancelar-aplicar-css" class="btn-secondary">Cancelar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.querySelector('.modal-close').onclick = () => modal.style.display = 'none';
+        modal.querySelector('#cancelar-aplicar-css').onclick = () => modal.style.display = 'none';
+    }
+    modal.style.display = 'flex';
+    const guardarBtn = document.getElementById('guardar-css-tenant');
+    const textarea = document.getElementById('aplicar-css-text');
+    // Remover eventos previos para evitar duplicados
+    const newGuardarBtn = guardarBtn.cloneNode(true);
+    guardarBtn.parentNode.replaceChild(newGuardarBtn, guardarBtn);
+    newGuardarBtn.onclick = async () => {
+        const customCss = textarea.value.trim();
+        if (!customCss) {
+            mostrarToast('El CSS no puede estar vacío', 'warning');
+            return;
+        }
+        // Actualizar tenant_config
+        const { error } = await supabaseClient
+            .from('tenant_config')
+            .upsert({ tenant_id: tenantId, custom_css: customCss }, { onConflict: 'tenant_id' });
+        if (error) {
+            mostrarToast('Error al guardar CSS', 'error');
+            return;
+        }
+        // Eliminar la solicitud
+        await supabaseClient.from('notificaciones_admin').delete().eq('id', solicitudId);
+        mostrarToast('CSS aplicado y solicitud atendida', 'success');
+        modal.style.display = 'none';
+        cargarSolicitudesCSS();
+        // Opcional: refrescar también la lista de tenants (para reflejar cambios visuales)
+        if (typeof cargarTenants === 'function') cargarTenants();
+    };
+}
+
+
 
 // Función auxiliar para abrir modal con datos del tenant (si no existe)
 async function abrirModalEditarTenant(tenantId) {
