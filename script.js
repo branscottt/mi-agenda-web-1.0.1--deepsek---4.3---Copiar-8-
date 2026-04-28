@@ -4728,25 +4728,40 @@ window.renderMisReservas = renderMisReservas;
 // ============================================
 async function iniciarCliente() {
     console.log('Iniciando cliente...');
-    
+
+    // ===== NUEVO: Obtener tenant de la URL y establecerlo =====
+    const urlParams = new URLSearchParams(window.location.search);
+    const tenantId = urlParams.get('tenant');
+    if (!tenantId) {
+        mostrarToast('Enlace inválido: no se especificó el negocio', 'error');
+        return;
+    }
+    if (!supabaseClient) {
+        console.error('Supabase no inicializado');
+        mostrarToast('Error de conexión', 'error');
+        return;
+    }
+    await supabaseClient.rpc('set_tenant', { tenant_id: tenantId });
+    // ==========================================================
+
     // Cargar configuración visual del tenant y aplicar
     const visualConfig = await VisualConfigManager.loadConfig();
     VisualConfigManager.applyStyles(visualConfig);
-    
+
     const session = await getSession();
     if (!session) {
         console.log('No hay sesión, redirigiendo a login');
         window.location.href = 'login.html';
         return;
     }
-    
+
     currentFilterTerm = '';
     currentFilterDate = '';
     currentFilterCategory = 'todos';
     await cargarServiciosParaCliente();
     configurarBuscadorCliente();
     configurarFiltroFecha();
-    
+
     configurarBotonesExportacion();
 
     if (session && session.rol === 'invitado') {
@@ -6541,217 +6556,130 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 // ============================================
-// FUNCIONES DE LOGIN (adaptada a tu HTML)
+// FUNCION DE LOGIN / REGISTRO (versión modernizada)
 // ============================================
 function iniciarLogin() {
-    console.log('Iniciando login...');
-    
-    const loginModeBtn = document.getElementById('login-mode');
-    const registerModeBtn = document.getElementById('register-mode');
+    console.log('Iniciando login moderno...');
+
+    // Elementos del DOM
     const loginContainer = document.getElementById('login-container');
     const registerContainer = document.getElementById('register-container');
+    const loginModeBtn = document.getElementById('login-mode');
+    const registerModeBtn = document.getElementById('register-mode');
     const backToLogin = document.getElementById('back-to-login');
+    const loginForm = document.getElementById('login-form-modern');
+    const registerForm = document.getElementById('register-form-modern');
+    const loginErrorDiv = document.getElementById('login-error-message');
+    const registerErrorDiv = document.getElementById('register-error-message');
+    const googleBtn = document.getElementById('google-login-btn');
+    const forgotLink = document.getElementById('forgot-password-link');
 
-    function showLogin(){
-        if(loginContainer) loginContainer.classList.add('active');
-        if(registerContainer) registerContainer.classList.remove('active');
-        if(loginModeBtn) loginModeBtn.classList.add('active');
-        if(registerModeBtn) registerModeBtn.classList.remove('active');
-    }
-    function showRegister(){
-        if(loginContainer) loginContainer.classList.remove('active');
-        if(registerContainer) registerContainer.classList.add('active');
-        if(loginModeBtn) loginModeBtn.classList.remove('active');
-        if(registerModeBtn) registerModeBtn.classList.add('active');
+    // Mostrar formulario de login
+    function showLogin() {
+        if (loginContainer) loginContainer.style.display = 'block';
+        if (registerContainer) registerContainer.style.display = 'none';
+        if (loginModeBtn) loginModeBtn.classList.add('active');
+        if (registerModeBtn) registerModeBtn.classList.remove('active');
+        // Limpiar mensajes
+        if (loginErrorDiv) loginErrorDiv.style.display = 'none';
+        if (registerErrorDiv) registerErrorDiv.style.display = 'none';
     }
 
-    if (registerModeBtn) registerModeBtn.addEventListener('click', (e) => { e.preventDefault(); showRegister(); });
+    // Mostrar formulario de registro
+    function showRegister() {
+        if (loginContainer) loginContainer.style.display = 'none';
+        if (registerContainer) registerContainer.style.display = 'block';
+        if (loginModeBtn) loginModeBtn.classList.remove('active');
+        if (registerModeBtn) registerModeBtn.classList.add('active');
+        // Limpiar mensajes
+        if (loginErrorDiv) loginErrorDiv.style.display = 'none';
+        if (registerErrorDiv) registerErrorDiv.style.display = 'none';
+    }
+
+    // Eventos toggle
     if (loginModeBtn) loginModeBtn.addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
+    if (registerModeBtn) registerModeBtn.addEventListener('click', (e) => { e.preventDefault(); showRegister(); });
     if (backToLogin) backToLogin.addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
 
-    // ============================================
-    // ACCESO CLIENTE (tarjeta)
-    // ============================================
-    const clientRoleCard = document.getElementById('client-role');
-    if (clientRoleCard) {
-        clientRoleCard.addEventListener('click', async function(e) {
+    // --- LOGIN con email/password ---
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: 'cliente@demo.com',
-                    password: 'demo123'
-                });
-                if (error) throw error;
-                mostrarMensaje('Acceso como Cliente', 'success');
-                setTimeout(() => { window.location.href = 'cliente.html'; }, 800);
-            } catch (err) {
-                console.error('Error en acceso cliente:', err);
-                mostrarMensaje('Error al acceder: ' + err.message, 'error');
-            }
-        });
-    }
+            const email = document.getElementById('login-email')?.value.trim().toLowerCase();
+            const password = document.getElementById('login-password')?.value;
+            const remember = document.getElementById('remember-me')?.checked;
 
-    // ============================================
-    // ACCESO ADMIN (con contraseña)
-    // ============================================
-    const adminRoleCard = document.getElementById('admin-role');
-    const adminLoginForm = document.getElementById('admin-login-form');
-    const cancelAdmin = document.getElementById('cancel-admin');
-    const submitAdmin = document.getElementById('submit-admin');
-    const adminPassword = document.getElementById('admin-password');
-
-    if (adminRoleCard && adminLoginForm) {
-        adminRoleCard.addEventListener('click', function(e) {
-            e.preventDefault();
-            adminLoginForm.style.display = 'block';
-            adminRoleCard.style.opacity = '0.5';
-        });
-    }
-
-    if (cancelAdmin && adminLoginForm) {
-        cancelAdmin.addEventListener('click', function(e) {
-            e.preventDefault();
-            adminLoginForm.style.display = 'none';
-            if (adminRoleCard) adminRoleCard.style.opacity = '1';
-            if (adminPassword) adminPassword.value = '';
-        });
-    }
-
-    if (submitAdmin) {
-        submitAdmin.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const pwd = adminPassword?.value || '';
-            if (pwd !== 'admin123') {
-                mostrarMensaje('Contraseña incorrecta', 'error');
+            if (!email || !password) {
+                mostrarMensaje('Completa todos los campos', 'warning');
                 return;
             }
+
             try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: 'admin@demo.com',
-                    password: 'demo123'
-                });
-                if (error) throw error;
-                mostrarMensaje('Acceso administrador', 'success');
-                setTimeout(() => { window.location.href = 'admin.html'; }, 800);
-            } catch (err) {
-                console.error('Error admin login:', err);
-                mostrarMensaje('Error al acceder como admin: ' + err.message, 'error');
-            }
-        });
-    }
-
-    // ============================================
-    // ACCESO SUPER ADMIN (NUEVO)
-    // ============================================
-    const superadminRoleCard = document.getElementById('superadmin-role');
-    const superadminLoginForm = document.getElementById('superadmin-login-form');
-    const cancelSuperadmin = document.getElementById('cancel-superadmin');
-    const submitSuperadmin = document.getElementById('submit-superadmin');
-    const superadminPassword = document.getElementById('superadmin-password');
-
-    if (superadminRoleCard && superadminLoginForm) {
-        superadminRoleCard.addEventListener('click', function(e) {
-            e.preventDefault();
-            superadminLoginForm.style.display = 'block';
-            superadminRoleCard.style.opacity = '0.5';
-        });
-    }
-
-    if (cancelSuperadmin && superadminLoginForm) {
-        cancelSuperadmin.addEventListener('click', function(e) {
-            e.preventDefault();
-            superadminLoginForm.style.display = 'none';
-            if (superadminRoleCard) superadminRoleCard.style.opacity = '1';
-            if (superadminPassword) superadminPassword.value = '';
-        });
-    }
-
-    if (submitSuperadmin) {
-        submitSuperadmin.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const pwd = superadminPassword?.value || '';
-            if (pwd !== 'super123') {
-                mostrarMensaje('Contraseña de super administrador incorrecta', 'error');
-                return;
-            }
-            try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: 'super@demo.com',
-                    password: 'demo123'
-                });
-                if (error) throw error;
-                mostrarMensaje('Acceso como Super Administrador', 'success');
-                setTimeout(() => { window.location.href = 'superadmin.html'; }, 800);
-            } catch (err) {
-                console.error(err);
-                mostrarMensaje('Error al acceder como super admin: ' + err.message, 'error');
-            }
-        });
-    }
-
-    // ============================================
-    // TOKEN RÁPIDO
-    // ============================================
-    const tokenInput = document.getElementById('quick-token');
-    const tokenBtn = document.getElementById('submit-token');
-    
-    if (tokenBtn && tokenInput) {
-        tokenBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            const raw = tokenInput.value.trim();
-            if (!raw) {
-                mostrarMensaje('Ingresa un token', 'warning');
-                return;
-            }
-            const token = raw.toUpperCase();
-            const isAdmin = token.includes('ADMIN');
-            try {
-                const email = isAdmin ? 'admin@demo.com' : 'cliente@demo.com';
-                const password = 'demo123';
+                // Iniciar sesión con Supabase
                 const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
                 if (error) throw error;
-                mostrarMensaje(`Acceso como ${isAdmin ? 'admin' : 'cliente'}`, 'success');
-                setTimeout(() => {
-                    if (isAdmin) window.location.href = 'admin.html';
-                    else window.location.href = 'cliente.html';
-                }, 800);
-            } catch (error) {
-                console.error('Error en token login:', error);
-                mostrarMensaje('Error al iniciar sesión: ' + error.message, 'error');
+
+                // Recordarme (opcional: persistence local)
+                if (remember) {
+                    // Por defecto Supabase ya guarda sesión, pero podemos forzar
+                    await supabaseClient.auth.setSession(data.session);
+                }
+
+                mostrarMensaje('Inicio de sesión exitoso', 'success');
+                // Redirigir según el rol
+                const rol = data.user.user_metadata?.rol;
+                if (rol === 'super_admin') {
+                    window.location.href = 'superadmin.html';
+                } else if (rol === 'admin') {
+                    window.location.href = 'admin.html';
+                } else {
+                    window.location.href = 'cliente.html';
+                }
+            } catch (err) {
+                console.error('Error login:', err);
+                let msg = err.message;
+                if (msg.includes('Invalid login credentials')) msg = 'Correo o contraseña incorrectos';
+                if (loginErrorDiv) {
+                    loginErrorDiv.textContent = msg;
+                    loginErrorDiv.style.display = 'block';
+                } else {
+                    mostrarMensaje(msg, 'error');
+                }
             }
         });
     }
 
-    // ============================================
-    // REGISTRO
-    // ============================================
-    const registerForm = document.getElementById('register-form');
+    // --- REGISTRO con creación automática de tenant ---
     if (registerForm) {
-        registerForm.addEventListener('submit', async function(e) {
+        registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const inputs = this.querySelectorAll('input');
-            const nombre = inputs[0]?.value?.trim() || '';
-            const email = inputs[1]?.value?.trim().toLowerCase() || '';
-            const pass = inputs[2]?.value || '';
-            const pass2 = inputs[3]?.value || '';
+            const nombre = document.getElementById('register-name')?.value.trim();
+            const email = document.getElementById('register-email')?.value.trim().toLowerCase();
+            const password = document.getElementById('register-password')?.value;
+            const confirm = document.getElementById('register-confirm-password')?.value;
 
-            if (!nombre || !email || !pass) { 
-                mostrarMensaje('Completa todos los campos', 'warning'); 
-                return; 
+            if (!nombre || !email || !password) {
+                mostrarMensaje('Completa todos los campos', 'warning');
+                return;
             }
-            if (pass !== pass2) { 
-                mostrarMensaje('Las contraseñas no coinciden', 'error'); 
-                return; 
+            if (password !== confirm) {
+                mostrarMensaje('Las contraseñas no coinciden', 'error');
+                return;
+            }
+            if (password.length < 6) {
+                mostrarMensaje('La contraseña debe tener al menos 6 caracteres', 'error');
+                return;
             }
 
             try {
+                // 1. Crear tenant
                 const { data: tenant, error: tenantError } = await supabaseClient
                     .from('tenants')
-                    .insert({ 
-                        nombre_negocio: nombre + "'s Business",
+                    .insert({
+                        nombre_negocio: nombre + "'s negocio",
                         email_contacto: email,
                         plan: 'freemium'
                     })
@@ -6760,9 +6688,10 @@ function iniciarLogin() {
 
                 if (tenantError) throw tenantError;
 
-                const { error } = await supabaseClient.auth.signUp({
+                // 2. Registrar usuario en Auth
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
-                    password: pass,
+                    password: password,
                     options: {
                         data: {
                             nombre: nombre,
@@ -6771,16 +6700,45 @@ function iniciarLogin() {
                         }
                     }
                 });
+
                 if (error) throw error;
-                
-                mostrarMensaje(`Cuenta creada. Bienvenido ${nombre}`, 'success');
-                setTimeout(() => { window.location.href = 'cliente.html'; }, 800);
-            } catch (error) {
-                console.error('Error en registro:', error);
-                mostrarMensaje('Error al registrar: ' + error.message, 'error');
+
+                mostrarMensaje(`¡Cuenta creada! Bienvenido ${nombre}`, 'success');
+                // Redirigir a cliente (ya queda logueado)
+                setTimeout(() => {
+                    window.location.href = 'cliente.html';
+                }, 1500);
+            } catch (err) {
+                console.error('Error registro:', err);
+                let msg = err.message;
+                if (msg.includes('User already registered')) msg = 'El correo ya está registrado';
+                if (registerErrorDiv) {
+                    registerErrorDiv.textContent = msg;
+                    registerErrorDiv.style.display = 'block';
+                } else {
+                    mostrarMensaje(msg, 'error');
+                }
             }
         });
     }
+
+    // --- Botón de Google (placeholder - no implementado) ---
+    if (googleBtn) {
+        googleBtn.addEventListener('click', () => {
+            mostrarMensaje('Inicio con Google no disponible aún', 'info');
+        });
+    }
+
+    // --- Enlace "Olvidaste tu contraseña" (placeholder) ---
+    if (forgotLink) {
+        forgotLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            mostrarMensaje('Funcionalidad de recuperación de contraseña en desarrollo', 'info');
+        });
+    }
+
+    // Asegurar que empiece en Login
+    showLogin();
 }
 window.iniciarLogin = iniciarLogin;
 // ============================================

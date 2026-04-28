@@ -5699,3 +5699,143 @@ body {
     gap: 10px;
     margin-top: 10px;
 }
+
+/* === NUEVO DISEÑO LOGIN MODERNO === */
+.login-modern-form {
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+}
+.input-group {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    padding: 14px 18px;
+    transition: all 0.2s;
+}
+.input-group:focus-within {
+    border-color: #b300ff;
+    box-shadow: 0 0 0 3px rgba(179,0,255,0.2);
+}
+.input-group i {
+    color: #b300ff;
+    font-size: 1.1rem;
+    margin-right: 12px;
+}
+.input-group input {
+    background: transparent;
+    border: none;
+    color: white;
+    width: 100%;
+    outline: none;
+    font-size: 1rem;
+}
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    font-size: 0.85rem;
+}
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #aaa;
+    cursor: pointer;
+}
+#forgot-password-link {
+    color: #b300ff;
+    text-decoration: none;
+}
+#forgot-password-link:hover {
+    text-decoration: underline;
+}
+.btn-login {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+.btn-google {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 14px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.btn-google:hover {
+    background: rgba(179,0,255,0.1);
+    border-color: #b300ff;
+}
+.register-prompt {
+    text-align: center;
+    margin-top: 25px;
+    color: #aaa;
+}
+.register-prompt a {
+    color: #b300ff;
+    text-decoration: none;
+    font-weight: 600;
+}
+.error-message {
+    background: rgba(231,76,60,0.2);
+    border-left: 4px solid #e74c3c;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 20px;
+    color: #ff9999;
+}
+
+/* Estilos para el nuevo login */
+.btn-google {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 10px;
+}
+.btn-google:hover {
+    background: rgba(255,255,255,0.2);
+}
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 15px 0;
+    font-size: 0.9rem;
+}
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.error-message {
+    background: rgba(231,76,60,0.2);
+    border-left: 4px solid #e74c3c;
+    padding: 10px;
+    border-radius: 6px;
+    margin-top: 15px;
+    color: #ffb3b3;
+    font-size: 0.85rem;
+}
+.register-prompt {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}

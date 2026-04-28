@@ -174,19 +174,79 @@ contraseña: supabase fPZXFfmacRkESFmH
 
 Fase 1: Preparación de Datos y Gestión de Configuración (Sin Costos)
 ID	Acción
-()3.1	Ejecutar script SQL en Supabase para crear la tabla tenant_config.
-()3.2	Implementar ConfigManager en JS para leer y guardar la configuración en la base de datos.
-()3.3	Añadir una nueva pestaña/sección en admin.html llamada "Personalizar".
-()3.4	Implementar selectores de color (primario/secundario) y la lógica para subir logo a Supabase Storage.
-()3.5	Añadir un campo de texto para que el administrador pueda pegar CSS personalizado (con advertencias de seguridad).
-()3.6	Modificar cliente.html para que lea la configuración del tenant y aplique los estilos personalizados al cargar la página.
-Fase 2: Login Social y Mejoras de Acceso (Sin Costos)
-ID	Acción
-()4.1	Activar el proveedor "Google" en el panel de autenticación de Supabase.
-()4.2	Modificar login.html y su JS asociado para añadir el botón "Iniciar sesión con Google".
-()4.3	Implementar la llamada a supabaseClient.auth.signInWithOAuth({ provider: 'google' }).
-()4.4	Configurar en el panel de Supabase las URLs de redirección válidas (a cliente.html o admin.html).
-()4.5	En la página de destino, añadir la lógica para detectar si es un usuario nuevo. Si lo es, crear un tenant por defecto y asociarlo a su cuenta.
+(-)3.1	Ejecutar script SQL en Supabase para crear la tabla tenant_config.
+(-)3.2	Implementar ConfigManager en JS para leer y guardar la configuración en la base de datos.
+(-)3.3	Añadir una nueva pestaña/sección en admin.html llamada "Personalizar".
+(posible de solucionar... mas para el logo)3.4	Implementar selectores de color (primario/secundario) y la lógica para subir logo a Supabase Storage.
+(verificar, si meten css y lo dañan)3.5	Añadir un campo de texto para que el administrador pueda pegar CSS personalizado (con advertencias de seguridad).
+(-)3.6	Modificar cliente.html para que lea la configuración del tenant y aplique los estilos personalizados al cargar la página.
+
+### Fase 0 – Preparación y análisis
+(-)0.1 Revisar tablas en Supabase
+(-)0.2 Decidir estrategia de RLS para clientes anónimos (Opción B: set_tenant)
+(-)0.3 Configurar URLs de redirección OAuth
+(-)0.4 Documentar flujo de usuarios
+(-)0.5 Diseñar nuevo HTML/CSS de login (estilo SeedProd/Netflix, con campos email/password, checkbox “Recordarme”, enlace “¿Olvidaste tu contraseña?”, botón “Iniciar Sesión”, botón Google, enlace a registro)
+
+### Fase 1 – Acceso público a cliente.html (sin login)
+()1.1 Crear getTenantIdFromURL()
+()1.2 Modificar iniciarCliente() para usar tenant de URL
+()1.3 Adaptar ServiciosManager.getAll(tenantId?)
+()1.4 Adaptar CitasManager.getAll(tenantId?)
+()1.5 Modificar confirmarReserva() para usar tenantId de URL
+()1.6 Probar reserva anónima
+
+### Fase 2 – Registro de nuevos administradores
+()2.1 Crear pantalla de registro separada (register.html o modal) con campos: nombre negocio, email, teléfono WhatsApp, contraseña, confirmar.
+()2.2 Implementar submit del registro: validar, crear tenant, crear usuario en auth (rol admin), guardar WhatsApp en metadata, redirigir a planes.html?tenant_id=xxx&new=true.
+()2.3 Modificar planes.html para alta inicial: detectar new=true, ocultar Freemium para admins, crear suscripción directa (Pro o Premium) y redirigir a admin.html.
+()2.4 Asegurar que Freemium solo lo vea superadmin
+()2.5 En iniciarAdmin(), validar suscripción activa; si no tiene, redirigir a planes.html
+
+### Fase 3 – Login de administradores (email/contraseña)
+()3.1 Rediseñar formulario de login en login.html con estilo moderno (campos email/password, checkbox “Recordarme”, enlace “¿Olvidaste tu contraseña?”).
+()3.2 Procesar login con signInWithPassword; tras éxito redirigir según rol (admin → admin.html, super_admin → superadmin.html).
+()3.3 En admin.html, validar rol y tenant al iniciar.
+()3.4 Implementar “¿Olvidaste tu contraseña?” usando resetPasswordForEmail (modal o página independiente).
+
+### Fase 4 – Login con Google (para administradores existentes)
+()4.1 Activar proveedor Google en Supabase
+()4.2 Configurar URLs de redirección (admin.html)
+()4.3 Añadir botón estilizado “Continuar con Google” en login.html, llamando a signInWithOAuth con redirectTo admin.html.
+()4.4 En admin.html, manejar redirección OAuth: si falta tenant_id, buscarlo por email_contacto en tenants y actualizar metadatos.
+()4.5 Probar login con Google
+
+### Fase 5 – Generación de enlace compartible para clientes
+()5.1 En admin.html, agregar sección “Compartir espacio de clientes” con input de solo lectura y botón copiar.
+()5.2 Asegurar que el enlace funcione con la lógica de la Fase 1.
+()5.3 (Opcional) Generar código QR.
+
+### Fase 6 – Seguridad y RLS para acceso anónimo
+()6.1 Crear función SQL set_tenant en Supabase
+()6.2 Modificar políticas RLS en tablas servicios y citas para usar app.tenant_id
+()6.3 En cliente.html, antes de cualquier consulta, llamar a supabaseClient.rpc('set_tenant', {tenant_id})
+()6.4 Probar que un cliente anónimo solo ve sus propios datos.
+
+### Fase 7 – Mejoras en el panel de Superadmin
+()7.1 Listar, editar y eliminar tenants (ya existe)
+()7.2 Gestionar suscripciones de cada tenant (ya existe)
+()7.3 Editar configuración visual de cada tenant (ya existe)
+()7.4 Ver solicitudes de personalización CSS (ya existe)
+()7.5 Mostrar estadísticas globales (ya existe)
+
+### Fase 8 – Simulación de pagos (sin Stripe)
+()8.1 En planes.html, al seleccionar plan de pago, crear suscripción directamente (status active, start_date now, end_date calculada).
+()8.2 Impedir que admin seleccione Freemium (ya oculto).
+()8.3 En superadmin, permitir cambiar plan manualmente (ya existe).
+
+### Fase 9 – Pruebas integrales
+()9.1 Probar registro de nuevo admin → selección de plan → dashboard.
+()9.2 Probar login con email/contraseña y con Google.
+()9.3 Probar enlace de cliente: reserva anónima, ver cita en panel admin.
+()9.4 Probar superadmin: gestionar tenants, suscripciones y estilos.
+()9.5 Probar límites de seguridad (acceso a otro tenant).
+()9.6 Ajustar mensajes de error y estilos.
+
 Fase 3: Lógica de Negocio y Monetización (Sin Costos Reales)
 ID	Acción
 ()2.6	Modificar getCurrentTenantId() (o crear una función nueva) para que verifique si la suscripción del tenant está activa. Si no lo está, limitar funcionalidades en el frontend (ej. no puede crear más de X servicios).
@@ -205,3 +265,19 @@ ID	Acción
 ()4.8	En la sección "Mi Suscripción" de admin.html, añadir un botón "Actualizar método de pago" que llame a la Edge Function y redirija al checkout de Mercado Pago.
 ()4.9	Configurar un webhook en Mercado Pago que apunte a otra Edge Function en Supabase. Cuando el pago sea exitoso, esta función actualizará la suscripción en tu BD (cambiar status a active y actualizar fechas).
 ()4.10	(Opcional) Agregar lógica en el frontend para consultar el estado de la suscripción desde Mercado Pago periódicamente, como respaldo.
+
+
+Crear diagrama/mapa en texto:
+
+    Registro admin → planes → dashboard admin → link cliente.
+
+    Cliente anónimo → enlace público → reserva.
+
+    Superadmin → login → panel de gestión.
+
+    cuentas
+
+    1. Credenciales existentes (demo)
+Rol	Email	Contraseña
+Admin -	admin@demo.com	demo123
+Super Admin -	super@demo.com	demo123

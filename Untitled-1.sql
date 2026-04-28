@@ -367,10 +367,9 @@ CREATE TABLE IF NOT EXISTS public.tenant_config (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Índice (opcional)
 CREATE INDEX IF NOT EXISTS idx_tenant_config_tenant_id ON public.tenant_config(tenant_id);
 
--- Trigger para actualizar updated_at
+-- Trigger
 CREATE OR REPLACE FUNCTION update_tenant_config_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -385,27 +384,30 @@ CREATE TRIGGER trg_tenant_config_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_tenant_config_updated_at();
 
--- Políticas RLS
+-- RLS
 ALTER TABLE public.tenant_config ENABLE ROW LEVEL SECURITY;
 
--- Super admin: todo
+-- Eliminar políticas antiguas (esto evita el error 42710)
+DROP POLICY IF EXISTS "Super admin todo en tenant_config" ON public.tenant_config;
+DROP POLICY IF EXISTS "Admin gestiona su tenant_config" ON public.tenant_config;
+DROP POLICY IF EXISTS "Lectura tenant_config por tenant" ON public.tenant_config;
+
+-- Crear políticas nuevas
 CREATE POLICY "Super admin todo en tenant_config" ON public.tenant_config
     FOR ALL TO authenticated
     USING (public.is_super_admin())
     WITH CHECK (public.is_super_admin());
 
--- Admin (tenant) puede leer y actualizar su propia configuración
 CREATE POLICY "Admin gestiona su tenant_config" ON public.tenant_config
     FOR ALL TO authenticated
     USING (tenant_id = public.get_user_tenant_id() AND (auth.jwt() ->> 'user_metadata')::jsonb ->> 'rol' = 'admin')
     WITH CHECK (tenant_id = public.get_user_tenant_id());
 
--- Cliente (y cualquier rol autenticado) puede leer la configuración de su tenant
 CREATE POLICY "Lectura tenant_config por tenant" ON public.tenant_config
     FOR SELECT TO authenticated
     USING (tenant_id = public.get_user_tenant_id());
 
--- Insertar configuración por defecto para tenants existentes (si no tienen)
+-- Insertar configuración por defecto
 INSERT INTO public.tenant_config (tenant_id, primary_color, secondary_color)
 SELECT id, '#9d4edd', '#ff6d00'
 FROM public.tenants t
