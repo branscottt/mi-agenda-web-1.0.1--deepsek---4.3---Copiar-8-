@@ -310,37 +310,38 @@ function formatFechaCorta(dateStr) {
 // GESTIÓN DE CITAS - VERSIÓN CORREGIDA (SIN servicio_nombre)
 // ============================================
 const CitasManager = {
-    async getAll() {
+    async getAll(optionalTenantId = null) {
         try {
-            const tenantId = await getCurrentTenantId();
+            let tenantId = optionalTenantId;
+            if (!tenantId) {
+                tenantId = await getCurrentTenantId();
+            }
             if (!tenantId) {
                 console.log('No hay tenant_id, devolviendo array vacío');
                 return [];
             }
-            
+
             console.log('Buscando citas para tenant:', tenantId);
-            
-            // Asegurar que tenantId es string y limpiarlo
+
             const cleanTenantId = String(tenantId).trim();
-            
+
             const { data, error } = await supabaseClient
                 .from('citas')
                 .select('*')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
-                
+
             if (error) {
                 console.error('Error en getAll citas:', error);
                 return [];
             }
-            
+
             console.log(`✅ Encontradas ${data?.length || 0} citas`);
-            
-            // Convertir a formato compatible con el frontend
+
             return (data || []).map(c => ({
                 id: c.id,
                 servicioId: c.servicio_id,
-                nombre: c.servicio_nombre || 'Servicio', // <-- Esto es solo para lectura
+                nombre: c.servicio_nombre || 'Servicio',
                 fecha: c.fecha,
                 hora: c.hora,
                 precio: c.precio,
@@ -358,9 +359,9 @@ const CitasManager = {
         console.warn('save() no implementado directamente en Supabase, usar upsert');
     },
     
-    async upsert(cita) {
+    async upsert(cita, optionalTenantId = null) {
         try {
-            const tenantId = await getCurrentTenantId();
+            const tenantId = optionalTenantId || await getCurrentTenantId();
             if (!tenantId) throw new Error('No tenant ID');
             
             console.log('Guardando cita para tenant:', tenantId);
@@ -710,28 +711,30 @@ window.UrgenciaManager = UrgenciaManager;
 // GESTIÓN DE SERVICIOS - VERSIÓN CORREGIDA
 // ============================================
 const ServiciosManager = {
-    async getAll() {
+    async getAll(optionalTenantId = null) {
         try {
-            const tenantId = await getCurrentTenantId(); // <-- NOMBRE CORRECTO
+            let tenantId = optionalTenantId;
+            if (!tenantId) {
+                tenantId = await getCurrentTenantId();
+            }
             if (!tenantId) return [];
-            
+
             console.log('Buscando servicios para tenant:', tenantId);
-            
             const cleanTenantId = String(tenantId).trim();
-            
+
             const { data, error } = await supabaseClient
                 .from('servicios')
                 .select('*')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
-                
+
             if (error) {
                 console.error('Error en getAll servicios:', error);
                 return [];
             }
-            
+
             console.log(`✅ Encontrados ${data?.length || 0} servicios`);
-            
+
             return (data || []).map(s => ({
                 id: s.id,
                 nombre: s.nombre,
@@ -4729,25 +4732,47 @@ window.renderMisReservas = renderMisReservas;
 async function iniciarCliente() {
     console.log('Iniciando cliente...');
 
-    // ===== NUEVO: Obtener tenant de la URL y establecerlo =====
+    let tenantId = null;
+
+    // 1. Intentar obtener tenant de la URL (prioritario)
     const urlParams = new URLSearchParams(window.location.search);
-    const tenantId = urlParams.get('tenant');
+    tenantId = urlParams.get('tenant');
+
+    // 2. Si no viene en URL, obtenerlo de la sesión del usuario autenticado
+    if (!tenantId) {
+        const session = await getSession();
+        if (session && session.tenant_id) {
+            tenantId = session.tenant_id;
+            console.log('✅ Tenant obtenido de la sesión:', tenantId);
+        }
+    }
+
+    // 3. Validar que tenemos un tenant_id
     if (!tenantId) {
         mostrarToast('Enlace inválido: no se especificó el negocio', 'error');
+        console.error('❌ No se pudo determinar el tenant');
         return;
     }
-    if (!supabaseClient) {
-        console.error('Supabase no inicializado');
-        mostrarToast('Error de conexión', 'error');
-        return;
-    }
-    await supabaseClient.rpc('set_tenant', { tenant_id: tenantId });
-    // ==========================================================
 
-    // Cargar configuración visual del tenant y aplicar
+    // Validar formato UUID (opcional pero recomendado)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(tenantId.trim())) {
+        mostrarToast('Formato de tenant inválido', 'error');
+        console.error('❌ tenant_id no tiene formato UUID:', tenantId);
+        return;
+    }
+
+    // Establecer tenant en Supabase (para políticas anónimas)
+    if (supabaseClient) {
+        await supabaseClient.rpc('set_tenant', { tenant_id: tenantId });
+    }
+    window.currentTenantId = tenantId;
+
+    // Cargar configuración visual del tenant
     const visualConfig = await VisualConfigManager.loadConfig();
     VisualConfigManager.applyStyles(visualConfig);
 
+    // Verificar sesión – si no hay, redirigir al login
     const session = await getSession();
     if (!session) {
         console.log('No hay sesión, redirigiendo a login');
@@ -4755,15 +4780,16 @@ async function iniciarCliente() {
         return;
     }
 
+    // Inicializar filtros y cargar servicios
     currentFilterTerm = '';
     currentFilterDate = '';
     currentFilterCategory = 'todos';
-    await cargarServiciosParaCliente();
+    await cargarServiciosParaCliente(tenantId);
     configurarBuscadorCliente();
     configurarFiltroFecha();
-
     configurarBotonesExportacion();
 
+    // Si el usuario es invitado, ajustar botón de logout
     if (session && session.rol === 'invitado') {
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
@@ -4774,14 +4800,14 @@ async function iniciarCliente() {
 }
 window.iniciarCliente = iniciarCliente;
 
-async function cargarServiciosParaCliente() {
+async function cargarServiciosParaCliente(tenantId) {
     const gridContainer = document.getElementById('client-services-grid');
     if (!gridContainer) {
         console.error("❌ No se encontró el contenedor de servicios para cliente");
         return;
     }
 
-    const servicios = await ServiciosManager.getAll();
+    const servicios = await ServiciosManager.getAll(tenantId);
     const serviciosActivos = servicios.filter(s => s.activo === true);
 
     actualizarGridCliente(serviciosActivos);
@@ -5732,7 +5758,7 @@ async function confirmarReserva(e) {
     };
     cita.telefonoCliente = cita.contacto.telefono || '';
 
-    await CitasManager.upsert(cita);
+    await CitasManager.upsert(cita, window.currentTenantId);
 
     if(typeof renderCarrito === 'function') renderCarrito();
 
@@ -6108,7 +6134,7 @@ async function confirmarCambioFecha(citaId, serviceId, citaActual) {
         citas.push(nuevaCita);
 
         // En Supabase, actualizamos la cita directamente (upsert)
-        await CitasManager.upsert(nuevaCita);
+        await CitasManager.upsert(nuevaCita, window.currentTenantId);
         await ServiciosManager.save(servicio);
         
         let esEdicionAdmin = window._modoEdicionAdmin === true;
@@ -6270,6 +6296,10 @@ async function renderCarrito() {
             }
             if (session?.nombre && c.contacto?.nombre) {
                 return String(c.contacto.nombre).trim().toLowerCase() === String(session.nombre).trim().toLowerCase();
+            }
+            // Si no hay sesión (anónimo), mostrar todas las citas del tenant actual
+            if (!session) {
+                return true;
             }
             return false;
         });
@@ -6660,8 +6690,9 @@ function iniciarLogin() {
             const email = document.getElementById('register-email')?.value.trim().toLowerCase();
             const password = document.getElementById('register-password')?.value;
             const confirm = document.getElementById('register-confirm-password')?.value;
+            const whatsappRaw = document.getElementById('register-whatsapp')?.value.trim();
 
-            if (!nombre || !email || !password) {
+            if (!nombre || !email || !password || !whatsappRaw) {
                 mostrarMensaje('Completa todos los campos', 'warning');
                 return;
             }
@@ -6674,8 +6705,20 @@ function iniciarLogin() {
                 return;
             }
 
+            // Validar número de WhatsApp: al menos 8 dígitos
+            const digits = whatsappRaw.replace(/\D/g, '');
+            if (digits.length < 8) {
+                mostrarMensaje('Número de WhatsApp inválido (mínimo 8 dígitos)', 'error');
+                return;
+            }
+            // Guardar el número limpio (solo dígitos) pero conservar el '+' si lo puso
+            let whatsappClean = digits;
+            if (whatsappRaw.startsWith('+')) {
+                whatsappClean = '+' + digits;
+            }
+
             try {
-                // 1. Crear tenant
+                // 1. Crear tenant (el negocio)
                 const { data: tenant, error: tenantError } = await supabaseClient
                     .from('tenants')
                     .insert({
@@ -6688,15 +6731,16 @@ function iniciarLogin() {
 
                 if (tenantError) throw tenantError;
 
-                // 2. Registrar usuario en Auth
+                // 2. Registrar usuario en Auth con rol ADMIN y su WhatsApp
                 const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
                         data: {
                             nombre: nombre,
-                            rol: 'cliente',
-                            tenant_id: tenant.id
+                            rol: 'admin',          // ← CAMBIADO de 'cliente' a 'admin'
+                            tenant_id: tenant.id,
+                            whatsapp: whatsappClean // ← NUEVO: guardamos el número
                         }
                     }
                 });
@@ -6704,9 +6748,9 @@ function iniciarLogin() {
                 if (error) throw error;
 
                 mostrarMensaje(`¡Cuenta creada! Bienvenido ${nombre}`, 'success');
-                // Redirigir a cliente (ya queda logueado)
+                // Redirigir a admin.html (porque ahora es admin)
                 setTimeout(() => {
-                    window.location.href = 'cliente.html';
+                    window.location.href = 'admin.html';
                 }, 1500);
             } catch (err) {
                 console.error('Error registro:', err);

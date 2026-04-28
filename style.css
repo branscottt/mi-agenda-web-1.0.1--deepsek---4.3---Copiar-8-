@@ -5839,3 +5839,25 @@ body {
     padding-top: 15px;
     border-top: 1px solid rgba(255,255,255,0.1);
 }
+
+/* Eliminar fondo blanco en autocompletado de inputs */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(30, 30, 40, 0.8) inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    caret-color: #ffffff;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Para Firefox */
+input:-moz-autofill {
+    background: rgba(30, 30, 40, 0.8) !important;
+    color: #ffffff !important;
+}
+
+/* Asegurar que el borde y el ícono se mantengan */
+.input-group:-webkit-autofill {
+    background: transparent !important;
+}
