@@ -1364,22 +1364,30 @@ const planesData = {
 async function cargarPlanes() {
     const container = document.getElementById('planes-container');
     if (!container) return;
-    
+
+    // Obtener parámetros de URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const isNewAdmin = urlParams.get('new') === 'true';
+    const tenantIdFromUrl = urlParams.get('tenant_id');
+
     // Obtener sesión y determinar si es super_admin
     const { data: { session } } = await supabaseClient.auth.getSession();
     let rol = session?.user?.user_metadata?.rol;
     let tenantId = session?.user?.user_metadata?.tenant_id;
     let suscripcionActual = null;
     const esSuperAdmin = (rol === 'super_admin');
-    
-    if (rol === 'admin' && tenantId) {
+
+    // Para un nuevo admin que viene del registro, usar tenant_id de URL
+    if (isNewAdmin && tenantIdFromUrl && !session) {
+        tenantId = tenantIdFromUrl;
+        // No hay suscripción actual
+    } else if (rol === 'admin' && tenantId) {
         suscripcionActual = await SuscripcionManager.getCurrent();
     }
-    
+
     let html = '<div class="stats-container" style="grid-template-columns: repeat(3,1fr); gap: 25px;">';
     
     for (const [key, plan] of Object.entries(planesData)) {
-        // ⭐ FILTRO: ocultar plan Freemium si NO es super_admin
         if (plan.soloSuperAdmin && !esSuperAdmin) continue;
         
         const isCurrent = suscripcionActual && suscripcionActual.plan === key;
@@ -1398,13 +1406,50 @@ async function cargarPlanes() {
     }
     html += '</div>';
     container.innerHTML = html;
-    
+
+    // Manejar clic en botones según el modo
     document.querySelectorAll('.select-plan-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const planKey = btn.dataset.plan;
-            await solicitarCambioPlan(planKey);
+            if (isNewAdmin && tenantIdFromUrl) {
+                await crearSuscripcionInicial(planKey, tenantIdFromUrl);
+            } else {
+                await solicitarCambioPlan(planKey);
+            }
         });
     });
+}
+
+// Nueva función para crear suscripción inicial (alta de nuevo admin)
+async function crearSuscripcionInicial(planKey, tenantId) {
+    if (planKey === 'freemium') {
+        mostrarToast('El plan Freemium no está disponible para nuevos administradores', 'error');
+        return;
+    }
+    const duracionMeses = planesData[planKey]?.duracionMeses;
+    let endDate = null;
+    if (duracionMeses) {
+        endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + duracionMeses);
+        endDate = endDate.toISOString();
+    }
+    const newSub = {
+        tenant_id: tenantId,
+        plan: planKey,
+        status: 'active',
+        start_date: new Date().toISOString(),
+        end_date: endDate
+    };
+    const result = await SuscripcionManager.create(newSub);
+    if (result) {
+        mostrarToast(`Plan ${planesData[planKey].nombre} activado correctamente`, 'success');
+        // Redirigir a admin.html
+        setTimeout(() => {
+            window.location.href = 'admin.html';
+        }, 1500);
+    } else {
+        mostrarToast('Error al activar el plan', 'error');
+    }
 }
 
 async function solicitarCambioPlan(planKey) {
@@ -2536,12 +2581,65 @@ async function iniciarAdmin() {
 
     // ========== SESIÓN Y PERMISOS ==========
     const session = await getSession();
+
+    // Verificar si el usuario viene de OAuth y no tiene tenant_id
+    if (session && (!session.tenant_id || session.tenant_id === '')) {
+        console.log('Usuario sin tenant_id, buscando por email...');
+        const { data: tenant, error: tenantError } = await supabaseClient
+            .from('tenants')
+            .select('id')
+            .eq('email_contacto', session.email)
+            .maybeSingle();
+        
+        if (tenantError) {
+            console.error('Error buscando tenant:', tenantError);
+        } else if (tenant) {
+            // Actualizar metadatos del usuario con tenant_id y rol admin
+            const { error: updateError } = await supabaseClient.auth.updateUser({
+                data: {
+                    tenant_id: tenant.id,
+                    rol: 'admin',
+                    nombre: session.nombre || session.email.split('@')[0]
+                }
+            });
+            if (updateError) {
+                console.error('Error actualizando metadatos:', updateError);
+                mostrarToast('Error al configurar tu cuenta. Contacta al soporte.', 'error');
+                await supabaseClient.auth.signOut();
+                window.location.href = 'login.html';
+                return;
+            }
+            // Recargar sesión para obtener nuevos metadatos
+            await supabaseClient.auth.refreshSession();
+            mostrarToast('Cuenta configurada correctamente. Por favor inicia sesión nuevamente.', 'success');
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+            return;
+        } else {
+            mostrarToast('No se encontró un negocio asociado a tu correo. Contacta al administrador.', 'error');
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+            return;
+        }
+    }
+
     if (!session || (session.rol !== 'admin' && session.rol !== 'super_admin')) {
         console.log('No hay sesión de admin/superadmin, redirigiendo...');
         window.location.href = 'login.html';
         return;
     }
-    
+
+    // ========== VALIDAR SUSCRIPCIÓN ACTIVA (solo para admins) ==========
+    if (session.rol === 'admin') {
+        const suscripcionActiva = await SuscripcionManager.getCurrent();
+        if (!suscripcionActiva || suscripcionActiva.status !== 'active') {
+            mostrarToast('No tienes una suscripción activa. Selecciona un plan para continuar.', 'warning');
+            window.location.href = 'planes.html';
+            return;
+        }
+    }
+    // ================================================================
+
     const permisosOK = await verificarPermisosAdmin();
     if (!permisosOK) {
         mostrarToast('⚠️ Problema de permisos. Revisa las políticas RLS en Supabase.', 'warning');
@@ -6724,7 +6822,7 @@ function iniciarLogin() {
                     .insert({
                         nombre_negocio: nombre + "'s negocio",
                         email_contacto: email,
-                        plan: 'freemium'
+                        plan: null  // aún sin plan
                     })
                     .select()
                     .single();
@@ -6750,7 +6848,7 @@ function iniciarLogin() {
                 mostrarMensaje(`¡Cuenta creada! Bienvenido ${nombre}`, 'success');
                 // Redirigir a admin.html (porque ahora es admin)
                 setTimeout(() => {
-                    window.location.href = 'admin.html';
+                    window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
                 }, 1500);
             } catch (err) {
                 console.error('Error registro:', err);
@@ -6766,18 +6864,77 @@ function iniciarLogin() {
         });
     }
 
-    // --- Botón de Google (placeholder - no implementado) ---
+    // --- Botón de Google (signInWithOAuth) ---
     if (googleBtn) {
-        googleBtn.addEventListener('click', () => {
-            mostrarMensaje('Inicio con Google no disponible aún', 'info');
+        googleBtn.addEventListener('click', async () => {
+            try {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.origin + '/admin.html'
+                    }
+                });
+                if (error) throw error;
+            } catch (err) {
+                console.error('Error en Google OAuth:', err);
+                mostrarToast('Error al iniciar con Google: ' + err.message, 'error');
+            }
         });
     }
 
-    // --- Enlace "Olvidaste tu contraseña" (placeholder) ---
+    // --- Recuperación de contraseña ---
     if (forgotLink) {
         forgotLink.addEventListener('click', (e) => {
             e.preventDefault();
-            mostrarMensaje('Funcionalidad de recuperación de contraseña en desarrollo', 'info');
+            const modal = document.getElementById('reset-modal');
+            const resetEmail = document.getElementById('reset-email');
+            const resetMessage = document.getElementById('reset-message');
+            resetEmail.value = '';
+            resetMessage.style.display = 'none';
+            modal.style.display = 'flex';
+        });
+    }
+
+    // Configurar eventos del modal de reset
+    const resetModal = document.getElementById('reset-modal');
+    const closeModalBtn = resetModal?.querySelector('.modal-close');
+    const cancelBtn = document.getElementById('btn-cancel-reset');
+    const sendBtn = document.getElementById('btn-send-reset');
+
+    if (resetModal) {
+        const cerrarModal = () => { resetModal.style.display = 'none'; };
+        closeModalBtn?.addEventListener('click', cerrarModal);
+        cancelBtn?.addEventListener('click', cerrarModal);
+        window.addEventListener('click', (e) => { if (e.target === resetModal) cerrarModal(); });
+        
+        sendBtn?.addEventListener('click', async () => {
+            const email = document.getElementById('reset-email').value.trim();
+            const messageDiv = document.getElementById('reset-message');
+            if (!email) {
+                messageDiv.textContent = 'Por favor ingresa tu correo electrónico.';
+                messageDiv.style.display = 'block';
+                return;
+            }
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Enviando...';
+            try {
+                const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin + '/login.html'  // redirige al login después de cambiar pass
+                });
+                if (error) throw error;
+                messageDiv.style.color = '#00b894';
+                messageDiv.textContent = '¡Revisa tu correo! Te hemos enviado un enlace para restablecer tu contraseña.';
+                messageDiv.style.display = 'block';
+                setTimeout(() => cerrarModal(), 4000);
+            } catch (err) {
+                console.error(err);
+                messageDiv.style.color = '#e74c3c';
+                messageDiv.textContent = err.message || 'Error al enviar el correo. Intenta nuevamente.';
+                messageDiv.style.display = 'block';
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Enviar enlace';
+            }
         });
     }
 

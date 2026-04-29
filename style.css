@@ -5861,3 +5861,13 @@ input:-moz-autofill {
 .input-group:-webkit-autofill {
     background: transparent !important;
 }
+
+/* Asegurar que el modal de reset se vea igual que los otros */
+#reset-modal .modal-content {
+    max-width: 400px;
+    width: 90%;
+}
+#reset-message {
+    font-size: 0.85rem;
+    margin-top: 10px;
+}

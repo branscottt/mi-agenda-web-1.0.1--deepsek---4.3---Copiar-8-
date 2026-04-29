@@ -197,23 +197,23 @@ ID	Acción
 ()1.6 Probar reserva anónima
 
 ### Fase 2 – Registro de nuevos administradores
-()2.2 Implementar submit del registro: validar, crear tenant, crear usuario en auth (rol admin), guardar WhatsApp en metadata, redirigir a planes.html?tenant_id=xxx&new=true.
-()2.3 Modificar planes.html para alta inicial: detectar new=true, ocultar Freemium para admins, crear suscripción directa (Pro o Premium) y redirigir a admin.html.
-()2.4 Asegurar que Freemium solo lo vea superadmin
-()2.5 En iniciarAdmin(), validar suscripción activa; si no tiene, redirigir a planes.html
+(-)2.2 Implementar submit del registro: validar, crear tenant, crear usuario en auth (rol admin), guardar WhatsApp en metadata, redirigir a planes.html?tenant_id=xxx&new=true.
+(-)2.3 Modificar planes.html para alta inicial: detectar new=true, ocultar Freemium para admins, crear suscripción directa (Pro o Premium) y redirigir a admin.html.
+(-)2.4 Asegurar que Freemium solo lo vea superadmin
+(-)2.5 En iniciarAdmin(), validar suscripción activa; si no tiene, redirigir a planes.html
 
 ### Fase 3 – Login de administradores (email/contraseña)
-()3.1 Rediseñar formulario de login en login.html con estilo moderno (campos email/password, checkbox “Recordarme”, enlace “¿Olvidaste tu contraseña?”).
-()3.2 Procesar login con signInWithPassword; tras éxito redirigir según rol (admin → admin.html, super_admin → superadmin.html).
-()3.3 En admin.html, validar rol y tenant al iniciar.
-()3.4 Implementar “¿Olvidaste tu contraseña?” usando resetPasswordForEmail (modal o página independiente).
+(-)3.1 Rediseñar formulario de login en login.html con estilo moderno (campos email/password, checkbox “Recordarme”, enlace “¿Olvidaste tu contraseña?”).
+(-)3.2 Procesar login con signInWithPassword; tras éxito redirigir según rol (admin → admin.html, super_admin → superadmin.html).
+(-)3.3 En admin.html, validar rol y tenant al iniciar.
+(-)3.4 Implementar “¿Olvidaste tu contraseña?” usando resetPasswordForEmail (modal o página independiente).
 
 ### Fase 4 – Login con Google (para administradores existentes)
-()4.1 Activar proveedor Google en Supabase
-()4.2 Configurar URLs de redirección (admin.html)
-()4.3 Añadir botón estilizado “Continuar con Google” en login.html, llamando a signInWithOAuth con redirectTo admin.html.
-()4.4 En admin.html, manejar redirección OAuth: si falta tenant_id, buscarlo por email_contacto en tenants y actualizar metadatos.
-()4.5 Probar login con Google
+(-)4.1 Activar proveedor Google en Supabase
+(-)4.2 Configurar URLs de redirección (admin.html)
+(-)4.3 Añadir botón estilizado “Continuar con Google” en login.html, llamando a signInWithOAuth con redirectTo admin.html.
+(-)4.4 En admin.html, manejar redirección OAuth: si falta tenant_id, buscarlo por email_contacto en tenants y actualizar metadatos.
+(-)4.5 Probar login con Google
 
 ### Fase 5 – Generación de enlace compartible para clientes
 ()5.1 En admin.html, agregar sección “Compartir espacio de clientes” con input de solo lectura y botón copiar.

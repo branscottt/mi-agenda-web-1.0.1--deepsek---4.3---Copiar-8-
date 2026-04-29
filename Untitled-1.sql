@@ -412,3 +412,47 @@ INSERT INTO public.tenant_config (tenant_id, primary_color, secondary_color)
 SELECT id, '#9d4edd', '#ff6d00'
 FROM public.tenants t
 WHERE NOT EXISTS (SELECT 1 FROM public.tenant_config c WHERE c.tenant_id = t.id);
+
+SELECT column_name FROM information_schema.columns 
+WHERE table_name IN ('tenants','servicios','citas') 
+  AND column_name IN ('id','tenant_id','email_contacto','contacto');
+
+  -- =====================================================
+-- FUNCIÓN PARA ESTABLECER TENANT EN SESIÓN (clientes anónimos)
+-- =====================================================
+CREATE OR REPLACE FUNCTION public.set_tenant(tenant_id TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    PERFORM set_config('app.tenant_id', tenant_id, false);
+END;
+$$;
+
+-- =====================================================
+-- POLÍTICAS PARA ACCESO ANÓNIMO (sin autenticación)
+-- =====================================================
+
+-- 1. Servicios: cualquier persona (anónima) puede leer servicios del tenant que se haya seteado
+CREATE POLICY "Anon puede leer servicios de su tenant" ON public.servicios
+    FOR SELECT TO public
+    USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+-- 2. Citas: un cliente anónimo puede INSERTAR una cita para el tenant seteado
+CREATE POLICY "Anon puede insertar citas en su tenant" ON public.citas
+    FOR INSERT TO public
+    WITH CHECK (tenant_id::text = current_setting('app.tenant_id', true));
+
+-- 3. Citas: un cliente anónimo puede LEER sus propias citas (solo las que él creó)
+--    Nota: no pueden leer citas de otros anónimos porque no tienen userId.
+--    En tu código actual, las citas anónimas no guardan userId, por lo que solo
+--    podrán verlas si usamos un identificador de sesión (no implementado).
+--    Por simplicidad, permitimos que lean todas las citas del tenant actual
+--    (esto es lo que necesitas para que el carrito anónimo funcione).
+CREATE POLICY "Anon puede leer citas de su tenant" ON public.citas
+    FOR SELECT TO public
+    USING (tenant_id::text = current_setting('app.tenant_id', true));
+
+-- (Opcional) Si quieres que un anónimo solo pueda leer sus propias citas,
+-- necesitarías guardar un token de sesión en contacto. Por ahora dejamos como está.

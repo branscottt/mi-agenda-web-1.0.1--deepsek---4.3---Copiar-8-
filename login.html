@@ -95,6 +95,24 @@
         </div>
     </div>
 
+    <!-- Modal para recuperar contraseña -->
+    <div id="reset-modal" class="modal" style="display:none;">
+        <div class="modal-content glass-panel" style="max-width: 400px;">
+            <span class="modal-close">&times;</span>
+            <h3><i class="fas fa-key"></i> Recuperar contraseña</h3>
+            <p>Te enviaremos un enlace para restablecer tu contraseña.</p>
+            <div class="input-group">
+                <i class="fas fa-envelope"></i>
+                <input type="email" id="reset-email" placeholder="Tu correo electrónico" required>
+            </div>
+            <div class="form-actions">
+                <button id="btn-send-reset" class="btn-grad">Enviar enlace</button>
+                <button id="btn-cancel-reset" class="btn-secondary">Cancelar</button>
+            </div>
+            <div id="reset-message" class="error-message" style="display:none; margin-top:15px;"></div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
