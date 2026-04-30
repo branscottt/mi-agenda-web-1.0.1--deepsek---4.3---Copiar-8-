@@ -221,27 +221,28 @@ ID	Acción
 (-)5.3 (Opcional) Generar código QR.
 
 ### Fase 6 – Seguridad y RLS para acceso anónimo
-()6.1 Crear función SQL set_tenant en Supabase
-()6.2 Modificar políticas RLS en tablas servicios y citas para usar app.tenant_id
-()6.3 En cliente.html, antes de cualquier consulta, llamar a supabaseClient.rpc('set_tenant', {tenant_id})
-()6.4 Probar que un cliente anónimo solo ve sus propios datos.
+(-)6.1 Crear función SQL set_tenant en Supabase
+(-)6.2 Modificar políticas RLS en tablas servicios y citas para usar app.tenant_id
+(-)6.3 En cliente.html, antes de cualquier consulta, llamar a supabaseClient.rpc('set_tenant', {tenant_id})
+(-)6.4 Probar que un cliente anónimo solo ve sus propios datos.
 
 ### Fase 9 – Pruebas integrales
-()9.1 Probar registro de nuevo admin → selección de plan → dashboard.
-()9.2 Probar login con email/contraseña y con Google.
-()9.3 Probar enlace de cliente: reserva anónima, ver cita en panel admin.
-()9.4 Probar superadmin: gestionar tenants, suscripciones y estilos.
-()9.5 Probar límites de seguridad (acceso a otro tenant).
-()9.6 Ajustar mensajes de error y estilos.
+(-)9.1 Probar registro de nuevo admin → selección de plan → dashboard.
+(-)9.2 Probar login con email/contraseña y con Google.
+(-)9.3 Probar enlace de cliente: reserva anónima, ver cita en panel admin.
+(-)9.4 Probar superadmin: gestionar tenants, suscripciones y estilos.
+(-)9.5 Probar límites de seguridad (acceso a otro tenant).
+(-)9.6 Ajustar mensajes de error y estilos.
 
 Fase 3: Lógica de Negocio y Monetización (Sin Costos Reales)
 ID	Acción
-()2.6	Modificar getCurrentTenantId() (o crear una función nueva) para que verifique si la suscripción del tenant está activa. Si no lo está, limitar funcionalidades en el frontend (ej. no puede crear más de X servicios).
-()6.1	Añadir una nueva sección en admin.html llamada "Mi Suscripción".
-()6.2	Mostrar el plan actual, la fecha de renovación y un botón para "Cancelar Suscripción" (solo modificará el estado en tu BD, no en el gateway de pago).
-()5.1	Añadir una nueva sección en super-admin.html llamada "Métricas Globales".
-()5.2	Crear una función que consulte la tabla subscriptions, cuente las suscripciones activas por plan y calcule el Ingreso Mensual Recurrente (MRR) simulado.
-()5.3	Implementar un gráfico que muestre la evolución en el tiempo de los tenants registrados en la plataforma.
+
+(-)6.1	Añadir una nueva sección en admin.html llamada "Mi Suscripción".
+(-)6.2	Mostrar el plan actual, la fecha de renovación y un botón para "Cancelar Suscripción" (solo modificará el estado en tu BD, no en el gateway de pago).
+(-)5.1	Añadir una nueva sección en super-admin.html llamada "Métricas Globales".
+(-)5.2	Crear una función que consulte la tabla subscriptions, cuente las suscripciones activas por plan y calcule el Ingreso Mensual Recurrente (MRR) simulado.
+(-)5.3	Implementar un gráfico que muestre la evolución en el tiempo de los tenants registrados en la plataforma.
+
 Fase 4: Integración de Pagos Reales con Mercado Pago (Último Paso, Comisiones por Venta)
 
     Nota: Esta fase es la única que tendrá costos asociados (comisiones de Mercado Pago por cada transacción exitosa). No hay costos fijos mensuales ni de implementación.

@@ -5963,3 +5963,31 @@ input:-moz-autofill {
         width: 100%;
     }
 }
+
+/* ===== MÉTRICAS GLOBALES (SUPER ADMIN) ===== */
+#metricas-globales .mrr-container {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+#metricas-globales .stat-card {
+    background: rgba(20,15,30,0.85);
+    border: 1px solid rgba(179,0,255,0.3);
+    border-radius: 20px;
+    padding: 20px;
+}
+@media (max-width: 768px) {
+    #metricas-globales .mrr-container {
+        flex-direction: column;
+    }
+}
+
+/* Contenedor del gráfico de evolución - evitar estiramiento */
+#tenants-evolution-chart {
+    max-width: 100%;
+    height: auto !important;
+}
+.chart-container {
+    overflow-x: auto;
+    overflow-y: hidden;
+}

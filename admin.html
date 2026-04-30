@@ -41,6 +41,7 @@
 
         <!-- Dentro de <div class="admin-screen">, después del header -->
         <div class="subscription-info glass-panel" id="tenant-subscription-info" style="margin-bottom: 20px; padding: 15px;">
+            <h2 style="margin: 0 0 10px 0; font-size: 1.1rem;"><i class="fas fa-crown"></i> Mi Suscripción</h2>
             <div class="flex-between">
                 <span><i class="fas fa-tag"></i> Plan actual: <strong id="sub-plan-display">Cargando...</strong></span>
                 <span><i class="fas fa-calendar-alt"></i> Vigencia: <span id="sub-dates-display">...</span></span>
@@ -48,6 +49,9 @@
                 <a href="planes.html" class="btn-small" style="margin-left: auto;">
                     <i class="fas fa-exchange-alt"></i> Cambiar plan
                 </a>
+                <button id="cancel-subscription-btn" class="btn-small danger" style="margin-left: 15px;">
+                    <i class="fas fa-ban"></i> Cancelar Suscripción
+                </button>
             </div>
         </div>
 

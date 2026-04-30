@@ -2700,6 +2700,27 @@ async function iniciarAdmin() {
     if (typeof setupNotificacionesListeners === 'function') setupNotificacionesListeners();
     
     await cargarSuscripcionTenant();
+
+    // ========== BOTÓN CANCELAR SUSCRIPCIÓN ==========
+    const cancelBtn = document.getElementById('cancel-subscription-btn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', async () => {
+            if (!confirm('¿Cancelar tu suscripción activa? Podrás volver a activarla más tarde desde "Cambiar plan".')) return;
+            const suscripcion = await SuscripcionManager.getCurrent();
+            if (!suscripcion) {
+                mostrarToast('No hay suscripción activa', 'error');
+                return;
+            }
+            const ok = await SuscripcionManager.cancel(suscripcion.id);
+            if (ok) {
+                mostrarToast('Suscripción cancelada. Tu plan pasará a inactivo.', 'success');
+                await cargarSuscripcionTenant();
+                if (typeof cargarPlanes === 'function') cargarPlanes();
+            } else {
+                mostrarToast('Error al cancelar suscripción', 'error');
+            }
+        });
+    }
     
     // ========== CONFIGURAR EVENTOS DEL FORMULARIO DE PERSONALIZACIÓN ==========
     const customForm = document.getElementById('customization-form');
@@ -7082,6 +7103,9 @@ window.iniciarSuperAdmin = async function() {
     // Cargar estadísticas globales
     await cargarEstadisticasGlobales();
     
+    // Cargar métricas globales (MRR + gráfico)
+    await cargarMetricasGlobales();
+    
     // Event listeners para botones de refresco
     document.getElementById('btn-refresh-users')?.addEventListener('click', () => cargarUsuariosSuper());
     document.getElementById('btn-refresh-servicios')?.addEventListener('click', cargarServiciosGlobales);
@@ -7168,6 +7192,94 @@ async function cargarEstadisticasGlobales() {
         }
     } catch (e) {
         console.error('Error en estadísticas globales:', e);
+    }
+}
+
+// --- Métricas Globales (MRR + Gráfico) ---
+// --- Métricas Globales (MRR + Gráfico) - VERSIÓN CORREGIDA ---
+async function cargarMetricasGlobales() {
+    try {
+        // 1. MRR
+        const { data: subs, error } = await supabaseClient
+            .from('subscriptions')
+            .select('plan')
+            .eq('status', 'active');
+        if (error) throw error;
+        let mrr = 0;
+        let countPro = 0, countPremium = 0;
+        subs.forEach(sub => {
+            if (sub.plan === 'pro') {
+                mrr += 5000;
+                countPro++;
+            } else if (sub.plan === 'premium_anual') {
+                mrr += 3000;
+                countPremium++;
+            }
+        });
+        document.getElementById('mrr-value').textContent = formatearPeso(mrr);
+        document.getElementById('plan-breakdown').innerHTML = `Pro: ${countPro} | Premium Anual: ${countPremium}`;
+
+        // 2. Evolución tenants
+        const { data: tenants, error: tenantErr } = await supabaseClient
+            .from('tenants')
+            .select('fecha_registro')
+            .order('fecha_registro', { ascending: true });
+        if (tenantErr) throw tenantErr;
+
+        const map = new Map();
+        tenants.forEach(t => {
+            const date = new Date(t.fecha_registro);
+            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            map.set(key, (map.get(key) || 0) + 1);
+        });
+        const sortedKeys = Array.from(map.keys()).sort();
+        const counts = sortedKeys.map(k => map.get(k));
+
+        // === FIX: resetear dimensiones del canvas antes de crear nuevo gráfico ===
+        const canvas = document.getElementById('tenants-evolution-chart');
+        if (!canvas) return;
+        // Eliminar gráfico anterior si existe
+        if (window.tenantsChart) window.tenantsChart.destroy();
+        // Resetear atributos width/height para evitar estiramiento acumulativo
+        canvas.removeAttribute('width');
+        canvas.removeAttribute('height');
+        canvas.style.width = '100%';
+        canvas.style.height = '300px';
+
+        const ctx = canvas.getContext('2d');
+        window.tenantsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedKeys,
+                datasets: [{
+                    label: 'Tenants registrados',
+                    data: counts,
+                    borderColor: '#b300ff',
+                    backgroundColor: 'rgba(179,0,255,0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,   // ← Evita el alargamiento horizontal
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,     // Rotar etiquetas largas
+                            minRotation: 30,
+                            autoSkip: true       // Saltar etiquetas si son muchas
+                        }
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        console.error('Error en metricas globales:', e);
     }
 }
 
