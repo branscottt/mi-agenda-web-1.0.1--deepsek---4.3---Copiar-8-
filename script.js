@@ -7567,6 +7567,21 @@ function configurarCompartirEnlace() {
         });
     }
 
+    // Botón WhatsApp
+    const whatsappBtn = document.getElementById('share-whatsapp-btn');
+    if (whatsappBtn) {
+        whatsappBtn.addEventListener('click', () => {
+            const url = linkInput.value;
+            if (!url || url === 'Cargando...' || url === 'No se pudo generar el enlace (sin tenant)') {
+                mostrarToast('Espera a que se genere el enlace', 'warning');
+                return;
+            }
+            const message = `🌟 *¡Agenda tu cita aquí!* 🌟\n\nHaz clic en el enlace para ver nuestros servicios y reservar tu hora:\n${url}\n\n¡Te esperamos!`;
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        });
+    }
+
     // Generar QR
     if (qrBtn && qrContainer) {
         qrBtn.addEventListener('click', () => {

@@ -1,6 +1,45 @@
 -- =====================================================
 -- SCRIPT UNIFICADO: SUPER-ADMIN + POLÍTICAS MULTI-TENANT
 -- =====================================================
+
+-- =====================================================
+-- DESACTIVAR CONFIRMACIÓN DE EMAIL (vía SQL directo)
+-- =====================================================
+DO $$
+BEGIN
+    -- Intentar actualizar auth.config si existe
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'config') THEN
+        -- Actualizar o insertar la configuración de autenticación
+        INSERT INTO auth.config (key, value)
+        VALUES ('auth', '{"confirm_email": false}'::jsonb)
+        ON CONFLICT (key) DO UPDATE
+        SET value = auth.config.value || '{"confirm_email": false}'::jsonb;
+        
+        RAISE NOTICE '✅ Configuración auth.config actualizada (confirm_email=false)';
+    ELSE
+        -- Fallback: tabla auth.config no existe (versión antigua de Supabase)
+        -- En este caso, la única vía es el panel de administración,
+        -- pero mostramos un aviso.
+        RAISE WARNING '⚠️ Tabla auth.config no encontrada. Usa el Dashboard de Supabase: Authentication → Settings → Desmarcar "Confirm email"';
+    END IF;
+END $$;
+
+-- Verificación opcional (muestra el estado actual)
+DO $$
+DECLARE
+    config_value jsonb;
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'config') THEN
+        SELECT value INTO config_value FROM auth.config WHERE key = 'auth';
+        RAISE NOTICE '🔍 Valor actual de auth.config: %', config_value;
+        IF config_value->>'confirm_email' = 'false' THEN
+            RAISE NOTICE '✅ Confirmación de email DESACTIVADA correctamente';
+        ELSE
+            RAISE WARNING '⚠️ Confirmación de email aún activada. Revisa manualmente en Dashboard.';
+        END IF;
+    END IF;
+END $$;
+
 -- Ejecutar en SQL Editor de Supabase (como administrador)
 -- =====================================================
 
@@ -456,3 +495,13 @@ CREATE POLICY "Anon puede leer citas de su tenant" ON public.citas
 
 -- (Opcional) Si quieres que un anónimo solo pueda leer sus propias citas,
 -- necesitarías guardar un token de sesión en contacto. Por ahora dejamos como está.
+
+-- Eliminar política anterior si existe (por si acaso)
+DROP POLICY IF EXISTS "Usuarios autenticados pueden crear su propio tenant" ON public.tenants;
+DROP POLICY IF EXISTS "Usuarios autenticados pueden crear tenants" ON public.tenants;
+
+-- Nueva política permisiva: cualquier usuario autenticado puede crear un tenant
+-- Solo se usa durante el registro, cuando aún no tiene tenant asociado.
+CREATE POLICY "Usuarios autenticados pueden crear tenants" ON public.tenants
+    FOR INSERT TO authenticated
+    WITH CHECK (true);
