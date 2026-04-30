@@ -659,6 +659,26 @@
                     <div id="customization-feedback" style="margin-top: 10px;"></div>
                 </div>
             </section>
+
+            <!-- Sección compartir enlace clientes -->
+            <section class="admin-panel share-panel">
+                <div class="glass-panel">
+                    <h3><i class="fas fa-share-alt"></i> Compartir espacio de clientes</h3>
+                    <p>Comparte este enlace para que tus clientes puedan ver el catálogo y agendar citas.</p>
+                    <div class="share-link-container">
+                        <input type="text" id="client-share-link" readonly class="share-input" value="Cargando...">
+                        <button id="copy-link-btn" class="btn-secondary" title="Copiar enlace">
+                            <i class="fas fa-copy"></i> Copiar
+                        </button>
+                    </div>
+                    <div class="qr-container" style="margin-top: 15px; text-align: center;">
+                        <button id="generate-qr-btn" class="btn-small" style="background: rgba(179,0,255,0.2);">
+                            <i class="fas fa-qrcode"></i> Generar código QR
+                        </button>
+                        <div id="qr-code" style="margin-top: 10px; display: none; justify-content: center;"></div>
+                    </div>
+                </div>
+            </section>
         </main>
         
         <footer class="admin-footer">

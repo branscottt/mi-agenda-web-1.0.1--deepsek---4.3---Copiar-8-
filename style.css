@@ -5871,3 +5871,95 @@ input:-moz-autofill {
     font-size: 0.85rem;
     margin-top: 10px;
 }
+
+/* ============================================
+   SECCIÓN COMPARTIR ENLACE CLIENTES
+   ============================================ */
+.share-panel .glass-panel {
+    padding: 25px;
+}
+
+.share-link-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    align-items: center;
+}
+
+.share-input {
+    flex: 1;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    cursor: text;
+    user-select: all;
+}
+
+.share-input:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+    box-shadow: 0 0 0 3px rgba(157, 78, 221, 0.15);
+}
+
+#copy-link-btn {
+    padding: 12px 20px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+#copy-link-btn.copied {
+    background: #00b894;
+    border-color: #00b894;
+    color: #fff;
+}
+
+#qr-code canvas,
+#qr-code img {
+    border-radius: 12px;
+    background: #fff;
+    padding: 10px;
+    max-width: 180px;
+}
+
+/* Sección compartir enlace */
+.share-panel {
+    margin-top: 30px;
+}
+.share-link-container {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.share-input {
+    flex: 1;
+    padding: 10px 15px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(179,0,255,0.3);
+    border-radius: 8px;
+    color: #fff;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+#copy-link-btn {
+    white-space: nowrap;
+}
+.qr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+@media (max-width: 768px) {
+    .share-link-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #copy-link-btn {
+        width: 100%;
+    }
+}

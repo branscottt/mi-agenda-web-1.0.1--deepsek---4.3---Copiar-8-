@@ -2298,9 +2298,12 @@ async function verificarProteccionRutas() {
            
             // ========== ADMIN ==========
             if (pathname === 'admin.html') {
-                if (session.rol !== 'admin') {
+                // Permitir acceso si el usuario no tiene tenant_id (para que pueda asignarse)
+                // Si ya tiene tenant_id y no es admin, redirigir a cliente
+                if (session.tenant_id && session.rol !== 'admin') {
                     window.location.href = 'cliente.html';
                 }
+                // Si no tiene tenant_id, permitir que entre a admin.html (aunque sea cliente)
                 return;
             }
 
@@ -2584,8 +2587,10 @@ async function iniciarAdmin() {
 
     // Verificar si el usuario viene de OAuth y no tiene tenant_id
     if (session && (!session.tenant_id || session.tenant_id === '')) {
-        console.log('Usuario sin tenant_id, buscando por email...');
-        const { data: tenant, error: tenantError } = await supabaseClient
+        console.log('Usuario sin tenant_id, buscando o creando tenant por email...');
+        
+        // Buscar tenant existente por email_contacto
+        let { data: tenant, error: tenantError } = await supabaseClient
             .from('tenants')
             .select('id')
             .eq('email_contacto', session.email)
@@ -2593,34 +2598,66 @@ async function iniciarAdmin() {
         
         if (tenantError) {
             console.error('Error buscando tenant:', tenantError);
-        } else if (tenant) {
-            // Actualizar metadatos del usuario con tenant_id y rol admin
-            const { error: updateError } = await supabaseClient.auth.updateUser({
-                data: {
-                    tenant_id: tenant.id,
-                    rol: 'admin',
-                    nombre: session.nombre || session.email.split('@')[0]
-                }
-            });
-            if (updateError) {
-                console.error('Error actualizando metadatos:', updateError);
-                mostrarToast('Error al configurar tu cuenta. Contacta al soporte.', 'error');
-                await supabaseClient.auth.signOut();
-                window.location.href = 'login.html';
-                return;
-            }
-            // Recargar sesión para obtener nuevos metadatos
-            await supabaseClient.auth.refreshSession();
-            mostrarToast('Cuenta configurada correctamente. Por favor inicia sesión nuevamente.', 'success');
-            await supabaseClient.auth.signOut();
-            window.location.href = 'login.html';
-            return;
-        } else {
-            mostrarToast('No se encontró un negocio asociado a tu correo. Contacta al administrador.', 'error');
+            mostrarToast('Error al verificar tu cuenta. Contacta al soporte.', 'error');
             await supabaseClient.auth.signOut();
             window.location.href = 'login.html';
             return;
         }
+        
+        // Si no existe, crear un nuevo tenant
+        if (!tenant) {
+            console.log('No se encontró tenant, creando uno nuevo...');
+            const nombreNegocio = session.nombre || session.email.split('@')[0] + "'s negocio";
+            const { data: newTenant, error: createError } = await supabaseClient
+                .from('tenants')
+                .insert({
+                    nombre_negocio: nombreNegocio,
+                    email_contacto: session.email,
+                    plan: null
+                })
+                .select()
+                .single();
+            
+            if (createError) {
+                console.error('Error creando tenant:', createError);
+                mostrarToast('Error al crear tu negocio. Intenta nuevamente.', 'error');
+                await supabaseClient.auth.signOut();
+                window.location.href = 'login.html';
+                return;
+            }
+            tenant = newTenant;
+        }
+        
+        // Actualizar metadatos del usuario con tenant_id y rol admin
+        const { error: updateError } = await supabaseClient.auth.updateUser({
+            data: {
+                tenant_id: tenant.id,
+                rol: 'admin',
+                nombre: session.nombre || session.email.split('@')[0]
+            }
+        });
+        if (updateError) {
+            console.error('Error actualizando metadatos:', updateError);
+            mostrarToast('Error al configurar tu cuenta. Contacta al soporte.', 'error');
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+            return;
+        }
+        
+        // Refrescar sesión para obtener nuevos metadatos
+        await supabaseClient.auth.refreshSession();
+        
+        // Redirigir a planes.html para elegir plan (solo si es un tenant nuevo)
+        // Si ya existía el tenant, asumimos que ya eligió plan y redirigimos a admin
+        // Delay de 500ms para asegurar que los metadatos se propaguen
+        setTimeout(() => {
+            if (!tenant) {
+                window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
+            } else {
+                window.location.href = 'admin.html';
+            }
+        }, 500);
+        return;
     }
 
     if (!session || (session.rol !== 'admin' && session.rol !== 'super_admin')) {
@@ -2711,6 +2748,9 @@ async function iniciarAdmin() {
             });
         }
     }
+
+    // Inicializar sección de compartir enlace
+    configurarCompartirEnlace();
 
     console.log('Admin/SuperAdmin iniciado correctamente');
 }
@@ -6780,7 +6820,7 @@ function iniciarLogin() {
         });
     }
 
-    // --- REGISTRO con creación automática de tenant ---
+    // --- REGISTRO con creación automática de tenant (versión corregida) ---
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -6803,53 +6843,76 @@ function iniciarLogin() {
                 return;
             }
 
-            // Validar número de WhatsApp: al menos 8 dígitos
             const digits = whatsappRaw.replace(/\D/g, '');
             if (digits.length < 8) {
                 mostrarMensaje('Número de WhatsApp inválido (mínimo 8 dígitos)', 'error');
                 return;
             }
-            // Guardar el número limpio (solo dígitos) pero conservar el '+' si lo puso
             let whatsappClean = digits;
             if (whatsappRaw.startsWith('+')) {
                 whatsappClean = '+' + digits;
             }
 
             try {
-                // 1. Crear tenant (el negocio)
-                const { data: tenant, error: tenantError } = await supabaseClient
-                    .from('tenants')
-                    .insert({
-                        nombre_negocio: nombre + "'s negocio",
-                        email_contacto: email,
-                        plan: null  // aún sin plan
-                    })
-                    .select()
-                    .single();
-
-                if (tenantError) throw tenantError;
-
-                // 2. Registrar usuario en Auth con rol ADMIN y su WhatsApp
-                const { data, error } = await supabaseClient.auth.signUp({
+                // 1. Registrar usuario en Auth
+                const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
                         data: {
                             nombre: nombre,
-                            rol: 'admin',          // ← CAMBIADO de 'cliente' a 'admin'
-                            tenant_id: tenant.id,
-                            whatsapp: whatsappClean // ← NUEVO: guardamos el número
+                            rol: 'cliente',      // temporal, luego se actualizará a admin
+                            whatsapp: whatsappClean
                         }
                     }
                 });
+                if (signUpError) throw signUpError;
 
-                if (error) throw error;
+                // Pequeña pausa para que Supabase complete el registro
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // 2. Iniciar sesión automáticamente (para tener sesión activa)
+                const { error: signInError } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                if (signInError) throw signInError;
+
+                // 3. Verificar que la sesión esté activa
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError || !session) throw new Error('No se pudo establecer la sesión');
+
+                // 4. Crear tenant (ahora con usuario autenticado)
+                const { data: tenant, error: tenantError } = await supabaseClient
+                    .from('tenants')
+                    .insert({
+                        nombre_negocio: nombre + "'s negocio",
+                        email_contacto: email,
+                        plan: null
+                    })
+                    .select()
+                    .single();
+                if (tenantError) throw tenantError;
+
+                // 4. Actualizar metadatos del usuario (rol admin y tenant_id)
+                const { error: updateError } = await supabaseClient.auth.updateUser({
+                    data: {
+                        tenant_id: tenant.id,
+                        rol: 'admin',
+                        nombre: nombre
+                    }
+                });
+                if (updateError) throw updateError;
+
+                // 5. Refrescar sesión para obtener nuevos metadatos
+                await supabaseClient.auth.refreshSession();
 
                 mostrarMensaje(`¡Cuenta creada! Bienvenido ${nombre}`, 'success');
-                // Redirigir a admin.html (porque ahora es admin)
+                // Redirigir a planes.html para elegir plan
                 setTimeout(() => {
                     window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
                 }, 1500);
+
             } catch (err) {
                 console.error('Error registro:', err);
                 let msg = err.message;
@@ -7461,6 +7524,78 @@ if (typeof supabase === 'undefined') {
 
 // Exponer globalmente
 window.diagnosticarSistema = diagnosticarSistema;
+
+// ============================================
+// COMPARTIR ENLACE DE CLIENTES
+// ============================================
+function configurarCompartirEnlace() {
+    const linkInput = document.getElementById('client-share-link');
+    const copyBtn = document.getElementById('copy-link-btn');
+    const qrBtn = document.getElementById('generate-qr-btn');
+    const qrContainer = document.getElementById('qr-code');
+
+    if (!linkInput) return; // No está en esta página
+
+    // Generar enlace
+    getCurrentTenantId().then(tenantId => {
+        if (tenantId) {
+            const baseUrl = window.location.origin + window.location.pathname.replace(/admin\.html.*/, 'cliente.html');
+            linkInput.value = `${baseUrl}?tenant=${tenantId}`;
+        } else {
+            linkInput.value = 'No se pudo generar el enlace (sin tenant)';
+        }
+    });
+
+    // Copiar al portapapeles
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(linkInput.value);
+                copyBtn.classList.add('copied');
+                copyBtn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copiar';
+                }, 2000);
+            } catch {
+                // Fallback para navegadores sin clipboard API
+                linkInput.select();
+                linkInput.setSelectionRange(0, 99999);
+                document.execCommand('copy');
+                mostrarToast('Enlace copiado', 'success');
+            }
+        });
+    }
+
+    // Generar QR
+    if (qrBtn && qrContainer) {
+        qrBtn.addEventListener('click', () => {
+            if (qrContainer.style.display === 'flex') {
+                qrContainer.style.display = 'none';
+                qrContainer.innerHTML = '';
+                return;
+            }
+            const url = linkInput.value;
+            if (!url || url === 'Cargando...') {
+                mostrarToast('Espera a que se genere el enlace', 'warning');
+                return;
+            }
+            // Usar API gratuita de QR
+            const qrImg = document.createElement('img');
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
+            qrImg.alt = 'Código QR';
+            qrImg.onload = () => {
+                qrContainer.innerHTML = '';
+                qrContainer.appendChild(qrImg);
+                qrContainer.style.display = 'flex';
+            };
+            qrImg.onerror = () => {
+                mostrarToast('Error al generar el QR', 'error');
+            };
+        });
+    }
+}
+
 // ============================================
 // EXPORTAR FUNCIONES GLOBALES ADICIONALES
 // ============================================

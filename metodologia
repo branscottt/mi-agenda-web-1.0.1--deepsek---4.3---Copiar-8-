@@ -216,27 +216,15 @@ ID	Acción
 (-)4.5 Probar login con Google
 
 ### Fase 5 – Generación de enlace compartible para clientes
-()5.1 En admin.html, agregar sección “Compartir espacio de clientes” con input de solo lectura y botón copiar.
-()5.2 Asegurar que el enlace funcione con la lógica de la Fase 1.
-()5.3 (Opcional) Generar código QR.
+(-)5.1 En admin.html, agregar sección “Compartir espacio de clientes” con input de solo lectura y botón copiar.
+(-)5.2 Asegurar que el enlace funcione con la lógica de la Fase 1.
+(-)5.3 (Opcional) Generar código QR.
 
 ### Fase 6 – Seguridad y RLS para acceso anónimo
 ()6.1 Crear función SQL set_tenant en Supabase
 ()6.2 Modificar políticas RLS en tablas servicios y citas para usar app.tenant_id
 ()6.3 En cliente.html, antes de cualquier consulta, llamar a supabaseClient.rpc('set_tenant', {tenant_id})
 ()6.4 Probar que un cliente anónimo solo ve sus propios datos.
-
-### Fase 7 – Mejoras en el panel de Superadmin
-()7.1 Listar, editar y eliminar tenants (ya existe)
-()7.2 Gestionar suscripciones de cada tenant (ya existe)
-()7.3 Editar configuración visual de cada tenant (ya existe)
-()7.4 Ver solicitudes de personalización CSS (ya existe)
-()7.5 Mostrar estadísticas globales (ya existe)
-
-### Fase 8 – Simulación de pagos (sin Stripe)
-()8.1 En planes.html, al seleccionar plan de pago, crear suscripción directamente (status active, start_date now, end_date calculada).
-()8.2 Impedir que admin seleccione Freemium (ya oculto).
-()8.3 En superadmin, permitir cambiar plan manualmente (ya existe).
 
 ### Fase 9 – Pruebas integrales
 ()9.1 Probar registro de nuevo admin → selección de plan → dashboard.
