@@ -327,7 +327,7 @@ const CitasManager = {
 
             const { data, error } = await supabaseClient
                 .from('citas')
-                .select('*')
+                .select('id, servicio_id, servicio_nombre, fecha, hora, precio, contacto, notificaciones, created_at')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
 
@@ -476,30 +476,64 @@ function configurarLimpiezaAutomatica() {
 // GESTIÓN DE VENTAS (modificado para Supabase)
 // ============================================
 const VentasManager = {
-    async getAll() {
+    _cachedVentas: null,
+    _cacheTime: 0,
+    _CACHE_TTL: 60000, // 1 minuto
+
+    async getAll(forceRefresh = false) {
         try {
-            const citas = await CitasManager.getAll();
-            // Consideramos todas las citas como ventas (simplificado)
-            return citas.map(c => ({
-                id: `VENTA-${c.id}`,
-                citaId: c.id,
-                servicioId: c.servicioId,
-                servicioNombre: c.nombre,
-                clienteNombre: c.contacto?.nombre || 'Cliente',
-                clienteEmail: c.contacto?.email || '',
-                clienteTelefono: c.contacto?.telefono || '',
-                fecha: c.fecha,
-                hora: c.hora,
-                monto: Number(c.precio) || 0,
-                fechaVenta: c.creadoEn,
-                mes: new Date(c.creadoEn).getMonth() + 1,
-                año: new Date(c.creadoEn).getFullYear(),
-                diaSemana: new Date(c.creadoEn).getDay()
-            }));
+            // Cache en memoria (valido 1 minuto)
+            const ahora = Date.now();
+            if (!forceRefresh && this._cachedVentas && (ahora - this._cacheTime) < this._CACHE_TTL) {
+                return this._cachedVentas;
+            }
+
+            const tenantId = await getCurrentTenantId();
+            if (!tenantId) return [];
+
+            const { data, error } = await supabaseClient
+                .from('citas')
+                .select('id, servicio_id, precio, contacto, created_at, fecha, hora')
+                .eq('tenant_id', String(tenantId).trim())
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error en VentasManager.getAll:', error);
+                return [];
+            }
+
+            const ventas = (data || []).map(c => {
+                const createdDate = new Date(c.created_at);
+                return {
+                    id: `VENTA-${c.id}`,
+                    citaId: c.id,
+                    servicioId: c.servicio_id,
+                    servicioNombre: 'Servicio',
+                    clienteNombre: c.contacto?.nombre || 'Cliente',
+                    clienteEmail: c.contacto?.email || '',
+                    clienteTelefono: c.contacto?.telefono || '',
+                    fecha: c.fecha,
+                    hora: c.hora,
+                    monto: Number(c.precio) || 0,
+                    fechaVenta: c.created_at,
+                    mes: createdDate.getMonth() + 1,
+                    año: createdDate.getFullYear(),
+                    diaSemana: createdDate.getDay()
+                };
+            });
+
+            this._cachedVentas = ventas;
+            this._cacheTime = ahora;
+            return ventas;
         } catch (e) {
             console.error('Error en getAll ventas:', e);
             return [];
         }
+    },
+
+    invalidateCache() {
+        this._cachedVentas = null;
+        this._cacheTime = 0;
     },
     
     async registrarDesdeCita(cita) {
@@ -724,7 +758,7 @@ const ServiciosManager = {
 
             const { data, error } = await supabaseClient
                 .from('servicios')
-                .select('*')
+                .select('id, nombre, categoria, precio, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
 
@@ -846,7 +880,7 @@ const NotificacionesAdminManager = {
             
             const { data, error } = await supabaseClient
                 .from('notificaciones_admin')
-                .select('*')
+                .select('id, tipo, cita_id, fecha_original, hora_original, fecha_nueva, hora_nueva, cliente, leido, creado_en')
                 .eq('tenant_id', cleanTenantId)
                 .order('creado_en', { ascending: false });
                 
@@ -921,7 +955,7 @@ const SuscripcionManager = {
             if (!tenantId) return null;
             const { data, error } = await supabaseClient
                 .from('subscriptions')
-                .select('*')
+                .select('id, tenant_id, plan, status, start_date, end_date, stripe_session_id, created_at')
                 .eq('tenant_id', tenantId)
                 .eq('status', 'active')
                 .order('start_date', { ascending: false })
@@ -943,7 +977,7 @@ const SuscripcionManager = {
         try {
             const { data, error } = await supabaseClient
                 .from('subscriptions')
-                .select('*')
+                .select('id, tenant_id, plan, status, start_date, end_date, stripe_session_id, created_at')
                 .eq('tenant_id', tenantId)
                 .order('start_date', { ascending: false });
             if (error) throw error;
