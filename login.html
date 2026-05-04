@@ -116,7 +116,11 @@
     <!-- Scripts -->
     <!-- 1. Modulo legacy (coexistencia Strangler Fig) -->
     <script src="script.js"></script>
-    <!-- 2. Modulos modernos (se cargan DESPUES de script.js) -->
-    <script type="module" src="src/main.js"></script>
+    <script src="src/main.js"></script>
+    <script>
+        if (typeof window.supabaseClient === 'undefined') {
+            console.log('[main] Fallback: solo script.js legacy activo');
+        }
+    </script>
 </body>
 </html>

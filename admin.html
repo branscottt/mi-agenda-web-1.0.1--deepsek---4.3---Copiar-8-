@@ -694,7 +694,14 @@
     </div>
 
     <script src="script.js"></script>
-    <script type="module" src="src/main.js"></script>
+    <script src="src/main.js"></script>
+    <script>
+        // Fallback si main.js no se cargo (ej: servidor HTTP no disponible)
+        // script.js legacy funciona sin main.js
+        if (typeof window.supabaseClient === 'undefined') {
+            console.log('[main] Fallback: solo script.js legacy activo');
+        }
+    </script>
 
     <!-- Containers para modulos modernos (display:none, coexisten con legacy) -->
     <div id="notif-bell-btn" style="display:none"></div>

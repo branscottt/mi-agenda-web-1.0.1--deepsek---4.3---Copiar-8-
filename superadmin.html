@@ -274,7 +274,12 @@
 <div id="cfg-preview-btn" style="display:none"></div>
 <div id="superadmin-content" style="display:none"></div>
 
-<script type="module" src="src/main.js"></script>
+<script src="src/main.js"></script>
+<script>
+    if (typeof window.supabaseClient === 'undefined') {
+        console.log('[main] Fallback: solo script.js legacy activo');
+    }
+</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof iniciarSuperAdmin === 'function') {
