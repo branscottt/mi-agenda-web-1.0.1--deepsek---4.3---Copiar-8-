@@ -1,8 +1,10 @@
 // auth/application/AuthService.js
 // Servicio de autenticacion: login, registro, logout, Google OAuth
+// Ahora guarda el JWT explicitamente en JwtManager para control stateless
 
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { redirectByRole } from '../../shared/infrastructure/router.js';
+import { JwtManager } from '../infrastructure/JwtManager.js';
 
 export async function login(email, password) {
     const supabase = getSupabase();
@@ -13,6 +15,10 @@ export async function login(email, password) {
             password
         });
         if (error) return { success: false, error: error.message };
+
+        // Guardar JWT explicitamente en localStorage
+        JwtManager.setTokens(data.session.access_token, data.session.refresh_token);
+
         return { success: true, session: data.session };
     } catch (e) {
         return { success: false, error: e.message };
@@ -50,13 +56,20 @@ export async function loginWithGoogle() {
 
 export async function logout() {
     const supabase = getSupabase();
-    if (!supabase) return;
-    try {
-        await supabase.auth.signOut();
-        window.location.href = 'login.html';
-    } catch (e) {
-        console.error('Error al cerrar sesion:', e);
+
+    // 1. Limpiar JWT inmediatamente (localStorage)
+    JwtManager.clear();
+
+    // 2. Limpiar sesion en Supabase (fire-and-forget, no bloquea)
+    if (supabase) {
+        try {
+            await supabase.auth.signOut();
+        } catch (e) {
+            console.error('Error al cerrar sesion en Supabase:', e);
+        }
     }
+
+    window.location.href = 'login.html';
 }
 
 export async function resetPassword(email) {
@@ -73,5 +86,5 @@ export async function resetPassword(email) {
     }
 }
 
-// Compatibilidad hacia atras
+// Compatibilidad hacia atras con script.js
 window.cerrarSesion = logout;

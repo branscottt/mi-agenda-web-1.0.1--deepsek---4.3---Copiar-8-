@@ -11,14 +11,62 @@ import './shared/infrastructure/formatters.js';
 import './shared/infrastructure/urgency-calculator.js';
 import { verificarProteccionRutas, getSession } from './shared/infrastructure/router.js';
 import { supabaseClient } from './shared/infrastructure/supabase.js';
+import { JwtManager } from './auth/infrastructure/JwtManager.js';
 
 // Asegurar compatibilidad con script.js legacy
 window.supabaseClient = supabaseClient;
 
 // ============================================
+// Interceptor de autenticacion JWT (se ejecuta inmediatamente al cargar)
+// ============================================
+// Sincroniza el JWT de localStorage con Supabase para que todas las
+// consultas a supabaseClient.from() usen el token correcto.
+// Si el token expiro, intenta refresh silencioso antes de continuar.
+(async function syncJwtSession() {
+    const accessToken = JwtManager.getAccessToken();
+    if (!accessToken) return; // No hay JWT, nada que sincronizar
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    if (!JwtManager.isTokenExpired()) {
+        // Token valido -> sincronizar con Supabase
+        try {
+            await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: JwtManager.getRefreshToken() || accessToken
+            });
+        } catch (e) {
+            console.warn('[main.js] Error sync JWT:', e);
+        }
+    } else {
+        // Token expirado -> intentar refresh
+        const refreshed = await JwtManager.refreshToken(supabase);
+        if (refreshed) {
+            const newToken = JwtManager.getAccessToken();
+            try {
+                await supabase.auth.setSession({
+                    access_token: newToken,
+                    refresh_token: JwtManager.getRefreshToken() || newToken
+                });
+            } catch (e) {
+                console.warn('[main.js] Error sync refreshed JWT:', e);
+            }
+        }
+    }
+})().then(() => {
+    // Continuar con el resto solo DESPUES de que el JWT este sincronizado
+    startApp();
+}).catch(err => {
+    console.warn('[main.js] JWT sync error (no bloqueante):', err);
+    startApp();
+});
+
+// ============================================
 // Detectar pagina actual y cargar modulos
 // ============================================
 // Usar setTimeout(fn, 0) para ejecutarse DESPUES de script.js (que corre inline/sync)
+function startApp() {
 setTimeout(async () => {
     const esLogin = document.querySelector('.login-screen') && !document.querySelector('.planes-container');
     const esAdmin = document.querySelector('.admin-screen') && !document.querySelector('.superadmin-screen');
@@ -97,3 +145,4 @@ setTimeout(async () => {
         console.log('[main.js] Planes: usando script.js legacy');
     }
 }, 0);
+}
