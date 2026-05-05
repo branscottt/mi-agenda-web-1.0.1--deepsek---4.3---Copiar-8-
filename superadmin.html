@@ -269,17 +269,16 @@
 <div id="cfg-font" style="display:none"></div>
 <div id="cfg-logo" style="display:none"></div>
 <div id="cfg-favicon" style="display:none"></div>
-<div id="cfg-save-btn" style="display:none"></div>
-<div id="cfg-reset-btn" style="display:none"></div>
-<div id="cfg-preview-btn" style="display:none"></div>
-<div id="superadmin-content" style="display:none"></div>
-
-<script src="src/main.js"></script>
-<script>
-    if (typeof window.supabaseClient === 'undefined') {
-        console.log('[main] Fallback: solo script.js legacy activo');
-    }
-</script>
+    <div id="cfg-save-btn" style="display:none"></div>
+    <div id="cfg-reset-btn" style="display:none"></div>
+    <div id="cfg-preview-btn" style="display:none"></div>
+    <div id="superadmin-content" style="display:none"></div>
+    <!-- <script src="src/main.js"></script>
+    <script>
+        if (typeof window.supabaseClient === 'undefined') {
+            console.log('[main] Fallback: solo script.js legacy activo');
+        }
+    </script> -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof iniciarSuperAdmin === 'function') {
