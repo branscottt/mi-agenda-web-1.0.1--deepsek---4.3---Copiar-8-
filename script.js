@@ -2275,6 +2275,38 @@ window.actualizarContadorNotificacionesAdmin = actualizarContadorNotificacionesA
 // SESIÓN Y PROTECCIÓN DE RUTAS (modificado para Supabase Auth)
 // ============================================
 async function getSession() {
+    // PRIMERO: intentar leer desde JwtManager (localStorage, instantaneo)
+    // Si hay JWT valido, no hacemos llamada HTTP a Supabase
+    if (window.JwtManager) {
+        const session = window.JwtManager.getSession();
+        if (session && session.user) {
+            // Sincronizar JWT con Supabase para que RLS funcionen
+            if (window.supabaseClient && window.JwtManager.isTokenExpired()) {
+                const refreshed = await window.JwtManager.refreshToken(window.supabaseClient);
+                if (refreshed) {
+                    const newToken = window.JwtManager.getAccessToken();
+                    try {
+                        await window.supabaseClient.auth.setSession({
+                            access_token: newToken,
+                            refresh_token: window.JwtManager.getRefreshToken() || newToken
+                        });
+                    } catch(e) {}
+                } else {
+                    return null;
+                }
+            } else if (window.supabaseClient && !window.JwtManager.isTokenExpired()) {
+                try {
+                    await window.supabaseClient.auth.setSession({
+                        access_token: window.JwtManager.getAccessToken(),
+                        refresh_token: window.JwtManager.getRefreshToken() || window.JwtManager.getAccessToken()
+                    });
+                } catch(e) {}
+            }
+            return session.user;
+        }
+    }
+
+    // FALLBACK: llamada tradicional a Supabase (comportamiento original)
     try {
         console.log('Obteniendo sesión de Supabase...');
         console.log('supabaseClient existe:', !!supabaseClient);
@@ -2293,6 +2325,11 @@ async function getSession() {
         } : '❌ No hay sesión');
         
         if (!session) return null;
+        
+        // Al obtener sesion de Supabase, tambien guardar en JwtManager
+        if (window.JwtManager) {
+            window.JwtManager.setTokens(session.access_token, session.refresh_token);
+        }
         
         const userData = {
             id: session.user.id,
@@ -6693,6 +6730,11 @@ async function cancelarCita(citaId) {
 window.cancelarCita = cancelarCita;
 
 async function cerrarSesion() {
+    // 1. Limpiar JWT de localStorage inmediatamente
+    if (window.JwtManager) {
+        window.JwtManager.clear();
+    }
+    // 2. Limpiar sesion en Supabase
     try {
         await supabaseClient.auth.signOut();
     } catch (e) { }
@@ -6844,6 +6886,11 @@ function iniciarLogin() {
                     password: password
                 });
                 if (error) throw error;
+
+                // Guardar JWT en localStorage via JwtManager
+                if (window.JwtManager && data.session) {
+                    window.JwtManager.setTokens(data.session.access_token, data.session.refresh_token);
+                }
 
                 // Recordarme (opcional: persistence local)
                 if (remember) {
@@ -7765,3 +7812,102 @@ window.toggleActivoServicio = toggleActivoServicio;
 window.editarServicio = editarServicio;
 window.abrirModalCambioFecha = abrirModalCambioFecha;
 window.confirmarCambioFecha = confirmarCambioFecha;
+
+// ============================================
+// JwtManager - Gestion de JWT en localStorage
+// ============================================
+// Proporciona control explicito sobre los tokens JWT de Supabase.
+// Se integra con getSession(), login() y cerrarSesion() existentes.
+// ============================================
+
+const STORAGE_KEYS = {
+    ACCESS_TOKEN: 'agendapro_access_token',
+    REFRESH_TOKEN: 'agendapro_refresh_token',
+    USER_DATA: 'agendapro_user_data'
+};
+
+function decodeJWTPayload(token) {
+    try {
+        const payload = token.split('.')[1];
+        return JSON.parse(atob(payload));
+    } catch (e) {
+        return null;
+    }
+}
+
+window.JwtManager = {
+    setTokens(accessToken, refreshToken) {
+        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+        if (refreshToken) {
+            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+        }
+        const payload = decodeJWTPayload(accessToken);
+        if (payload) {
+            const meta = payload.user_metadata || {};
+            localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify({
+                id: payload.sub,
+                nombre: meta.nombre || (payload.email ? payload.email.split('@')[0] : 'Usuario'),
+                email: payload.email,
+                rol: meta.rol || 'cliente',
+                tenant_id: meta.tenant_id
+            }));
+        }
+    },
+
+    getAccessToken() {
+        return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    },
+
+    getRefreshToken() {
+        return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    },
+
+    getUserData() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEYS.USER_DATA);
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    },
+
+    isTokenExpired() {
+        const token = this.getAccessToken();
+        if (!token) return true;
+        const payload = decodeJWTPayload(token);
+        if (!payload || !payload.exp) return true;
+        return (payload.exp * 1000) <= (Date.now() + 60000);
+    },
+
+    async refreshToken(supabaseClient) {
+        const refreshToken = this.getRefreshToken();
+        if (!refreshToken) return false;
+        try {
+            const { data, error } = await supabaseClient.auth.refreshSession();
+            if (error || !data || !data.session) {
+                this.clear();
+                return false;
+            }
+            this.setTokens(data.session.access_token, data.session.refresh_token);
+            return true;
+        } catch (e) {
+            console.error('[JwtManager] Error refreshing token:', e);
+            this.clear();
+            return false;
+        }
+    },
+
+    getSession() {
+        const accessToken = this.getAccessToken();
+        const refreshToken = this.getRefreshToken();
+        const user = this.getUserData();
+        if (!accessToken || !user) return null;
+        return { access_token: accessToken, refresh_token: refreshToken, user: user };
+    },
+
+    clear() {
+        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+    }
+};
