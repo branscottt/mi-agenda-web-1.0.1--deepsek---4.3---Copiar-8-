@@ -1,3 +1,29 @@
 {
-    "liveServer.settings.port": 5501
+    "liveServer.settings.port": 5501,
+    "sqltools.connections": [
+        {
+            "name": "AgendaPro Supabase",
+            "driver": "PostgreSQL",
+            "server": "db.dfcfimipkfhitlsyixqu.supabase.co",
+            "port": 5432,
+            "database": "postgres",
+            "username": "postgres",
+            "password": "Branja1234$6",
+            "useSSL": true,
+            "ssl": { "rejectUnauthorized": false },
+            "connectString": "postgresql://postgres:Branja1234%246@db.dfcfimipkfhitlsyixqu.supabase.co:5432/postgres?sslmode=require",
+            "connectionTimeout": 10
+        },
+        {
+            "name": "AgendaPro Local (Docker)",
+            "driver": "PostgreSQL",
+            "server": "127.0.0.1",
+            "port": 54322,
+            "database": "postgres",
+            "username": "postgres",
+            "password": "postgres",
+            "useSSL": false,
+            "connectionTimeout": 5
+        }
+    ]
 }
