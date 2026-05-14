@@ -262,7 +262,7 @@ WHERE raw_user_meta_data->>'rol' IS NOT NULL;
 CREATE TABLE IF NOT EXISTS public.subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    plan TEXT NOT NULL CHECK (plan IN ('freemium', 'premium', 'enterprise')),
+    plan TEXT NOT NULL CHECK (plan IN ('freemium', 'pro', 'premium_anual')),
     status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'trial')),
     start_date TIMESTAMPTZ NOT NULL DEFAULT now(),
     end_date TIMESTAMPTZ,

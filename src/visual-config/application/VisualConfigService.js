@@ -24,7 +24,7 @@ export async function getVisualConfig(optionalTenantId) {
     try {
         const { data, error } = await getSupabase()
             .from('tenant_config')
-            .select('*')
+            .select('tenant_id, primary_color, secondary_color, logo_url, custom_css')
             .eq('tenant_id', String(tenantId).trim())
             .limit(1)
             .single();

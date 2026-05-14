@@ -50,6 +50,8 @@
                     });
                 }
             }
+            // Iniciar auto-refresh periodico (cada 4 min)
+            JwtManager.startAutoRefresh(supabase);
         } catch (e) {
             // No bloqueante - script.js legacy maneja la sesion
         }

@@ -125,5 +125,40 @@ export const JwtManager = {
         localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
         localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
         localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+        this._stopAutoRefresh();
+    },
+
+    // ============================================
+    // Auto-refresh periodico (cada 4 minutos)
+    // ============================================
+    _refreshTimer: null,
+
+    /**
+     * Inicia el refresco automatico del token cada 4 minutos.
+     * Si falla 2 veces seguidas, cierra sesion silenciosamente.
+     */
+    startAutoRefresh(supabaseClient) {
+        this._stopAutoRefresh();
+        this._refreshTimer = setInterval(async () => {
+            if (this.isTokenExpired()) {
+                const success = await this.refreshToken(supabaseClient);
+                if (!success) {
+                    // Segunda verificacion: si sigue expirado, cerrar sesion
+                    if (this.isTokenExpired()) {
+                        this.clear();
+                        if (window.location.pathname !== '/login.html') {
+                            window.location.href = 'login.html';
+                        }
+                    }
+                }
+            }
+        }, 240000); // 4 minutos
+    },
+
+    _stopAutoRefresh() {
+        if (this._refreshTimer) {
+            clearInterval(this._refreshTimer);
+            this._refreshTimer = null;
+        }
     }
 };

@@ -12,7 +12,7 @@ export async function getSuscripcionActual(optionalTenantId) {
     try {
         const { data, error } = await getSupabase()
             .from('subscriptions')
-            .select('*')
+            .select('id, tenant_id, plan, status, start_date, end_date, stripe_session_id, created_at')
             .eq('tenant_id', String(tenantId).trim())
             .order('created_at', { ascending: false })
             .limit(1)

@@ -4,13 +4,13 @@
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 
 export async function getAllTenants() {
-    const { data, error } = await getSupabase().from('tenants').select('*').order('fecha_registro', { ascending: false });
+    const { data, error } = await getSupabase().from('tenants').select('id, nombre_negocio, email_contacto, plan, fecha_registro, estado, activo, configuracion').order('fecha_registro', { ascending: false });
     if (error) throw error;
     return data || [];
 }
 
 export async function getTenantByEmail(email) {
-    const { data, error } = await getSupabase().from('tenants').select('*').eq('email_contacto', email).limit(1).single();
+    const { data, error } = await getSupabase().from('tenants').select('id, nombre_negocio, email_contacto, plan, activo').eq('email_contacto', email).limit(1).single();
     if (error && error.code !== 'PGRST116') throw error;
     return data || null;
 }

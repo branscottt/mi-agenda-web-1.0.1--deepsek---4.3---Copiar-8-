@@ -1,30 +1,37 @@
 // super-admin/application/SuperAdminService.js
 // Servicios exclusivos para super_admin
 // Gestion global de tenants, suscripciones, estadisticas del sistema
+// Consulta Supabase directamente para no depender de tenants/ ni subscriptions/.
 
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
-import { getAllTenants } from '../../tenants/application/TenantService.js';
-import { getAllSuscripciones } from '../../subscriptions/application/SubscriptionService.js';
 
 export async function getSystemStats() {
     try {
-        const tenants = await getAllTenants();
-        const suscripciones = await getAllSuscripciones();
-        const suscripcionesActivas = suscripciones.filter(s => s.estado === 'activa');
+        const supabase = getSupabase();
 
-        // Contar por plan
+        const [tenantsRes, suscripcionesRes] = await Promise.all([
+            supabase.from('tenants')
+                .select('id, nombre_negocio, email_contacto, plan, fecha_registro, estado, activo')
+                .order('fecha_registro', { ascending: false }),
+            supabase.from('subscriptions')
+                .select('*, tenants(nombre_negocio, email_contacto)')
+                .order('created_at', { ascending: false })
+        ]);
+
+        const tenants = tenantsRes.data || [];
+        const suscripciones = suscripcionesRes.data || [];
+
+        const suscripcionesActivas = suscripciones.filter(s => s.status === 'active');
         const porPlan = {};
         suscripcionesActivas.forEach(s => {
             porPlan[s.plan] = (porPlan[s.plan] || 0) + 1;
         });
 
-        // Ingresos totales
         const ingresos = suscripciones
-            .filter(s => s.estado !== 'cancelada')
+            .filter(s => s.status !== 'canceled')
             .reduce((sum, s) => sum + (s.monto || 0), 0);
 
-        // Usuarios totales (de auth)
-        const { data: authUsers, error: authError } = await getSupabase().auth.admin.listUsers();
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
         const totalUsuarios = authError ? 0 : (authUsers?.users?.length || 0);
 
         return {
@@ -48,28 +55,27 @@ export async function getSystemStats() {
 }
 
 export async function actualizarPlanTenant(tenantId, nuevoPlan) {
-    // Actualiza plan en tenant
-    await getSupabase().from('tenants').update({ plan: nuevoPlan }).eq('id', tenantId);
+    const supabase = getSupabase();
+    await supabase.from('tenants').update({ plan: nuevoPlan }).eq('id', tenantId);
 
-    // Crear/actualizar suscripcion
-    const { data: existing } = await getSupabase()
+    const { data: existing } = await supabase
         .from('subscriptions')
         .select('id')
         .eq('tenant_id', tenantId)
-        .eq('estado', 'activa')
+        .eq('status', 'active')
         .limit(1);
 
     if (existing?.length) {
-        await getSupabase()
+        await supabase
             .from('subscriptions')
             .update({ plan: nuevoPlan, updated_at: new Date().toISOString() })
             .eq('id', existing[0].id);
     } else {
-        await getSupabase().from('subscriptions').insert({
+        await supabase.from('subscriptions').insert({
             tenant_id: tenantId,
             plan: nuevoPlan,
-            estado: 'activa',
-            fecha_inicio: new Date().toISOString()
+            status: 'active',
+            start_date: new Date().toISOString()
         });
     }
 
@@ -77,8 +83,9 @@ export async function actualizarPlanTenant(tenantId, nuevoPlan) {
 }
 
 export async function suspenderTenant(tenantId) {
-    await getSupabase().from('tenants').update({ activo: false }).eq('id', tenantId);
-    await getSupabase()
+    const supabase = getSupabase();
+    await supabase.from('tenants').update({ activo: false }).eq('id', tenantId);
+    await supabase
         .from('subscriptions')
         .update({ status: 'suspended' })
         .eq('tenant_id', tenantId)
@@ -87,25 +94,22 @@ export async function suspenderTenant(tenantId) {
 }
 
 export async function reactivarTenant(tenantId) {
-    await getSupabase().from('tenants').update({ activo: true }).eq('id', tenantId);
+    const supabase = getSupabase();
+    await supabase.from('tenants').update({ activo: true }).eq('id', tenantId);
+    await supabase
+        .from('subscriptions')
+        .update({ status: 'active' })
+        .eq('tenant_id', tenantId)
+        .eq('status', 'suspended');
     return true;
-}
-
-export async function getLogsSistema(limite = 100) {
-    try {
-        // system_logs no existe en el schema actual - retornar vacio
-        return [];
-    } catch (e) {
-        console.error('Error getLogsSistema:', e);
-        return [];
-    }
 }
 
 export async function getMetricasUso(tenantId) {
     try {
+        const supabase = getSupabase();
         const [citas, servicios] = await Promise.all([
-            getSupabase().from('citas').select('id,created_at').eq('tenant_id', tenantId),
-            getSupabase().from('servicios').select('id').eq('tenant_id', tenantId)
+            supabase.from('citas').select('id,created_at').eq('tenant_id', tenantId),
+            supabase.from('servicios').select('id').eq('tenant_id', tenantId)
         ]);
 
         return {
@@ -115,5 +119,14 @@ export async function getMetricasUso(tenantId) {
     } catch (e) {
         console.error('Error getMetricasUso:', e);
         return { totalCitas: 0, totalServicios: 0 };
+    }
+}
+
+export async function getLogsSistema(limite = 100) {
+    try {
+        return [];
+    } catch (e) {
+        console.error('Error getLogsSistema:', e);
+        return [];
     }
 }

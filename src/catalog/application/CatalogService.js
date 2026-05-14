@@ -62,7 +62,7 @@ export async function getCatalogoServicios(optionalTenantId) {
     try {
         const { data, error } = await getSupabase()
             .from('servicios')
-            .select('*')
+            .select('id, nombre, categoria, precio, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at')
             .eq('tenant_id', String(tenantId).trim())
             .eq('activo', true)
             .order('created_at', { ascending: false });

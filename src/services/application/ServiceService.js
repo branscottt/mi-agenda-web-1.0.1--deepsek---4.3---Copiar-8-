@@ -10,7 +10,7 @@ export async function getAllServicios(optionalTenantId) {
     try {
         const { data, error } = await getSupabase()
             .from('servicios')
-            .select('*')
+            .select('id, nombre, categoria, precio, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at')
             .eq('tenant_id', String(tenantId).trim())
             .order('created_at', { ascending: false });
         if (error) throw error;

@@ -961,7 +961,23 @@ const SuscripcionManager = {
                 .order('start_date', { ascending: false })
                 .limit(1);
             if (error) throw error;
-            return data?.[0] || null;
+            if (data?.[0]) return data[0];
+            // No encontró suscripción activa → refrescar sesión por si hay datos nuevos
+            console.log('SuscripcionManager.getCurrent: sin suscripción activa, refrescando sesión...');
+            const { data: sessionData } = await supabaseClient.auth.getSession();
+            if (sessionData?.session) {
+                // Reintentar después de refrescar
+                const { data: retry, error: retryError } = await supabaseClient
+                    .from('subscriptions')
+                    .select('id, tenant_id, plan, status, start_date, end_date, stripe_session_id, created_at')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'active')
+                    .order('start_date', { ascending: false })
+                    .limit(1);
+                if (retryError) throw retryError;
+                if (retry?.[0]) return retry[0];
+            }
+            return null;
         } catch (e) {
             console.error('SuscripcionManager.getCurrent error:', e);
             return null;
@@ -995,6 +1011,19 @@ const SuscripcionManager = {
      */
     async create(data) {
     try {
+        // Validar tenant_id
+        if (!data.tenant_id) {
+            console.error('SuscripcionManager.create: tenant_id es requerido');
+            mostrarToast('Error: no se pudo identificar el negocio', 'error');
+            return null;
+        }
+        // Validar status permitido
+        const status = data.status || 'active';
+        if (!['active', 'inactive', 'trial'].includes(status)) {
+            console.error('SuscripcionManager.create: status inválido:', status);
+            mostrarToast('Error: estado de suscripción inválido', 'error');
+            return null;
+        }
         // Calcular end_date si no viene explícito y el plan tiene duración
         let endDate = data.end_date;
         if (!endDate && data.plan && planesData[data.plan]?.duracionMeses) {
@@ -1003,7 +1032,28 @@ const SuscripcionManager = {
             calculatedEnd.setMonth(calculatedEnd.getMonth() + duracionMeses);
             endDate = calculatedEnd.toISOString();
         }
-        const newData = { ...data, end_date: endDate };
+        const newData = { ...data, end_date: endDate, status };
+        // UPSERT: si ya existe una suscripción activa para este tenant, la actualiza
+        // Esto evita duplicados y garantiza que siempre haya una sola activa
+        const { data: existing, error: lookupError } = await supabaseClient
+            .from('subscriptions')
+            .select('id')
+            .eq('tenant_id', data.tenant_id)
+            .eq('status', 'active')
+            .limit(1);
+        if (lookupError) throw lookupError;
+        if (existing && existing.length > 0) {
+            // Actualizar la suscripción existente
+            const { data: updatedSub, error: updateError } = await supabaseClient
+                .from('subscriptions')
+                .update(newData)
+                .eq('id', existing[0].id)
+                .select()
+                .single();
+            if (updateError) throw updateError;
+            return updatedSub;
+        }
+        // No existe: insertar nueva
         const { data: newSub, error } = await supabaseClient
             .from('subscriptions')
             .insert(newData)
@@ -1477,12 +1527,11 @@ async function crearSuscripcionInicial(planKey, tenantId) {
     const result = await SuscripcionManager.create(newSub);
     if (result) {
         mostrarToast(`Plan ${planesData[planKey].nombre} activado correctamente`, 'success');
-        // Redirigir a admin.html
-        setTimeout(() => {
-            window.location.href = 'admin.html';
-        }, 1500);
+        // Redirección inmediata: usar replace() evita que "atrás" vuelva a planes.html
+        // El parámetro ?subscription_created=true le indica a admin.html que salte la validación
+        window.location.replace('admin.html?subscription_created=true');
     } else {
-        mostrarToast('Error al activar el plan', 'error');
+        mostrarToast('Error al activar el plan. Intenta de nuevo.', 'error');
     }
 }
 
@@ -2739,11 +2788,30 @@ async function iniciarAdmin() {
 
     // ========== VALIDAR SUSCRIPCIÓN ACTIVA (solo para admins) ==========
     if (session.rol === 'admin') {
-        const suscripcionActiva = await SuscripcionManager.getCurrent();
-        if (!suscripcionActiva || suscripcionActiva.status !== 'active') {
-            mostrarToast('No tienes una suscripción activa. Selecciona un plan para continuar.', 'warning');
-            window.location.href = 'planes.html';
-            return;
+        // Si acabamos de crear una suscripción, damos tiempo para que Supabase propague
+        const urlParams = new URLSearchParams(window.location.search);
+        const justSubscribed = urlParams.get('subscription_created') === 'true';
+        if (justSubscribed) {
+            history.replaceState({}, '', window.location.pathname); // limpiar parámetro
+            console.log('🕐 Suscripción recién creada, esperando propagación...');
+            // Esperar 500ms y refrescar la sesión
+            await new Promise(r => setTimeout(r, 500));
+            const { data: refreshed } = await supabaseClient.auth.getSession();
+            if (refreshed?.session) {
+                console.log('🕐 Sesión refrescada. Continuando sin validación de suscripción.');
+                // Saltamos la validación — la suscripción acaba de crearse
+            } else {
+                // Si no hay sesión, redirigir a login
+                window.location.href = 'login.html';
+                return;
+            }
+        } else {
+            const suscripcionActiva = await SuscripcionManager.getCurrent();
+            if (!suscripcionActiva || suscripcionActiva.status !== 'active') {
+                mostrarToast('No tienes una suscripción activa. Selecciona un plan para continuar.', 'warning');
+                window.location.href = 'planes.html';
+                return;
+            }
         }
     }
     // ================================================================

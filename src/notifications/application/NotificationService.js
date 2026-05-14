@@ -28,7 +28,7 @@ export async function getNotificaciones(optionalTenantId) {
     try {
         let query = getSupabase()
             .from('notificaciones_admin')
-            .select('*')
+            .select('id, tipo, cita_id, fecha_original, hora_original, fecha_nueva, hora_nueva, cliente, leido, creado_en')
             .eq('tenant_id', String(tenantId).trim())
             .order('created_at', { ascending: false })
             .limit(50);
@@ -47,7 +47,7 @@ export async function getNotificaciones(optionalTenantId) {
             tipo: n.tipo || 'info',
             titulo: n.titulo || '',
             mensaje: n.mensaje || '',
-            leida: n.leida || false,
+            leida: n.leido || false,
             accion: n.accion || null,
             creadoEn: n.created_at
         }));
@@ -60,7 +60,7 @@ export async function getNotificaciones(optionalTenantId) {
 export async function marcarComoLeida(notificacionId) {
     const { error } = await getSupabase()
         .from('notificaciones_admin')
-        .update({ leida: true })
+        .update({ leido: true })
         .eq('id', notificacionId);
     if (error) throw error;
     return true;
@@ -71,9 +71,9 @@ export async function marcarTodasLeidas(optionalTenantId) {
     if (!tenantId) return;
     const { error } = await getSupabase()
         .from('notificaciones_admin')
-        .update({ leida: true })
+        .update({ leido: true })
         .eq('tenant_id', String(tenantId).trim())
-        .eq('leida', false);
+        .eq('leido', false);
     if (error) throw error;
 }
 
@@ -88,7 +88,7 @@ export async function crearNotificacion(notificacion, optionalTenantId) {
             titulo: notificacion.titulo || '',
             mensaje: notificacion.mensaje || '',
             accion: notificacion.accion || null,
-            leida: false
+            leido: false
         });
     if (error) console.error('Error crearNotificacion:', error);
 }

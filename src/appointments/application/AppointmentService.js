@@ -10,7 +10,7 @@ export async function getAllCitas(optionalTenantId) {
     try {
         const { data, error } = await getSupabase()
             .from('citas')
-            .select('*')
+            .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, servicio_nombre')
             .eq('tenant_id', String(tenantId).trim())
             .order('created_at', { ascending: false });
         if (error) throw error;
@@ -74,9 +74,9 @@ export async function getCitasPorFecha(fecha) {
     if (!tenantId) return [];
     const { data, error } = await getSupabase()
         .from('citas')
-        .select('*')
-        .eq('tenant_id', String(tenantId).trim())
-        .eq('fecha', fecha);
+.select('id, servicio_id, fecha, hora, precio, contacto')
+                .eq('tenant_id', String(tenantId).trim())
+                .eq('fecha', fecha);
     if (error) throw error;
     return data || [];
 }

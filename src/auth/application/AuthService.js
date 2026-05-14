@@ -47,7 +47,7 @@ export async function loginWithGoogle() {
     try {
         await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin + '/admin.html' }
+            options: { redirectTo: window.location.origin }
         });
     } catch (e) {
         console.error('Error Google OAuth:', e);
