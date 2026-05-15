@@ -1496,8 +1496,14 @@ async function cargarPlanes() {
         btn.addEventListener('click', async (e) => {
             const planKey = btn.dataset.plan;
             if (isNewAdmin && tenantIdFromUrl) {
+                // Nuevo admin viniendo de registro: crear suscripción inicial
                 await crearSuscripcionInicial(planKey, tenantIdFromUrl);
+            } else if (!suscripcionActual && rol === 'admin') {
+                // Admin sin suscripción: crear como si fuera primera vez
+                // Usar tenant_id de la sesión
+                await crearSuscripcionInicial(planKey, tenantId);
             } else {
+                // Admin con suscripción existente: cambiar de plan
                 await solicitarCambioPlan(planKey);
             }
         });
@@ -1556,7 +1562,7 @@ async function solicitarCambioPlan(planKey) {
 
     const suscripcion = await SuscripcionManager.getCurrent();
     if (!suscripcion) {
-        mostrarToast('No se encontró suscripción activa', 'error');
+        mostrarToast('No se encontró suscripción activa. Crea una nueva.', 'error');
         return;
     }
 
@@ -2609,6 +2615,27 @@ window.crearDatosEjemplo = crearDatosEjemplo;
 
 async function iniciarAdmin() {
     console.log('Iniciando admin...');
+
+    // ========== ESPERAR SESIÓN ACTIVA ==========
+    // Supabase a veces tarda en restaurar la sesión desde localStorage.
+    // Este bucle espera hasta 5 segundos a que la sesión esté disponible.
+    let sessionDisponible = null;
+    for (let i = 0; i < 10; i++) {
+        const { data } = await supabaseClient.auth.getSession();
+        if (data?.session) {
+            sessionDisponible = data.session;
+            break;
+        }
+        console.log(`⏳ Esperando sesión... intento ${i + 1}/10`);
+        await new Promise(r => setTimeout(r, 500));
+    }
+    if (!sessionDisponible) {
+        console.error('❌ No se pudo restaurar la sesión después de 5 segundos');
+        window.location.href = 'login.html';
+        return;
+    }
+    console.log('✅ Sesión restaurada correctamente');
+    // =============================================
 
     // ========== NUEVO: Cargar configuración visual del tenant ==========
     let visualConfig = null;
