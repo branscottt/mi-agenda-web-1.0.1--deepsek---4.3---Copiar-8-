@@ -327,7 +327,7 @@ const CitasManager = {
 
             const { data, error } = await supabaseClient
                 .from('citas')
-                .select('id, servicio_id, servicio_nombre, fecha, hora, precio, contacto, notificaciones, created_at')
+                .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
 
@@ -341,7 +341,7 @@ const CitasManager = {
             return (data || []).map(c => ({
                 id: c.id,
                 servicioId: c.servicio_id,
-                nombre: c.servicio_nombre || 'Servicio',
+                nombre: 'Servicio',
                 fecha: c.fecha,
                 hora: c.hora,
                 precio: c.precio,
@@ -1366,7 +1366,11 @@ async saveConfigForTenant(tenantId, config) {
         }
     });
 
-    console.log('Logo actualizado:', logoUrl);
+    if (logoUrl && logoUrl.trim() !== '') {
+        console.log('Logo actualizado:', logoUrl);
+    } else {
+        console.log('Logo no configurado (omitido)');
+    }
 }
 };
 
