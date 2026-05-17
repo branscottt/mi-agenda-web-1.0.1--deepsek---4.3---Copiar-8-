@@ -33,7 +33,7 @@ async function getCurrentTenantId() {
             console.error('Supabase no inicializado');
             return null;
         }
-        const { data: { session } } = await supabaseClient.auth.getSession();
+        const { data: { session } } = JwtManager.getSession();
         if (!session) return null;
         
         const tenantId = session.user?.user_metadata?.tenant_id;
@@ -1029,7 +1029,7 @@ const SuscripcionManager = {
             if (data?.[0]) return data[0];
             // No encontró suscripción activa → refrescar sesión por si hay datos nuevos
             console.log('SuscripcionManager.getCurrent: sin suscripción activa, refrescando sesión...');
-            const { data: sessionData } = await supabaseClient.auth.getSession();
+            const { data: sessionData } = JwtManager.getSession();
             if (sessionData?.session) {
                 // Reintentar después de refrescar
                 const { data: retry, error: retryError } = await supabaseClient
@@ -1524,7 +1524,7 @@ async function cargarPlanes() {
     const tenantIdFromUrl = urlParams.get('tenant_id');
 
     // Obtener sesión y determinar si es super_admin
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session } } = JwtManager.getSession();
     let rol = session?.user?.user_metadata?.rol;
     let tenantId = session?.user?.user_metadata?.tenant_id;
     let suscripcionActual = null;
@@ -1611,7 +1611,7 @@ async function crearSuscripcionInicial(planKey, tenantId) {
 }
 
 async function solicitarCambioPlan(planKey) {
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session } } = JwtManager.getSession();
     if (!session) {
         mostrarToast('Debes iniciar sesión como administrador', 'warning');
         setTimeout(() => window.location.href = 'login.html?redirect=planes', 1500);
@@ -2440,7 +2440,7 @@ async function getSession() {
             return null;
         }
         
-        const { data: { session } } = await supabaseClient.auth.getSession();
+        const { data: { session } } = JwtManager.getSession();
         console.log('Sesión obtenida:', session ? {
             id: session.user.id,
             email: session.user.email,
@@ -2690,7 +2690,7 @@ async function iniciarAdmin() {
     // Este bucle espera hasta 5 segundos a que la sesión esté disponible.
     let sessionDisponible = null;
     for (let i = 0; i < 10; i++) {
-        const { data } = await supabaseClient.auth.getSession();
+        const { data } = JwtManager.getSession();
         if (data?.session) {
             sessionDisponible = data.session;
             break;
@@ -2892,7 +2892,7 @@ async function iniciarAdmin() {
             console.log('🕐 Suscripción recién creada, esperando propagación...');
             // Esperar 500ms y refrescar la sesión
             await new Promise(r => setTimeout(r, 500));
-            const { data: refreshed } = await supabaseClient.auth.getSession();
+            const { data: refreshed } = JwtManager.getSession();
             if (refreshed?.session) {
                 console.log('🕐 Sesión refrescada. Continuando sin validación de suscripción.');
                 // Saltamos la validación — la suscripción acaba de crearse
@@ -7145,7 +7145,7 @@ function iniciarLogin() {
                 if (signInError) throw signInError;
 
                 // 3. Verificar que la sesión esté activa
-                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                const { data: { session }, error: sessionError } = JwtManager.getSession();
                 if (sessionError || !session) throw new Error('No se pudo establecer la sesión');
 
                 // 4. Crear tenant (ahora con usuario autenticado)

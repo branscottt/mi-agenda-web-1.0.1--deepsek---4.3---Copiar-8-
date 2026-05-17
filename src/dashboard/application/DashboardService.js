@@ -1,28 +1,20 @@
 // dashboard/application/DashboardService.js
 // Datos agregados para el dashboard del admin
-// Consulta Supabase directamente para no depender de appointments/ ni services/.
-// Esto mantiene el desacoplamiento sin anadir complejidad.
+// Toda la logica de datos va a traves de las APIs de dominio (sin supabase directo)
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
+import { getAllServicios } from '../../api/serviciosApi.js';
+import { getAllCitas } from '../../api/appointmentsApi.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
-import { formatearDinero } from '../../shared/infrastructure/formatters.js';
 
 export async function getDashboardStats(optionalTenantId) {
     try {
         const tenantId = optionalTenantId || await getCurrentTenantId();
         if (!tenantId) return valoresDefault();
 
-        const api = await import('../../api/appointmentsApi.js');
-        const supabase = getSupabase();
-
-        const [citas, resultServicios] = await Promise.all([
-            api.getAllCitas(tenantId),
-            supabase.from('servicios')
-                .select('id, nombre, activo, precio')
-                .eq('tenant_id', String(tenantId).trim())
+        const [citas, servicios] = await Promise.all([
+            getAllCitas(tenantId),
+            getAllServicios(tenantId)
         ]);
-
-        const servicios = resultServicios.data || [];
 
         const ahora = new Date();
         const hoy = ahora.toISOString().split('T')[0];
@@ -62,7 +54,7 @@ export async function getDashboardStats(optionalTenantId) {
             ventasHoy,
             ventasMes,
             topServicios,
-            crecimiento: 0 // simplificado; evitar dependencia de SalesService
+            crecimiento: 0
         };
     } catch (e) {
         console.error('Error getDashboardStats:', e);

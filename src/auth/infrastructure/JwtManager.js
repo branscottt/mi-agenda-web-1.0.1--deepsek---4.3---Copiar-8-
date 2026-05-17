@@ -108,12 +108,26 @@ export const JwtManager = {
     getSession() {
         const accessToken = this.getAccessToken();
         const refreshToken = this.getRefreshToken();
-        const user = this.getUserData();
-        if (!accessToken || !user) return null;
+        const userData = this.getUserData();
+        if (!accessToken || !userData) return { data: { session: null }, error: null };
+        // Devuelve el mismo formato que supabase.auth.getSession() para compatibilidad
         return {
-            access_token: accessToken,
-            refresh_token: refreshToken,
-            user: user
+            data: {
+                session: {
+                    access_token: accessToken,
+                    refresh_token: refreshToken,
+                    user: {
+                        id: userData.id,
+                        email: userData.email,
+                        user_metadata: {
+                            nombre: userData.nombre,
+                            rol: userData.rol,
+                            tenant_id: userData.tenant_id
+                        }
+                    }
+                }
+            },
+            error: null
         };
     },
 

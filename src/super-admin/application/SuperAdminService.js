@@ -1,25 +1,25 @@
 // super-admin/application/SuperAdminService.js
 // Servicios exclusivos para super_admin
 // Gestion global de tenants, suscripciones, estadisticas del sistema
-// Consulta Supabase directamente para no depender de tenants/ ni subscriptions/.
+// Toda la logica de datos va a traves de las APIs de dominio
 
+import { getAllServicios } from '../../api/serviciosApi.js';
+import { getAllTenants, updateTenant } from '../../api/tenantsApi.js';
+import {
+    getAllSubscriptions,
+    createSubscription,
+    updateSubscription
+} from '../../api/subscriptionsApi.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 
 export async function getSystemStats() {
     try {
         const supabase = getSupabase();
 
-        const [tenantsRes, suscripcionesRes] = await Promise.all([
-            supabase.from('tenants')
-                .select('id, nombre_negocio, email_contacto, plan, fecha_registro, estado, activo')
-                .order('fecha_registro', { ascending: false }),
-            supabase.from('subscriptions')
-                .select('*, tenants(nombre_negocio, email_contacto)')
-                .order('created_at', { ascending: false })
+        const [tenants, suscripciones] = await Promise.all([
+            getAllTenants(),
+            getAllSubscriptions()
         ]);
-
-        const tenants = tenantsRes.data || [];
-        const suscripciones = suscripcionesRes.data || [];
 
         const suscripcionesActivas = suscripciones.filter(s => s.status === 'active');
         const porPlan = {};
@@ -55,23 +55,14 @@ export async function getSystemStats() {
 }
 
 export async function actualizarPlanTenant(tenantId, nuevoPlan) {
-    const supabase = getSupabase();
-    await supabase.from('tenants').update({ plan: nuevoPlan }).eq('id', tenantId);
+    await updateTenant(tenantId, { plan: nuevoPlan });
 
-    const { data: existing } = await supabase
-        .from('subscriptions')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .limit(1);
+    const existing = await getAllSubscriptions({ tenant_id: tenantId, status: 'active' });
 
     if (existing?.length) {
-        await supabase
-            .from('subscriptions')
-            .update({ plan: nuevoPlan, updated_at: new Date().toISOString() })
-            .eq('id', existing[0].id);
+        await updateSubscription(existing[0].id, { plan: nuevoPlan, updated_at: new Date().toISOString() });
     } else {
-        await supabase.from('subscriptions').insert({
+        await createSubscription({
             tenant_id: tenantId,
             plan: nuevoPlan,
             status: 'active',
@@ -83,38 +74,34 @@ export async function actualizarPlanTenant(tenantId, nuevoPlan) {
 }
 
 export async function suspenderTenant(tenantId) {
-    const supabase = getSupabase();
-    await supabase.from('tenants').update({ activo: false }).eq('id', tenantId);
-    await supabase
-        .from('subscriptions')
-        .update({ status: 'suspended' })
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active');
+    await updateTenant(tenantId, { activo: false });
+
+    const subs = await getAllSubscriptions({ tenant_id: tenantId, status: 'active' });
+    for (const s of subs) {
+        await updateSubscription(s.id, { status: 'suspended' });
+    }
     return true;
 }
 
 export async function reactivarTenant(tenantId) {
-    const supabase = getSupabase();
-    await supabase.from('tenants').update({ activo: true }).eq('id', tenantId);
-    await supabase
-        .from('subscriptions')
-        .update({ status: 'active' })
-        .eq('tenant_id', tenantId)
-        .eq('status', 'suspended');
+    await updateTenant(tenantId, { activo: true });
+
+    const subs = await getAllSubscriptions({ tenant_id: tenantId, status: 'suspended' });
+    for (const s of subs) {
+        await updateSubscription(s.id, { status: 'active' });
+    }
     return true;
 }
 
 export async function getMetricasUso(tenantId) {
     try {
-        const supabase = getSupabase();
-        const api = await import('../../api/appointmentsApi.js');
         const [citas, servicios] = await Promise.all([
-            api.getAllCitas(tenantId).then(d => d || []),
-            supabase.from('servicios').select('id').eq('tenant_id', tenantId)
+            (await import('../../api/appointmentsApi.js')).getAllCitas(tenantId).then(d => d || []),
+            getAllServicios(tenantId)
         ]);
         return {
             totalCitas: Array.isArray(citas) ? citas.length : 0,
-            totalServicios: servicios.data?.length || 0
+            totalServicios: Array.isArray(servicios) ? servicios.length : 0
         };
     } catch (e) {
         console.error('Error getMetricasUso:', e);

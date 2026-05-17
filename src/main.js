@@ -197,6 +197,10 @@
             // Exponer CitasManager modular para script.js legacy
             const cm = await import('./features/citas/CitasManager.js');
             window.__CitasManagerModular = cm;
+
+            // Exponer httpClient para uso futuro
+            const { fetchWithAuth } = await import('./shared/infrastructure/httpClient.js');
+            window.fetchWithAuth = fetchWithAuth;
         } catch (e) {
             // No critico - script.js tiene fallback legacy
         }

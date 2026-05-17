@@ -1,5 +1,10 @@
 // appointments/application/AppointmentService.js
+// @deprecated Usar src/api/appointmentsApi.js directamente para nuevos modulos.
 // CRUD de citas - DELEGA a src/api/appointmentsApi.js (capa unica de datos)
+// Se mantiene como capa de transformacion para compatibilidad con consumidores existentes:
+//   - src/appointments/ui/AdminAppointmentList.js
+//   - src/appointments/application/SalesService.js
+//   - src/appointments/ui/ClientReservationList.js
 // Mantiene transformaciones de formato (camelCase <-> snake_case) que
 // los consumidores (UI) esperan, y logica adicional como getCuposDisponibles
 
