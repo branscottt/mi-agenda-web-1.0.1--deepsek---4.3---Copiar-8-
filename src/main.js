@@ -25,33 +25,54 @@
     }
 
     // ============================================
-    // Interceptor JWT (opcional - no bloqueante)
+    // Interceptor JWT + onAuthStateChange
     // ============================================
     async function syncJwtSession() {
         try {
             const { JwtManager } = await import('./auth/infrastructure/JwtManager.js');
-            const { getSupabase } = await import('./shared/infrastructure/supabase.js');
+            const { getSupabase, supabaseClient } = await import('./shared/infrastructure/supabase.js');
             const accessToken = JwtManager.getAccessToken();
-            if (!accessToken) return;
             const supabase = getSupabase();
             if (!supabase) return;
-            if (!JwtManager.isTokenExpired()) {
-                await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: JwtManager.getRefreshToken() || accessToken
-                });
-            } else {
-                const refreshed = await JwtManager.refreshToken(supabase);
-                if (refreshed) {
-                    const newToken = JwtManager.getAccessToken();
+
+            // Exponer JwtManager al window para compatibilidad con script.js
+            window.JwtManager = JwtManager;
+
+            // Sincronizar sesion existente
+            if (accessToken) {
+                if (!JwtManager.isTokenExpired()) {
                     await supabase.auth.setSession({
-                        access_token: newToken,
-                        refresh_token: JwtManager.getRefreshToken() || newToken
+                        access_token: accessToken,
+                        refresh_token: JwtManager.getRefreshToken() || accessToken
                     });
+                } else {
+                    const refreshed = await JwtManager.refreshToken(supabase);
+                    if (refreshed) {
+                        const newToken = JwtManager.getAccessToken();
+                        await supabase.auth.setSession({
+                            access_token: newToken,
+                            refresh_token: JwtManager.getRefreshToken() || newToken
+                        });
+                    }
                 }
             }
+
             // Iniciar auto-refresh periodico (cada 4 min)
             JwtManager.startAutoRefresh(supabase);
+
+            // Interceptor de sesion (onAuthStateChange)
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'TOKEN_REFRESHED' && session) {
+                    JwtManager.setTokens(session.access_token, session.refresh_token);
+                }
+                if (event === 'SIGNED_OUT') {
+                    JwtManager.clear();
+                    const esLogin = document.querySelector('.login-screen') && !document.querySelector('.planes-container');
+                    if (!esLogin) {
+                        window.location.href = 'login.html';
+                    }
+                }
+            });
         } catch (e) {
             // No bloqueante - script.js legacy maneja la sesion
         }
@@ -152,7 +173,33 @@
         if (sharedLoaded) {
             await syncJwtSession();
             await loadPageModules();
+            await exposeApi();
         }
     }, 50);
+
+    // ============================================
+    // Exponer API unica de citas para script.js legacy
+    // ============================================
+    async function exposeApi() {
+        try {
+            const api = await import('./api/appointmentsApi.js');
+            window.__appointmentsApi = {
+                getAllCitas: api.getAllCitas,
+                createCita: api.createCita,
+                updateCita: api.updateCita,
+                deleteCita: api.deleteCita,
+                upsertCita: api.upsertCita,
+                getCitasByDate: api.getCitasByDate,
+                limpiarCitasExpiradas: api.limpiarCitasExpiradas,
+                createCitasBulk: api.createCitasBulk
+            };
+
+            // Exponer CitasManager modular para script.js legacy
+            const cm = await import('./features/citas/CitasManager.js');
+            window.__CitasManagerModular = cm;
+        } catch (e) {
+            // No critico - script.js tiene fallback legacy
+        }
+    }
 
 })();

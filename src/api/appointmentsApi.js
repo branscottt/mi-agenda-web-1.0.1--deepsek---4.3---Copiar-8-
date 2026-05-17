@@ -1,0 +1,105 @@
+// src/api/appointmentsApi.js
+// ÚNICA capa de acceso a datos para citas.
+// Exporta funciones CRUD convergentes: nombradas por acción (getAll, create, update, delete, upsert).
+// Evita duplicación: todos los consumidores deben importar desde aquí.
+
+import { getSupabase } from '../shared/infrastructure/supabase.js';
+
+const TABLE = 'citas';
+
+export async function getAllCitas(tenantId) {
+    if (!tenantId) return [];
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at')
+        .eq('tenant_id', String(tenantId).trim())
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}
+
+export async function getCitaById(id) {
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .select('*')
+        .eq('id', id)
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+export async function createCita(data) {
+    const { data: result, error } = await getSupabase()
+        .from(TABLE)
+        .insert(data)
+        .select()
+        .single();
+    if (error) throw error;
+    return result;
+}
+
+/**
+ * Inserta multiples citas a la vez (carrito de compras).
+ */
+export async function createCitasBulk(citas) {
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .insert(citas)
+        .select();
+    if (error) throw error;
+    return data || [];
+}
+
+export async function updateCita(id, updates) {
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+export async function deleteCita(id) {
+    const { error } = await getSupabase()
+        .from(TABLE)
+        .delete()
+        .eq('id', id);
+    if (error) throw error;
+    return true;
+}
+
+export async function upsertCita(data) {
+    const { data: result, error } = await getSupabase()
+        .from(TABLE)
+        .upsert(data)
+        .select()
+        .single();
+    if (error) throw error;
+    return result;
+}
+
+export async function getCitasByDate(fecha, tenantId) {
+    if (!tenantId) return [];
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .select('id, servicio_id, fecha, hora, precio, contacto')
+        .eq('tenant_id', String(tenantId).trim())
+        .eq('fecha', fecha);
+    if (error) throw error;
+    return data || [];
+}
+
+export async function limpiarCitasExpiradas(tenantId) {
+    if (!tenantId) return 0;
+    const hoy = new Date().toISOString().split('T')[0];
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .delete()
+        .eq('tenant_id', String(tenantId).trim())
+        .lt('fecha', hoy)
+        .select('id');
+    if (error) throw error;
+    return data?.length || 0;
+}

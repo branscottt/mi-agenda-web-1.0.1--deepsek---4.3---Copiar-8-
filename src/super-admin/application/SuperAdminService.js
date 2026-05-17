@@ -107,13 +107,13 @@ export async function reactivarTenant(tenantId) {
 export async function getMetricasUso(tenantId) {
     try {
         const supabase = getSupabase();
+        const api = await import('../../api/appointmentsApi.js');
         const [citas, servicios] = await Promise.all([
-            supabase.from('citas').select('id,created_at').eq('tenant_id', tenantId),
+            api.getAllCitas(tenantId).then(d => d || []),
             supabase.from('servicios').select('id').eq('tenant_id', tenantId)
         ]);
-
         return {
-            totalCitas: citas.data?.length || 0,
+            totalCitas: Array.isArray(citas) ? citas.length : 0,
             totalServicios: servicios.data?.length || 0
         };
     } catch (e) {

@@ -145,6 +145,8 @@ export function getHorariosDisponibles(servicio, fecha) {
 
 // --- Reserva final ---
 
+import { createCitasBulk } from '../../api/appointmentsApi.js';
+
 export async function confirmarReserva(contacto) {
     const tenantId = await getCurrentTenantId();
     if (!tenantId || !_carrito.length) throw new Error('Carrito vacio o sesion expirada');
@@ -160,8 +162,7 @@ export async function confirmarReserva(contacto) {
         notificaciones: { emailEnviado: false, whatsappEnviado: false }
     }));
 
-    const { data, error } = await getSupabase().from('citas').insert(citas).select();
-    if (error) throw new Error('Error al reservar: ' + error.message);
+    const data = await createCitasBulk(citas);
 
     vaciarCarrito();
     return data;

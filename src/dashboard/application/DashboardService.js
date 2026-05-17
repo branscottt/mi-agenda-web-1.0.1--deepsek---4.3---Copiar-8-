@@ -12,18 +12,16 @@ export async function getDashboardStats(optionalTenantId) {
         const tenantId = optionalTenantId || await getCurrentTenantId();
         if (!tenantId) return valoresDefault();
 
+        const api = await import('../../api/appointmentsApi.js');
         const supabase = getSupabase();
 
-        const [resultCitas, resultServicios] = await Promise.all([
-            supabase.from('citas')
-                .select('id, fecha, hora, precio, created_at')
-                .eq('tenant_id', String(tenantId).trim()),
+        const [citas, resultServicios] = await Promise.all([
+            api.getAllCitas(tenantId),
             supabase.from('servicios')
                 .select('id, nombre, activo, precio')
                 .eq('tenant_id', String(tenantId).trim())
         ]);
 
-        const citas = resultCitas.data || [];
         const servicios = resultServicios.data || [];
 
         const ahora = new Date();

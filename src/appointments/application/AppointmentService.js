@@ -1,30 +1,39 @@
 // appointments/application/AppointmentService.js
-// CRUD de citas contra Supabase
+// CRUD de citas - DELEGA a src/api/appointmentsApi.js (capa unica de datos)
+// Mantiene transformaciones de formato (camelCase <-> snake_case) que
+// los consumidores (UI) esperan, y logica adicional como getCuposDisponibles
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 
+let _api = null;
+async function getApi() {
+    if (!_api) {
+        _api = await import('../../api/appointmentsApi.js');
+    }
+    return _api;
+}
+
+function mapToCamelCase(c) {
+    return {
+        id: c.id,
+        servicioId: c.servicio_id,
+        nombre: 'Servicio',
+        fecha: c.fecha,
+        hora: c.hora,
+        precio: c.precio,
+        contacto: c.contacto || {},
+        notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
+        creadoEn: c.created_at
+    };
+}
+
 export async function getAllCitas(optionalTenantId) {
-    const tenantId = optionalTenantId || await getCurrentTenantId();
-    if (!tenantId) return [];
     try {
-        const { data, error } = await getSupabase()
-            .from('citas')
-            .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, servicio_nombre')
-            .eq('tenant_id', String(tenantId).trim())
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return (data || []).map(c => ({
-            id: c.id,
-            servicioId: c.servicio_id,
-            nombre: c.servicio_nombre || 'Servicio',
-            fecha: c.fecha,
-            hora: c.hora,
-            precio: c.precio,
-            contacto: c.contacto || {},
-            notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
-            creadoEn: c.created_at
-        }));
+        const api = await getApi();
+        const tenantId = optionalTenantId || await getCurrentTenantId();
+        if (!tenantId) return [];
+        const data = await api.getAllCitas(tenantId);
+        return (data || []).map(mapToCamelCase);
     } catch (e) {
         console.error('Error getAllCitas:', e);
         return [];
@@ -32,56 +41,69 @@ export async function getAllCitas(optionalTenantId) {
 }
 
 export async function upsertCita(cita, optionalTenantId) {
-    const tenantId = optionalTenantId || await getCurrentTenantId();
-    if (!tenantId) throw new Error('No tenant ID');
-    const data = {
-        id: cita.id,
-        tenant_id: String(tenantId).trim(),
-        servicio_id: cita.servicioId,
-        fecha: cita.fecha,
-        hora: cita.hora,
-        precio: cita.precio,
-        contacto: cita.contacto || {},
-        notificaciones: cita.notificaciones || { emailEnviado: false, whatsappEnviado: false }
-    };
-    const { error } = await getSupabase().from('citas').upsert(data);
-    if (error) throw error;
-    return true;
+    try {
+        const api = await getApi();
+        const tenantId = optionalTenantId || await getCurrentTenantId();
+        if (!tenantId) throw new Error('No tenant ID');
+        const data = {
+            id: cita.id,
+            tenant_id: String(tenantId).trim(),
+            servicio_id: cita.servicioId,
+            fecha: cita.fecha,
+            hora: cita.hora,
+            precio: cita.precio,
+            contacto: cita.contacto || {},
+            notificaciones: cita.notificaciones || { emailEnviado: false, whatsappEnviado: false }
+        };
+        await api.upsertCita(data);
+        return true;
+    } catch (e) {
+        console.error('Error upsertCita:', e);
+        return false;
+    }
 }
 
 export async function deleteCita(citaId) {
-    const { error } = await getSupabase().from('citas').delete().eq('id', citaId);
-    if (error) throw error;
-    return true;
+    try {
+        const api = await getApi();
+        await api.deleteCita(citaId);
+        return true;
+    } catch (e) {
+        console.error('Error deleteCita:', e);
+        return false;
+    }
 }
 
 export async function limpiarCitasExpiradas(optionalTenantId) {
-    const tenantId = optionalTenantId || await getCurrentTenantId();
-    if (!tenantId) return 0;
-    const hoy = new Date().toISOString().split('T')[0];
-    const { data, error } = await getSupabase()
-        .from('citas')
-        .delete()
-        .eq('tenant_id', String(tenantId).trim())
-        .lt('fecha', hoy)
-        .select('id');
-    if (error) throw error;
-    return data?.length || 0;
+    try {
+        const api = await getApi();
+        const tenantId = optionalTenantId || await getCurrentTenantId();
+        if (!tenantId) return 0;
+        return await api.limpiarCitasExpiradas(tenantId);
+    } catch (e) {
+        console.error('Error limpiarCitasExpiradas:', e);
+        return 0;
+    }
 }
 
 export async function getCitasPorFecha(fecha) {
-    const tenantId = await getCurrentTenantId();
-    if (!tenantId) return [];
-    const { data, error } = await getSupabase()
-        .from('citas')
-.select('id, servicio_id, fecha, hora, precio, contacto')
-                .eq('tenant_id', String(tenantId).trim())
-                .eq('fecha', fecha);
-    if (error) throw error;
-    return data || [];
+    try {
+        const api = await getApi();
+        const tenantId = await getCurrentTenantId();
+        if (!tenantId) return [];
+        return await api.getCitasByDate(fecha, tenantId);
+    } catch (e) {
+        console.error('Error getCitasPorFecha:', e);
+        return [];
+    }
 }
 
 export async function getCuposDisponibles(servicioId, fecha) {
-    const citas = await getCitasPorFecha(fecha);
-    return citas.filter(c => c.servicio_id === servicioId).length;
+    try {
+        const citas = await getCitasPorFecha(fecha);
+        return citas.filter(c => c.servicio_id === servicioId).length;
+    } catch (e) {
+        console.error('Error getCuposDisponibles:', e);
+        return 0;
+    }
 }

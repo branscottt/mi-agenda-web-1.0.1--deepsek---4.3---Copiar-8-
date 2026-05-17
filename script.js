@@ -312,6 +312,25 @@ function formatFechaCorta(dateStr) {
 const CitasManager = {
     async getAll(optionalTenantId = null) {
         try {
+            // Usar API unificada si main.js la expuso
+            if (window.__appointmentsApi) {
+                let tenantId = optionalTenantId;
+                if (!tenantId) tenantId = await getCurrentTenantId();
+                if (!tenantId) return [];
+                const data = await window.__appointmentsApi.getAllCitas(tenantId);
+                return (data || []).map(c => ({
+                    id: c.id,
+                    servicioId: c.servicio_id,
+                    nombre: 'Servicio',
+                    fecha: c.fecha,
+                    hora: c.hora,
+                    precio: c.precio,
+                    contacto: c.contacto || {},
+                    notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
+                    creadoEn: c.created_at
+                }));
+            }
+            // Fallback legacy
             let tenantId = optionalTenantId;
             if (!tenantId) {
                 tenantId = await getCurrentTenantId();
@@ -360,6 +379,29 @@ const CitasManager = {
     },
     
     async upsert(cita, optionalTenantId = null) {
+        // Usar API unificada si main.js la expuso
+        if (window.__appointmentsApi) {
+            try {
+                const tenantId = optionalTenantId || await getCurrentTenantId();
+                if (!tenantId) throw new Error('No tenant ID');
+                const citaData = {
+                    id: cita.id,
+                    tenant_id: String(tenantId).trim(),
+                    servicio_id: cita.servicioId,
+                    fecha: cita.fecha,
+                    hora: cita.hora,
+                    precio: cita.precio,
+                    contacto: cita.contacto || {},
+                    notificaciones: cita.notificaciones || { emailEnviado: false, whatsappEnviado: false }
+                };
+                await window.__appointmentsApi.upsertCita(citaData);
+                return true;
+            } catch (e) {
+                console.error('Error en upsert cita:', e);
+                return false;
+            }
+        }
+        // Fallback legacy
         try {
             const tenantId = optionalTenantId || await getCurrentTenantId();
             if (!tenantId) throw new Error('No tenant ID');
@@ -402,6 +444,17 @@ const CitasManager = {
     },
     
     async delete(citaId) {
+        // Usar API unificada si main.js la expuso
+        if (window.__appointmentsApi) {
+            try {
+                await window.__appointmentsApi.deleteCita(citaId);
+                return true;
+            } catch (e) {
+                console.error('Error eliminando cita:', e);
+                return false;
+            }
+        }
+        // Fallback legacy
         try {
             const { error } = await supabaseClient
                 .from('citas')
@@ -425,6 +478,18 @@ const CitasManager = {
     },
     
     async limpiarExpiradas() {
+        // Usar API unificada si main.js la expuso
+        if (window.__appointmentsApi) {
+            try {
+                const tenantId = await getCurrentTenantId();
+                if (!tenantId) return 0;
+                return await window.__appointmentsApi.limpiarCitasExpiradas(tenantId);
+            } catch (e) {
+                console.error('Error limpiando expiradas:', e);
+                return 0;
+            }
+        }
+        // Fallback legacy
         try {
             const tenantId = await getCurrentTenantId();
             if (!tenantId) return 0;
