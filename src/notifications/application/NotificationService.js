@@ -1,9 +1,13 @@
 // notifications/application/NotificationService.js
 // Sistema de notificaciones en tiempo real para el admin
-// Polling simple contra tabla notificaciones_admin en Supabase
+// Polling simple contra src/api/notificacionesApi.js
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import {
+    getAllNotificaciones,
+    createNotificacion as apiCreateNotificacion,
+    marcarComoLeida as apiMarcarLeida
+} from '../../api/notificacionesApi.js';
 
 let _pollInterval = null;
 let _ultimaNotificacionId = null;
@@ -26,28 +30,23 @@ export async function getNotificaciones(optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return [];
     try {
-        let query = getSupabase()
-            .from('notificaciones_admin')
-            .select('id, tipo, cita_id, fecha_original, hora_original, fecha_nueva, hora_nueva, cliente, leido, creado_en')
-            .eq('tenant_id', String(tenantId).trim())
-            .order('created_at', { ascending: false })
-            .limit(50);
-
+        const data = await getAllNotificaciones(tenantId);
+        // Filtrar solo las nuevas
+        let notis = data || [];
         if (_ultimaNotificacionId) {
-            query = query.gt('id', _ultimaNotificacionId);
+            notis = notis.filter(n => String(n.id) > String(_ultimaNotificacionId));
         }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        if (data?.length) {
-            _ultimaNotificacionId = data[0].id;
+        if (notis.length) {
+            _ultimaNotificacionId = notis[0].id;
         }
+        // Mapear snake_case a camelCase
         return (data || []).map(n => ({
             id: n.id,
             tipo: n.tipo || 'info',
-            titulo: n.titulo || '',
-            mensaje: n.mensaje || '',
-            leida: n.leido || false,
+            titulo: n.titulo || n.message || '',
+            mensaje: n.mensaje || n.message || '',
+            leida: n.leida === true || n.leido === true,
+            leido: n.leido === true || n.leida === true,
             accion: n.accion || null,
             creadoEn: n.created_at
         }));
@@ -58,39 +57,40 @@ export async function getNotificaciones(optionalTenantId) {
 }
 
 export async function marcarComoLeida(notificacionId) {
-    const { error } = await getSupabase()
-        .from('notificaciones_admin')
-        .update({ leido: true })
-        .eq('id', notificacionId);
-    if (error) throw error;
+    await apiMarcarLeida(notificacionId);
     return true;
 }
 
 export async function marcarTodasLeidas(optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return;
-    const { error } = await getSupabase()
-        .from('notificaciones_admin')
-        .update({ leido: true })
-        .eq('tenant_id', String(tenantId).trim())
-        .eq('leido', false);
-    if (error) throw error;
+    // marcarTodasLeidas no existe en la API, hacemos getAll y marcamos una por una
+    try {
+        const notis = await getAllNotificaciones(tenantId);
+        const noLeidas = notis.filter(n => !n.leida && !n.leido);
+        for (const n of noLeidas) {
+            await apiMarcarLeida(n.id);
+        }
+    } catch (e) {
+        console.error('Error marcarTodasLeidas:', e);
+    }
 }
 
 export async function crearNotificacion(notificacion, optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return;
-    const { error } = await getSupabase()
-        .from('notificaciones_admin')
-        .insert({
+    try {
+        await apiCreateNotificacion({
             tenant_id: String(tenantId).trim(),
             tipo: notificacion.tipo || 'info',
             titulo: notificacion.titulo || '',
             mensaje: notificacion.mensaje || '',
             accion: notificacion.accion || null,
-            leido: false
+            leida: false
         });
-    if (error) console.error('Error crearNotificacion:', error);
+    } catch (e) {
+        console.error('Error crearNotificacion:', e);
+    }
 }
 
 // --- Polling ---
@@ -117,11 +117,10 @@ export function detenerPolling() {
 }
 
 export function getNotificacionesNoLeidas(notificaciones) {
-    return (notificaciones || []).filter(n => !n.leida);
+    return (notificaciones || []).filter(n => !n.leida && !n.leido);
 }
 
 // --- Auto-generacion de notificaciones ---
-// Se integra desde admin.html cuando se crea/confirma una cita
 
 export function notificarNuevaCita(citaInfo) {
     crearNotificacion({

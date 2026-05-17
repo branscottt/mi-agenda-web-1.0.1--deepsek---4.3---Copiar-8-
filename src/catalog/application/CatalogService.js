@@ -1,9 +1,9 @@
 // catalog/application/CatalogService.js
 // Catalogo de servicios visible al cliente con carrito de compras
-// Lee servicios desde Supabase, filtra solo activos con disponibilidad futura
+// Delega a src/api/serviciosApi.js para datos de servicios
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import { getAllServicios } from '../../api/serviciosApi.js';
 
 // --- Estado del carrito (singleton en memoria) ---
 let _carrito = [];
@@ -60,16 +60,10 @@ export async function getCatalogoServicios(optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return [];
     try {
-        const { data, error } = await getSupabase()
-            .from('servicios')
-            .select('id, nombre, categoria, precio, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at')
-            .eq('tenant_id', String(tenantId).trim())
-            .eq('activo', true)
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-
+        const data = await getAllServicios(tenantId);
         const ahora = new Date();
         return (data || [])
+            .filter(s => s.activo !== false)
             .map(s => ({
                 id: s.id,
                 nombre: s.nombre,

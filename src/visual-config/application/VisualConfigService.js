@@ -1,9 +1,9 @@
 // visual-config/application/VisualConfigService.js
 // Configuracion visual personalizada por tenant
-// Permite al admin cambiar colores, logo, tipografia, etc.
+// Delega a src/api/tenantConfigApi.js para datos
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import { getConfigByTenantId, upsertConfig } from '../../api/tenantConfigApi.js';
 
 const CONFIG_DEFAULT = {
     primary_color: '#9d4edd',
@@ -15,20 +15,14 @@ const CONFIG_DEFAULT = {
     logo_url: '',
     favicon_url: '',
     border_radius: '12px',
-    animation_velocidad: 'normal' // 'rapido', 'normal', 'lento'
+    animation_velocidad: 'normal'
 };
 
 export async function getVisualConfig(optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return { ...CONFIG_DEFAULT };
     try {
-        const { data, error } = await getSupabase()
-            .from('tenant_config')
-            .select('tenant_id, primary_color, secondary_color, logo_url, custom_css')
-            .eq('tenant_id', String(tenantId).trim())
-            .limit(1)
-            .single();
-        if (error && error.code !== 'PGRST116') throw error;
+        const data = await getConfigByTenantId(tenantId);
         return data ? { ...CONFIG_DEFAULT, ...data, config: data.config || {} } : { ...CONFIG_DEFAULT };
     } catch (e) {
         console.error('Error getVisualConfig:', e);
@@ -54,13 +48,7 @@ export async function saveVisualConfig(config) {
         animation_velocidad: config.animation_velocidad || CONFIG_DEFAULT.animation_velocidad
     };
 
-    const { data: result, error } = await getSupabase()
-        .from('tenant_config')
-        .upsert(data)
-        .select()
-        .single();
-
-    if (error) throw new Error('Error al guardar config visual: ' + error.message);
+    const result = await upsertConfig(tenantId, data);
     return result;
 }
 
@@ -78,11 +66,9 @@ export function aplicarConfigVisual(config) {
     root.style.setProperty('--font-family', config.font_family || CONFIG_DEFAULT.font_family);
     root.style.setProperty('--border-radius', config.border_radius || CONFIG_DEFAULT.border_radius);
 
-    // Velocidad animacion
     const velocidades = { rapido: '0.15s', normal: '0.3s', lento: '0.5s' };
     root.style.setProperty('--anim-speed', velocidades[config.animation_velocidad] || '0.3s');
 
-    // Logo
     if (config.logo_url) {
         const logo = document.querySelector('.logo-img');
         if (logo) logo.src = config.logo_url;
@@ -90,7 +76,6 @@ export function aplicarConfigVisual(config) {
         if (logoMobile) logoMobile.src = config.logo_url;
     }
 
-    // Favicon
     if (config.favicon_url) {
         let link = document.querySelector('link[rel="icon"]');
         if (!link) {

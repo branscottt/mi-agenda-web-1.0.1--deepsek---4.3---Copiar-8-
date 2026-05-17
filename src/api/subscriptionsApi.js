@@ -76,3 +76,19 @@ export async function deleteSubscription(id) {
     if (error) throw error;
     return true;
 }
+
+/**
+ * Busca suscripciones por filtros dinamicos.
+ * Ej: getSubscriptionsByFilter({ tenant_id: 'xxx', status: 'active' })
+ */
+export async function getSubscriptionsByFilter(filters) {
+    let query = getSupabase().from(TABLE).select('*');
+    for (const [key, val] of Object.entries(filters)) {
+        if (val !== undefined && val !== null) {
+            query = query.eq(key, val);
+        }
+    }
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}

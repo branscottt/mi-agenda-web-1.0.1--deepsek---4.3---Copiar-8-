@@ -178,20 +178,66 @@
     }, 50);
 
     // ============================================
-    // Exponer API unica de citas para script.js legacy
+    // Exponer APIs unicas para script.js legacy
     // ============================================
     async function exposeApi() {
         try {
-            const api = await import('./api/appointmentsApi.js');
+            const appointmentsApi = await import('./api/appointmentsApi.js');
             window.__appointmentsApi = {
-                getAllCitas: api.getAllCitas,
-                createCita: api.createCita,
-                updateCita: api.updateCita,
-                deleteCita: api.deleteCita,
-                upsertCita: api.upsertCita,
-                getCitasByDate: api.getCitasByDate,
-                limpiarCitasExpiradas: api.limpiarCitasExpiradas,
-                createCitasBulk: api.createCitasBulk
+                getAllCitas: appointmentsApi.getAllCitas,
+                createCita: appointmentsApi.createCita,
+                updateCita: appointmentsApi.updateCita,
+                deleteCita: appointmentsApi.deleteCita,
+                upsertCita: appointmentsApi.upsertCita,
+                getCitasByDate: appointmentsApi.getCitasByDate,
+                limpiarCitasExpiradas: appointmentsApi.limpiarCitasExpiradas,
+                createCitasBulk: appointmentsApi.createCitasBulk
+            };
+
+            const serviciosApi = await import('./api/serviciosApi.js');
+            window.__serviciosApi = {
+                getAll: serviciosApi.getAllServicios,
+                getById: serviciosApi.getServicioById,
+                create: serviciosApi.createServicio,
+                update: serviciosApi.updateServicio,
+                delete: serviciosApi.deleteServicio,
+                upsert: serviciosApi.upsertServicio
+            };
+
+            const tenantsApi = await import('./api/tenantsApi.js');
+            window.__tenantsApi = {
+                getAll: tenantsApi.getAllTenants,
+                getById: tenantsApi.getTenantById,
+                getByEmail: tenantsApi.getTenantByEmail,
+                create: tenantsApi.createTenant,
+                update: tenantsApi.updateTenant,
+                delete: tenantsApi.deleteTenant
+            };
+
+            const subscriptionsApi = await import('./api/subscriptionsApi.js');
+            window.__subscriptionsApi = {
+                getAll: subscriptionsApi.getAllSubscriptions,
+                getByTenant: subscriptionsApi.getActiveSubscriptionByTenantId,
+                create: subscriptionsApi.createSubscription,
+                update: subscriptionsApi.updateSubscription,
+                cancel: subscriptionsApi.cancelSubscription,
+                getByFilter: subscriptionsApi.getSubscriptionsByFilter
+            };
+
+            const notificacionesApi = await import('./api/notificacionesApi.js');
+            window.__notificacionesApi = {
+                getAll: notificacionesApi.getAllNotificaciones,
+                create: notificacionesApi.createNotificacion,
+                marcarLeida: notificacionesApi.marcarComoLeida,
+                delete: notificacionesApi.deleteNotificacion,
+                getUnreadCount: notificacionesApi.getUnreadCount
+            };
+
+            const tenantConfigApi = await import('./api/tenantConfigApi.js');
+            window.__tenantConfigApi = {
+                getByTenant: tenantConfigApi.getConfigByTenantId,
+                upsert: tenantConfigApi.upsertConfig,
+                delete: tenantConfigApi.deleteConfig
             };
 
             // Exponer CitasManager modular para script.js legacy
@@ -201,6 +247,17 @@
             // Exponer httpClient para uso futuro
             const { fetchWithAuth } = await import('./shared/infrastructure/httpClient.js');
             window.fetchWithAuth = fetchWithAuth;
+
+            // Exponer API de usuarios (vista usuarios_con_rol)
+            const usuariosApi = await import('./api/usuariosApi.js');
+            window.__usuariosApi = {
+                getAll: usuariosApi.getAllUsuarios,
+                getById: usuariosApi.getUsuarioById,
+                updateRol: usuariosApi.updateUsuarioRol,
+                delete: usuariosApi.deleteUsuario
+            };
+
+            console.log('[main.js] APIs expuestas en window.__*');
         } catch (e) {
             // No critico - script.js tiene fallback legacy
         }

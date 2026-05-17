@@ -1,10 +1,12 @@
 // auth/ui/LoginPage.js
 // Controlador de la pagina login.html - event listeners y render
+// Toda la logica de datos va a traves de src/api/tenantsApi.js
 
 import { login, register, loginWithGoogle, resetPassword } from '../application/AuthService.js';
 import { redirectByRole } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { createTenant } from '../../api/tenantsApi.js';
 
 export function iniciarLogin() {
     console.log('Iniciando login moderno...');
@@ -39,7 +41,6 @@ export function iniciarLogin() {
         if (registerErrorDiv) registerErrorDiv.style.display = 'none';
     }
 
-    // Toggle login/register
     if (loginModeBtn) loginModeBtn.addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
     if (registerModeBtn) registerModeBtn.addEventListener('click', (e) => { e.preventDefault(); showRegister(); });
     if (backToLogin) backToLogin.addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
@@ -66,16 +67,11 @@ export function iniciarLogin() {
             if (btn) { btn.disabled = false; btn.textContent = 'Iniciar Sesión'; }
             
             if (result.success) {
-                const supabase = getSupabase();
-                const { data: { session } } = await supabase.auth.getSession();
-                const userData = {
-                    id: session.user.id,
-                    nombre: session.user.user_metadata?.nombre || 'Usuario',
-                    email: session.user.email,
-                    rol: session.user.user_metadata?.rol || 'cliente',
-                    tenant_id: session.user.user_metadata?.tenant_id
-                };
-                redirectByRole(userData);
+                const JwtManager = (await import('../../auth/infrastructure/JwtManager.js')).JwtManager;
+                const userData = JwtManager.getUserData();
+                if (userData) {
+                    redirectByRole(userData);
+                }
             } else {
                 if (loginErrorDiv) { loginErrorDiv.textContent = result.error; loginErrorDiv.style.display = 'block'; }
                 mostrarToast(result.error, 'error');
@@ -112,15 +108,12 @@ export function iniciarLogin() {
             if (btn) { btn.disabled = true; btn.textContent = '...'; }
             
             try {
-                // 1. Crear tenant en Supabase
-                const supabase = getSupabase();
-                const { data: newTenant, error: tenantError } = await supabase
-                    .from('tenants')
-                    .insert({ nombre_negocio: nombre + ' - ' + email, email_contacto: email, plan: 'freemium' })
-                    .select()
-                    .single();
-                
-                if (tenantError) throw new Error('Error al crear negocio: ' + tenantError.message);
+                // 1. Crear tenant via API
+                const newTenant = await createTenant({
+                    nombre_negocio: nombre + ' - ' + email,
+                    email_contacto: email,
+                    plan: 'freemium'
+                });
                 const tenantId = newTenant.id;
                 
                 // 2. Registrar usuario con rol admin
@@ -192,5 +185,4 @@ export function iniciarLogin() {
     }
 }
 
-// Compatibilidad hacia atras
 window.iniciarLogin = iniciarLogin;

@@ -1,33 +1,33 @@
 // tenants/application/TenantService.js
-// CRUD de tenants (negocios) contra Supabase
+// CRUD de tenants - delega a src/api/tenantsApi.js
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
+import { getAllTenants as apiGetAll, getTenantByEmail as apiGetByEmail, createTenant, updateTenant, deleteTenant as apiDelete } from '../../api/tenantsApi.js';
 
 export async function getAllTenants() {
-    const { data, error } = await getSupabase().from('tenants').select('id, nombre_negocio, email_contacto, plan, fecha_registro, estado, activo, configuracion').order('fecha_registro', { ascending: false });
-    if (error) throw error;
+    const data = await apiGetAll();
     return data || [];
 }
 
 export async function getTenantByEmail(email) {
-    const { data, error } = await getSupabase().from('tenants').select('id, nombre_negocio, email_contacto, plan, activo').eq('email_contacto', email).limit(1).single();
-    if (error && error.code !== 'PGRST116') throw error;
-    return data || null;
+    try {
+        return await apiGetByEmail(email) || null;
+    } catch (e) {
+        if (e.code === 'PGRST116') return null;
+        throw e;
+    }
 }
 
 export async function saveTenant(tenant) {
     let result;
     if (tenant.id) {
-        result = await getSupabase().from('tenants').update(tenant).eq('id', tenant.id).select().single();
+        result = await updateTenant(tenant.id, tenant);
     } else {
-        result = await getSupabase().from('tenants').insert(tenant).select().single();
+        result = await createTenant(tenant);
     }
-    if (result.error) throw result.error;
-    return result.data;
+    return result;
 }
 
 export async function deleteTenant(id) {
-    const { error } = await getSupabase().from('tenants').delete().eq('id', id);
-    if (error) throw error;
+    await apiDelete(id);
     return true;
 }

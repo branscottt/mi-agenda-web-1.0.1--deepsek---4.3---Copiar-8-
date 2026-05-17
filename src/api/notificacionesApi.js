@@ -44,3 +44,14 @@ export async function deleteNotificacion(id) {
     if (error) throw error;
     return true;
 }
+
+export async function getUnreadCount(tenantId) {
+    if (!tenantId) return 0;
+    const { count, error } = await getSupabase()
+        .from(TABLE)
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', String(tenantId).trim())
+        .eq('leida', false);
+    if (error) throw error;
+    return count || 0;
+}

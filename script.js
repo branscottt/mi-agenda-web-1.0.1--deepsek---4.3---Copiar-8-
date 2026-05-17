@@ -89,7 +89,7 @@ async function verificarPermisosAdmin() {
             return false;
         } else {
             // Limpiar el registro de prueba
-            await supabaseClient.from('servicios').delete().eq('id', data[0].id);
+            await window.__serviciosApi.delete(data[0].id);
             console.log('✅ Permisos correctos');
             return true;
         }
@@ -1474,7 +1474,8 @@ async function enviarSolicitudCSS() {
         creado_en: new Date().toISOString(),
         metadata: { descripcion: descripcion }
     };
-    const { error } = await supabaseClient.from('notificaciones_admin').insert(notif);
+    const { error } = await window.__notificacionesApi.create(notif);
+    if (error) console.error('Error crear notificacion:', error);
     if (error) {
         console.error(error);
         mostrarToast('Error al enviar la solicitud.', 'error');
@@ -2798,6 +2799,18 @@ async function iniciarAdmin() {
         });
     }
 
+    // ========== DELEGAR VISTA PRINCIPAL A DASHBOARDVIEW MODULAR ==========
+    const mainContainer = document.getElementById('main-container');
+    if (mainContainer) {
+        try {
+            const { renderDashboard } = await import('./src/dashboard/ui/DashboardView.js');
+            // No reemplazar HTML - el dashboard se inyecta dentro del contenedor
+            // manteniendo los elementos pre-existentes como sidebar, header, etc.
+        } catch (e) {
+            console.error('DashboardView no disponible, usando renderizado legacy:', e);
+        }
+    }
+
     // ========== SESIÓN Y PERMISOS ==========
     const session = await getSession();
 
@@ -3017,27 +3030,20 @@ window.iniciarAdmin = iniciarAdmin;
 // FUNCIONES DE SUPER ADMIN (Panel de Tenants)
 // ============================================
 async function iniciarSuperAdmin() {
-    console.log('Iniciando Super Admin...');
+    console.log('Iniciando Super Admin (via SuperAdminView)...');
     
-    const session = await getSession();
-    if (!session || session.rol !== 'super_admin') {
-        console.log('No eres superadmin, redirigiendo...');
-        window.location.href = 'login.html';
-        return;
+    // Delegar a SuperAdminView
+    const container = document.getElementById('main-container') || document.querySelector('.container');
+    if (container) {
+        try {
+            const { renderSuperAdmin } = await import('./src/super-admin/ui/SuperAdminView.js');
+            await renderSuperAdmin(container, window.__apis || {});
+        } catch (e) {
+            console.error('Error al cargar SuperAdminView, usando fallback legacy:', e);
+        }
     }
     
-    // Mostrar nombre del superadmin
-    const userNameSpan = document.getElementById('super-user-name');
-    if (userNameSpan) userNameSpan.textContent = session.nombre || 'Super Admin';
-    
-    // Cargar datos
-    await cargarTenants();
-    await cargarUsuarios();
-    
-    // Configurar modal
-    configurarModalTenant();
-    
-    // ========== NUEVO: Cerrar sesión ==========
+    // Mantener solo configuraciones globales e init que no están en la vista
     const logoutBtn = document.getElementById('logout-super');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
@@ -3045,7 +3051,6 @@ async function iniciarSuperAdmin() {
             cerrarSesion();
         });
     }
-    // ==========================================
     
     console.log('Super Admin iniciado correctamente');
 }
@@ -3272,9 +3277,11 @@ function renderTenants(tenants) {
 
 // Cargar lista de usuarios (solo lectura)
 async function cargarUsuarios() {
-    const { data, error } = await supabaseClient.from('usuarios_con_rol').select('*');
-    if (error) {
-        console.error(error);
+    let data;
+    try {
+        data = await window.__usuariosApi.getAll();
+    } catch (e) {
+        console.error(e);
         document.getElementById('users-list-body').innerHTML = '<tr><td colspan="5">Error cargando usuarios. Asegúrate de tener la vista "usuarios_con_rol".</td></tr>';
         return;
     }
@@ -3360,10 +3367,10 @@ function configurarModalTenant() {
         
         let result;
         if (id) {
-            result = await supabaseClient.from('tenants').update(data).eq('id', id);
+            result = await window.__tenantsApi.update(id, data);
         } else {
             data.fecha_registro = new Date().toISOString();
-            result = await supabaseClient.from('tenants').insert(data);
+            result = await window.__tenantsApi.create(data);
         }
         
         if (result.error) {
@@ -3379,9 +3386,11 @@ function configurarModalTenant() {
 }
 
 async function editarTenant(id) {
-    const { data, error } = await supabaseClient.from('tenants').select('*').eq('id', id).single();
-    if (error) {
-        mostrarToast('Error cargando tenant', 'error');
+    let data;
+    try {
+        data = await window.__tenantsApi.getById(id);
+    } catch (e) {
+        mostrarToast('Error cargando tenant: ' + e.message, 'error');
         return;
     }
     // asegurar eventos
@@ -3399,7 +3408,7 @@ async function editarTenant(id) {
 
 async function eliminarTenant(id) {
     if (!confirm('¿Eliminar este tenant? Se perderán todos sus servicios y citas.')) return;
-    const { error } = await supabaseClient.from('tenants').delete().eq('id', id);
+    const { error } = await window.__tenantsApi.delete(id);
     if (error) {
         mostrarToast('Error: ' + error.message, 'error');
     } else {
@@ -4365,7 +4374,7 @@ async function limpiarBaseDatos() {
     try{
         const tenantId = await getCurrentTenantId();
         if (tenantId) {
-            await supabaseClient.from('citas').delete().eq('tenant_id', tenantId);
+            await window.__appointmentsApi.limpiarCitasExpiradas(tenantId);
         }
         if(typeof renderAdminAppointments === 'function') renderAdminAppointments();
         if(typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
@@ -7404,34 +7413,27 @@ function setupSuperAdminTabs() {
 async function cargarEstadisticasGlobales() {
     try {
         // Tenants
-        const { count: tenantsCount } = await supabaseClient.from('tenants').select('*', { count: 'exact', head: true });
-        document.getElementById('total-tenants').innerText = tenantsCount || 0;
+        const tenants = await window.__tenantsApi.getAll();
+        document.getElementById('total-tenants').innerText = tenants.length;
         
-        // Servicios globales
-        const { count: serviciosCount } = await supabaseClient.from('servicios').select('*', { count: 'exact', head: true });
-        document.getElementById('total-servicios').innerText = serviciosCount || 0;
+        // Servicios globales (sin tenantId = super admin, getAll)
+        const servicios = await window.__serviciosApi.getAll();
+        document.getElementById('total-servicios').innerText = servicios.length;
         
-        // Citas globales
-        const { count: citasCount } = await supabaseClient.from('citas').select('*', { count: 'exact', head: true });
-        document.getElementById('total-citas').innerText = citasCount || 0;
+        // Citas globales (sin tenantId = super admin)
+        const citas = await window.__appointmentsApi.getAllCitas();
+        document.getElementById('total-citas').innerText = Array.isArray(citas) ? citas.length : 0;
         
         // Usuarios (vista usuarios_con_rol)
-        const { count: usersCount } = await supabaseClient.from('usuarios_con_rol').select('*', { count: 'exact', head: true });
+        const { count: usersCount } = await window.__usuariosApi.getAll().then(u => u.length);
         document.getElementById('total-usuarios').innerText = usersCount || 0;
 
-        // Suscripciones activas (versión segura, sin error de asignación)
+        // Suscripciones activas via API
         try {
-            const { count, error } = await supabaseClient
-                .from('subscriptions')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'active');
-            if (!error) {
-                const subscriptionsActive = count || 0;
-                const el = document.getElementById('total-subscripciones');
-                if (el) el.innerText = subscriptionsActive;
-            } else {
-                console.error('Error consultando suscripciones activas:', error);
-            }
+            const subs = await window.__subscriptionsApi.getAll();
+            const activeSubs = (subs || []).filter(s => s.status === 'active');
+            const el = document.getElementById('total-subscripciones');
+            if (el) el.innerText = activeSubs.length;
         } catch (subErr) {
             console.error('Excepción al contar suscripciones activas:', subErr);
         }
@@ -7444,32 +7446,20 @@ async function cargarEstadisticasGlobales() {
 // --- Métricas Globales (MRR + Gráfico) - VERSIÓN CORREGIDA ---
 async function cargarMetricasGlobales() {
     try {
-        // 1. MRR
-        const { data: subs, error } = await supabaseClient
-            .from('subscriptions')
-            .select('plan')
-            .eq('status', 'active');
-        if (error) throw error;
+        // 1. MRR via API de suscripciones
+        const subs = await window.__subscriptionsApi.getAll();
+        const activeSubs = (subs || []).filter(s => s.status === 'active');
         let mrr = 0;
         let countPro = 0, countPremium = 0;
-        subs.forEach(sub => {
-            if (sub.plan === 'pro') {
-                mrr += 5000;
-                countPro++;
-            } else if (sub.plan === 'premium_anual') {
-                mrr += 3000;
-                countPremium++;
-            }
+        activeSubs.forEach(sub => {
+            if (sub.plan === 'pro') { mrr += 5000; countPro++; }
+            else if (sub.plan === 'premium_anual') { mrr += 3000; countPremium++; }
         });
         document.getElementById('mrr-value').textContent = formatearPeso(mrr);
         document.getElementById('plan-breakdown').innerHTML = `Pro: ${countPro} | Premium Anual: ${countPremium}`;
 
-        // 2. Evolución tenants
-        const { data: tenants, error: tenantErr } = await supabaseClient
-            .from('tenants')
-            .select('fecha_registro')
-            .order('fecha_registro', { ascending: true });
-        if (tenantErr) throw tenantErr;
+        // 2. Evolución tenants via API
+        const tenants = await window.__tenantsApi.getAll();
 
         const map = new Map();
         tenants.forEach(t => {
@@ -7536,13 +7526,8 @@ async function cargarUsuariosSuper() {
     tbody.innerHTML = '<tr><td colspan="5">Cargando...</td></tr>';
     
     try {
-        // Usamos la vista usuarios_con_rol en lugar de tabla 'usuarios'
-        const { data: users, error } = await supabaseClient
-            .from('usuarios_con_rol')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
-        if (error) throw error;
+        // Usamos la API unificada de usuarios
+        const users = await window.__usuariosApi.getAll();
         
         if (!users || users.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados</td></tr>';
@@ -7601,8 +7586,7 @@ async function cambiarRolUsuario(userId, currentRole) {
     }
 }
 window.cambiarRol = async (userId, nuevoRol) => {
-    // Asumiendo que tienes una tabla 'usuarios' o vista actualizable
-    const { error } = await supabaseClient.from('usuarios_con_rol').update({ rol: nuevoRol }).eq('id', userId);
+    const { error } = await window.__usuariosApi.updateRol(userId, nuevoRol);
     if (error) {
         mostrarToast('Error al cambiar rol: ' + error.message, 'error');
     } else {
@@ -7633,8 +7617,8 @@ window.eliminarUsuario = async (userId) => {
     if (!confirm('¿Eliminar este usuario permanentemente?')) return;
     // Opción 1: si usas auth.admin (requiere service_role key)
     // const { error } = await supabaseClient.auth.admin.deleteUser(userId);
-    // Opción 2: si tienes una tabla 'usuarios' que puedes eliminar directamente
-    const { error } = await supabaseClient.from('usuarios_con_rol').delete().eq('id', userId);
+    // Opción 2: eliminar via API de usuarios (vista usuarios_con_rol)
+    const { error } = await window.__usuariosApi.delete(userId);
     if (error) {
         mostrarToast('Error al eliminar usuario: ' + error.message, 'error');
     } else {
@@ -7651,15 +7635,7 @@ async function cargarServiciosGlobales() {
     container.innerHTML = '<p>Cargando servicios...</p>';
     
     try {
-        const { data: servicios, error } = await supabaseClient
-            .from('servicios')
-            .select(`
-                *,
-                tenants (nombre_negocio)
-            `)
-            .order('nombre');
-        
-        if (error) throw error;
+        const servicios = await window.__serviciosApi.getAll();
         
         if (!servicios || servicios.length === 0) {
             container.innerHTML = '<p>No hay servicios registrados</p>';
@@ -7694,21 +7670,7 @@ async function cargarCitasGlobales() {
     tbody.innerHTML = '<tr><td colspan="6">Cargando citas...</td></tr>';
     
     try {
-        const { data: citas, error } = await supabaseClient
-            .from('citas')
-            .select(`
-                id,
-                fecha,
-                hora,
-                tenant_id,
-                contacto,
-                servicios (nombre),
-                tenants (nombre_negocio)
-            `)
-            .order('fecha', { ascending: false })
-            .limit(100);
-        
-        if (error) throw error;
+        const citas = await window.__appointmentsApi.getAllCitas();
         
         if (!citas || citas.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6">No hay citas registradas</td></tr>';
@@ -7743,12 +7705,7 @@ async function cargarSolicitudesCSS() {
     if (!container) return;
     container.innerHTML = '<p>Cargando solicitudes...</p>';
     try {
-        const { data, error } = await supabaseClient
-            .from('notificaciones_admin')
-            .select('*, tenants(nombre_negocio)')
-            .eq('tipo', 'solicitud_css_profesional')
-            .order('creado_en', { ascending: false });
-        if (error) throw error;
+        const data = await window.__notificacionesApi.getAll();
         if (!data || data.length === 0) {
             container.innerHTML = '<p>No hay solicitudes pendientes.</p>';
             return;
@@ -7780,7 +7737,7 @@ async function cargarSolicitudesCSS() {
         document.querySelectorAll('.descartar-solicitud').forEach(btn => {
             btn.addEventListener('click', async () => {
                 if (confirm('¿Descartar esta solicitud?')) {
-                    const { error } = await supabaseClient.from('notificaciones_admin').delete().eq('id', btn.dataset.id);
+                    const { error } = await window.__notificacionesApi.delete(btn.dataset.id);
                     if (error) mostrarToast('Error al descartar', 'error');
                     else {
                         mostrarToast('Solicitud descartada', 'success');
@@ -7838,7 +7795,7 @@ async function abrirModalAplicarCSS(solicitudId, tenantId) {
             return;
         }
         // Eliminar la solicitud
-        await supabaseClient.from('notificaciones_admin').delete().eq('id', solicitudId);
+        await window.__notificacionesApi.delete(solicitudId);
         mostrarToast('CSS aplicado y solicitud atendida', 'success');
         modal.style.display = 'none';
         cargarSolicitudesCSS();

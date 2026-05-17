@@ -1,19 +1,19 @@
 // services/application/ServiceService.js
-// CRUD de servicios contra Supabase
+// CRUD de servicios - delega a src/api/serviciosApi.js (capa unica de datos)
 
-import { getSupabase } from '../../shared/infrastructure/supabase.js';
+import {
+    getAllServicios as apiGetAll,
+    createServicio,
+    updateServicio,
+    deleteServicio as apiDelete
+} from '../../api/serviciosApi.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 
 export async function getAllServicios(optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return [];
     try {
-        const { data, error } = await getSupabase()
-            .from('servicios')
-            .select('id, nombre, categoria, precio, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at')
-            .eq('tenant_id', String(tenantId).trim())
-            .order('created_at', { ascending: false });
-        if (error) throw error;
+        const data = await apiGetAll(tenantId);
         return (data || []).map(s => ({
             id: s.id,
             nombre: s.nombre,
@@ -51,23 +51,20 @@ export async function saveServicio(servicio) {
     };
     let result;
     if (servicio.id) {
-        result = await getSupabase().from('servicios').update(data).eq('id', servicio.id).select();
+        result = await updateServicio(servicio.id, data);
     } else {
-        result = await getSupabase().from('servicios').insert(data).select();
+        result = await createServicio(data);
     }
-    if (result.error) throw result.error;
-    return result.data?.[0] || null;
+    return result || null;
 }
 
 export async function deleteServicio(id) {
-    const { error } = await getSupabase().from('servicios').delete().eq('id', id);
-    if (error) throw error;
+    await apiDelete(id);
     return true;
 }
 
 export async function toggleActivoServicio(id, activo) {
-    const { error } = await getSupabase().from('servicios').update({ activo }).eq('id', id);
-    if (error) throw error;
+    await updateServicio(id, { activo });
     return true;
 }
 
