@@ -10,21 +10,24 @@ console.log('KEY:', supabaseKey.substring(0, 15) + '...');
 // Variable global para el cliente de Supabase
 let supabaseClient = null;
 
-// Inicializar Supabase cuando la librería esté lista
-function initSupabase() {
-    if (!window.supabase) {
-        console.error('❌ La librería de Supabase no está cargada. Asegúrate de incluir el script en tu HTML.');
-        return false;
+// Inicializar Supabase reutilizando el cliente de main.js (única instancia)
+async function initSupabase() {
+    const timeout = 2000;
+    const start = Date.now();
+    while (!window.supabaseClient && (Date.now() - start) < timeout) {
+        await new Promise(resolve => setTimeout(resolve, 50));
     }
-    
-    console.log('✅ Librería de Supabase encontrada');
-    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-    console.log('✅ Cliente de Supabase inicializado');
-    return true;
+    if (window.supabaseClient) {
+        supabaseClient = window.supabaseClient;
+        console.log('[initSupabase] Cliente reutilizado correctamente después de espera');
+        return true;
+    }
+    console.error('[initSupabase] window.supabaseClient no existe después de 2s. main.js no se ejecutó o falló.');
+    return false;
 }
 
-// Inicializar inmediatamente
-initSupabase();
+// Inicializar inmediatamente (espera hasta 2s a que main.js asigne window.supabaseClient)
+(async () => { await initSupabase(); })();
 
 // Función para obtener el tenant_id actual - VERSIÓN CORREGIDA
 async function getCurrentTenantId() {
@@ -2391,10 +2394,7 @@ window.crearNotificacionCambioAdmin = crearNotificacionCambioAdmin;
 window.renderNotificacionesCambiosAdmin = renderNotificacionesCambiosAdmin;
 window.actualizarContadorNotificacionesAdmin = actualizarContadorNotificacionesAdmin;
 
-// Limpiar notificaciones antiguas al iniciar
-(async function limpiarNotificacionesAntiguas() {
-    await NotificacionesAdminManager.eliminarViejos(7);
-})();
+// Limpiar notificaciones antiguas al iniciar (se ejecuta en DOMContentLoaded con supabaseClient listo)
 
 // ============================================
 // SESIÓN Y PROTECCIÓN DE RUTAS (modificado para Supabase Auth)
@@ -3058,77 +3058,9 @@ async function iniciarSuperAdmin() {
 
 
 async function cargarTenants() {
-    const container = document.getElementById('tenants-list');
-    if (!container) return;
-    
-    try {
-        const { data: tenants, error } = await supabaseClient
-            .from('tenants')
-            .select(`
-                *,
-                subscriptions ( id, plan, status, start_date, end_date )
-            `)
-            .order('fecha_registro', { ascending: false });
-        
-        if (error) throw error;
-        if (!tenants || tenants.length === 0) {
-            container.innerHTML = '<p>No hay tenants registrados</p>';
-            return;
-        }
-        
-        const planDisplayNames = {
-            'freemium': 'Freemium',
-            'pro': 'Pro',
-            'premium_anual': 'Premium Anual'
-        };
-        
-        let html = '';
-        tenants.forEach(t => {
-            let activeSub = t.subscriptions?.find(sub => sub.status === 'active') || t.subscriptions?.[0];
-            const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
-            const planDisplay = planDisplayNames[planKey] || planKey;
-            const statusSub = activeSub ? activeSub.status : 'active';
-            const endDate = activeSub?.end_date ? new Date(activeSub.end_date).toLocaleDateString() : 'N/A';
-            
-            html += `
-                <div class="tenant-card glass-panel" style="padding:20px;">
-                    <div class="tenant-header">
-                        <h4>${escapeHtml(t.nombre_negocio)}</h4>
-                        <span class="badge ${planKey}">${planDisplay}</span>
-                    </div>
-                    <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
-                    <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
-                    <p><i class="fas fa-ticket-alt"></i> Suscripción: ${statusSub} ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
-                    <div class="tenant-actions" style="margin-top:15px;">
-                        <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
-                        <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
-                        <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff; margin-left:10px;"></i>
-                        <i class="fas fa-palette edit-visual" data-id="${t.id}" style="cursor:pointer; color:#00b894; margin-left:10px;" title="Editar configuración visual"></i>
-                    </div>
-                </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        
-        // Eventos existentes
-        document.querySelectorAll('.edit-tenant').forEach(icon => {
-            icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
-        });
-        document.querySelectorAll('.delete-tenant').forEach(icon => {
-            icon.addEventListener('click', () => eliminarTenant(icon.dataset.id));
-        });
-        document.querySelectorAll('.manage-sub').forEach(icon => {
-            icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
-        });
-        // Evento para edición visual (NUEVO)
-        document.querySelectorAll('.edit-visual').forEach(icon => {
-            icon.addEventListener('click', () => abrirModalEditarVisualTenant(icon.dataset.id));
-        });
-        
-    } catch (error) {
-        console.error('Error en cargarTenants:', error);
-    }
+    // Legacy: reemplazado por SuperAdminView.js modular
+    // No hacer nada - la UI de tenants la maneja el sistema modular
+    return;
 }
 
 // Asegurar que la función sea global
@@ -6946,6 +6878,13 @@ function iniciarSistemaUrgencias() {
 // INICIALIZACIÓN PRINCIPAL
 // ============================================
 document.addEventListener('DOMContentLoaded', async function () {
+    // Esperar a que supabaseClient esté disponible (espera hasta 2s)
+    const supabaseListo = await initSupabase();
+    if (!supabaseListo) {
+        console.error('[DOMContentLoaded] supabaseClient no disponible, abortando');
+        return;
+    }
+
     await CitasManager.limpiar({ soloSinId: true, soloCompletadas: true, soloInvalidas: true });
     await CitasManager.sanear();
     
@@ -7342,180 +7281,46 @@ window.diagnosticarSistema = diagnosticarSistema;
 // --- Variables globales adicionales ---
 let currentSuperTab = 'tenants';
 
-// --- Sobrescribimos iniciarSuperAdmin para incluir nuevas inicializaciones ---
-// (Guardamos la función original si existe)
-const _originalIniciarSuperAdmin = window.iniciarSuperAdmin;
-window.iniciarSuperAdmin = async function() {
-    // Llamar a la función original si existe (para mantener compatibilidad)
-    if (typeof _originalIniciarSuperAdmin === 'function') {
-        await _originalIniciarSuperAdmin();
-    }
-    
-    // Configurar tabs
-    setupSuperAdminTabs();
-    
-    // Cargar estadísticas globales
-    await cargarEstadisticasGlobales();
-    
-    // Cargar métricas globales (MRR + gráfico)
-    await cargarMetricasGlobales();
-    
-    // Event listeners para botones de refresco
-    document.getElementById('btn-refresh-users')?.addEventListener('click', () => cargarUsuariosSuper());
-    document.getElementById('btn-refresh-servicios')?.addEventListener('click', cargarServiciosGlobales);
-    document.getElementById('btn-refresh-citas')?.addEventListener('click', cargarCitasGlobales);
-    document.getElementById('btn-refresh-solicitudes')?.addEventListener('click', cargarSolicitudesCSS);  // <-- NUEVO
-    
-    // Cargar datos iniciales de los tabs adicionales (se cargan bajo demanda al cambiar de pestaña)
-    // Para evitar múltiples cargas, usaremos flags.
-    window._serviciosCargados = false;
-    window._citasCargadas = false;
-    window._solicitudesCargadas = false;   // <-- NUEVO
-};
-
-// --- Configuración de Tabs ---
-function setupSuperAdminTabs() {
-    const tabs = document.querySelectorAll('.tab-btn');
-    const contents = document.querySelectorAll('.tab-content');
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', async () => {
-            const targetId = tab.dataset.tab;
-            
-            // Cambiar clase activa
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // Mostrar contenido correspondiente
-            contents.forEach(c => c.style.display = 'none');
-            document.getElementById(`tab-${targetId}`).style.display = 'block';
-            
-            // Cargar datos bajo demanda
-            if (targetId === 'usuarios') {
-                await cargarUsuariosSuper();
-            } else if (targetId === 'servicios' && !window._serviciosCargados) {
-                await cargarServiciosGlobales();
-                window._serviciosCargados = true;
-            } else if (targetId === 'citas' && !window._citasCargadas) {
-                await cargarCitasGlobales();
-                window._citasCargadas = true;
-            } else if (targetId === 'solicitudes') {
-                if (!window._solicitudesCargadas) {
-                    await cargarSolicitudesCSS();
-                    window._solicitudesCargadas = true;
-                }
+// --- Función auxiliar: esperar a que las APIs globales estén disponibles ---
+function esperarApisGlobales(timeout = 3000) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const check = () => {
+            if (window.__tenantsApi && window.__subscriptionsApi) {
+                console.log('[esperarApisGlobales] APIs listas');
+                resolve(true);
+                return;
             }
-        });
+            if (Date.now() - start >= timeout) {
+                console.warn('[esperarApisGlobales] Timeout esperando APIs');
+                resolve(false);
+                return;
+            }
+            setTimeout(check, 100);
+        };
+        check();
     });
 }
 
-// --- Estadísticas globales ---
-async function cargarEstadisticasGlobales() {
-    try {
-        // Tenants
-        const tenants = await window.__tenantsApi.getAll();
-        document.getElementById('total-tenants').innerText = tenants.length;
-        
-        // Servicios globales (sin tenantId = super admin, getAll)
-        const servicios = await window.__serviciosApi.getAll();
-        document.getElementById('total-servicios').innerText = servicios.length;
-        
-        // Citas globales (sin tenantId = super admin)
-        const citas = await window.__appointmentsApi.getAllCitas();
-        document.getElementById('total-citas').innerText = Array.isArray(citas) ? citas.length : 0;
-        
-        // Usuarios (vista usuarios_con_rol)
-        const { count: usersCount } = await window.__usuariosApi.getAll().then(u => u.length);
-        document.getElementById('total-usuarios').innerText = usersCount || 0;
+// --- Delegado a SuperAdminView.js modular ---
+window.iniciarSuperAdmin = async function() {
+    // La UI de superadmin la maneja SuperAdminView.js via main.js
+    return;
+};
 
-        // Suscripciones activas via API
-        try {
-            const subs = await window.__subscriptionsApi.getAll();
-            const activeSubs = (subs || []).filter(s => s.status === 'active');
-            const el = document.getElementById('total-subscripciones');
-            if (el) el.innerText = activeSubs.length;
-        } catch (subErr) {
-            console.error('Excepción al contar suscripciones activas:', subErr);
-        }
-    } catch (e) {
-        console.error('Error en estadísticas globales:', e);
-    }
+// --- Configuración de Tabs (desactivado: reemplazado por SuperAdminView.js) ---
+function setupSuperAdminTabs() {
+    // Legacy desactivado - los tabs los maneja SuperAdminView.js
 }
 
-// --- Métricas Globales (MRR + Gráfico) ---
-// --- Métricas Globales (MRR + Gráfico) - VERSIÓN CORREGIDA ---
+// --- Estadísticas globales (desactivado: reemplazado por SuperAdminView.js) ---
+async function cargarEstadisticasGlobales() {
+    // Legacy desactivado - las estadísticas las maneja SuperAdminView.js
+}
+
+// --- Métricas Globales (MRR + Gráfico) (desactivado: reemplazado por SuperAdminView.js) ---
 async function cargarMetricasGlobales() {
-    try {
-        // 1. MRR via API de suscripciones
-        const subs = await window.__subscriptionsApi.getAll();
-        const activeSubs = (subs || []).filter(s => s.status === 'active');
-        let mrr = 0;
-        let countPro = 0, countPremium = 0;
-        activeSubs.forEach(sub => {
-            if (sub.plan === 'pro') { mrr += 5000; countPro++; }
-            else if (sub.plan === 'premium_anual') { mrr += 3000; countPremium++; }
-        });
-        document.getElementById('mrr-value').textContent = formatearPeso(mrr);
-        document.getElementById('plan-breakdown').innerHTML = `Pro: ${countPro} | Premium Anual: ${countPremium}`;
-
-        // 2. Evolución tenants via API
-        const tenants = await window.__tenantsApi.getAll();
-
-        const map = new Map();
-        tenants.forEach(t => {
-            const date = new Date(t.fecha_registro);
-            const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            map.set(key, (map.get(key) || 0) + 1);
-        });
-        const sortedKeys = Array.from(map.keys()).sort();
-        const counts = sortedKeys.map(k => map.get(k));
-
-        // === FIX: resetear dimensiones del canvas antes de crear nuevo gráfico ===
-        const canvas = document.getElementById('tenants-evolution-chart');
-        if (!canvas) return;
-        // Eliminar gráfico anterior si existe
-        if (window.tenantsChart) window.tenantsChart.destroy();
-        // Resetear atributos width/height para evitar estiramiento acumulativo
-        canvas.removeAttribute('width');
-        canvas.removeAttribute('height');
-        canvas.style.width = '100%';
-        canvas.style.height = '300px';
-
-        const ctx = canvas.getContext('2d');
-        window.tenantsChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: sortedKeys,
-                datasets: [{
-                    label: 'Tenants registrados',
-                    data: counts,
-                    borderColor: '#b300ff',
-                    backgroundColor: 'rgba(179,0,255,0.1)',
-                    fill: true,
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,   // ← Evita el alargamiento horizontal
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { mode: 'index', intersect: false }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45,     // Rotar etiquetas largas
-                            minRotation: 30,
-                            autoSkip: true       // Saltar etiquetas si son muchas
-                        }
-                    }
-                }
-            }
-        });
-    } catch (e) {
-        console.error('Error en metricas globales:', e);
-    }
+    // Legacy desactivado - las métricas las maneja SuperAdminView.js
 }
 
 // --- Usuarios con acciones (reemplaza la tabla simple) ---

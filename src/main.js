@@ -1,25 +1,36 @@
 // main.js - Entry point principal (Strangler Fig)
-// Se carga DESPUES de script.js como script normal (no module)
-// Carga modulos ES via import() de forma segura - si falla, no rompe nada
+// Se carga ANTES que script.js como script normal (no module)
+// Carga modulos via import() de forma segura - si falla, no rompe nada
 // script.js legacy sigue funcionando como fallback completo
 
-(function() {
+(async function() {
     'use strict';
 
     // ============================================
-    // shared/ - Cargar shared de forma segura
+    // CREAR CLIENTE SUPABASE DE FORMA SINCRONA
+    // Esto debe ejecutarse INMEDIATAMENTE para que
+    // script.js encuentre window.supabaseClient
+    // ============================================
+    try {
+        const sup = await import('./shared/infrastructure/supabase.js');
+        window.supabaseClient = sup.supabaseClient;
+        window.getSupabase = sup.getSupabase;
+        console.log('[main] window.supabaseClient asignado');
+    } catch (e) {
+        console.error('[main] Error al crear supabaseClient:', e.message);
+    }
+
+    // ============================================
+    // shared/ - Cargar shared restante de forma segura
     // ============================================
     async function loadShared() {
         try {
-            const supabase = await import('./shared/infrastructure/supabase.js');
-            window.supabaseClient = supabase.supabaseClient;
-            window.getSupabase = supabase.getSupabase;
             await import('./shared/infrastructure/toast.js');
             await import('./shared/infrastructure/formatters.js');
             await import('./shared/infrastructure/urgency-calculator.js');
             return true;
         } catch (e) {
-            console.warn('[main.js] shared no disponible (usando script.js legacy):', e.message);
+            console.warn('[main.js] shared no disponible:', e.message);
             return false;
         }
     }
@@ -38,7 +49,31 @@
             // Exponer JwtManager al window para compatibilidad con script.js
             window.JwtManager = JwtManager;
 
-            // Sincronizar sesion existente
+            // Evitar setSession si ya hay una sesion activa en el cliente global
+            if (window.supabaseClient) {
+                const { data: { session: existingSession } } = await window.supabaseClient.auth.getSession();
+                if (existingSession) {
+                    console.log('[main] Sesion ya activa, no se fuerza setSession');
+                    JwtManager.startAutoRefresh(supabase);
+
+                    // Interceptor de sesion (onAuthStateChange) solo si hay sesion activa
+                    supabase.auth.onAuthStateChange(async (event, session) => {
+                        if (event === 'TOKEN_REFRESHED' && session) {
+                            JwtManager.setTokens(session.access_token, session.refresh_token);
+                        }
+                        if (event === 'SIGNED_OUT') {
+                            JwtManager.clear();
+                            const esLogin = document.querySelector('.login-screen') && !document.querySelector('.planes-container');
+                            if (!esLogin) {
+                                window.location.href = 'login.html';
+                            }
+                        }
+                    });
+                    return;
+                }
+            }
+
+            // Sincronizar sesion existente solo si no habia sesion activa
             if (accessToken) {
                 if (!JwtManager.isTokenExpired()) {
                     await supabase.auth.setSession({
@@ -82,13 +117,6 @@
     // Cargar modulos por pagina (seguro - no rompe si falla)
     // ============================================
     async function loadPageModules() {
-        try {
-            const { verificarProteccionRutas } = await import('./shared/infrastructure/router.js');
-            await verificarProteccionRutas();
-        } catch (e) {
-            // verificarProteccionRutas de script.js ya se ejecuto
-        }
-
         const esLogin = document.querySelector('.login-screen') && !document.querySelector('.planes-container');
         const esAdmin = document.querySelector('.admin-screen') && !document.querySelector('.superadmin-screen');
         const esSuperAdmin = document.querySelector('.superadmin-screen');
@@ -155,7 +183,7 @@
                 window.renderSuperAdmin = () => {};
 
                 const { renderSuperAdmin } = await import('./super-admin/ui/SuperAdminView.js');
-                renderSuperAdmin('superadmin-content');
+                renderSuperAdmin(document.getElementById('superadmin-content'));
 
                 console.log('[main.js] Modulos superadmin cargados correctamente');
             } catch (e) {
@@ -167,15 +195,13 @@
     // ============================================
     // Inicio seguro - no bloquea nada
     // ============================================
-    // Ejecutar DESPUES de que script.js haya terminado
-    setTimeout(async () => {
-        const sharedLoaded = await loadShared();
-        if (sharedLoaded) {
-            await syncJwtSession();
-            await loadPageModules();
-            await exposeApi();
-        }
-    }, 50);
+    // Ejecutar inmediatamente (no esperar a script.js)
+    const sharedLoaded = await loadShared();
+    if (sharedLoaded) {
+        syncJwtSession().catch(() => {});
+        loadPageModules().catch(() => {});
+        exposeApi().catch(() => {});
+    }
 
     // ============================================
     // Exponer APIs unicas para script.js legacy
