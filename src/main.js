@@ -7,17 +7,20 @@
     'use strict';
 
     // ============================================
-    // CREAR CLIENTE SUPABASE DE FORMA SINCRONA
-    // Esto debe ejecutarse INMEDIATAMENTE para que
-    // script.js encuentre window.supabaseClient
+    // CREAR CLIENTE SUPABASE DE FORMA SINCRONA (sin import)
     // ============================================
     try {
-        const sup = await import('./shared/infrastructure/supabase.js');
-        window.supabaseClient = sup.supabaseClient;
-        window.getSupabase = sup.getSupabase;
-        console.log('[main] window.supabaseClient asignado');
+        const SUPABASE_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0';
+        
+        if (!window.supabase) {
+            console.warn('[main] Supabase SDK no disponible, se usara script.js legacy');
+        } else {
+            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            console.log('[main] window.supabaseClient asignado (sin import)');
+        }
     } catch (e) {
-        console.error('[main] Error al crear supabaseClient:', e.message);
+        console.error('[main] Error creando supabaseClient (usando fallback script.js)');
     }
 
     // ============================================
@@ -30,7 +33,7 @@
             await import('./shared/infrastructure/urgency-calculator.js');
             return true;
         } catch (e) {
-            console.warn('[main.js] shared no disponible:', e.message);
+            console.warn('[main.js] shared no disponible (usando fallback)');
             return false;
         }
     }
@@ -38,64 +41,23 @@
     // ============================================
     // Interceptor JWT + onAuthStateChange
     // ============================================
-    async function syncJwtSession() {
-        try {
-            const { JwtManager } = await import('./auth/infrastructure/JwtManager.js');
-            const { getSupabase, supabaseClient } = await import('./shared/infrastructure/supabase.js');
-            const accessToken = JwtManager.getAccessToken();
-            const supabase = getSupabase();
-            if (!supabase) return;
+async function syncJwtSession() {
+    try {
+        const { JwtManager } = await import('./auth/infrastructure/JwtManager.js');
+        const accessToken = JwtManager.getAccessToken();
+        const supabase = window.supabaseClient;
+        if (!supabase) return;
 
-            // Exponer JwtManager al window para compatibilidad con script.js
-            window.JwtManager = JwtManager;
+        // Exponer JwtManager al window para compatibilidad con script.js
+        window.JwtManager = JwtManager;
 
-            // Evitar setSession si ya hay una sesion activa en el cliente global
-            if (window.supabaseClient) {
-                const { data: { session: existingSession } } = await window.supabaseClient.auth.getSession();
-                if (existingSession) {
-                    console.log('[main] Sesion ya activa, no se fuerza setSession');
-                    JwtManager.startAutoRefresh(supabase);
-
-                    // Interceptor de sesion (onAuthStateChange) solo si hay sesion activa
-                    supabase.auth.onAuthStateChange(async (event, session) => {
-                        if (event === 'TOKEN_REFRESHED' && session) {
-                            JwtManager.setTokens(session.access_token, session.refresh_token);
-                        }
-                        if (event === 'SIGNED_OUT') {
-                            JwtManager.clear();
-                            const esLogin = document.querySelector('.login-screen') && !document.querySelector('.planes-container');
-                            if (!esLogin) {
-                                window.location.href = 'login.html';
-                            }
-                        }
-                    });
-                    return;
-                }
-            }
-
-            // Sincronizar sesion existente solo si no habia sesion activa
-            if (accessToken) {
-                if (!JwtManager.isTokenExpired()) {
-                    await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: JwtManager.getRefreshToken() || accessToken
-                    });
-                } else {
-                    const refreshed = await JwtManager.refreshToken(supabase);
-                    if (refreshed) {
-                        const newToken = JwtManager.getAccessToken();
-                        await supabase.auth.setSession({
-                            access_token: newToken,
-                            refresh_token: JwtManager.getRefreshToken() || newToken
-                        });
-                    }
-                }
-            }
-
-            // Iniciar auto-refresh periodico (cada 4 min)
+        // Evitar setSession si ya hay una sesion activa en el cliente global
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        if (existingSession) {
+            console.log('[main] Sesion ya activa, no se fuerza setSession');
             JwtManager.startAutoRefresh(supabase);
 
-            // Interceptor de sesion (onAuthStateChange)
+            // Interceptor de sesion (onAuthStateChange) solo si hay sesion activa
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'TOKEN_REFRESHED' && session) {
                     JwtManager.setTokens(session.access_token, session.refresh_token);
@@ -108,9 +70,47 @@
                     }
                 }
             });
-        } catch (e) {
-            // No bloqueante - script.js legacy maneja la sesion
+            return;
         }
+
+        // Sincronizar sesion existente solo si no habia sesion activa
+        if (accessToken) {
+            if (!JwtManager.isTokenExpired()) {
+                await supabase.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: JwtManager.getRefreshToken() || accessToken
+                });
+            } else {
+                const refreshed = await JwtManager.refreshToken(supabase);
+                if (refreshed) {
+                    const newToken = JwtManager.getAccessToken();
+                    await supabase.auth.setSession({
+                        access_token: newToken,
+                        refresh_token: JwtManager.getRefreshToken() || newToken
+                    });
+                }
+            }
+        }
+
+        // Iniciar auto-refresh periodico (cada 4 min)
+        JwtManager.startAutoRefresh(supabase);
+
+        // Interceptor de sesion (onAuthStateChange)
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'TOKEN_REFRESHED' && session) {
+                JwtManager.setTokens(session.access_token, session.refresh_token);
+            }
+            if (event === 'SIGNED_OUT') {
+                JwtManager.clear();
+                const esLogin = document.querySelector('.login-screen') && !document.querySelector('.planes-container');
+                if (!esLogin) {
+                    window.location.href = 'login.html';
+                }
+            }
+        });
+    } catch (e) {
+        // No bloqueante - script.js legacy maneja la sesion (con fallback)
+    }
     }
 
     // ============================================
@@ -153,7 +153,7 @@
 
                 console.log('[main.js] Modulos admin cargados correctamente');
             } catch (e) {
-                console.warn('[main.js] Modulos admin no disponibles:', e.message);
+                console.warn('[main.js] Modulos admin no disponibles (usando fallback legacy)');
             }
         }
 

@@ -7,6 +7,11 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 let _client = null;
 
 export function getSupabase() {
+    // Reutilizar cliente global si ya existe (creado por main.js)
+    if (window.supabaseClient) {
+        _client = window.supabaseClient;
+        return _client;
+    }
     if (!_client) {
         if (!window.supabase) {
             console.error('Supabase SDK no cargado.');
@@ -19,6 +24,3 @@ export function getSupabase() {
 
 const supabase = getSupabase();
 export { supabase as supabaseClient };
-
-// Mantener compatibilidad hacia atras con script.js
-window.supabaseClient = supabaseClient;
