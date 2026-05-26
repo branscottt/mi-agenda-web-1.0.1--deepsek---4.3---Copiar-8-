@@ -132,10 +132,6 @@ async function syncJwtSession() {
 
         if (esAdmin) {
             try {
-                window.renderAdminAppointments = () => {};
-                window.actualizarEstadisticas = () => {};
-                window.actualizarStatsHeader = () => {};
-
                 const { configurarFormularioServicio } = await import('./services/ui/ServiceForm.js');
                 configurarFormularioServicio();
 
@@ -159,10 +155,6 @@ async function syncJwtSession() {
 
         if (esCliente) {
             try {
-                window.renderCatalogo = () => {};
-                window.renderCarrito = () => {};
-                window.renderMisReservas = () => {};
-
                 const { renderCatalogo } = await import('./catalog/ui/CatalogPage.js');
                 renderCatalogo('client-services-grid');
 
@@ -180,8 +172,6 @@ async function syncJwtSession() {
 
         if (esSuperAdmin) {
             try {
-                window.renderSuperAdmin = () => {};
-
                 const { renderSuperAdmin } = await import('./super-admin/ui/SuperAdminView.js');
                 renderSuperAdmin(document.getElementById('superadmin-content'));
 

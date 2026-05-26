@@ -2,7 +2,7 @@
 // CONFIGURACIÓN DE SUPABASE - VERSIÓN CORREGIDA
 // ============================================
 const supabaseUrl = 'https://dfcfimipkfhitlsyixqu.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA5MDYzMDAsImV4cCI6MjA1NjQ4MjMwMH0.2UaXqQ5DcMhQ6dPv2d3dP5k7N5wGqQx5H5S5U5a5c5U';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0';
 
 console.log('URL:', supabaseUrl);
 console.log('KEY:', supabaseKey.substring(0, 20) + '...');
@@ -13,8 +13,14 @@ let supabaseClient = null;
 if (!window.JwtManager) {
     window.JwtManager = {
         getSession() {
-            if (!supabaseClient) return { data: { session: null } };
-            return supabaseClient.auth.getSession();
+            try {
+                if (!supabaseClient) return { data: { session: null } };
+                if (!supabaseClient.auth) return { data: { session: null } };
+                return supabaseClient.auth.getSession();
+            } catch (e) {
+                console.warn('[JwtManager fallback] getSession falló:', e.message);
+                return { data: { session: null } };
+            }
         },
         setTokens(accessToken, refreshToken) {
             if (supabaseClient) {
@@ -48,7 +54,18 @@ async function initSupabase() {
         console.log('[initSupabase] Cliente reutilizado correctamente después de espera');
         return true;
     }
-    console.error('[initSupabase] window.supabaseClient no existe después de 2s. main.js no se ejecutó o falló.');
+    // Fallback: crear cliente propio si main.js no se ejecutó (ej. client.html sin main.js)
+    try {
+        if (window.supabase) {
+            supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+            window.supabaseClient = supabaseClient;
+            console.log('[initSupabase] Cliente creado como fallback (main.js no disponible)');
+            return true;
+        }
+    } catch (e) {
+        console.error('[initSupabase] Error creando cliente fallback:', e);
+    }
+    console.error('[initSupabase] No se pudo obtener/crear supabaseClient');
     return false;
 }
 
@@ -2977,7 +2994,6 @@ async function iniciarAdmin() {
     configurarContadorCaracteres();
     configurarFiltros();
     configurarBotonesEspeciales();
-    await cargarProximasCitas();
     iniciarReloj();
     if (typeof renderAdminAppointments === 'function') await renderAdminAppointments();
     initCalendar();
@@ -3068,20 +3084,33 @@ window.iniciarAdmin = iniciarAdmin;
 // FUNCIONES DE SUPER ADMIN (Panel de Tenants)
 // ============================================
 async function iniciarSuperAdmin() {
-    console.log('Iniciando Super Admin (via SuperAdminView)...');
+    console.log('Iniciando Super Admin...');
     
-    // Delegar a SuperAdminView
-    const container = document.getElementById('main-container') || document.querySelector('.container');
-    if (container) {
-        try {
+    // Intentar cargar módulos ES; si fallan, usar fallback legacy
+    try {
+        const container = document.getElementById('main-container') || document.querySelector('.container');
+        if (container) {
             const { renderSuperAdmin } = await import('./src/super-admin/ui/SuperAdminView.js');
             await renderSuperAdmin(container, window.__apis || {});
-        } catch (e) {
-            console.error('Error al cargar SuperAdminView, usando fallback legacy:', e);
+            return;
         }
+    } catch (e) {
+        console.warn('[superadmin] Modulos ES no disponibles, usando fallback legacy');
     }
     
-    // Mantener solo configuraciones globales e init que no están en la vista
+    // Fallback legacy: cargar todo con supabaseClient directo
+    if (typeof window.iniciarSuperAdminFallback === 'function') {
+        await window.iniciarSuperAdminFallback();
+    } else {
+        // Fallback inline si no existe
+        await cargarTenants();
+        await cargarEstadisticasGlobales();
+        await cargarMetricasGlobales();
+        const fnSetup = window.setupSuperAdminTabs || setupSuperAdminTabs;
+        if (typeof fnSetup === 'function') fnSetup();
+    }
+    
+    // Configurar botón de logout
     const logoutBtn = document.getElementById('logout-super');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
@@ -4362,30 +4391,45 @@ async function cargarProximasCitas() {
 
     // Contar citas reales por día
     let conteo = { hoy: 0, maniana: 0, pasadoManiana: 0 };
+    let citasData = [];
     try {
         const tenantId = await getCurrentTenantId();
+        console.log('[cargarProximasCitas] tenantId obtenido:', tenantId);
         if (tenantId && supabaseClient) {
-            // Obtener citas del rango de 3 días
+            // Obtener las próximas citas (desde hoy en adelante, sin límite de días)
+            const hoyStrQ = formatDateYMD(hoy);
+            console.log('[cargarProximasCitas] Consultando citas desde', hoyStrQ, 'para tenant', tenantId);
             const { data: citas, error } = await supabaseClient
                 .from('citas')
-                .select('fecha')
+                .select('fecha, hora, servicio_id, servicios(nombre)')
                 .eq('tenant_id', tenantId)
-                .gte('fecha', formatDateYMD(hoy))
-                .lte('fecha', formatDateYMD(pasadoManiana));
-            if (!error && citas) {
+                .gte('fecha', hoyStrQ)
+                .order('fecha', { ascending: true })
+                .limit(10);
+            if (error) {
+                console.error('[cargarProximasCitas] Error de Supabase:', error.message, error.details, error.hint);
+                throw error;
+            }
+            citasData = citas || [];
+            if (citasData.length > 0) {
+                console.log('[cargarProximasCitas] Citas encontradas:', citasData.length, citasData);
                 const hoyStr = formatDateYMD(hoy);
                 const manianaStr = formatDateYMD(maniana);
                 const pasadoStr = formatDateYMD(pasadoManiana);
-                citas.forEach(c => {
+                citasData.forEach(c => {
                     const cFecha = c.fecha ? c.fecha.split('T')[0] : '';
                     if (cFecha === hoyStr) conteo.hoy++;
                     else if (cFecha === manianaStr) conteo.maniana++;
                     else if (cFecha === pasadoStr) conteo.pasadoManiana++;
                 });
+            } else {
+                console.log('[cargarProximasCitas] No hay citas futuras');
             }
+        } else {
+            console.warn('[cargarProximasCitas] tenantId o supabaseClient no disponible', { tenantId, supabaseClient: !!supabaseClient });
         }
     } catch (e) {
-        console.warn('cargarProximasCitas: usando datos simulados por fallo de consulta', e);
+        console.warn('[cargarProximasCitas] usando datos simulados por fallo de consulta:', e.message || e);
         const servicios = await ServiciosManager.getAll();
         const totalCitas = servicios.length * 2;
         conteo = {
@@ -4397,6 +4441,31 @@ async function cargarProximasCitas() {
 
     const total = conteo.hoy + conteo.maniana + conteo.pasadoManiana;
     if (total === 0) {
+        // Si no hay citas en los próximos 3 días pero hay citas futuras, mostrar las próximas 3
+        if (citasData && citasData.length > 0) {
+            console.log('[cargarProximasCitas] Sin citas en 3 días pero hay', citasData.length, 'citas futuras. Mostrando las próximas 3.');
+            const proximas = citasData.slice(0, 3);
+            contenedor.innerHTML = `
+                <div class="calendar-days">
+                    ${proximas.map((cita, idx) => {
+                        const fechaCita = new Date(cita.fecha);
+                        const esHoy = formatDateYMD(fechaCita) === formatDateYMD(hoy);
+                        return `
+                            <div class="day ${esHoy ? 'today' : ''}">
+                                <strong>${nombreDia(fechaCita)}</strong>
+                                <div class="day-number">${fechaCita.getDate()}</div>
+                                <div class="appointments-count">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <span>${cita.hora ? cita.hora.substring(0,5) : '—'}</span>
+                                </div>
+                                <span class="day-label">${cita.servicios?.nombre || 'Reserva'}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            return;
+        }
         contenedor.innerHTML = `
             <div class="calendar-days">
                 <div class="day empty">
@@ -5193,12 +5262,90 @@ async function abrirModalEdicionCitaAdmin(citaId) {
 }
 window.abrirModalEdicionCitaAdmin = abrirModalEdicionCitaAdmin;
 
+// ============================================
+// RENDER ADMIN APPOINTMENTS - Versión cards con botones
+// ============================================
 async function renderAdminAppointments() {
-    _renderCitasBase('upcoming-appointments', { 
-        mostrarWhatsApp: true, 
-        mostrarFinalizar: true,
-        mostrarNoAsistio: true,
-        mostrarEditado: true
+    const container = document.getElementById('upcoming-appointments');
+    if (!container) return;
+
+    const todas = await CitasManager.getAll();
+    if (!todas || todas.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#aaa;"><i class="fas fa-calendar-times" style="font-size:48px;display:block;margin-bottom:15px;"></i><p>No hay citas programadas</p></div>';
+        return;
+    }
+
+    let html = '<div class="appointments-list">';
+    todas.slice(0, 50).forEach(c => {
+        const nombre = c.contacto?.nombre || c.nombre || '—';
+        const telefono = c.contacto?.telefono || c.telefonoCliente || '';
+        const servicio = c.nombre || c.servicioNombre || '—';
+        const fechaDisplay = c.fecha ? (() => {
+            try {
+                const parsed = new Date(c.fecha + (c.fecha.includes('T') ? '' : 'T12:00:00'));
+                return parsed.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+            } catch(e) { return c.fecha; }
+        })() : '—';
+        const hora = c.hora || '—';
+        const precio = c.precio ? `$${Number(c.precio).toLocaleString('es-ES')}` : '';
+        const esHoy = c.fecha && new Date(c.fecha.split('T')[0]) <= new Date() && new Date(c.fecha.split('T')[0]) >= new Date(new Date().toDateString());
+        const estadoUrgencia = typeof UrgenciaManager?.calcularEstado === 'function' ? UrgenciaManager.calcularEstado(c.fecha, c.hora) : 'normal';
+
+        html += `
+            <div class="appointment-card ${esHoy ? 'today-card' : ''} ${estadoUrgencia === 'urgent-now' ? 'urgent-now' : ''} ${estadoUrgencia === 'urgent-soon' ? 'urgent-soon' : ''}" data-id="${c.id}">
+                <div class="apt-header">
+                    <strong>${escapeHtml(nombre)}</strong>
+                    <span class="apt-price">${precio}</span>
+                </div>
+                <div class="apt-details">
+                    <span><i class="fas fa-calendar"></i> ${fechaDisplay.charAt(0).toUpperCase() + fechaDisplay.slice(1)}</span>
+                    <span><i class="fas fa-clock"></i> ${hora}</span>
+                    <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
+                </div>
+                <div class="apt-actions">
+                    ${telefono ? `<button class="btn-small btn-whatsapp" data-phone="${escapeHtml(telefono)}" data-nombre="${escapeHtml(nombre)}" data-servicio="${escapeHtml(servicio)}" data-fecha="${escapeHtml(fechaDisplay)}" title="Contactar por WhatsApp"><i class="fab fa-whatsapp"></i></button>` : ''}
+                    <button class="btn-small btn-edit-admin" data-id="${c.id}" title="Editar fecha/hora"><i class="fas fa-pen"></i></button>
+                    <button class="btn-small btn-complete" data-id="${c.id}" title="Marcar como completada (Asistió)"><i class="fas fa-check"></i></button>
+                    <button class="btn-small btn-no-asistio" data-id="${c.id}" title="Marcar como No Asistió"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Event listeners
+    container.querySelectorAll('.btn-whatsapp').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const phone = this.dataset.phone.replace(/[^\d+]/g, '');
+            if (!phone) return;
+            const msg = `Hola ${this.dataset.nombre}, te contacto por tu cita de ${this.dataset.servicio} el ${this.dataset.fecha}`;
+            window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`);
+        });
+    });
+
+    container.querySelectorAll('.btn-edit-admin').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            if (typeof abrirModalEdicionCitaAdmin === 'function') abrirModalEdicionCitaAdmin(id);
+            else mostrarToast('Edición no disponible', 'warning');
+        });
+    });
+
+    container.querySelectorAll('.btn-complete').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            if (typeof finalizarCita === 'function') finalizarCita(id);
+            else mostrarToast('Acción no disponible', 'warning');
+        });
+    });
+
+    container.querySelectorAll('.btn-no-asistio').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            if (typeof noAsistioCita === 'function') noAsistioCita(id);
+            else mostrarToast('Acción no disponible', 'warning');
+        });
     });
 }
 window.renderAdminAppointments = renderAdminAppointments;
