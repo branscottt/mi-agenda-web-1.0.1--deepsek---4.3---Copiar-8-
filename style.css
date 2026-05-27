@@ -5991,3 +5991,195 @@ input:-moz-autofill {
     overflow-x: auto;
     overflow-y: hidden;
 }
+
+/* ===== CITAS PROGRAMADAS - CARDS MODERNAS ===== */
+#appointments-container .appointments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 15px;
+}
+
+#appointments-container .appointment-card {
+    background: linear-gradient(135deg, rgba(30, 30, 50, 0.85), rgba(20, 20, 35, 0.9));
+    border: 1px solid rgba(157, 78, 221, 0.15);
+    border-radius: 14px;
+    padding: 16px 18px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+#appointments-container .appointment-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: 0 4px 4px 0;
+    opacity: 0.6;
+}
+
+#appointments-container .appointment-card:hover {
+    border-color: rgba(157, 78, 221, 0.4);
+    transform: translateX(4px);
+    box-shadow: 0 4px 20px rgba(157, 78, 221, 0.15);
+}
+
+#appointments-container .appointment-card.today-card {
+    border-color: rgba(157, 78, 221, 0.4);
+    background: linear-gradient(135deg, rgba(157, 78, 221, 0.12), rgba(30, 30, 50, 0.85));
+}
+
+#appointments-container .apt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#appointments-container .apt-header strong {
+    font-size: 1.05rem;
+    color: #e0e0e0;
+    font-weight: 600;
+}
+
+#appointments-container .apt-price {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-light);
+    background: rgba(157, 78, 221, 0.15);
+    padding: 2px 12px;
+    border-radius: 20px;
+}
+
+#appointments-container .apt-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: #b0b0c0;
+}
+
+#appointments-container .apt-details span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#appointments-container .apt-details i {
+    color: var(--primary-light);
+    width: 16px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+#appointments-container .apt-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 12px;
+}
+
+#appointments-container .apt-actions .btn-small {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ccc;
+    position: relative;
+}
+
+#appointments-container .apt-actions .btn-small:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#appointments-container .btn-whatsapp {
+    background: rgba(37, 211, 102, 0.15) !important;
+    color: #25d366 !important;
+}
+
+#appointments-container .btn-whatsapp:hover {
+    background: rgba(37, 211, 102, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25) !important;
+}
+
+#appointments-container .btn-edit-admin {
+    background: rgba(255, 193, 7, 0.15) !important;
+    color: #ffc107 !important;
+}
+
+#appointments-container .btn-edit-admin:hover {
+    background: rgba(255, 193, 7, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.25) !important;
+}
+
+#appointments-container .btn-complete {
+    background: rgba(46, 204, 113, 0.15) !important;
+    color: #2ecc71 !important;
+}
+
+#appointments-container .btn-complete:hover {
+    background: rgba(46, 204, 113, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(46, 204, 113, 0.25) !important;
+}
+
+#appointments-container .btn-no-asistio {
+    background: rgba(231, 76, 60, 0.15) !important;
+    color: #e74c3c !important;
+}
+
+#appointments-container .btn-no-asistio:hover {
+    background: rgba(231, 76, 60, 0.3) !important;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.25) !important;
+}
+
+/* Tooltip personalizado para botones de acción */
+#appointments-container .apt-actions .btn-small[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Estado vacío */
+#appointments-container .empty-state {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    margin-top: 15px;
+}
+
+#appointments-container .empty-state i {
+    font-size: 2.5rem;
+    color: rgba(255, 255, 255, 0.15);
+    margin-bottom: 12px;
+}
+
+#appointments-container .empty-state p {
+    color: #777;
+    font-size: 0.95rem;
+}

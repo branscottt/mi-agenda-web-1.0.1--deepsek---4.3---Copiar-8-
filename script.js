@@ -7655,7 +7655,18 @@ function setupSuperAdminTabs() {
             tab.classList.add('active');
             contents.forEach(c => c.style.display = 'none');
             const el = document.getElementById(`tab-${targetId}`);
-            if (el) el.style.display = 'block';
+            if (el) {
+                el.style.display = 'block';
+                // Cargar contenido del tab al hacer clic (lazy-load)
+                try {
+                    if (targetId === 'usuarios') await cargarUsuariosSuper();
+                    else if (targetId === 'servicios') await cargarServiciosGlobales();
+                    else if (targetId === 'citas') await cargarCitasGlobales();
+                    else if (targetId === 'solicitudes') await cargarSolicitudesCSS();
+                } catch(e) {
+                    console.warn(`Error cargando tab ${targetId}:`, e);
+                }
+            }
         });
     });
 }
@@ -7779,8 +7790,18 @@ async function cargarUsuariosSuper() {
     tbody.innerHTML = '<tr><td colspan="5">Cargando...</td></tr>';
     
     try {
-        // Usamos la API unificada de usuarios
-        const users = await window.__usuariosApi.getAll();
+        let users;
+        // Intentar API modular; si no existe, usar supabaseClient directo
+        if (window.__usuariosApi && typeof window.__usuariosApi.getAll === 'function') {
+            users = await window.__usuariosApi.getAll();
+        } else {
+            console.log('[cargarUsuariosSuper] Usando fallback legacy (supabaseClient directo)');
+            const { data, error } = await supabaseClient
+                .from('usuarios_con_rol')
+                .select('*');
+            if (error) throw error;
+            users = data;
+        }
         
         if (!users || users.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados</td></tr>';
@@ -7801,12 +7822,12 @@ async function cargarUsuariosSuper() {
                 <td>${escapeHtml(user.tenant_id || 'N/A')}</td>
                 <td class="action-icons">
                     ${user.rol !== 'super_admin' ? `
-                        <select onchange="cambiarRol('${user.id}', this.value)" class="filter-select" style="padding:4px; width:100px;">
+                        <select onchange="cambiarRolUsuarioDirecto('${user.id}', this.value)" class="filter-select" style="padding:4px; width:100px;">
                             <option value="cliente" ${user.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
                             <option value="admin" ${user.rol === 'admin' ? 'selected' : ''}>Admin</option>
                             <option value="super_admin" ${user.rol === 'super_admin' ? 'selected' : ''}>Super Admin</option>
                         </select>
-                        <button class="btn-small danger" style="margin-left:8px;" onclick="eliminarUsuario('${user.id}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn-small danger" style="margin-left:8px;" onclick="eliminarUsuarioDirecto('${user.id}')"><i class="fas fa-trash"></i></button>
                     ` : '<span>—</span>'}
                 </td>
             </tr>`;
@@ -7848,6 +7869,22 @@ window.cambiarRol = async (userId, nuevoRol) => {
     }
 };
 
+// Fallback: cambiar rol directo con supabaseClient (cuando main.js falla)
+window.cambiarRolUsuarioDirecto = async (userId, nuevoRol) => {
+    try {
+        const { error } = await supabaseClient
+            .from('usuarios_con_rol')
+            .update({ rol: nuevoRol })
+            .eq('id', userId);
+        if (error) throw error;
+        mostrarToast(`Rol cambiado a ${nuevoRol}`, 'success');
+        cargarUsuariosSuper();
+    } catch (e) {
+        console.error('Error cambiando rol:', e);
+        mostrarToast('Error al cambiar rol', 'error');
+    }
+};
+
 async function eliminarUsuario(userId) {
     if (!confirm('¿Eliminar este usuario? Esta acción no se puede deshacer.')) return;
     
@@ -7868,9 +7905,6 @@ async function eliminarUsuario(userId) {
 }
 window.eliminarUsuario = async (userId) => {
     if (!confirm('¿Eliminar este usuario permanentemente?')) return;
-    // Opción 1: si usas auth.admin (requiere service_role key)
-    // const { error } = await supabaseClient.auth.admin.deleteUser(userId);
-    // Opción 2: eliminar via API de usuarios (vista usuarios_con_rol)
     const { error } = await window.__usuariosApi.delete(userId);
     if (error) {
         mostrarToast('Error al eliminar usuario: ' + error.message, 'error');
@@ -7878,6 +7912,24 @@ window.eliminarUsuario = async (userId) => {
         mostrarToast('Usuario eliminado', 'success');
         cargarUsuarios();
         cargarEstadisticasGlobales();
+    }
+};
+
+// Fallback: eliminar usuario directo con supabaseClient
+window.eliminarUsuarioDirecto = async (userId) => {
+    if (!confirm('¿Eliminar este usuario permanentemente?')) return;
+    try {
+        const { error } = await supabaseClient
+            .from('usuarios_con_rol')
+            .delete()
+            .eq('id', userId);
+        if (error) throw error;
+        mostrarToast('Usuario eliminado', 'success');
+        cargarUsuariosSuper();
+        cargarEstadisticasGlobales();
+    } catch (e) {
+        console.error('Error eliminando usuario:', e);
+        mostrarToast('Error al eliminar usuario', 'error');
     }
 };
 // --- Servicios globales (solo lectura) ---
@@ -7888,7 +7940,17 @@ async function cargarServiciosGlobales() {
     container.innerHTML = '<p>Cargando servicios...</p>';
     
     try {
-        const servicios = await window.__serviciosApi.getAll();
+        let servicios;
+        if (window.__serviciosApi && typeof window.__serviciosApi.getAll === 'function') {
+            servicios = await window.__serviciosApi.getAll();
+        } else {
+            console.log('[cargarServiciosGlobales] Usando fallback legacy');
+            const { data, error } = await supabaseClient
+                .from('servicios')
+                .select('*, tenants:tenant_id(nombre_negocio)');
+            if (error) throw error;
+            servicios = data;
+        }
         
         if (!servicios || servicios.length === 0) {
             container.innerHTML = '<p>No hay servicios registrados</p>';
@@ -7923,7 +7985,17 @@ async function cargarCitasGlobales() {
     tbody.innerHTML = '<tr><td colspan="6">Cargando citas...</td></tr>';
     
     try {
-        const citas = await window.__appointmentsApi.getAllCitas();
+        let citas;
+        if (window.__appointmentsApi && typeof window.__appointmentsApi.getAllCitas === 'function') {
+            citas = await window.__appointmentsApi.getAllCitas();
+        } else {
+            console.log('[cargarCitasGlobales] Usando fallback legacy');
+            const { data, error } = await supabaseClient
+                .from('citas')
+                .select('*, tenants:tenant_id(nombre_negocio), servicios:servicio_id(nombre)');
+            if (error) throw error;
+            citas = data;
+        }
         
         if (!citas || citas.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6">No hay citas registradas</td></tr>';
@@ -7958,7 +8030,19 @@ async function cargarSolicitudesCSS() {
     if (!container) return;
     container.innerHTML = '<p>Cargando solicitudes...</p>';
     try {
-        const data = await window.__notificacionesApi.getAll();
+        let data;
+        if (window.__notificacionesApi && typeof window.__notificacionesApi.getAll === 'function') {
+            data = await window.__notificacionesApi.getAll();
+        } else {
+            console.log('[cargarSolicitudesCSS] Usando fallback legacy');
+            const { data: notifs, error } = await supabaseClient
+                .from('notificaciones_admin')
+                .select('*, tenants:tenant_id(nombre_negocio)')
+                .order('creado_en', { ascending: false })
+                .limit(50);
+            if (error) throw error;
+            data = notifs;
+        }
         if (!data || data.length === 0) {
             container.innerHTML = '<p>No hay solicitudes pendientes.</p>';
             return;
@@ -7990,11 +8074,21 @@ async function cargarSolicitudesCSS() {
         document.querySelectorAll('.descartar-solicitud').forEach(btn => {
             btn.addEventListener('click', async () => {
                 if (confirm('¿Descartar esta solicitud?')) {
-                    const { error } = await window.__notificacionesApi.delete(btn.dataset.id);
-                    if (error) mostrarToast('Error al descartar', 'error');
-                    else {
+                    try {
+                        if (window.__notificacionesApi && typeof window.__notificacionesApi.delete === 'function') {
+                            const { error } = await window.__notificacionesApi.delete(btn.dataset.id);
+                            if (error) throw error;
+                        } else {
+                            const { error } = await supabaseClient
+                                .from('notificaciones_admin')
+                                .delete()
+                                .eq('id', btn.dataset.id);
+                            if (error) throw error;
+                        }
                         mostrarToast('Solicitud descartada', 'success');
                         cargarSolicitudesCSS();
+                    } catch(e) {
+                        mostrarToast('Error al descartar', 'error');
                     }
                 }
             });
