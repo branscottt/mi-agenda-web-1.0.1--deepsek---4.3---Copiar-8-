@@ -82,7 +82,8 @@ async function getCurrentTenantId() {
             console.error('Supabase no inicializado');
             return null;
         }
-        const { data: { session } } = JwtManager.getSession();
+        const result = JwtManager.getSession();
+        const session = result?.data?.session || null;
         if (!session) return null;
         
         const tenantId = session.user?.user_metadata?.tenant_id;
@@ -1552,7 +1553,7 @@ const planesData = {
     },
     pro: { 
         nombre: 'Pro', 
-        precio: '$5.000', 
+        precio: '$15.000', 
         periodo: '/mes', 
         features: ['Servicios ilimitados', 'Citas ilimitadas', 'Estadísticas avanzadas', 'Soporte prioritario'], 
         color: '#b300ff',
@@ -1560,7 +1561,7 @@ const planesData = {
     },
     premium_anual: { 
         nombre: 'Premium', 
-        precio: '$36.000', 
+        precio: '$140.000', 
         periodo: '/año', 
         features: ['Todo lo de Pro', 'Personalización de diseño (admin y cliente)', 'Onboarding dedicado', 'SLA 99.9%'], 
         color: '#ffd700',
@@ -3196,6 +3197,9 @@ async function iniciarSuperAdmin() {
         await cargarMetricasGlobales();
         const fnSetup = window.setupSuperAdminTabs || setupSuperAdminTabs;
         if (typeof fnSetup === 'function') fnSetup();
+        
+        // Configurar botones del modal de tenant
+        configurarModalTenant();
     }
     
     // Configurar botón de logout
@@ -3472,74 +3476,130 @@ function renderUsuarios(users) {
     tbody.innerHTML = html;
 }
 
-// Configurar modal para crear/editar tenant
+// ============================================
+// CONFIGURACIÓN MODAL TENANT - VERSIÓN CORREGIDA
+// ============================================
 let modalTenantInitialized = false;
 
 function configurarModalTenant() {
-    if (modalTenantInitialized) return;
-    modalTenantInitialized = true;
-    
     const modal = document.getElementById('tenant-modal');
-    const closeBtn = document.querySelector('.modal-close');
+    if (!modal) {
+        console.warn('[configurarModalTenant] Modal no encontrado');
+        return;
+    }
+
+    const closeBtn = modal.querySelector('.modal-close');
     const cancelBtn = document.getElementById('cancel-modal');
     const form = document.getElementById('tenant-form');
     const btnNew = document.getElementById('btn-new-tenant');
-    
-    if (!modal || !form) return;
-    
-    const abrirModal = (titulo, tenant = null) => {
-        document.getElementById('modal-title').textContent = titulo;
-        document.getElementById('tenant-id').value = tenant?.id || '';
-        document.getElementById('tenant-nombre').value = tenant?.nombre_negocio || '';
-        document.getElementById('tenant-email').value = tenant?.email_contacto || '';
-        document.getElementById('tenant-plan').value = tenant?.plan || 'freemium';
-        document.getElementById('tenant-estado').value = tenant?.estado || 'activo';
-        modal.style.display = 'flex';
-    };
-    
+
+    // Función de cierre (única, reutilizable)
     const cerrarModal = () => {
         modal.style.display = 'none';
-        form.reset();
+        if (form) form.reset();
     };
-    
-    if (btnNew) btnNew.addEventListener('click', () => abrirModal('Nuevo Tenant'));
-    if (closeBtn) closeBtn.addEventListener('click', cerrarModal);
-    if (cancelBtn) cancelBtn.addEventListener('click', cerrarModal);
-    
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const id = document.getElementById('tenant-id').value;
-        const data = {
-            nombre_negocio: document.getElementById('tenant-nombre').value,
-            email_contacto: document.getElementById('tenant-email').value,
-            plan: document.getElementById('tenant-plan').value,
-            estado: document.getElementById('tenant-estado').value
+
+    // Eliminar eventos antiguos para evitar duplicados
+    const removeOldEvents = (element, eventType) => {
+        if (element && element._listener) {
+            element.removeEventListener(eventType, element._listener);
+            delete element._listener;
+        }
+    };
+
+    removeOldEvents(closeBtn, 'click');
+    removeOldEvents(cancelBtn, 'click');
+
+    // Asignar nuevos eventos con handler guardado
+    if (closeBtn) {
+        closeBtn._listener = cerrarModal;
+        closeBtn.addEventListener('click', closeBtn._listener);
+    }
+    if (cancelBtn) {
+        cancelBtn._listener = cerrarModal;
+        cancelBtn.addEventListener('click', cancelBtn._listener);
+    }
+
+    // Abrir modal para nuevo tenant
+    if (btnNew && !btnNew._listener) {
+        const abrirNuevo = () => {
+            document.getElementById('modal-title').textContent = 'Nuevo Tenant';
+            document.getElementById('tenant-id').value = '';
+            document.getElementById('tenant-nombre').value = '';
+            document.getElementById('tenant-email').value = '';
+            document.getElementById('tenant-plan').value = 'freemium';
+            document.getElementById('tenant-estado').value = 'activo';
+            modal.style.display = 'flex';
         };
-        
-        let result;
-        if (id) {
-            result = await window.__tenantsApi.update(id, data);
-        } else {
-            data.fecha_registro = new Date().toISOString();
-            result = await window.__tenantsApi.create(data);
-        }
-        
-        if (result.error) {
-            mostrarToast('Error: ' + result.error.message, 'error');
-        } else {
-            mostrarToast(id ? 'Tenant actualizado' : 'Tenant creado', 'success');
-            cerrarModal();
-            await cargarTenants();
-            await cargarUsuarios();
-            await cargarEstadisticasGlobales();
-        }
-    });
+        btnNew._listener = abrirNuevo;
+        btnNew.addEventListener('click', btnNew._listener);
+    }
+
+    // Manejo del formulario (crear/editar)
+    if (form && !form._listener) {
+        form._listener = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('tenant-id').value;
+            const data = {
+                nombre_negocio: document.getElementById('tenant-nombre').value,
+                email_contacto: document.getElementById('tenant-email').value,
+                plan: document.getElementById('tenant-plan').value,
+                estado: document.getElementById('tenant-estado').value
+            };
+
+            let result;
+            if (id) {
+                if (window.__tenantsApi?.update) {
+                    result = await window.__tenantsApi.update(id, data);
+                } else {
+                    const { error } = await supabaseClient
+                        .from('tenants')
+                        .update(data)
+                        .eq('id', id);
+                    result = error ? { error } : { data: true };
+                }
+            } else {
+                data.fecha_registro = new Date().toISOString();
+                if (window.__tenantsApi?.create) {
+                    result = await window.__tenantsApi.create(data);
+                } else {
+                    const { error } = await supabaseClient
+                        .from('tenants')
+                        .insert(data);
+                    result = error ? { error } : { data: true };
+                }
+            }
+
+            if (result.error) {
+                mostrarToast('Error: ' + result.error.message, 'error');
+            } else {
+                mostrarToast(id ? 'Tenant actualizado' : 'Tenant creado', 'success');
+                cerrarModal();
+                if (typeof cargarTenants === 'function') await cargarTenants();
+                if (typeof cargarUsuarios === 'function') await cargarUsuarios();
+                if (typeof cargarEstadisticasGlobales === 'function') await cargarEstadisticasGlobales();
+            }
+        };
+        form.addEventListener('submit', form._listener);
+    }
+
+    modalTenantInitialized = true;
 }
 
 async function editarTenant(id) {
     let data;
     try {
-        data = await window.__tenantsApi.getById(id);
+        if (window.__tenantsApi?.getById) {
+            data = await window.__tenantsApi.getById(id);
+        } else {
+            const { data: result, error } = await supabaseClient
+                .from('tenants')
+                .select('*')
+                .eq('id', id)
+                .single();
+            if (error) throw error;
+            data = result;
+        }
     } catch (e) {
         mostrarToast('Error cargando tenant: ' + e.message, 'error');
         return;
@@ -3559,7 +3619,17 @@ async function editarTenant(id) {
 
 async function eliminarTenant(id) {
     if (!confirm('¿Eliminar este tenant? Se perderán todos sus servicios y citas.')) return;
-    const { error } = await window.__tenantsApi.delete(id);
+    let error;
+    if (window.__tenantsApi?.delete) {
+        const result = await window.__tenantsApi.delete(id);
+        error = result.error;
+    } else {
+        const result = await supabaseClient
+            .from('tenants')
+            .delete()
+            .eq('id', id);
+        error = result.error;
+    }
     if (error) {
         mostrarToast('Error: ' + error.message, 'error');
     } else {
