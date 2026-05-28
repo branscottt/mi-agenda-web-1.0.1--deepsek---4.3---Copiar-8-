@@ -1572,24 +1572,43 @@ async function cargarPlanes() {
     const container = document.getElementById('planes-container');
     if (!container) return;
 
+    // Esperar a que supabaseClient esté listo
+    if (!supabaseClient) {
+        await initSupabase();
+    }
+
     // Obtener parámetros de URL
     const urlParams = new URLSearchParams(window.location.search);
     const isNewAdmin = urlParams.get('new') === 'true';
     const tenantIdFromUrl = urlParams.get('tenant_id');
 
-    // Obtener sesión y determinar si es super_admin
-    const { data: { session } } = JwtManager.getSession();
-    let rol = session?.user?.user_metadata?.rol;
-    let tenantId = session?.user?.user_metadata?.tenant_id;
+    // Obtener sesión usando JwtManager o fallback
+    let session = null;
+    let rol = null;
+    let tenantId = null;
     let suscripcionActual = null;
-    const esSuperAdmin = (rol === 'super_admin');
+    const esSuperAdmin = false;
+
+    try {
+        const result = JwtManager.getSession();
+        session = result?.data?.session || null;
+        if (session) {
+            rol = session.user?.user_metadata?.rol;
+            tenantId = session.user?.user_metadata?.tenant_id;
+        }
+    } catch (e) {
+        console.warn('[cargarPlanes] Error obteniendo sesión:', e.message);
+    }
 
     // Para un nuevo admin que viene del registro, usar tenant_id de URL
     if (isNewAdmin && tenantIdFromUrl && !session) {
         tenantId = tenantIdFromUrl;
-        // No hay suscripción actual
     } else if (rol === 'admin' && tenantId) {
-        suscripcionActual = await SuscripcionManager.getCurrent();
+        try {
+            suscripcionActual = await SuscripcionManager.getCurrent();
+        } catch (e) {
+            console.warn('[cargarPlanes] Error obteniendo suscripción:', e.message);
+        }
     }
 
     let html = '<div class="stats-container" style="grid-template-columns: repeat(3,1fr); gap: 25px;">';
@@ -1619,15 +1638,13 @@ async function cargarPlanes() {
         btn.addEventListener('click', async (e) => {
             const planKey = btn.dataset.plan;
             if (isNewAdmin && tenantIdFromUrl) {
-                // Nuevo admin viniendo de registro: crear suscripción inicial
                 await crearSuscripcionInicial(planKey, tenantIdFromUrl);
-            } else if (!suscripcionActual && rol === 'admin') {
-                // Admin sin suscripción: crear como si fuera primera vez
-                // Usar tenant_id de la sesión
+            } else if (!suscripcionActual && rol === 'admin' && tenantId) {
                 await crearSuscripcionInicial(planKey, tenantId);
-            } else {
-                // Admin con suscripción existente: cambiar de plan
+            } else if (suscripcionActual || rol === 'admin') {
                 await solicitarCambioPlan(planKey);
+            } else {
+                mostrarToast('Debes iniciar sesión como administrador para seleccionar un plan', 'warning');
             }
         });
     });
@@ -2183,9 +2200,17 @@ window.noAsistioCita = noAsistioCita;
 // ============================================
 // RENDERIZADO DE NOTIFICACIONES (modificado para async)
 // ============================================
-async function renderNotificaciones(lista) {
-    const container = document.getElementById('notifications-list');
-    if (!container) return;
+async function renderNotificaciones(lista, containerId) {
+    // Usar el contenedor del popover por defecto, o el que se pase
+    const targetId = containerId || 'notif-popover-list';
+    const container = document.getElementById(targetId);
+    if (!container) {
+        // Fallback: intentar con el notifications-list legacy
+        const legacy = document.getElementById('notifications-list');
+        if (legacy) return renderNotificaciones(lista, 'notifications-list');
+        console.warn('[renderNotificaciones] No hay contenedor disponible');
+        return;
+    }
 
     const notifsAdmin = await NotificacionesAdminManager.getAll();
     const noLeidas = notifsAdmin.filter(n => !n.leido);
@@ -2223,7 +2248,7 @@ async function renderNotificaciones(lista) {
             const waLink = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensajeWhatsApp}`;
 
             html += `
-                <div class="notification-item ${claseTipo}" data-cita-id="${item.id}" data-origen="reserva">
+                <div class="notification-item ${claseTipo} ${item.tipo === 'nueva' ? 'notif-email' : 'notif-whatsapp'}" data-cita-id="${item.id}" data-origen="reserva">
                     <div class="notification-info">
                         <strong>${tipoTexto}</strong>
                         <span>${nombre} - ${servicio} - ${fecha} ${hora}</span>
@@ -2234,7 +2259,37 @@ async function renderNotificaciones(lista) {
                     </div>
                 </div>
             `;
+        } else if (item.tipo === 'nueva_reserva') {
+            const cliente = item.cliente || {};
+            const nombre = cliente.nombre || 'Cliente';
+            const telefono = cliente.telefono || '';
+            const email = cliente.email || '';
+            const meta = item.metadata || {};
+            const servicio = meta.servicio || 'Servicio';
+            const fecha = meta.fecha || item.fecha_original || '—';
+            const hora = meta.hora || item.hora_original || '—';
+
+            const asuntoEmail = encodeURIComponent(`Confirmación de reserva: ${servicio}`);
+            const cuerpoEmail = encodeURIComponent(`Hola ${nombre},\n\nTe confirmamos tu reserva para ${servicio} el ${fecha} a las ${hora}.\n\nGracias.`);
+            const mailtoLink = `mailto:${email}?subject=${asuntoEmail}&body=${cuerpoEmail}`;
+
+            const mensajeWhatsApp = encodeURIComponent(`Hola ${nombre}, recordatorio: tienes una cita de ${servicio} el ${fecha} a las ${hora}.`);
+            const waLink = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensajeWhatsApp}`;
+
+            html += `
+                <div class="notification-item new-reservation notif-email" data-notif-id="${item.id}" data-origen="reserva">
+                    <div class="notification-info">
+                        <strong>🆕 Nueva reserva</strong>
+                        <span>${nombre} - ${servicio} - ${fecha} ${hora}</span>
+                    </div>
+                    <div class="notification-actions">
+                        ${email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
+                        ${telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                    </div>
+                </div>
+            `;
         } else {
+            // Cambio admin
             const cliente = item.cliente || {};
             const nombre = cliente.nombre || 'Cliente';
             const telefono = cliente.telefono || '';
@@ -2271,10 +2326,32 @@ async function renderNotificaciones(lista) {
     });
 
     container.innerHTML = html;
+
+    // También actualizar el popover de notificaciones si existe
+    const popoverList = document.getElementById('notif-popover-list');
+    if (popoverList) {
+        popoverList.innerHTML = html;
+    }
+    
+    // Actualizar badge del popover
+    const badge = document.getElementById('notif-badge-count');
+    if (badge) {
+        const noLeidas = todas.filter(n => !n.leido).length;
+        const cantidad = noLeidas || todas.filter(n => n.tipoOrigen === 'reserva').length;
+        if (cantidad > 0) {
+            badge.textContent = cantidad;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
 }
 
 function setupNotificacionesListeners() {
-    const container = document.getElementById('notifications-list');
+    // Intentar el contenedor del popover (actual)
+    let container = document.getElementById('notif-popover-list');
+    // Fallback al legacy
+    if (!container) container = document.getElementById('notifications-list');
     if (!container) return;
     
     container.addEventListener('click', async function(e) {
@@ -2292,6 +2369,7 @@ function setupNotificacionesListeners() {
         const tipo = btn.dataset.tipo;
         
         if (origen === 'reserva' && citaId) {
+            // Notificación de cita desde tabla citas
             let citas = await CitasManager.getAll();
             const citaIndex = citas.findIndex(c => String(c.id) === String(citaId));
             if (citaIndex === -1) return;
@@ -2313,6 +2391,16 @@ function setupNotificacionesListeners() {
             citas[citaIndex] = cita;
             await CitasManager.upsert(cita);
             
+        } else if (origen === 'reserva' && notifId) {
+            // Notificación de nueva_reserva desde tabla notificaciones_admin
+            try {
+                await supabaseClient
+                    .from('notificaciones_admin')
+                    .update({ leido: true })
+                    .eq('id', notifId);
+            } catch (e) {
+                console.error('Error marcando notificación como leída:', e);
+            }
         } else if (origen === 'cambio' && notifId) {
             await NotificacionesAdminManager.marcarComoLeido(notifId);
             
@@ -3615,7 +3703,11 @@ async function cargarServiciosExistentes() {
             const btn = document.getElementById('create-first-service');
             if (btn) {
                 btn.addEventListener('click', function() {
-                    document.getElementById('service-form').scrollIntoView({ behavior: 'smooth' });
+                    if (typeof navigateTo === 'function') {
+                        navigateTo('crear-servicio');
+                    } else {
+                        document.getElementById('service-form').scrollIntoView({ behavior: 'smooth' });
+                    }
                 });
             }
         }, 100);
@@ -3871,8 +3963,12 @@ async function cargarServiciosExistentes() {
     const btnPrimerServicio = document.getElementById('create-first-service');
     if (btnPrimerServicio) {
         btnPrimerServicio.addEventListener('click', function() {
-            document.getElementById('srv-name').focus();
-            document.querySelector('.admin-panel').scrollIntoView({ behavior: 'smooth' });
+            if (typeof navigateTo === 'function') {
+                navigateTo('crear-servicio');
+            } else {
+                document.getElementById('srv-name').focus();
+                document.querySelector('.admin-panel').scrollIntoView({ behavior: 'smooth' });
+            }
         });
     }
 }
@@ -4334,21 +4430,24 @@ function configurarContadorCaracteres() {
 window.configurarContadorCaracteres = configurarContadorCaracteres;
 
 function configurarBotonesEspeciales() {
-    const btnPrimerServicio = document.getElementById('create-first-service');
+const btnPrimerServicio = document.getElementById('create-first-service');
     if (btnPrimerServicio) {
         btnPrimerServicio.addEventListener('click', function() {
-            const formulario = document.getElementById('service-form');
-            if (formulario) {
-                formulario.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'start' 
-                });
-                formulario.style.boxShadow = '0 0 30px rgba(157, 78, 221, 0.5)';
-                formulario.style.transition = 'box-shadow 0.5s';
-                setTimeout(() => {
-                    formulario.style.boxShadow = '';
-                }, 2000);
-                mostrarMensaje("¡Completa el formulario para crear tu primer servicio!", "info");
+            if (typeof navigateTo === 'function') {
+                navigateTo('crear-servicio');
+            } else {
+                const formulario = document.getElementById('service-form');
+                if (formulario) {
+                    formulario.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                    formulario.style.boxShadow = '0 0 30px rgba(157, 78, 221, 0.5)';
+                    formulario.style.transition = 'box-shadow 0.5s';
+                    setTimeout(() => {
+                        formulario.style.boxShadow = 'none';
+                    }, 2000);
+                }
             }
         });
     }
@@ -6420,10 +6519,40 @@ async function confirmarReserva(e) {
     };
     cita.telefonoCliente = cita.contacto.telefono || '';
 
-    await CitasManager.upsert(cita, window.currentTenantId);
+await CitasManager.upsert(cita, window.currentTenantId);
 
-    if(typeof renderCarrito === 'function') renderCarrito();
-
+    // Insertar notificación admin para nueva reserva
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (tenantId) {
+            const notifId = 'notif-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+            const { error: notifError } = await supabaseClient
+                .from('notificaciones_admin')
+                .insert({
+                    id: notifId,
+                    tenant_id: tenantId,
+                    tipo: 'nueva_reserva',
+                    cita_id: cita.id,
+                    fecha_original: null,
+                    hora_original: null,
+                    fecha_nueva: null,
+                    hora_nueva: null,
+                    cliente: cita.contacto || {},
+                    leido: false,
+                    creado_en: new Date().toISOString(),
+                    metadata: {
+                        servicio: cita.nombre || '',
+                        fecha: cita.fecha || '',
+                        hora: cita.hora || '',
+                        precio: cita.precio || 0
+                    }
+                });
+            if (notifError) console.error('Error creando notificación admin:', notifError);
+        }
+    } catch (e) {
+        console.error('Error al crear notificación admin:', e);
+    }
+    
     servicio.disponibilidad[fecha][moduloIndex].cupos = Math.max(0, cuposActuales - 1);
 
     let anyRemaining = false;
