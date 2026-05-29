@@ -390,6 +390,7 @@
                                 </div>
                             </div>
                             <div class="form-actions">
+                                <button type="button" class="btn-secondary" onclick="mostrarVistaPrevia()"><i class="fas fa-eye"></i> Vista previa</button>
                                 <button type="reset" class="btn-secondary" id="reset-form"><i class="fas fa-broom"></i> Limpiar formulario</button>
                                 <button type="submit" class="btn-grad"><i class="fas fa-plus-circle"></i> CREAR SERVICIO</button>
                             </div>
@@ -414,6 +415,25 @@
                                 </div>
                                 <div class="selected-dates-preview" id="selected-dates-preview">
                                     <p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>
+                                </div>
+                                                                <!-- Mejora #4: Selección por rango de fechas + días de semana -->
+                                <div class="range-selector" style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                                    <div style="font-size: 0.9rem; color: #aaa; margin-bottom: 6px;">Generar fechas por rango</div>
+                                    <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                                        <input type="date" id="range-start" style="flex:1; min-width:120px; padding:6px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(255,255,255,0.06); border-radius:6px;">
+                                        <span style="color:#666;">a</span>
+                                        <input type="date" id="range-end" style="flex:1; min-width:120px; padding:6px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(255,255,255,0.06); border-radius:6px;">
+                                    </div>
+                                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="1"> Lun</label>
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="2"> Mar</label>
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="3"> Mié</label>
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="4"> Jue</label>
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="5"> Vie</label>
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="6"> Sáb</label>
+                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="0"> Dom</label>
+                                    </div>
+                                    <button type="button" class="btn-small" onclick="generarFechasPorRango()" style="margin-top:6px; width:100%;"><i class="fas fa-calendar-plus"></i> Generar fechas</button>
                                 </div>
                                 <div class="date-options">
                                     <button type="button" class="btn-small" id="clear-all-dates"><i class="fas fa-trash-alt"></i> Limpiar todas</button>

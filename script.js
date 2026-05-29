@@ -3686,7 +3686,14 @@ async function crearServicio() {
         return;
     }
 
-    const duracion = serviceModules.length > 0 ? serviceModules[0].duration : 60;
+    // Leer duración: si existe input srv-duration, usarlo; si no, inferir del primer módulo
+    let duracion = getServiceDuration();
+    const durInput = document.getElementById('srv-duration');
+    if (durInput && durInput.value && Number(durInput.value) > 0) {
+        duracion = Number(durInput.value);
+    } else if (serviceModules.length > 0) {
+        duracion = serviceModules[0].duration || 60;
+    }
 
     const disponibilidad = buildDisponibilidadFromForm();
 
@@ -4014,6 +4021,9 @@ async function cargarServiciosExistentes() {
                     <button class="btn-secondary btn-small" onclick="editarServicio(${servicio.id})">
                         <i class="fas fa-edit"></i> Editar
                     </button>
+                    <button class="btn-small" onclick="duplicarServicio(${servicio.id})" title="Duplicar servicio">
+                        <i class="fas fa-copy"></i>
+                    </button>
                     <button class="btn-small danger" onclick="eliminarServicio(${servicio.id})">
                         <i class="fas fa-trash"></i> Eliminar
                     </button>
@@ -4211,7 +4221,14 @@ async function actualizarServicio(id) {
         return;
     }
 
-    const duracion = serviceModules.length > 0 ? serviceModules[0].duration : 60;
+    // Mejora #5: duración desde input si existe
+    let duracion = getServiceDuration();
+    const durInput = document.getElementById('srv-duration');
+    if (durInput && durInput.value && Number(durInput.value) > 0) {
+        duracion = Number(durInput.value);
+    } else if (serviceModules.length > 0) {
+        duracion = serviceModules[0].duration || 60;
+    }
 
     const disponibilidadNueva = buildDisponibilidadFromForm();
 
@@ -5065,6 +5082,41 @@ function updateDurationDisplay() {
 }
 window.updateDurationDisplay = updateDurationDisplay;
 
+/**
+ * Calcula hora fin a partir de hora inicio + duración en minutos
+ * @param {string} horaInicio - "HH:MM"
+ * @param {number} duracionMin - minutos de duración
+ * @returns {string} "HH:MM"
+ */
+function calcularFinModulo(horaInicio, duracionMin) {
+    if (!horaInicio || !duracionMin) return horaInicio;
+    const [h, m] = horaInicio.split(':').map(Number);
+    const total = h * 60 + m + Number(duracionMin);
+    const finH = Math.floor(total / 60) % 24;
+    const finM = total % 60;
+    return String(finH).padStart(2, '0') + ':' + String(finM).padStart(2, '0');
+}
+
+/**
+ * Verifica si dos rangos horarios se solapan
+ * @param {string} s1 - inicio rango 1 "HH:MM"
+ * @param {string} e1 - fin rango 1 "HH:MM"  
+ * @param {string} s2 - inicio rango 2 "HH:MM"
+ * @param {string} e2 - fin rango 2 "HH:MM"
+ * @returns {boolean} true si solapan
+ */
+function horariosSolapan(s1, e1, s2, e2) {
+    const a = s1.split(':').map(Number);
+    const b = e1.split(':').map(Number);
+    const c = s2.split(':').map(Number);
+    const d = e2.split(':').map(Number);
+    const start1 = a[0]*60 + a[1];
+    const end1 = b[0]*60 + b[1];
+    const start2 = c[0]*60 + c[1];
+    const end2 = d[0]*60 + d[1];
+    return start1 < end2 && start2 < end1;
+}
+
 function addModule() {
     const startTime = document.getElementById('module-start-time')?.value;
     const endTime = document.getElementById('module-end-time')?.value;
@@ -5086,6 +5138,20 @@ function addModule() {
             return;
         }
     }
+
+    // --- Validación de solapamiento (Mejora #2) ---
+    for (const mod of serviceModules) {
+        // Calcular endTime del módulo existente a partir de su hora + duración
+        const modEndTime = calcularFinModulo(mod.hora, mod.duration);
+        if (horariosSolapan(startTime, endTime, mod.hora, modEndTime)) {
+            mostrarMensaje(
+                `El horario ${startTime}-${endTime} se solapa con ${mod.hora}-${modEndTime}. Ajusta los horarios.`,
+                "error"
+            );
+            return;
+        }
+    }
+    // ------------------------------------------------
 
     const duration = updateDurationDisplay();
 
@@ -5145,15 +5211,35 @@ function renderModulesList() {
         if (fechas.length > 0) {
             fechas.forEach(fecha => {
                 const val = (moduleDateCupos[fecha] && typeof moduleDateCupos[fecha][module.hora] !== 'undefined') ? moduleDateCupos[fecha][module.hora] : (typeof module.cupos !== 'undefined' ? module.cupos : 0);
-                html += `<div class="col-date"><input type="number" min="0" class="module-cupos-input" data-fecha="${fecha}" data-hora="${module.hora}" value="${val}"></div>`;
+                // Mejora #10: celda con input + botón X
+                html += `<div class="col-date cupo-cell">
+                    <input type="number" min="0" class="module-cupos-input" data-fecha="${fecha}" data-hora="${module.hora}" value="${val}">
+                    <button class="btn-disable-cupo" onclick="deshabilitarCupo('${fecha}','${module.hora}')" title="Deshabilitar este horario en esta fecha">×</button>
+                </div>`;
             });
+            // Mejora #3: botón "Aplicar cupo a todas las fechas"
+            html += `<div class="col-actions">
+                <button class="btn-apply-cupo" onclick="aplicarCupoAFechas('${module.hora}')" title="Aplicar mismo cupo a todas las fechas">↕</button>
+                <button class="btn-remove-module" onclick="removeModule('${module.id}')" title="Eliminar horario"><i class="fas fa-times"></i></button>
+            </div>`;
         } else {
             const val = (typeof module.cupos !== 'undefined' ? module.cupos : 0);
             html += `<div class="col-date"><input type="number" min="0" class="module-cupos-input template-cupos-input" data-hora="${module.hora}" data-module-id="${module.id}" value="${val}"></div>`;
+            html += `<div class="col-actions"><button class="btn-remove-module" onclick="removeModule('${module.id}')" title="Eliminar horario"><i class="fas fa-times"></i></button></div>`;
         }
-        html += `<div class="col-actions"><button class="btn-remove-module" onclick="removeModule('${module.id}')" title="Eliminar horario"><i class="fas fa-times"></i></button></div>`;
         html += '</div>';
     });
+
+    // Mejora #3: fila de botones por columna (por fecha)
+    if (fechas.length > 0) {
+        html += '<div class="modules-table-row modules-table-row--actions">';
+        html += '<div class="col-hour"><small>Acción</small></div>';
+        fechas.forEach(fecha => {
+            html += `<div class="col-date"><button class="btn-apply-cupo-date" onclick="aplicarCupoAHorarios('${fecha}')" title="Aplicar mismo cupo a todos los horarios en ${fecha}">↓ ${fecha}</button></div>`;
+        });
+        html += '<div class="col-actions"></div>';
+        html += '</div>';
+    }
 
     html += '</div>';
     modulesList.innerHTML = html;
@@ -5178,6 +5264,234 @@ function renderModulesList() {
     });
 }
 window.renderModulesList = renderModulesList;
+
+
+// ============================================
+// Mejora #3 – Cupo masivo por horario
+// ============================================
+function aplicarCupoAFechas(hora) {
+    const cupoStr = prompt('Ingresa el cupo deseado para el horario ' + hora + ' en todas las fechas:');
+    if (cupoStr === null) return;
+    const cupo = parseInt(cupoStr);
+    if (isNaN(cupo) || cupo < 0) { mostrarMensaje('Ingresa un número válido', 'warning'); return; }
+    const fechas = Array.from(selectedDates);
+    fechas.forEach(f => {
+        moduleDateCupos[f] = moduleDateCupos[f] || {};
+        moduleDateCupos[f][hora] = cupo;
+    });
+    renderModulesList();
+    mostrarMensaje(`Cupo ${cupo} aplicado a todas las fechas para las ${hora}`, 'success');
+}
+window.aplicarCupoAFechas = aplicarCupoAFechas;
+
+// ============================================
+// Mejora #3 – Cupo masivo por fecha
+// ============================================
+function aplicarCupoAHorarios(fecha) {
+    const cupoStr = prompt('Ingresa el cupo deseado para todos los horarios en ' + fecha + ':');
+    if (cupoStr === null) return;
+    const cupo = parseInt(cupoStr);
+    if (isNaN(cupo) || cupo < 0) { mostrarMensaje('Ingresa un número válido', 'warning'); return; }
+    moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
+    serviceModules.forEach(mod => {
+        moduleDateCupos[fecha][mod.hora] = cupo;
+    });
+    renderModulesList();
+    mostrarMensaje(`Cupo ${cupo} aplicado a todos los horarios en ${fecha}`, 'success');
+}
+window.aplicarCupoAHorarios = aplicarCupoAHorarios;
+
+// ============================================
+// Mejora #10 – Deshabilitar un horario en una fecha específica
+// ============================================
+function deshabilitarCupo(fecha, hora) {
+    moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
+    moduleDateCupos[fecha][hora] = 0;
+    renderModulesList();
+    mostrarMensaje(`Horario ${hora} deshabilitado en ${fecha} (cupo=0)`, 'info');
+}
+window.deshabilitarCupo = deshabilitarCupo;
+
+// ============================================
+// Mejora #4 – Generar fechas por rango
+// ============================================
+function generarFechasPorRango() {
+    const fechaInicio = document.getElementById('range-start')?.value;
+    const fechaFin = document.getElementById('range-end')?.value;
+    if (!fechaInicio || !fechaFin) {
+        mostrarMensaje('Selecciona fecha inicio y fecha fin para el rango', 'warning');
+        return;
+    }
+    if (fechaFin < fechaInicio) {
+        mostrarMensaje('La fecha fin debe ser posterior a la fecha inicio', 'error');
+        return;
+    }
+    const diasSeleccionados = [];
+    document.querySelectorAll('.dia-semana-checkbox:checked').forEach(cb => {
+        diasSeleccionados.push(parseInt(cb.value));
+    });
+    if (diasSeleccionados.length === 0) {
+        mostrarMensaje('Selecciona al menos un día de la semana', 'warning');
+        return;
+    }
+    const start = new Date(fechaInicio + 'T00:00:00');
+    const end = new Date(fechaFin + 'T00:00:00');
+    let count = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (diasSeleccionados.includes(d.getDay())) {
+            const fechaStr = d.toISOString().split('T')[0];
+            if (!selectedDates.has(fechaStr)) {
+                selectedDates.add(fechaStr);
+                count++;
+            }
+        }
+    }
+    renderCalendar();
+    if (serviceModules.length > 0) {
+        // Propagar cupos actuales a las nuevas fechas
+        const fechasNuevas = Array.from(selectedDates).sort();
+        serviceModules.forEach(mod => {
+            fechasNuevas.forEach(f => {
+                moduleDateCupos[f] = moduleDateCupos[f] || {};
+                if (typeof moduleDateCupos[f][mod.hora] === 'undefined') {
+                    moduleDateCupos[f][mod.hora] = Number(mod.cupos || 0);
+                }
+            });
+        });
+    }
+    renderModulesList();
+    mostrarMensaje(`${count} fecha(s) agregada(s)`, 'success');
+}
+window.generarFechasPorRango = generarFechasPorRango;
+
+// ============================================
+// Mejora #7 – Duplicar servicio
+// ============================================
+async function duplicarServicio(id) {
+    const servicios = await ServiciosManager.getAll();
+    const original = servicios.find(s => String(s.id) === String(id));
+    if (!original) { mostrarMensaje('Servicio no encontrado', 'error'); return; }
+    // Cargar formulario con los datos del original pero sin ID (creación)
+    document.getElementById('srv-name').value = original.nombre + ' (copia)';
+    document.getElementById('srv-category').value = original.categoria || '';
+    document.getElementById('srv-price').value = original.precio || '';
+    document.getElementById('srv-image-url').value = original.imagen || '';
+    document.getElementById('srv-desc').value = original.descripcion || '';
+    document.getElementById('srv-featured').checked = !!original.destacado;
+    document.getElementById('srv-active').checked = !!original.activo;
+    // Restaurar fechas
+    if (original.fechas && original.fechas.length > 0) {
+        selectedDates = new Set(original.fechas);
+    } else if (original.disponibilidad && Object.keys(original.disponibilidad).length > 0) {
+        selectedDates = new Set(Object.keys(original.disponibilidad));
+    }
+    renderCalendar();
+    // Restaurar módulos y cupos
+    clearAllModules();
+    if (original.disponibilidad && Object.keys(original.disponibilidad).length > 0) {
+        const horaMap = {};
+        Object.keys(original.disponibilidad).forEach(f => {
+            (original.disponibilidad[f] || []).forEach(mod => {
+                const h = mod.hora || mod.startTime || '00:00';
+                if (!horaMap[h]) {
+                    horaMap[h] = { id: Date.now() + Math.random(), hora: h, cupos: Number(mod.cupos || 0), duration: mod.duration || 0 };
+                }
+            });
+        });
+        Object.values(horaMap).forEach(h => serviceModules.push(h));
+        moduleDateCupos = {};
+        Object.keys(original.disponibilidad).forEach(fecha => {
+            moduleDateCupos[fecha] = {};
+            (original.disponibilidad[fecha] || []).forEach(mod => {
+                moduleDateCupos[fecha][mod.hora || mod.startTime || '00:00'] = Number(mod.cupos || 0);
+            });
+        });
+    }
+    renderModulesList();
+    saveModulesToHiddenField();
+    // Ir al formulario
+    document.getElementById('service-creator')?.scrollIntoView({ behavior: 'smooth' });
+    mostrarMensaje('Servicio duplicado — revisa y guarda', 'info');
+}
+window.duplicarServicio = duplicarServicio;
+
+// ============================================
+// Mejora #8 – Vista previa del servicio
+// ============================================
+function mostrarVistaPrevia() {
+    const nombre = document.getElementById('srv-name')?.value || 'Nombre del servicio';
+    const precio = document.getElementById('srv-price')?.value || '0';
+    const descripcion = document.getElementById('srv-desc')?.value || '';
+    const imagen = document.getElementById('srv-image-url')?.value || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874';
+    const activo = document.getElementById('srv-active')?.checked;
+
+    const fechas = Array.from(selectedDates).sort();
+    const horarios = serviceModules.map(m => formatTimeDisplay(m.hora)).join(', ');
+
+    const modal = document.createElement('div');
+    modal.className = 'preview-modal-overlay';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    modal.innerHTML = `
+        <div class="preview-modal" style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:30px;max-width:420px;width:90%;color:#fff;position:relative;">
+            <button onclick="this.closest('.preview-modal-overlay').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#888;font-size:24px;cursor:pointer;">×</button>
+            <div class="service-card-preview" style="text-align:center;">
+                <img src="${imagen}" alt="${nombre}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">
+                <h3 style="color:#fff;font-size:1.3rem;margin-bottom:8px;">${nombre}</h3>
+                <div style="font-size:1.5rem;font-weight:bold;color:#9d4edd;margin-bottom:8px;">$ ${parseFloat(precio).toLocaleString('es-CL')}</div>
+                ${descripcion ? `<p style="color:#aaa;font-size:0.9rem;margin-bottom:12px;">${descripcion}</p>` : ''}
+                <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.04);border-radius:8px;">
+                    <div style="color:#888;font-size:0.8rem;margin-bottom:4px;">${fechas.length} fecha(s) · ${serviceModules.length} horario(s)</div>
+                    <div style="color:#9d4edd;font-size:0.85rem;">${fechas.slice(0,3).join(', ')}${fechas.length > 3 ? '...' : ''}</div>
+                    <div style="color:#aaa;font-size:0.85rem;">${horarios}</div>
+                </div>
+                <div style="margin-top:16px;padding:8px 0;border-top:1px solid rgba(255,255,255,0.06);color:#666;font-size:0.8rem;">
+                    ${activo ? '✅ Servicio activo' : '⛔ Servicio inactivo'}
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+window.mostrarVistaPrevia = mostrarVistaPrevia;
+
+// ============================================
+// Mejora #5 – getServiceDuration mejorada (lee servicio.duracion si existe)
+// ============================================
+function getServiceDuration() {
+    const durVal = document.getElementById('srv-duration');
+    if (durVal && durVal.value && Number(durVal.value) > 0) return Number(durVal.value);
+    // Si hay servicio editándose con duración propia, usarla
+    const editingId = document.getElementById('editing-service-id');
+    if (editingId && editingId.value) {
+        const durHidden = document.getElementById('srv-duration-hidden');
+        if (durHidden && durHidden.value) return Number(durHidden.value);
+    }
+    if (serviceModules.length > 0) return serviceModules[0].duration || 60;
+    return 60;
+}
+window.getServiceDuration = getServiceDuration;
+
+// ============================================
+// Mejora #9 – Confirmación al cancelar edición
+// ============================================
+function cancelarEdicion() {
+    // Verificar si hay datos en el formulario
+    const nombre = document.getElementById('srv-name')?.value;
+    const precio = document.getElementById('srv-price')?.value;
+    if (nombre || precio || selectedDates.size > 0 || serviceModules.length > 0) {
+        if (!confirm('¿Descartar cambios? Los datos ingresados se perderán.')) return;
+    }
+    const form = document.getElementById('service-form');
+    form.reset();
+    document.getElementById('btn-guardar').style.display = 'inline-block';
+    document.getElementById('btn-actualizar').style.display = 'none';
+    document.getElementById('editing-service-id').value = '';
+    selectedDates.clear();
+    clearAllModules();
+    renderCalendar();
+    mostrarMensaje('Edición cancelada', 'info');
+}
+window.cancelarEdicion = cancelarEdicion;
 
 function removeModule(moduleId) {
     const modToRemove = serviceModules.find(m => String(m.id) === String(moduleId));
