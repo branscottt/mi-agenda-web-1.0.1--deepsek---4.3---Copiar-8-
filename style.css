@@ -7844,3 +7844,154 @@ input:-moz-autofill {
         font-size: 0.75rem;
     }
 }
+
+/* ==========================================
+   Módulos editables (paso 2) - cards
+   ========================================== */
+.module-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.module-card {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(179, 0, 255, 0.15);
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.module-card:hover {
+    border-color: rgba(179, 0, 255, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.module-card-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.module-card-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.module-card-field label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.module-card-field select,
+.module-card-field input {
+    background: rgba(20, 20, 30, 0.7);
+    border: 1px solid rgba(179, 0, 255, 0.25);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #fff;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.module-card-field select:focus,
+.module-card-field input:focus {
+    border-color: rgba(179, 0, 255, 0.6);
+    box-shadow: 0 0 0 2px rgba(179, 0, 255, 0.15);
+    outline: none;
+}
+
+.module-card-delete {
+    background: rgba(255, 73, 73, 0.12);
+    border: 1px solid rgba(255, 73, 73, 0.25);
+    border-radius: 8px;
+    color: #ff6b6b;
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.module-card-delete:hover {
+    background: rgba(255, 73, 73, 0.3);
+    border-color: rgba(255, 73, 73, 0.5);
+    color: #ff9999;
+}
+
+@media (max-width: 768px) {
+    .module-card-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .module-card-field {
+        min-width: 120px;
+    }
+    .module-card-field select,
+    .module-card-field input {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+    }
+}
+
+
+/* Module cards - hora inicio + hora fin editables */
+.module-card-field select {
+    width: 100%;
+    padding: 8px 6px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(179, 0, 255, 0.3);
+    color: #e0e0e0;
+    transition: all 0.2s;
+}
+.module-card-field select:focus {
+    outline: none;
+    border-color: rgba(179,0,255,0.6);
+    box-shadow: 0 0 0 3px rgba(179,0,255,0.2);
+}
+.module-card-field select option {
+    background: #1a1a2e;
+    color: #e0e0e0;
+}
+.module-card-field input[type="number"] {
+    width: 100%;
+    padding: 8px 6px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(179, 0, 255, 0.3);
+    color: #e0e0e0;
+    text-align: center;
+}
+.module-card-field input[type="number"]:focus {
+    outline: none;
+    border-color: rgba(179,0,255,0.6);
+    box-shadow: 0 0 0 3px rgba(179,0,255,0.2);
+}
+
+/* Botón Confirmar módulos */
+#confirm-modules-btn {
+    margin-top: 8px;
+    width: 100%;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-radius: 10px;
+}
+
+/* Responsive: cards apiladas en móvil */
+@media (max-width: 768px) {
+    .module-card-field { flex: 1 1 100% !important; }
+    .module-card-row { flex-wrap: wrap; gap: 6px; }
+    .module-card-field select,
+    .module-card-field input[type="number"] { font-size: 0.8rem; padding: 6px 4px; }
+}
+
+

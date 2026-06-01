@@ -3373,6 +3373,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cancel-sub-modal')?.addEventListener('click', () => modal.style.display = 'none');
         document.getElementById('save-subscription')?.addEventListener('click', guardarSuscripcion);
     }
+
+
 });
 
 function renderTenants(tenants) {
@@ -3660,18 +3662,17 @@ function configurarFormulario() {
     if (btnLimpiarImg) {
         btnLimpiarImg.addEventListener('click', function() { document.getElementById('srv-image-url').value = ''; });
     }
-    const capInput = document.getElementById('srv-capacity');
-    if (capInput) capInput.disabled = false;
+    // srv-capacity eliminado
 }
 window.configurarFormulario = configurarFormulario;
 
 async function crearServicio() {
     const nombre = document.getElementById('srv-name').value;
-    const categoria = document.getElementById('srv-category').value;
+    const categoria = 'general';
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
 
-    if (!nombre || !categoria || !precio) {
+    if (!nombre || !precio) {
         mostrarMensaje("Por favor completa todos los campos obligatorios", "error");
         return;
     }
@@ -3686,12 +3687,9 @@ async function crearServicio() {
         return;
     }
 
-    // Leer duración: si existe input srv-duration, usarlo; si no, inferir del primer módulo
-    let duracion = getServiceDuration();
-    const durInput = document.getElementById('srv-duration');
-    if (durInput && durInput.value && Number(durInput.value) > 0) {
-        duracion = Number(durInput.value);
-    } else if (serviceModules.length > 0) {
+    // Duración: inferir del primer módulo
+    let duracion = 60;
+    if (serviceModules.length > 0) {
         duracion = serviceModules[0].duration || 60;
     }
 
@@ -4087,7 +4085,6 @@ async function editarServicio(id) {
     document.getElementById('srv-name').value = servicio.nombre;
     document.getElementById('srv-category').value = servicio.categoria;
     document.getElementById('srv-price').value = servicio.precio;
-    const capInput = document.getElementById('srv-capacity');
     if (servicio.disponibilidad && Object.keys(servicio.disponibilidad).length > 0) {
         const firstFecha = Object.keys(servicio.disponibilidad)[0];
         const firstModulo = (servicio.disponibilidad[firstFecha] || [])[0];
@@ -4193,11 +4190,11 @@ async function actualizarServicio(id) {
     }
 
     const nombre = document.getElementById('srv-name').value;
-    const categoria = document.getElementById('srv-category').value;
+    const categoria = 'general';
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
 
-    if (!nombre || !categoria || !precio) {
+    if (!nombre || !precio) {
         mostrarMensaje("Por favor completa todos los campos obligatorios", "error");
         return;
     }
@@ -4212,11 +4209,8 @@ async function actualizarServicio(id) {
     }
 
     // Mejora #5: duración desde input si existe
-    let duracion = getServiceDuration();
-    const durInput = document.getElementById('srv-duration');
-    if (durInput && durInput.value && Number(durInput.value) > 0) {
-        duracion = Number(durInput.value);
-    } else if (serviceModules.length > 0) {
+    let duracion = 60;
+    if (serviceModules.length > 0) {
         duracion = serviceModules[0].duration || 60;
     }
 
@@ -5027,14 +5021,36 @@ function initModules() {
 window.initModules = initModules;
 
 function setupModuleEvents() {
-    document.getElementById('module-start-time')?.addEventListener('change', updateDurationDisplay);
     document.getElementById('module-end-time')?.addEventListener('change', updateDurationDisplay);
+    document.getElementById('module-start-time')?.addEventListener('change', updateDurationDisplay);
 
-    document.getElementById('add-module-btn')?.addEventListener('click', addModule);
+    document.getElementById('generate-modules-btn')?.addEventListener('click', generarModulosAutomaticos);
 
     document.getElementById('service-modules')?.addEventListener('change', function() {
         loadModulesFromHiddenField();
     });
+    // Botón Confirmar módulos
+    document.getElementById('confirm-modules-btn')?.addEventListener('click', function() {
+        if (!serviceModules || serviceModules.length === 0) {
+            mostrarMensaje('Primero genera los módulos con el botón "Generar módulos"', 'warning');
+            return;
+        }
+        // Validar que cada módulo tenga hora inicio, hora fin y cupos
+        for (let i = 0; i < serviceModules.length; i++) {
+            const mod = serviceModules[i];
+            if (!mod.hora || !mod.endTime) {
+                mostrarMensaje('El módulo ' + (i+1) + ' no tiene hora inicio o fin definida', 'error');
+                return;
+            }
+            const cupos = mod.cupos;
+            if (isNaN(cupos) || cupos < 0) {
+                mostrarMensaje('El módulo ' + (i+1) + ' tiene un valor de cupos inválido', 'error');
+                return;
+            }
+        }
+        mostrarMensaje(serviceModules.length + ' módulo(s) confirmados correctamente', 'success');
+    });
+
 }
 window.setupModuleEvents = setupModuleEvents;
 
@@ -5103,8 +5119,6 @@ function horariosSolapan(s1, e1, s2, e2) {
 }
 
 function addModule() {
-    const startTime = document.getElementById('module-start-time')?.value;
-    const endTime = document.getElementById('module-end-time')?.value;
 
     if (!startTime || !endTime) {
         mostrarMensaje("Selecciona hora inicio y hora fin", "warning");
@@ -5118,15 +5132,14 @@ function addModule() {
     let endTotal = endHour * 60 + endMin;
 
     if (endTotal <= startTotal) {
-        if (endTotal + (24 * 60) <= startTotal + (24 * 60)) {
-            mostrarMensaje("La hora fin debe ser mayor que la hora inicio", "error");
-            return;
-        }
+        mostrarMensaje("La hora fin debe ser mayor que la hora inicio", "error");
+        return;
     }
+
+    const duration = endTotal - startTotal;
 
     // --- Validación de solapamiento (Mejora #2) ---
     for (const mod of serviceModules) {
-        // Calcular endTime del módulo existente a partir de su hora + duración
         const modEndTime = calcularFinModulo(mod.hora, mod.duration);
         if (horariosSolapan(startTime, endTime, mod.hora, modEndTime)) {
             mostrarMensaje(
@@ -5138,10 +5151,7 @@ function addModule() {
     }
     // ------------------------------------------------
 
-    const duration = updateDurationDisplay();
-
-    const rawCap = document.getElementById('srv-capacity')?.value;
-    const cupos = (rawCap === '') ? 0 : (parseInt(rawCap) || 0);
+    const cupos = 0;
 
     const newModule = {
         id: Date.now() + Math.random(),
@@ -5152,20 +5162,225 @@ function addModule() {
 
     serviceModules.push(newModule);
     Array.from(selectedDates).forEach(fecha => {
-        moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
-        moduleDateCupos[fecha][startTime] = Number(newModule.cupos || 0);
+        if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
+        window.moduleDateCupos[fecha][startTime] = Number(newModule.cupos || 0);
     });
 
+    if (typeof renderModulesEditable === 'function') renderModulesEditable();
     renderModulesList();
     saveModulesToHiddenField();
 
     mostrarMensaje(`Horario ${startTime} - ${endTime} agregado`, "success");
 }
-window.addModule = addModule;        
+window.addModule = addModule;
+// ============================================
+// Generar módulos automáticos desde campo N° módulos + duración
+// ============================================
+function generarModulosAutomaticos() {
+    const count = parseInt(document.getElementById('module-count')?.value);
+    if (isNaN(count) || count < 1) {
+        mostrarMensaje('Ingresa un número válido de módulos', 'warning');
+        return;
+    }
+    const startTime = document.getElementById('module-start-time')?.value;
+    if (!startTime) {
+        mostrarMensaje('Selecciona una hora de inicio para el primer módulo', 'warning');
+        return;
+    }
+
+    // Duración por defecto: 60 min
+    const defaultDuration = 60;
+    let currentStart = startTime;
+    const nuevosModulos = [];
+
+    for (let i = 0; i < count; i++) {
+        // Calcular hora fin = inicio + duración
+        let [h, m] = currentStart.split(':').map(Number);
+        let totalMin = h * 60 + m + defaultDuration;
+        let endH = Math.floor(totalMin / 60) % 24;
+        let endM = totalMin % 60;
+        let endTime = String(endH).padStart(2, '0') + ':' + String(endM).padStart(2, '0');
+
+        // Validar solapamiento solo contra módulos NUEVOS (entre sí)
+        let solapa = false;
+        for (const otro of nuevosModulos) {
+            if (horariosSolapan(currentStart, endTime, otro.hora, otro.endTime)) {
+                solapa = true;
+                break;
+            }
+        }
+        if (solapa) {
+            mostrarMensaje('Los módulos generados se solapan entre sí. Revisa los horarios.', 'error');
+            break;
+        }
+
+        nuevosModulos.push({
+            id: Date.now() + Math.random() + i,
+            hora: currentStart,
+            endTime: endTime,
+            cupos: 0,
+            duration: defaultDuration
+        });
+        currentStart = endTime;
+    }
+
+    if (nuevosModulos.length === 0) return;
+
+    // Reemplazar todos los módulos existentes (siempre el número total indicado)
+    serviceModules.length = 0;
+    nuevosModulos.forEach(m => serviceModules.push(m));
+    // Propagar cupos a fechas
+    // Limpiar moduleDateCupos para horarios viejos
+    if (window.moduleDateCupos && nuevosModulos.length > 0) {
+        // Mantener las claves de fecha pero resetear horarios
+        Object.keys(window.moduleDateCupos).forEach(fecha => {
+            window.moduleDateCupos[fecha] = {};
+        });
+        // Propagar nuevos módulos a las fechas seleccionadas
+        Array.from(document.querySelectorAll('.calendar-day.selected, .day.selected') || []).forEach(el => {
+            const fecha = el.dataset.date || el.textContent.trim();
+            if (fecha) {
+                if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
+                nuevosModulos.forEach(mod => {
+                    if (typeof window.moduleDateCupos[fecha][mod.hora] === 'undefined') {
+                        window.moduleDateCupos[fecha][mod.hora] = mod.cupos;
+                    }
+                });
+            }
+        });
+    }
+    renderModulesEditable();
+    if (typeof renderModulesList === 'function' && document.getElementById('modules-list')) renderModulesList();
+    saveModulesToHiddenField();
+    if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
+    mostrarMensaje(nuevosModulos.length + ' módulo(s) generado(s) automáticamente', 'success');
+}
+window.generarModulosAutomaticos = generarModulosAutomaticos;
+        
     // Actualizar resumen después de agregar módulo
     setTimeout(() => {
         if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
     }, 50);
+
+
+
+function renderModulesEditable() {
+    const list = document.getElementById('modules-editable-list');
+    if (!list) return;
+    if (!serviceModules || serviceModules.length === 0) {
+        list.innerHTML = '<div class=\"empty-modules\"><i class=\"fas fa-clock\"></i><p>Usa \"Generar módulos\" arriba para crear los horarios</p></div>';
+        return;
+    }
+    let html = '<div class=\"module-cards\">';
+    serviceModules.forEach((mod, idx) => {
+        const hora = mod.hora || '';
+        const endTime = mod.endTime || '';
+        const cupos = mod.cupos || 0;
+        html += '<div class=\"module-card\" data-index=\"' + idx + '\">';
+        html += '  <div class=\"module-card-row\">';
+        html += '    <div class=\"module-card-field\" style=\"flex: 0 0 130px;\">';
+        html += '      <label>Inicio</label>';
+        html += '      <select class=\"module-card-time\" data-idx=\"' + idx + '\" onchange=\"actualizarModuloHora(this)\">';
+        for (let h = 0; h < 24; h++) {
+            const val = String(h).padStart(2, '0') + ':00';
+            const label = (h === 0 ? '12:00 AM' : h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h-12) + ':00 PM');
+            const sel = val === hora ? ' selected' : '';
+            html += '      <option value=\"' + val + '\"' + sel + '>' + label + '</option>';
+        }
+        html += '      </select>';
+        html += '    </div>';
+        html += '    <div class=\"module-card-field\" style=\"flex: 0 0 130px;\">';
+        html += '      <label>Fin</label>';
+        html += '      <select class=\"module-card-endtime\" data-idx=\"' + idx + '\" onchange=\"actualizarModuloHoraFin(this)\">';
+        for (let h = 0; h < 24; h++) {
+            const val = String(h).padStart(2, '0') + ':00';
+            const label = (h === 0 ? '12:00 AM' : h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h-12) + ':00 PM');
+            const sel = val === endTime ? ' selected' : '';
+            html += '      <option value=\"' + val + '\"' + sel + '>' + label + '</option>';
+        }
+        html += '      </select>';
+        html += '    </div>';
+        html += '    <div class=\"module-card-field\" style=\"flex: 0 0 80px;\">';
+        html += '      <label>Cupos</label>';
+        html += '      <input type=\"number\" class=\"module-card-cupos\" value=\"' + cupos + '\" min=\"0\" data-idx=\"' + idx + '\" onchange=\"actualizarModuloCupos(this)\">';
+        html += '    </div>';
+        html += '    <div class=\"module-card-field\" style=\"flex: 0 0 50px;\">';
+        html += '      <label>&nbsp;</label>';
+        html += '      <button type=\"button\" class=\"module-card-delete\" onclick=\"eliminarModulo(' + idx + ')\" title=\"Eliminar este horario\">✕</button>';
+        html += '    </div>';
+        html += '  </div>';
+        html += '</div>';
+    });
+    html += '</div>';
+    list.innerHTML = html;
+}
+window.renderModulesEditable = renderModulesEditable;
+
+function actualizarModuloHora(select) {
+    const idx = parseInt(select.dataset.idx);
+    const newHora = select.value;
+    if (isNaN(idx) || idx < 0 || idx >= serviceModules.length) return;
+    const oldHora = serviceModules[idx].hora;
+    serviceModules[idx].hora = newHora;
+    if (window.moduleDateCupos) {
+        Object.keys(window.moduleDateCupos).forEach(fecha => {
+            if (typeof window.moduleDateCupos[fecha][oldHora] !== 'undefined') {
+                window.moduleDateCupos[fecha][newHora] = window.moduleDateCupos[fecha][oldHora];
+                delete window.moduleDateCupos[fecha][oldHora];
+            }
+        });
+    }
+    saveModulesToHiddenField();
+    if (typeof renderModulesList === 'function' && document.getElementById('modules-list')) renderModulesList();
+    if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
+}
+window.actualizarModuloHora = actualizarModuloHora;
+
+function actualizarModuloHoraFin(select) {
+    const idx = parseInt(select.dataset.idx);
+    const newEnd = select.value;
+    if (isNaN(idx) || idx < 0 || idx >= serviceModules.length) return;
+    serviceModules[idx].endTime = newEnd;
+    saveModulesToHiddenField();
+}
+window.actualizarModuloHoraFin = actualizarModuloHoraFin;
+
+function actualizarModuloCupos(input) {
+    const idx = parseInt(input.dataset.idx);
+    const val = parseInt(input.value);
+    if (isNaN(idx) || idx < 0 || idx >= serviceModules.length) return;
+    serviceModules[idx].cupos = isNaN(val) || val < 0 ? 0 : val;
+    const hora = serviceModules[idx].hora;
+    if (window.moduleDateCupos) {
+        Object.keys(window.moduleDateCupos).forEach(fecha => {
+            if (typeof window.moduleDateCupos[fecha][hora] !== 'undefined') {
+                window.moduleDateCupos[fecha][hora] = serviceModules[idx].cupos;
+            }
+        });
+    }
+    saveModulesToHiddenField();
+    if (typeof renderModulesList === 'function' && document.getElementById('modules-list')) renderModulesList();
+    if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
+}
+window.actualizarModuloCupos = actualizarModuloCupos;
+
+function eliminarModulo(idx) {
+    if (isNaN(idx) || idx < 0 || idx >= serviceModules.length) return;
+    const mod = serviceModules[idx];
+    if (!confirm('¿Eliminar el horario ' + mod.hora + '?')) return;
+    const hora = mod.hora;
+    serviceModules.splice(idx, 1);
+    if (window.moduleDateCupos) {
+        Object.keys(window.moduleDateCupos).forEach(fecha => {
+            delete window.moduleDateCupos[fecha][hora];
+        });
+    }
+    saveModulesToHiddenField();
+    renderModulesEditable();
+    if (typeof renderModulesList === 'function' && document.getElementById('modules-list')) renderModulesList();
+    if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
+}
+window.eliminarModulo = eliminarModulo;
 
 function renderModulesList() {
     const modulesList = document.getElementById('modules-list');
@@ -5358,6 +5573,8 @@ window.deshabilitarCupo = deshabilitarCupo;
 // ============================================
 // Mejora #4 – Generar fechas por rango
 // ============================================
+
+
 function generarFechasPorRango() {
     const fechaInicio = document.getElementById('range-start')?.value;
     const fechaFin = document.getElementById('range-end')?.value;
