@@ -1886,69 +1886,711 @@ body {
 }
 ····················
 
-/* ===== ESTILOS PARA LISTA DE HORARIOS (ADMIN) - GLOBAL ===== */
-.modules-list {
+/* ===== ESTILOS PARA SECCIÓN CREAR SERVICIO ===== */
+
+/* Título de sección */
+#section-crear-servicio .glass-panel > h3 {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--glass-border);
+    font-size: 1.2rem;
+}
+
+/* Formulario general */
+#service-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+#service-form .form-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+/* Inputs y selects del formulario */
+#service-form input:not([type="checkbox"]):not([type="color"]),
+#service-form select,
+#service-form textarea {
+    flex: 1;
+    min-width: 180px;
+    padding: 12px 14px;
+    background: rgba(20, 20, 30, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: #f0f0f0;
+    font-size: 0.95rem;
+    transition: all 0.25s ease;
+    backdrop-filter: blur(4px);
+}
+#service-form input:focus,
+#service-form select:focus,
+#service-form textarea:focus {
+    border-color: var(--primary-color, #9d4edd);
+    box-shadow: 0 0 0 3px rgba(157, 78, 221, 0.15);
+    outline: none;
+    background: rgba(25, 25, 38, 0.9);
+}
+#service-form input::placeholder,
+#service-form textarea::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+#service-form select option {
+    background: #1a1a2e;
+    color: #f0f0f0;
+}
+
+/* Duración info estática */
+.duration-info-static {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(157, 78, 221, 0.08);
+    border: 1px solid rgba(157, 78, 221, 0.15);
+    border-radius: 10px;
+    color: #c0b8d8;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+.duration-info-static i {
+    color: var(--primary-color, #9d4edd);
+}
+
+/* Contador de caracteres */
+.char-count {
+    text-align: right;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 4px;
+}
+
+/* Sección de horarios */
+.schedule-modules-section {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 4px;
+}
+.schedule-modules-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 1rem;
+    color: #e0d8f0;
+}
+.schedule-modules-section .form-hint {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 16px;
+}
+
+/* Formulario de módulo (selector de hora + botón) */
+.module-form .form-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+.time-selector {
+    flex: 1;
+    min-width: 140px;
+}
+.time-selector label {
+    display: block;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.time-select {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(20, 20, 30, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: #f0f0f0;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+.time-select:focus {
+    border-color: var(--primary-color, #9d4edd);
+    outline: none;
+}
+.time-select option {
+    background: #1a1a2e;
+    color: #f0f0f0;
+}
+
+/* Botón agregar módulo */
+#add-module-btn {
+    min-width: 130px;
+    height: 42px;
+    align-self: flex-end;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* Lista de horarios configurados */
+.modules-list-container {
+    margin-top: 16px;
+}
+.modules-list-container h5 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 10px;
+}
+
+/* Estado vacío */
+.empty-modules {
+    text-align: center;
+    padding: 28px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+.empty-modules i {
+    font-size: 1.8rem;
+    color: rgba(255, 255, 255, 0.15);
+    margin-bottom: 8px;
+}
+.empty-modules p {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+.empty-modules small {
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 0.8rem;
+}
+
+/* Input de cupos */
+#srv-capacity {
+    max-width: 200px;
+}
+
+/* Sección de imagen */
+.image-section {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 20px;
+}
+.image-section > label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 10px;
+}
+.image-section > input {
+    width: 100%;
+    margin-bottom: 12px;
+}
+.image-preview-container {
+    width: 100%;
+    height: 140px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+.image-preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.image-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: rgba(255, 255, 255, 0.2);
+}
+.image-placeholder i {
+    font-size: 2rem;
+    margin-bottom: 6px;
+}
+.image-placeholder p {
+    font-size: 0.85rem;
+}
+.image-options {
+    display: flex;
+    gap: 8px;
+}
+
+/* Descripción */
+.desc-container textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Opciones del servicio (checkboxes) */
+.service-options {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+.option-group {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+.checkbox-label:hover {
+    color: #fff;
+}
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color, #9d4edd);
+    cursor: pointer;
+}
+.checkbox-label i {
+    color: var(--primary-color, #9d4edd);
+    font-size: 0.95rem;
+}
+
+/* Acciones del formulario */
+#service-form .form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+#service-form .form-actions button {
+    min-width: 120px;
+}
+
+/* ----- CALENDARIO MINI ----- */
+.calendar-mini {
+    margin-top: 30px;
+    padding-top: 25px;
+    border-top: 1px solid var(--glass-border);
+}
+.calendar-mini h4 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    color: #e0d8f0;
+}
+
+/* Controles del calendario */
+.calendar-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.cal-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.cal-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+#current-month {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #ddd;
+    min-width: 160px;
+    text-align: center;
+    margin: 0;
+}
+
+/* Días de la semana */
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.calendar-weekdays div {
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 6px 0;
+}
+
+/* Grid de días */
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.calendar-days .day {
+    text-align: center;
+    padding: 10px 4px;
+    background: rgba(30, 30, 40, 0.6);
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+.calendar-days .day:hover {
+    background: rgba(157, 78, 221, 0.12);
+    border-color: rgba(157, 78, 221, 0.2);
+}
+.calendar-days .day.selected {
+    background: rgba(157, 78, 221, 0.18);
+    border-color: var(--primary-color, #9d4edd);
+    color: #fff;
+    font-weight: 600;
+}
+.calendar-days .day.today {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+.calendar-days .day.today.selected {
+    border-color: var(--primary-color, #9d4edd);
+}
+.calendar-days .day.empty {
+    background: transparent;
+    cursor: default;
+    border: none;
+}
+.calendar-days .day span {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--primary-light);
+    margin-top: 3px;
+}
+
+/* Info de fechas seleccionadas */
+.service-dates-info {
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+}
+.service-dates-info h6 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 6px;
+}
+.service-dates-info .form-hint {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-bottom: 14px;
+    line-height: 1.4;
+}
+
+.dates-counter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 10px;
+}
+.dates-counter i {
+    color: var(--primary-color, #9d4edd);
+}
+#dates-count {
+    font-weight: 700;
+    color: var(--primary-color, #9d4edd);
+    font-size: 1rem;
+}
+
+/* Preview de fechas seleccionadas */
+.selected-dates-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
     padding: 8px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    min-height: 36px;
+}
+.empty-dates {
+    width: 100%;
+    text-align: center;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.25);
+    padding: 4px 0;
+}
+.date-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(157, 78, 221, 0.12);
+    border: 1px solid rgba(157, 78, 221, 0.2);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #ddd;
+}
+.date-tag button {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0 2px;
+}
+.date-tag button:hover { color: #ff4949; }
+
+/* Rango de fechas (Mejora #4) */
+.range-selector {
+    margin: 12px 0;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+}
+.range-selector > div:first-child {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 10px;
+}
+.range-selector input[type="date"] {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 10px;
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #f0f0f0;
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+    color-scheme: dark;
+}
+.range-selector input[type="date"]:focus {
+    border-color: var(--primary-color, #9d4edd);
+    outline: none;
+}
+.range-selector .dia-semana-checkbox {
+    accent-color: var(--primary-color, #9d4edd);
+}
+.range-selector label {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.range-selector label:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Botones de opciones de fecha */
+.date-options {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+.date-options .btn-small {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 7px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.date-options .btn-small:hover {
+    background: rgba(157, 78, 221, 0.1);
+    border-color: rgba(157, 78, 221, 0.2);
+    color: #fff;
+}
+
+/* ----- TABLA DE HORARIOS (modules-list) ----- */
+.modules-list {
+    padding: 0;
 }
 .modules-list .modules-table {
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(0,0,0,0.04);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--glass-border);
 }
 .modules-table-head,
 .modules-table-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 10px;
+    gap: 8px;
+    padding: 10px 12px;
 }
 .modules-table-head {
-    background: rgba(0,0,0,0.03);
+    background: rgba(255, 255, 255, 0.04);
     font-weight: 600;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
-.modules-table-row:nth-child(odd) {
-    background: rgba(0,0,0,0.01);
+.modules-table-row {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.2s;
+}
+.modules-table-row:last-child {
+    border-bottom: none;
+}
+.modules-table-row:hover {
+    background: rgba(255, 255, 255, 0.03);
 }
 .modules-table-row .col-hour {
-    flex: 0 0 120px;
-    color: var(--muted-color, #666);
+    flex: 0 0 100px;
+    font-weight: 600;
+    color: #ddd;
+    font-size: 0.9rem;
 }
 .modules-table-row .col-date {
     flex: 1 1 auto;
+    min-width: 80px;
 }
 .modules-table-row .col-date input.module-cupos-input {
-    width: 60px;
+    width: 65px;
     max-width: 100%;
     padding: 6px 8px;
-    border: 1px solid rgba(0,0,0,0.12);
-    border-radius: 6px;
-    background: #ffffff;
-    color: #111111;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 7px;
+    color: #f0f0f0;
     text-align: center;
-    margin-right: 10px;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+.modules-table-row .col-date input.module-cupos-input:focus {
+    border-color: var(--primary-color, #9d4edd);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(157, 78, 221, 0.1);
 }
 .modules-table-row .col-actions {
-    flex: 0 0 64px;
+    flex: 0 0 100px;
     display: flex;
-    justify-content: center;
+    gap: 4px;
+    justify-content: flex-end;
 }
+
+/* Botón eliminar módulo */
 .btn-remove-module {
-    background: transparent;
+    background: rgba(255, 73, 73, 0.08);
     border: none;
-    color: var(--danger-color, #e74c3c);
-    cursor: pointer;
-    padding: 6px;
     border-radius: 6px;
+    color: #ff6b6b;
+    cursor: pointer;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    transition: all 0.2s;
 }
 .btn-remove-module:hover {
-    background: rgba(231,76,60,0.08);
+    background: rgba(255, 73, 73, 0.2);
+    color: #ff4949;
 }
+
+/* Fila de acciones masivas */
+.modules-table-row--actions {
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.modules-table-row--actions .col-date {
+    padding: 4px;
+}
+.modules-table-row--actions .btn-apply-cupo-date {
+    width: 100%;
+    padding: 5px 4px;
+    font-size: 0.72rem;
+    background: rgba(52, 152, 219, 0.1);
+    color: #5dade2;
+    border: 1px solid rgba(52, 152, 219, 0.15);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.modules-table-row--actions .btn-apply-cupo-date:hover {
+    background: rgba(52, 152, 219, 0.2);
+}
+
+/* Botón aplicar cupo masivo por fila */
+.btn-apply-cupo {
+    background: rgba(157, 78, 221, 0.12);
+    color: #b07ce6;
+    border: 1px solid rgba(157, 78, 221, 0.2);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1;
+}
+.btn-apply-cupo:hover { background: rgba(157, 78, 221, 0.25); color: #d4b8ff; }
+
+/* Celda de cupo con botón X */
+.cupo-cell {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.btn-disable-cupo {
+    background: rgba(255, 73, 73, 0.1);
+    color: #ff6b6b;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    padding: 0;
+}
+.btn-disable-cupo:hover {
+    background: rgba(255, 73, 73, 0.25);
+    color: #ff4949;
+}
+
 /* Estilos adicionales para las cards básicas */
 .service-card-admin {
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 15px;
@@ -1998,7 +2640,7 @@ body {
     padding: 20px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
 }
 
 .calendar-mini h4 {
@@ -2021,7 +2663,7 @@ body {
     border-radius: 10px;
     padding: 15px;
     text-align: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
     transition: all 0.3s ease;
     cursor: pointer;
 
@@ -2287,7 +2929,7 @@ body {
     border-radius: 12px;
     padding: 20px;
     margin-top: 25px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
     backdrop-filter: blur(10px);
 }
 
@@ -2449,7 +3091,7 @@ body {
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
 }
 
 .selected-dates-preview.empty {
@@ -2522,7 +3164,7 @@ body {
     justify-content: center;
     gap: 8px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
 }
 
 .date-options .btn-small:hover {
@@ -2811,7 +3453,7 @@ body {
     width: 100%;
     padding: 12px 15px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
     border-radius: 10px;
     color: var(--text-light);
     font-size: 0.95rem;
@@ -3415,7 +4057,7 @@ body {
     flex: 1;
     padding: 12px 15px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
     border-radius: 10px;
     color: var(--text-light);
     font-size: 0.95rem;
@@ -3444,7 +4086,7 @@ body {
 #clear-date-filter {
     padding: 10px 20px;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(179, 0, 255, 0.3);
     border-radius: 10px;
     color: var(--text-muted);
     cursor: pointer;
@@ -6760,3 +7402,445 @@ input:-moz-autofill {
 
 /* Input de duración independiente */
 #srv-duration { width: 80px; }
+
+/* Range selector extras */
+.range-inputs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.range-inputs span {
+    color: rgba(255,255,255,0.3);
+}
+.range-days {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.range-days label {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.range-days label:hover { color: rgba(255,255,255,0.8); }
+.range-days input[type="checkbox"] {
+    accent-color: var(--primary-color, #9d4edd);
+}
+.range-selector button {
+    width: 100%;
+}
+
+/* ==========================================
+   MEJORAS FINALES - Matriz cupos, acordeones, tooltips, inputs
+   ========================================== */
+
+/* Acordeones del formulario */
+.form-step {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.form-step:hover { border-color: rgba(255,255,255,0.15); }
+.form-step summary {
+    cursor: pointer;
+    padding: 14px 16px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #e0e0e0;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid transparent;
+    user-select: none;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.form-step summary:hover { background: rgba(255,255,255,0.04); }
+.form-step[open] summary {
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    color: #fff;
+}
+.form-step .step-content {
+    padding: 16px;
+    animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+    from { opacity: 0.5; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Tooltips ayuda */
+.help-icon {
+    cursor: help;
+    margin-left: 6px;
+    opacity: 0.5;
+    font-size: 0.85rem;
+    color: #9d4edd;
+    transition: opacity 0.2s;
+    position: relative;
+    display: inline-block;
+}
+.help-icon:hover { opacity: 1; }
+.help-icon[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    white-space: normal;
+    max-width: 260px;
+    width: max-content;
+    z-index: 10000;
+    left: 20px;
+    top: -8px;
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    line-height: 1.4;
+}
+
+/* Inputs mejorados */
+.form-step input:not([type="checkbox"]):not([type="radio"]),
+.form-step select,
+.form-step textarea {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(15,15,25,0.6);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #f0f0f0;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+.form-step input:focus,
+.form-step select:focus,
+.form-step textarea:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+    box-shadow: 0 0 0 2px rgba(157,78,221,0.25);
+    background: rgba(20,20,35,0.7);
+}
+.form-step select option {
+    background: #1a1a2e;
+    color: #f0f0f0;
+}
+
+/* Matriz de cupos - tabla */
+.modules-table-wrapper {
+    overflow-x: auto;
+    margin: 8px 0;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.modules-table {
+    width: 100%;
+    min-width: 500px;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.modules-table th,
+.modules-table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    white-space: nowrap;
+}
+.modules-table th {
+    background: rgba(157,78,221,0.1);
+    color: #b07ce6;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+.modules-table th .btn-mass-cupo-fila {
+    background: rgba(157,78,221,0.15);
+    border: none;
+    color: #b07ce6;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-left: 2px;
+    transition: all 0.2s;
+}
+.modules-table th .btn-mass-cupo-fila:hover {
+    background: rgba(157,78,221,0.35);
+    color: #d4a0ff;
+}
+.modules-table .col-fecha {
+    text-align: left;
+    padding-left: 10px;
+    color: #c0c0d0;
+    font-weight: 500;
+    min-width: 80px;
+}
+.modules-table .col-hora {
+    min-width: 100px;
+}
+.modules-table .col-total {
+    color: #888;
+    font-weight: 500;
+    min-width: 40px;
+}
+
+/* Celda cupo */
+.cupo-cell {
+    transition: background 0.2s;
+}
+.cupo-cell.zero-cupo {
+    background: rgba(231,76,60,0.15);
+}
+.cupo-cell.zero-cupo input {
+    color: #e74c3c;
+    background: rgba(231,76,60,0.05);
+}
+.cupo-input-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.cupo-input-group input.module-cupos-input {
+    width: 48px;
+    padding: 4px 4px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.04);
+    color: #ddd;
+    text-align: center;
+    font-size: 0.82rem;
+}
+.cupo-input-group input.module-cupos-input:focus {
+    border-color: #9d4edd;
+    box-shadow: 0 0 0 2px rgba(157,78,221,0.2);
+    background: rgba(20,20,35,0.7);
+}
+
+/* Botón X deshabilitar */
+.btn-disable-cupo {
+    background: transparent;
+    border: none;
+    color: rgba(255,73,73,0.5);
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    transition: all 0.2s;
+    line-height: 1;
+}
+.btn-disable-cupo:hover {
+    background: rgba(255,73,73,0.2);
+    color: #ff4949;
+}
+
+/* Fila colapso */
+.collapse-row td {
+    text-align: center;
+    padding: 8px;
+    background: rgba(255,255,255,0.02);
+}
+.collapse-row .btn-small {
+    font-size: 0.8rem;
+    padding: 4px 12px;
+    background: rgba(157,78,221,0.15);
+    border: 1px solid rgba(157,78,221,0.2);
+    color: #b07ce6;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.collapse-row .btn-small:hover {
+    background: rgba(157,78,221,0.3);
+}
+
+/* Fila totales */
+.total-row td {
+    background: rgba(157,78,221,0.06);
+    border-top: 2px solid rgba(157,78,221,0.15);
+    font-weight: 600;
+    color: #b07ce6;
+}
+.total-row .col-total strong {
+    color: #d4a0ff;
+}
+
+/* Botones masivos por fecha */
+.mass-cupo-fechas {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 6px 0;
+}
+.btn-mass-cupo-col {
+    background: rgba(93,173,226,0.1);
+    border: 1px solid rgba(93,173,226,0.2);
+    color: #85c1e9;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-mass-cupo-col:hover {
+    background: rgba(93,173,226,0.25);
+}
+
+/* Resumen económico */
+.eco-item {
+    background: rgba(157,78,221,0.08);
+    border: 1px solid rgba(157,78,221,0.15);
+    border-radius: 8px;
+    padding: 8px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #c0c0d0;
+}
+.eco-item strong {
+    color: #b07ce6;
+    font-size: 1rem;
+}
+.economic-summary {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+/* Calendario mejorado */
+.calendar-mini {
+    background: rgba(20,20,35,0.4);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+.calendar-weekdays div {
+    padding: 6px 0;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.calendar-days .day {
+    padding: 8px 4px;
+    border-radius: 8px;
+    transition: all 0.15s;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #c0c0d0;
+}
+.calendar-days .day.selected {
+    background: rgba(157,78,221,0.25);
+    color: #d4a0ff;
+    font-weight: 600;
+    border: 1px solid rgba(157,78,221,0.3);
+}
+.calendar-days .day:hover {
+    background: rgba(157,78,221,0.12);
+}
+.calendar-days .day.other-month {
+    color: rgba(255,255,255,0.15);
+}
+
+/* Range selector integrado */
+.range-selector {
+    background: rgba(20,20,35,0.4);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 8px 0;
+    border: 1px solid rgba(255,255,255,0.04);
+}
+.range-selector h5 {
+    margin: 0 0 10px 0;
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+/* Sección matriz cupos */
+.cupos-matrix-section {
+    background: rgba(20,20,35,0.3);
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 12px;
+    border: 1px solid rgba(255,255,255,0.04);
+}
+.cupos-matrix-section h5 {
+    margin: 0 0 10px 0;
+    font-size: 0.95rem;
+    color: #ccc;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+/* Responsive para tabla horarios */
+@media (max-width: 768px) {
+    .modules-table th,
+    .modules-table td {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+    }
+    .modules-table .col-fecha {
+        min-width: 70px;
+        font-size: 0.75rem;
+    }
+    .modules-table .cupo-input-group input {
+        width: 45px;
+        padding: 4px 6px;
+        font-size: 0.8rem;
+    }
+    .modules-table .btn-disable-cupo {
+        font-size: 0.6rem;
+        padding: 1px 5px;
+        min-width: 18px;
+        min-height: 18px;
+    }
+    .modules-table-wrapper {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    /* Cards de servicio responsive */
+    .mass-cupo-fechas {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .mass-cupo-fechas .btn-mass-cupo-col {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+    /* Inputs y selects */
+    .glass-panel input[type="text"],
+    .glass-panel input[type="number"],
+    .glass-panel input[type="url"],
+    .glass-panel input[type="date"],
+    .glass-panel select,
+    .glass-panel textarea {
+        padding: 8px 10px;
+        font-size: 0.85rem;
+    }
+    /* Acordeones responsive */
+    .form-step summary {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+    .form-step .form-content {
+        padding: 10px;
+    }
+    /* Calendario responsive */
+    .calendar-days {
+        gap: 2px;
+    }
+    .calendar-day {
+        width: 32px;
+        height: 32px;
+        font-size: 0.75rem;
+    }
+}

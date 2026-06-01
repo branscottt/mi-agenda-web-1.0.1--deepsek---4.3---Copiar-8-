@@ -254,195 +254,222 @@
                     <div class="glass-panel">
                         <h3><i class="fas fa-plus-circle"></i> Crear Nuevo Servicio</h3>
                         <form id="service-form" class="form-group">
-                            <div class="form-row">
-                                <input type="text" id="srv-name" placeholder="Nombre del servicio*" required>
-                                <select id="srv-category" required>
-                                    <option value="">Categoría*</option>
-                                    <option value="belleza">Belleza</option>
-                                    <option value="bienestar">Bienestar</option>
-                                    <option value="salud">Salud</option>
-                                    <option value="otros">Otros</option>
-                                </select>
-                            </div>
-                            <div class="form-row">
-                                <input type="number" id="srv-price" placeholder="Precio ($)*" min="0" required>
-                                <div class="duration-info-static">
-                                    <i class="fas fa-clock"></i> Duración: <span id="main-duration-display">0</span> min (desde horarios)
-                                </div>
-                            </div>
-                            <div class="schedule-modules-section">
-                                <h4><i class="fas fa-clock"></i> Horarios del Servicio</h4>
-                                <p class="form-hint">Define los horarios disponibles. La duración se calcula automáticamente.</p>
-                                <div class="module-form">
+                            
+                            <!-- ===== PASO 1: DATOS BÁSICOS ===== -->
+                            <details class="form-step" open>
+                                <summary><i class="fas fa-clipboard-list"></i> 1. Datos básicos</summary>
+                                <div class="step-content">
                                     <div class="form-row">
-                                        <div class="time-selector">
-                                            <label for="module-start-time">Hora inicio</label>
-                                            <select id="module-start-time" class="time-select">
-                                                <option value="00:00">12:00 AM</option>
-                                                <option value="01:00">1:00 AM</option>
-                                                <option value="02:00">2:00 AM</option>
-                                                <option value="03:00">3:00 AM</option>
-                                                <option value="04:00">4:00 AM</option>
-                                                <option value="05:00">5:00 AM</option>
-                                                <option value="06:00">6:00 AM</option>
-                                                <option value="07:00">7:00 AM</option>
-                                                <option value="08:00">8:00 AM</option>
-                                                <option value="09:00">9:00 AM</option>
-                                                <option value="10:00">10:00 AM</option>
-                                                <option value="11:00">11:00 AM</option>
-                                                <option value="12:00">12:00 PM</option>
-                                                <option value="13:00">1:00 PM</option>
-                                                <option value="14:00">2:00 PM</option>
-                                                <option value="15:00">3:00 PM</option>
-                                                <option value="16:00">4:00 PM</option>
-                                                <option value="17:00">5:00 PM</option>
-                                                <option value="18:00">6:00 PM</option>
-                                                <option value="19:00">7:00 PM</option>
-                                                <option value="20:00">8:00 PM</option>
-                                                <option value="21:00">9:00 PM</option>
-                                                <option value="22:00">10:00 PM</option>
-                                                <option value="23:00">11:00 PM</option>
-                                            </select>
-                                        </div>
-                                        <div class="time-selector">
-                                            <label for="module-end-time">Hora fin</label>
-                                            <select id="module-end-time" class="time-select">
-                                                <option value="01:00">1:00 AM</option>
-                                                <option value="02:00">2:00 AM</option>
-                                                <option value="03:00">3:00 AM</option>
-                                                <option value="04:00">4:00 AM</option>
-                                                <option value="05:00">5:00 AM</option>
-                                                <option value="06:00">6:00 AM</option>
-                                                <option value="07:00">7:00 AM</option>
-                                                <option value="08:00">8:00 AM</option>
-                                                <option value="09:00">9:00 AM</option>
-                                                <option value="10:00">10:00 AM</option>
-                                                <option value="11:00">11:00 AM</option>
-                                                <option value="12:00">12:00 PM</option>
-                                                <option value="13:00">1:00 PM</option>
-                                                <option value="14:00">2:00 PM</option>
-                                                <option value="15:00">3:00 PM</option>
-                                                <option value="16:00">4:00 PM</option>
-                                                <option value="17:00">5:00 PM</option>
-                                                <option value="18:00">6:00 PM</option>
-                                                <option value="19:00">7:00 PM</option>
-                                                <option value="20:00">8:00 PM</option>
-                                                <option value="21:00">9:00 PM</option>
-                                                <option value="22:00">10:00 PM</option>
-                                                <option value="23:00">11:00 PM</option>
-                                                <option value="23:59">12:00 AM (siguiente)</option>
-                                            </select>
-                                        </div>
-                                        <button type="button" class="btn-grad" id="add-module-btn">
-                                            <i class="fas fa-plus-circle"></i> Agregar
-                                        </button>
+                                        <input type="text" id="srv-name" placeholder="Nombre del servicio*" required>
+                                        <input type="number" id="srv-price" placeholder="Precio ($)*" min="0" required>
                                     </div>
-                                </div>
-                                <div class="modules-list-container">
-                                    <h5><i class="fas fa-list"></i> Horarios configurados</h5>
-                                    <div id="modules-list" class="modules-list">
-                                        <div class="empty-modules">
-                                            <i class="fas fa-clock"></i>
-                                            <p>No hay horarios configurados</p>
-                                            <small>Agrega al menos un horario</small>
+                                    <div class="form-row">
+                                        <div class="input-with-label">
+                                            <label for="srv-duration">
+                                                <i class="fas fa-hourglass-half"></i> Duración (minutos)
+                                                <i class="fas fa-question-circle help-icon" data-tooltip="Tiempo que dura cada turno. Si se deja vacío, se usará la duración del primer horario que agregues."></i>
+                                            </label>
+                                            <input type="number" id="srv-duration" min="1" value="60" placeholder="Ej: 60">
+                                        </div>
+                                        <div class="input-with-label">
+                                            <label for="srv-capacity"><i class="fas fa-users"></i> Cupos por turno</label>
+                                            <input type="number" id="srv-capacity" placeholder="Ej: 10 (0 = ilimitado)" min="0" value="10" required>
+                                        </div>
+                                    </div>
+                                    <div class="image-section">
+                                        <label for="srv-image-url"><i class="fas fa-image"></i> Imagen del servicio</label>
+                                        <input type="text" id="srv-image-url" placeholder="Pega URL de imagen (opcional)">
+                                        <div class="image-preview-container" id="image-preview">
+                                            <div class="image-placeholder">
+                                                <i class="fas fa-image"></i>
+                                                <p>Vista previa aparecerá aquí</p>
+                                            </div>
+                                        </div>
+                                        <div class="image-options">
+                                            <button type="button" class="btn-small" id="clear-image"><i class="fas fa-times"></i> Limpiar</button>
+                                            <button type="button" class="btn-small" id="default-image"><i class="fas fa-magic"></i> Imagen predeterminada</button>
+                                        </div>
+                                    </div>
+                                    <div class="desc-container">
+                                        <label for="srv-desc"><i class="fas fa-align-left"></i> Descripción del servicio</label>
+                                        <textarea id="srv-desc" placeholder="Describe tu servicio en detalle..." rows="4"></textarea>
+                                        <div class="char-count"><span id="char-count">0</span>/500 caracteres</div>
+                                    </div>
+                                    <div class="service-options">
+                                        <div class="option-group">
+                                            <label class="checkbox-label">
+                                                <input type="checkbox" id="srv-featured" checked>
+                                                <span class="checkmark"></span>
+                                                <i class="fas fa-star"></i> Destacar en catálogo
+                                            </label>
+                                            <label class="checkbox-label">
+                                                <input type="checkbox" id="srv-active" checked>
+                                                <span class="checkmark"></span>
+                                                <i class="fas fa-eye"></i> Activo (visible para clientes)
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
-                                <input type="hidden" id="service-modules" name="service-modules" value="">
-                            </div>
-                            <div class="form-row">
-                                <div class="input-with-label">
-                                    <label for="srv-capacity"><i class="fas fa-users"></i> Cupos por turno</label>
-                                    <input type="number" id="srv-capacity" placeholder="Ej: 10 (0 = ilimitado)" min="0" value="10" required>
+                            </details>
+
+                            <!-- ===== PASO 2: HORARIOS ===== -->
+                            <details class="form-step">
+                                <summary><i class="fas fa-clock"></i> 2. Horarios del servicio <i class="fas fa-question-circle help-icon" data-tooltip="Define los bloques de tiempo que ofreces (ej. 10:00-11:00). Cada servicio puede tener varios horarios."></i></summary>
+                                <div class="step-content">
+                                    <p class="form-hint">Define los bloques de tiempo que ofreces. Cada servicio puede tener varios horarios.</p>
+                                    <div class="module-form">
+                                        <div class="form-row">
+                                            <div class="time-selector">
+                                                <label for="module-start-time">Hora inicio</label>
+                                                <select id="module-start-time" class="time-select">
+                                                    <option value="00:00">12:00 AM</option>
+                                                    <option value="01:00">1:00 AM</option>
+                                                    <option value="02:00">2:00 AM</option>
+                                                    <option value="03:00">3:00 AM</option>
+                                                    <option value="04:00">4:00 AM</option>
+                                                    <option value="05:00">5:00 AM</option>
+                                                    <option value="06:00">6:00 AM</option>
+                                                    <option value="07:00">7:00 AM</option>
+                                                    <option value="08:00">8:00 AM</option>
+                                                    <option value="09:00">9:00 AM</option>
+                                                    <option value="10:00">10:00 AM</option>
+                                                    <option value="11:00">11:00 AM</option>
+                                                    <option value="12:00">12:00 PM</option>
+                                                    <option value="13:00">1:00 PM</option>
+                                                    <option value="14:00">2:00 PM</option>
+                                                    <option value="15:00">3:00 PM</option>
+                                                    <option value="16:00">4:00 PM</option>
+                                                    <option value="17:00">5:00 PM</option>
+                                                    <option value="18:00">6:00 PM</option>
+                                                    <option value="19:00">7:00 PM</option>
+                                                    <option value="20:00">8:00 PM</option>
+                                                    <option value="21:00">9:00 PM</option>
+                                                    <option value="22:00">10:00 PM</option>
+                                                    <option value="23:00">11:00 PM</option>
+                                                </select>
+                                            </div>
+                                            <div class="time-selector">
+                                                <label for="module-end-time">Hora fin</label>
+                                                <select id="module-end-time" class="time-select">
+                                                    <option value="01:00">1:00 AM</option>
+                                                    <option value="02:00">2:00 AM</option>
+                                                    <option value="03:00">3:00 AM</option>
+                                                    <option value="04:00">4:00 AM</option>
+                                                    <option value="05:00">5:00 AM</option>
+                                                    <option value="06:00">6:00 AM</option>
+                                                    <option value="07:00">7:00 AM</option>
+                                                    <option value="08:00">8:00 AM</option>
+                                                    <option value="09:00">9:00 AM</option>
+                                                    <option value="10:00">10:00 AM</option>
+                                                    <option value="11:00">11:00 AM</option>
+                                                    <option value="12:00">12:00 PM</option>
+                                                    <option value="13:00">1:00 PM</option>
+                                                    <option value="14:00">2:00 PM</option>
+                                                    <option value="15:00">3:00 PM</option>
+                                                    <option value="16:00">4:00 PM</option>
+                                                    <option value="17:00">5:00 PM</option>
+                                                    <option value="18:00">6:00 PM</option>
+                                                    <option value="19:00">7:00 PM</option>
+                                                    <option value="20:00">8:00 PM</option>
+                                                    <option value="21:00">9:00 PM</option>
+                                                    <option value="22:00">10:00 PM</option>
+                                                    <option value="23:00">11:00 PM</option>
+                                                    <option value="23:59">12:00 AM (siguiente)</option>
+                                                </select>
+                                            </div>
+                                            <button type="button" class="btn-grad" id="add-module-btn">
+                                                <i class="fas fa-plus-circle"></i> Agregar
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="modules-list-container">
+                                        <h5><i class="fas fa-list"></i> Horarios configurados</h5>
+                                        <div id="modules-list" class="modules-list">
+                                            <div class="empty-modules">
+                                                <i class="fas fa-clock"></i>
+                                                <p>No hay horarios configurados</p>
+                                                <small>Agrega al menos un horario</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="service-modules" name="service-modules" value="">
                                 </div>
-                            </div>
-                            <div class="image-section">
-                                <label for="srv-image-url"><i class="fas fa-image"></i> Imagen del servicio</label>
-                                <input type="text" id="srv-image-url" placeholder="Pega URL de imagen (opcional)">
-                                <div class="image-preview-container" id="image-preview">
-                                    <div class="image-placeholder">
-                                        <i class="fas fa-image"></i>
-                                        <p>Vista previa aparecerá aquí</p>
+                            </details>
+
+                            <!-- ===== PASO 3: FECHAS Y CUPOS ===== -->
+                            <details class="form-step" open>
+                                <summary><i class="fas fa-calendar-alt"></i> 3. Fechas y cupos <i class="fas fa-question-circle help-icon" data-tooltip="Selecciona los días concretos en que este servicio estará disponible. Puedes usar el rango para generar varias fechas a la vez."></i></summary>
+                                <div class="step-content">
+                                    <div class="calendar-mini">
+                                        <div class="calendar-controls">
+                                            <button class="cal-btn" id="prev-month"><i class="fas fa-chevron-left"></i></button>
+                                            <h5 id="current-month">Febrero 2024</h5>
+                                            <button class="cal-btn" id="next-month"><i class="fas fa-chevron-right"></i></button>
+                                        </div>
+                                        <div class="calendar-weekdays">
+                                            <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+                                        </div>
+                                        <div class="calendar-days" id="calendar-days"></div>
+                                        <div class="service-dates-info">
+                                            <div class="dates-counter">
+                                                <i class="fas fa-calendar-day"></i>
+                                                <span id="dates-count">0</span> fechas seleccionadas
+                                            </div>
+                                            <div class="selected-dates-preview" id="selected-dates-preview">
+                                                <p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Rango de fechas -->
+                                    <div class="range-selector">
+                                        <h5><i class="fas fa-calendar-plus"></i> Generar fechas por rango</h5>
+                                        <div class="range-inputs">
+                                            <input type="date" id="range-start">
+                                            <span>a</span>
+                                            <input type="date" id="range-end">
+                                        </div>
+                                        <div class="range-days">
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="1"> Lun</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="2"> Mar</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="3"> Mié</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="4"> Jue</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="5"> Vie</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="6"> Sáb</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="0"> Dom</label>
+                                        </div>
+                                        <button type="button" class="btn-small" onclick="generarFechasPorRango()"><i class="fas fa-calendar-plus"></i> Generar fechas</button>
+                                    </div>
+
+                                    <div class="date-options">
+                                        <button type="button" class="btn-small" id="clear-all-dates"><i class="fas fa-trash-alt"></i> Limpiar todas</button>
+                                        <button type="button" class="btn-small" id="select-weekends"><i class="fas fa-umbrella-beach"></i> Solo fines de semana</button>
+                                        <button type="button" class="btn-small" id="select-weekdays"><i class="fas fa-briefcase"></i> Solo días laborables</button>
+                                    </div>
+
+                                    <input type="hidden" id="service-dates" name="service-dates" value="">
+
+                                    <!-- Matriz de cupos -->
+                                    <div class="cupos-matrix-section">
+                                        <h5><i class="fas fa-table"></i> Matriz de cupos
+                                            <i class="fas fa-question-circle help-icon" data-tooltip="Ajusta cupos específicos para cada fecha y hora. Usa los botones ↕ y ↓ para edición masiva. Cupo 0 deshabilita ese turno."></i>
+                                        </h5>
+                                        <div id="modules-cupos-container"></div>
+                                        <div class="economic-summary" id="economic-summary">
+                                            <span class="eco-item"><i class="fas fa-calendar-check"></i> Total turnos: <strong id="eco-total-turnos">0</strong></span>
+                                            <span class="eco-item"><i class="fas fa-dollar-sign"></i> Ingreso potencial: <strong id="eco-ingreso">$0</strong></span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="image-options">
-                                    <button type="button" class="btn-small" id="clear-image"><i class="fas fa-times"></i> Limpiar</button>
-                                    <button type="button" class="btn-small" id="default-image"><i class="fas fa-magic"></i> Imagen predeterminada</button>
-                                </div>
-                            </div>
-                            <div class="desc-container">
-                                <label for="srv-desc"><i class="fas fa-align-left"></i> Descripción del servicio</label>
-                                <textarea id="srv-desc" placeholder="Describe tu servicio en detalle..." rows="4"></textarea>
-                                <div class="char-count"><span id="char-count">0</span>/500 caracteres</div>
-                            </div>
-                            <div class="service-options">
-                                <div class="option-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="srv-featured" checked>
-                                        <span class="checkmark"></span>
-                                        <i class="fas fa-star"></i> Destacar en catálogo
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="srv-active" checked>
-                                        <span class="checkmark"></span>
-                                        <i class="fas fa-eye"></i> Activo (visible para clientes)
-                                    </label>
-                                </div>
-                            </div>
+                            </details>
+
+                            <!-- Botones de acción (fuera de acordeones) -->
                             <div class="form-actions">
                                 <button type="button" class="btn-secondary" onclick="mostrarVistaPrevia()"><i class="fas fa-eye"></i> Vista previa</button>
-                                <button type="reset" class="btn-secondary" id="reset-form"><i class="fas fa-broom"></i> Limpiar formulario</button>
+                                <button type="button" class="btn-secondary" id="discard-changes"><i class="fas fa-undo-alt"></i> Descartar cambios</button>
                                 <button type="submit" class="btn-grad"><i class="fas fa-plus-circle"></i> CREAR SERVICIO</button>
                             </div>
                         </form>
-                        <div class="calendar-mini">
-                            <h4><i class="fas fa-calendar-alt"></i> Fechas Disponibles del Servicio</h4>
-                            <div class="calendar-controls">
-                                <button class="cal-btn" id="prev-month"><i class="fas fa-chevron-left"></i></button>
-                                <h5 id="current-month">Febrero 2024</h5>
-                                <button class="cal-btn" id="next-month"><i class="fas fa-chevron-right"></i></button>
-                            </div>
-                            <div class="calendar-weekdays">
-                                <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
-                            </div>
-                            <div class="calendar-days" id="calendar-days"></div>
-                            <div class="service-dates-info">
-                                <h6><i class="fas fa-info-circle"></i> Instrucciones:</h6>
-                                <p class="form-hint">Selecciona las fechas en las que este servicio estará disponible. Las fechas seleccionadas se guardarán automáticamente con el servicio.</p>
-                                <div class="dates-counter">
-                                    <i class="fas fa-calendar-day"></i>
-                                    <span id="dates-count">0</span> fechas seleccionadas
-                                </div>
-                                <div class="selected-dates-preview" id="selected-dates-preview">
-                                    <p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>
-                                </div>
-                                                                <!-- Mejora #4: Selección por rango de fechas + días de semana -->
-                                <div class="range-selector" style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px;">
-                                    <div style="font-size: 0.9rem; color: #aaa; margin-bottom: 6px;">Generar fechas por rango</div>
-                                    <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-                                        <input type="date" id="range-start" style="flex:1; min-width:120px; padding:6px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(255,255,255,0.06); border-radius:6px;">
-                                        <span style="color:#666;">a</span>
-                                        <input type="date" id="range-end" style="flex:1; min-width:120px; padding:6px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(255,255,255,0.06); border-radius:6px;">
-                                    </div>
-                                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="1"> Lun</label>
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="2"> Mar</label>
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="3"> Mié</label>
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="4"> Jue</label>
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="5"> Vie</label>
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="6"> Sáb</label>
-                                        <label style="color:#aaa;font-size:0.8rem;"><input type="checkbox" class="dia-semana-checkbox" value="0"> Dom</label>
-                                    </div>
-                                    <button type="button" class="btn-small" onclick="generarFechasPorRango()" style="margin-top:6px; width:100%;"><i class="fas fa-calendar-plus"></i> Generar fechas</button>
-                                </div>
-                                <div class="date-options">
-                                    <button type="button" class="btn-small" id="clear-all-dates"><i class="fas fa-trash-alt"></i> Limpiar todas</button>
-                                    <button type="button" class="btn-small" id="select-weekends"><i class="fas fa-umbrella-beach"></i> Solo fines de semana</button>
-                                    <button type="button" class="btn-small" id="select-weekdays"><i class="fas fa-briefcase"></i> Solo días laborables</button>
-                                </div>
-                                <input type="hidden" id="service-dates" name="service-dates" value="">
-                            </div>
-                        </div>
                     </div>
                 </aside>
             </div>
@@ -454,13 +481,6 @@
                         <h3><i class="fas fa-boxes"></i> Mis Servicios</h3>
                         <div class="panel-actions">
                             <div class="filter-controls">
-                                <select id="filter-category" class="filter-select">
-                                    <option value="all">Todas las categorías</option>
-                                    <option value="belleza">Belleza</option>
-                                    <option value="bienestar">Bienestar</option>
-                                    <option value="salud">Salud</option>
-                                    <option value="otros">Otros</option>
-                                </select>
                                 <select id="filter-status" class="filter-select">
                                     <option value="all">Todos los estados</option>
                                     <option value="active">Activos</option>

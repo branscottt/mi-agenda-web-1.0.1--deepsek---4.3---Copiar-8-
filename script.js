@@ -3792,13 +3792,7 @@ async function cargarServiciosExistentes() {
     }
 
     function getCategoriaNombre(cat) {
-        const categorias = {
-            'belleza': 'Belleza',
-            'bienestar': 'Bienestar',
-            'salud': 'Salud',
-            'otros': 'Otros'
-        };
-        return categorias[cat] || 'General';
+        return 'General';
     }
 
     let html = '';
@@ -3956,10 +3950,6 @@ async function cargarServiciosExistentes() {
                     <i class="fas fa-star"></i> Destacado
                 </div>
                 ` : ''}
-                
-                <div class="service-card-category ${servicio.categoria}">
-                    ${getCategoriaNombre(servicio.categoria)}
-                </div>
                 
                 <div class="service-status ${servicio.activo ? 'active' : 'inactive'}">
                     ${servicio.activo ? 'Activo' : 'Inactivo'}
@@ -4334,14 +4324,9 @@ async function actualizarStatsHeader() {
 window.actualizarStatsHeader = actualizarStatsHeader;
 
 function configurarFiltros() {
-    const filtroCategoria = document.getElementById('filter-category');
     const filtroEstado = document.getElementById('filter-status');
     const filtroUrgencia = document.getElementById('filter-urgency');
     const btnActualizar = document.getElementById('refresh-services');
-
-    if (filtroCategoria) {
-        filtroCategoria.addEventListener('change', aplicarFiltros);
-    }
 
     if (filtroEstado) {
         filtroEstado.addEventListener('change', aplicarFiltros);
@@ -4539,7 +4524,7 @@ const btnPrimerServicio = document.getElementById('create-first-service');
         });
     }
 
-    const btnLimpiar = document.getElementById('reset-form');
+    const btnLimpiar = document.getElementById('discard-changes');
     if (btnLimpiar) {
         btnLimpiar.addEventListener('click', function() {
             setTimeout(() => {
@@ -5176,95 +5161,148 @@ function addModule() {
 
     mostrarMensaje(`Horario ${startTime} - ${endTime} agregado`, "success");
 }
-window.addModule = addModule;
+window.addModule = addModule;        
+    // Actualizar resumen después de agregar módulo
+    setTimeout(() => {
+        if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
+    }, 50);
 
 function renderModulesList() {
     const modulesList = document.getElementById('modules-list');
-    if (!modulesList) return;
-    if (serviceModules.length === 0) {
-        modulesList.innerHTML = `
-            <div class="empty-modules">
-                <i class="fas fa-clock"></i>
-                <p>No hay horarios configurados</p>
-                <small>Agrega al menos un horario</small>
-            </div>
-        `;
+    if (!modulesList) {
+        console.error("❌ 'modules-list' no encontrado en el DOM");
         return;
     }
 
-    const fechas = Array.from(selectedDates).sort();
-    let html = '<div class="modules-table">';
-    html += '<div class="modules-table-head">';
-    html += '<div class="col-hour"><strong>Hora</strong></div>';
-    if (fechas.length > 0) {
-        fechas.forEach(f => { html += `<div class="col-date"><strong>${f}</strong></div>`; });
-    } else {
-        html += `<div class="col-date"><strong>Plantilla / Cupos</strong></div>`;
-    }
-    html += '<div class="col-actions"><strong>Acciones</strong></div>';
-    html += '</div>';
-
-    serviceModules.forEach((module, index) => {
-        const horaFormateada = formatTimeDisplay(module.hora || module.startTime || '00:00');
-        html += `<div class="modules-table-row" data-module-id="${module.id}" data-hora="${module.hora}">`;
-        html += `<div class="col-hour">${horaFormateada}</div>`;
-        if (fechas.length > 0) {
-            fechas.forEach(fecha => {
-                const val = (moduleDateCupos[fecha] && typeof moduleDateCupos[fecha][module.hora] !== 'undefined') ? moduleDateCupos[fecha][module.hora] : (typeof module.cupos !== 'undefined' ? module.cupos : 0);
-                // Mejora #10: celda con input + botón X
-                html += `<div class="col-date cupo-cell">
-                    <input type="number" min="0" class="module-cupos-input" data-fecha="${fecha}" data-hora="${module.hora}" value="${val}">
-                    <button class="btn-disable-cupo" onclick="deshabilitarCupo('${fecha}','${module.hora}')" title="Deshabilitar este horario en esta fecha">×</button>
-                </div>`;
-            });
-            // Mejora #3: botón "Aplicar cupo a todas las fechas"
-            html += `<div class="col-actions">
-                <button class="btn-apply-cupo" onclick="aplicarCupoAFechas('${module.hora}')" title="Aplicar mismo cupo a todas las fechas">↕</button>
-                <button class="btn-remove-module" onclick="removeModule('${module.id}')" title="Eliminar horario"><i class="fas fa-times"></i></button>
-            </div>`;
-        } else {
-            const val = (typeof module.cupos !== 'undefined' ? module.cupos : 0);
-            html += `<div class="col-date"><input type="number" min="0" class="module-cupos-input template-cupos-input" data-hora="${module.hora}" data-module-id="${module.id}" value="${val}"></div>`;
-            html += `<div class="col-actions"><button class="btn-remove-module" onclick="removeModule('${module.id}')" title="Eliminar horario"><i class="fas fa-times"></i></button></div>`;
-        }
-        html += '</div>';
-    });
-
-    // Mejora #3: fila de botones por columna (por fecha)
-    if (fechas.length > 0) {
-        html += '<div class="modules-table-row modules-table-row--actions">';
-        html += '<div class="col-hour"><small>Acción</small></div>';
-        fechas.forEach(fecha => {
-            html += `<div class="col-date"><button class="btn-apply-cupo-date" onclick="aplicarCupoAHorarios('${fecha}')" title="Aplicar mismo cupo a todos los horarios en ${fecha}">↓ ${fecha}</button></div>`;
-        });
-        html += '<div class="col-actions"></div>';
-        html += '</div>';
+    if (!serviceModules || serviceModules.length === 0 || !selectedDates || selectedDates.length === 0) {
+        modulesList.innerHTML = '<div class="empty-modules"><i class="fas fa-clock"></i><p>No hay horarios configurados o fechas seleccionadas</p><small>Agrega horarios y selecciona fechas para ver la matriz</small></div>';
+        return;
     }
 
-    html += '</div>';
-    modulesList.innerHTML = html;
+    const sortedDates = [...selectedDates].sort((a, b) => a.localeCompare(b));
+    const sortedModules = [...serviceModules].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-    const inputs = modulesList.querySelectorAll('.module-cupos-input');
-    inputs.forEach(inp => {
-        inp.addEventListener('change', function(){
-            const fecha = this.dataset.fecha;
-            const hora = this.dataset.hora || this.dataset.hora;
-            const v = Number(this.value || 0);
-            if (fecha) {
-                moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
-                moduleDateCupos[fecha][hora] = v;
-            } else {
-                const moduleId = this.dataset.moduleId;
-                let mod = null;
-                if (moduleId) mod = serviceModules.find(m => String(m.id) === String(moduleId));
-                if (!mod) mod = serviceModules.find(m => String(m.hora) === String(hora));
-                if (mod) mod.cupos = v;
+    // Mostrar primeras 5 fechas, el resto colapsable
+    const COLLAPSE_LIMIT = 5;
+    const showAll = modulesList.dataset.showAll === 'true';
+    const visibleDates = showAll ? sortedDates : sortedDates.slice(0, COLLAPSE_LIMIT);
+    const hiddenCount = sortedDates.length - COLLAPSE_LIMIT;
+
+    // Inicializar moduleDateCupos
+    if (!window.moduleDateCupos) window.moduleDateCupos = {};
+    sortedDates.forEach(date => {
+        if (!window.moduleDateCupos[date]) window.moduleDateCupos[date] = {};
+        sortedModules.forEach(mod => {
+            const key = mod.hora || mod.startTime;
+            if (typeof window.moduleDateCupos[date][key] === 'undefined') {
+                window.moduleDateCupos[date][key] = (typeof mod.cupos !== 'undefined') ? Number(mod.cupos) : 0;
             }
         });
     });
+
+    let html = '<div class="modules-table-wrapper"><table class="modules-table">';
+    
+    // Cabecera: horarios
+html += '<thead><tr><th class="col-fecha">Fecha</th>';
+    sortedModules.forEach(mod => {
+        const horaKey = mod.hora || mod.startTime;
+        html += '<th class="col-hora">' + formatTimeDisplay(horaKey) + 
+                ' <button type="button" class="btn-mass-cupo-fila" title="Aplicar cupo a todas las fechas" onclick="aplicarCupoAFechas(\'' + horaKey + '\')">↕</button></th>';
+    });
+    // Columna de total por fecha
+    html += '<th class="col-total"><i class="fas fa-calculator" title="Total cupos por fecha"></i></th>';
+    html += '</tr></thead><tbody>';
+
+    // Filas: cada fecha
+    visibleDates.forEach(date => {
+        const totalFecha = sortedModules.reduce((sum, mod) => {
+            const key = mod.hora || mod.startTime;
+            const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
+                ? Number(window.moduleDateCupos[date][key]) : 0;
+            return sum + cupo;
+        }, 0);
+        
+        html += '<tr><td class="col-fecha">' + formatFechaCorta(date) + '</td>';
+        sortedModules.forEach(mod => {
+            const key = mod.hora || mod.startTime;
+            const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
+                ? Number(window.moduleDateCupos[date][key]) : 0;
+            const zeroClass = cupo <= 0 ? 'zero-cupo' : '';
+            html += '<td class="cupo-cell ' + zeroClass + '">';
+            html += '<div class="cupo-input-group">';
+            html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" onchange="actualizarCupo(this)">';
+            html += '<button type="button" class="btn-disable-cupo" title="Deshabilitar este turno (cupo=0)" onclick="deshabilitarCupo(\'' + date + '\',\'' + key + '\')">×</button>';
+            html += '</div>';
+            html += '</td>';
+        });
+        html += '<td class="col-total">' + totalFecha + '</td>';
+        html += '</tr>';
+    });
+
+    // Fila de colapso
+    if (hiddenCount > 0) {
+        html += '<tr class="collapse-row"><td colspan="' + (sortedModules.length + 2) + '">';
+        html += '<button type="button" class="btn-small" onclick="toggleFechasMatriz()">';
+        html += showAll ? '<i class="fas fa-chevron-up"></i> Mostrar menos' : '<i class="fas fa-chevron-down"></i> Mostrar ' + hiddenCount + ' fechas más';
+        html += '</button></td></tr>';
+    }
+
+    // Fila: totales por horario + gran total
+    html += '<tr class="total-row"><td class="col-fecha"><strong>Total</strong></td>';
+    let granTotal = 0;
+    sortedModules.forEach(mod => {
+        const key = mod.hora || mod.startTime;
+        const totalMod = sortedDates.reduce((sum, date) => {
+            const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
+                ? Number(window.moduleDateCupos[date][key]) : 0;
+            return sum + cupo;
+        }, 0);
+        granTotal += totalMod;
+        html += '<td class="col-total"><strong>' + totalMod + '</strong></td>';
+    });
+    html += '<td class="col-total"><strong>' + granTotal + '</strong></td>';
+    html += '</tr>';
+
+    // Botones de cupo masivo por fecha (abajo de la tabla)
+    html += '</tbody></table></div>';
+
+    // Fila de botones por fecha (aplicar cupo a todos los horarios de esa fecha)
+    html += '<div class="mass-cupo-fechas">';
+    visibleDates.forEach(date => {
+        html += '<button type="button" class="btn-mass-cupo-col btn-small" onclick="aplicarCupoAHorarios(\'' + date + '\')" title="Aplicar cupo a todos los horarios de esta fecha">↓ ' + formatFechaCorta(date) + '</button>';
+    });
+    html += '</div>';
+
+    modulesList.innerHTML = html;
+    
+    // Actualizar resumen económico
+    actualizarResumenEconomico();
 }
 window.renderModulesList = renderModulesList;
+// Función toggle fechas matriz (colapsar/expandir)
+function toggleFechasMatriz() {
+    const modulesList = document.getElementById('modules-list');
+    if (!modulesList) return;
+    const current = modulesList.dataset.showAll;
+    modulesList.dataset.showAll = current === 'true' ? 'false' : 'true';
+    renderModulesList();
+}
+window.toggleFechasMatriz = toggleFechasMatriz;
 
+// Actualizar cupo individual desde input
+function actualizarCupo(input) {
+    const fecha = input.dataset.date;
+    const hora = input.dataset.hora;
+    const val = parseInt(input.value);
+    if (isNaN(val) || val < 0) {
+        input.value = 0;
+    }
+    if (!window.moduleDateCupos) window.moduleDateCupos = {};
+    if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
+    window.moduleDateCupos[fecha][hora] = Number(input.value || 0);
+    actualizarResumenEconomico();
+}
+window.actualizarCupo = actualizarCupo;
 
 // ============================================
 // Mejora #3 – Cupo masivo por horario
@@ -5274,13 +5312,16 @@ function aplicarCupoAFechas(hora) {
     if (cupoStr === null) return;
     const cupo = parseInt(cupoStr);
     if (isNaN(cupo) || cupo < 0) { mostrarMensaje('Ingresa un número válido', 'warning'); return; }
+    if (!window.moduleDateCupos) window.moduleDateCupos = {};
     const fechas = Array.from(selectedDates);
     fechas.forEach(f => {
-        moduleDateCupos[f] = moduleDateCupos[f] || {};
-        moduleDateCupos[f][hora] = cupo;
+        if (!window.moduleDateCupos[f]) window.moduleDateCupos[f] = {};
+        window.moduleDateCupos[f][hora] = cupo;
     });
     renderModulesList();
     mostrarMensaje(`Cupo ${cupo} aplicado a todas las fechas para las ${hora}`, 'success');
+    const btn = document.querySelector(`.btn-mass-cupo-fila[onclick*="${hora}"]`);
+    if (btn) { btn.style.pointerEvents = 'auto'; }
 }
 window.aplicarCupoAFechas = aplicarCupoAFechas;
 
@@ -5292,9 +5333,10 @@ function aplicarCupoAHorarios(fecha) {
     if (cupoStr === null) return;
     const cupo = parseInt(cupoStr);
     if (isNaN(cupo) || cupo < 0) { mostrarMensaje('Ingresa un número válido', 'warning'); return; }
-    moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
+    if (!window.moduleDateCupos) window.moduleDateCupos = {};
+    if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
     serviceModules.forEach(mod => {
-        moduleDateCupos[fecha][mod.hora] = cupo;
+        window.moduleDateCupos[fecha][mod.hora] = cupo;
     });
     renderModulesList();
     mostrarMensaje(`Cupo ${cupo} aplicado a todos los horarios en ${fecha}`, 'success');
@@ -5305,8 +5347,9 @@ window.aplicarCupoAHorarios = aplicarCupoAHorarios;
 // Mejora #10 – Deshabilitar un horario en una fecha específica
 // ============================================
 function deshabilitarCupo(fecha, hora) {
-    moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
-    moduleDateCupos[fecha][hora] = 0;
+    if (!window.moduleDateCupos) window.moduleDateCupos = {};
+    if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
+    window.moduleDateCupos[fecha][hora] = 0;
     renderModulesList();
     mostrarMensaje(`Horario ${hora} deshabilitado en ${fecha} (cupo=0)`, 'info');
 }
@@ -5373,7 +5416,7 @@ async function duplicarServicio(id) {
     if (!original) { mostrarMensaje('Servicio no encontrado', 'error'); return; }
     // Cargar formulario con los datos del original pero sin ID (creación)
     document.getElementById('srv-name').value = original.nombre + ' (copia)';
-    document.getElementById('srv-category').value = original.categoria || '';
+    // categoría: 'general' (asignado por defecto al guardar)
     document.getElementById('srv-price').value = original.precio || '';
     document.getElementById('srv-image-url').value = original.imagen || '';
     document.getElementById('srv-desc').value = original.descripcion || '';
@@ -5563,11 +5606,79 @@ function clearAllModules() {
 }
 window.clearAllModules = clearAllModules;
 
-function getServiceDuration() {
-    if (serviceModules.length > 0) {
-        return serviceModules[0].duration || 0;
+// ============================================
+// Funciones auxiliares matriz de cupos
+// ============================================
+
+// Actualizar cupo individual al cambiar input
+window.actualizarCupo = function(input) {
+    const date = input.dataset.date;
+    const hora = input.dataset.hora;
+    const value = parseInt(input.value) || 0;
+    if (!window.moduleDateCupos) window.moduleDateCupos = {};
+    if (!window.moduleDateCupos[date]) window.moduleDateCupos[date] = {};
+    window.moduleDateCupos[date][hora] = value;
+    
+    // Reflejar cambio en serviceModules
+    const mod = serviceModules.find(m => (m.hora || m.startTime) === hora);
+    if (mod) {
+        if (!mod.cupos) mod.cupos = {};
+        mod.cupos[date] = value;
     }
-    return 0;
+    
+    // Marcar celda como cero si aplica
+    const cell = input.closest('.cupo-cell');
+    if (cell) {
+        cell.classList.toggle('zero-cupo', value <= 0);
+    }
+    
+    actualizarResumenEconomico();
+};
+
+// Colapsar/expandir fechas en matriz
+window.toggleFechasMatriz = function() {
+    const container = document.getElementById('modules-list');
+    if (!container) return;
+    container.dataset.showAll = container.dataset.showAll === 'true' ? 'false' : 'true';
+    renderModulesList();
+};
+
+// Resumen económico dinámico
+function actualizarResumenEconomico() {
+    const totalEl = document.getElementById('eco-total-turnos');
+    const ingresoEl = document.getElementById('eco-ingreso');
+    if (!totalEl || !ingresoEl) return;
+    
+    let totalCupos = 0;
+    if (window.moduleDateCupos && selectedDates && serviceModules) {
+        for (const date of selectedDates) {
+            for (const mod of serviceModules) {
+                const key = mod.hora || mod.startTime;
+                const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined'
+                    ? Number(window.moduleDateCupos[date][key]) : 0;
+                totalCupos += cupo;
+            }
+        }
+    }
+    
+    const precio = parseFloat(document.getElementById('srv-price')?.value) || 0;
+    totalEl.textContent = totalCupos;
+    ingresoEl.textContent = '$' + (totalCupos * precio).toLocaleString('es-CL');
+}
+window.actualizarResumenEconomico = actualizarResumenEconomico;
+
+
+function getServiceDuration() {
+    const durVal = document.getElementById('srv-duration');
+    if (durVal && durVal.value && Number(durVal.value) > 0) return Number(durVal.value);
+    // Si hay servicio editándose con duración propia, usarla
+    const editingId = document.getElementById('editing-service-id');
+    if (editingId && editingId.value) {
+        const durHidden = document.getElementById('srv-duration-hidden');
+        if (durHidden && durHidden.value) return Number(durHidden.value);
+    }
+    if (serviceModules.length > 0) return serviceModules[0].duration || 60;
+    return 60;
 }
 window.getServiceDuration = getServiceDuration;
 
