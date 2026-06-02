@@ -264,17 +264,6 @@
                                         <input type="number" id="srv-price" placeholder="Precio ($)*" min="0" required>
                                     </div>
                                     <div class="form-row">
-                                        <div class="input-with-label">
-                                            <label for="srv-duration">
-                                                <i class="fas fa-hourglass-half"></i> Duración (minutos)
-                                                <i class="fas fa-question-circle help-icon" data-tooltip="Tiempo que dura cada turno. Si se deja vacío, se usará la duración del primer horario que agregues."></i>
-                                            </label>
-                                            <input type="number" id="srv-duration" min="1" value="60" placeholder="Ej: 60">
-                                        </div>
-                                        <div class="input-with-label">
-                                            <label for="srv-capacity"><i class="fas fa-users"></i> Cupos por turno</label>
-                                            <input type="number" id="srv-capacity" placeholder="Ej: 10 (0 = ilimitado)" min="0" value="10" required>
-                                        </div>
                                     </div>
                                     <div class="image-section">
                                         <label for="srv-image-url"><i class="fas fa-image"></i> Imagen del servicio</label>
@@ -312,9 +301,74 @@
                                 </div>
                             </details>
 
-                            <!-- ===== PASO 2: HORARIOS ===== -->
+                            <!-- ===== PASO 2: FECHAS Y CUPOS ===== -->
+                            <details class="form-step" open>
+                                <summary><i class="fas fa-calendar-alt"></i> 2. Fechas y cupos <i class="fas fa-question-circle help-icon" data-tooltip="Selecciona los días concretos en que este servicio estará disponible. Puedes usar el rango para generar varias fechas a la vez."></i></summary>
+                                <div class="step-content">
+                                    <div class="calendar-mini">
+                                        <div class="calendar-controls">
+                                            <button class="cal-btn" id="prev-month"><i class="fas fa-chevron-left"></i></button>
+                                            <h5 id="current-month">Febrero 2024</h5>
+                                            <button class="cal-btn" id="next-month"><i class="fas fa-chevron-right"></i></button>
+                                        </div>
+                                        <div class="calendar-weekdays">
+                                            <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+                                        </div>
+                                        <div class="calendar-days" id="calendar-days"></div>
+                                        <div class="service-dates-info">
+                                            <div class="dates-counter">
+                                                <i class="fas fa-calendar-day"></i>
+                                                <span id="dates-count">0</span> fechas seleccionadas
+                                            </div>
+                                            <div class="selected-dates-preview" id="selected-dates-preview">
+                                                <p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Rango de fechas -->
+                                    <div class="range-selector">
+                                        <h5><i class="fas fa-calendar-plus"></i> Generar fechas por rango</h5>
+                                        <div class="range-inputs">
+                                            <input type="date" id="range-start">
+                                            <span>a</span>
+                                            <input type="date" id="range-end">
+                                        </div>
+                                        <div class="range-days">
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="1"> Lun</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="2"> Mar</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="3"> Mié</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="4"> Jue</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="5"> Vie</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="6"> Sáb</label>
+                                            <label><input type="checkbox" class="dia-semana-checkbox" value="0"> Dom</label>
+                                        </div>
+                                        <button type="button" class="btn-small" onclick="generarFechasPorRango()"><i class="fas fa-calendar-plus"></i> Generar fechas</button>
+                                    </div>
+
+                                    <div class="date-options">
+                                        <button type="button" class="btn-small" id="clear-all-dates"><i class="fas fa-trash-alt"></i> Limpiar todas</button>
+                                        <button type="button" class="btn-small" id="select-weekends"><i class="fas fa-umbrella-beach"></i> Solo fines de semana</button>
+                                        <button type="button" class="btn-small" id="select-weekdays"><i class="fas fa-briefcase"></i> Solo días laborables</button>
+                                    </div>
+
+                                    <input type="hidden" id="service-dates" name="service-dates" value="">
+
+                                    <!-- Matriz de cupos -->
+                                    <div class="cupos-matrix-section">
+                                        <h5><i class="fas fa-table"></i> Matriz de cupos
+                                            <i class="fas fa-question-circle help-icon" data-tooltip="Ajusta cupos específicos para cada fecha y hora. Usa los botones ↕ y ↓ para edición masiva. Cupo 0 deshabilita ese turno."></i>
+                                        </h5>
+                                        <div id="modules-cupos-container"></div>
+                                        <div class="economic-summary" id="economic-summary">
+                                            <span class="eco-item"><i class="fas fa-calendar-check"></i> Total turnos: <strong id="eco-total-turnos">0</strong></span>
+                                            <span class="eco-item"><i class="fas fa-dollar-sign"></i> Ingreso potencial: <strong id="eco-ingreso">$0</strong></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </details><!-- ===== PASO 3: HORARIOS ===== -->
                             <details class="form-step">
-                                <summary><i class="fas fa-clock"></i> 2. Horarios del servicio <i class="fas fa-question-circle help-icon" data-tooltip="Define los bloques de tiempo que ofreces (ej. 10:00-11:00). Cada servicio puede tener varios horarios."></i></summary>
+                                <summary><i class="fas fa-clock"></i> 3. Horarios del servicio <i class="fas fa-question-circle help-icon" data-tooltip="Define los bloques de tiempo que ofreces (ej. 10:00-11:00). Cada servicio puede tener varios horarios."></i></summary>
                                 <div class="step-content">
                                     <p class="form-hint">Define los bloques de tiempo que ofreces. Cada servicio puede tener varios horarios.</p>
                                     <div class="module-form">
@@ -396,72 +450,7 @@
                                 </div>
                             </details>
 
-                            <!-- ===== PASO 3: FECHAS Y CUPOS ===== -->
-                            <details class="form-step" open>
-                                <summary><i class="fas fa-calendar-alt"></i> 3. Fechas y cupos <i class="fas fa-question-circle help-icon" data-tooltip="Selecciona los días concretos en que este servicio estará disponible. Puedes usar el rango para generar varias fechas a la vez."></i></summary>
-                                <div class="step-content">
-                                    <div class="calendar-mini">
-                                        <div class="calendar-controls">
-                                            <button class="cal-btn" id="prev-month"><i class="fas fa-chevron-left"></i></button>
-                                            <h5 id="current-month">Febrero 2024</h5>
-                                            <button class="cal-btn" id="next-month"><i class="fas fa-chevron-right"></i></button>
-                                        </div>
-                                        <div class="calendar-weekdays">
-                                            <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
-                                        </div>
-                                        <div class="calendar-days" id="calendar-days"></div>
-                                        <div class="service-dates-info">
-                                            <div class="dates-counter">
-                                                <i class="fas fa-calendar-day"></i>
-                                                <span id="dates-count">0</span> fechas seleccionadas
-                                            </div>
-                                            <div class="selected-dates-preview" id="selected-dates-preview">
-                                                <p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Rango de fechas -->
-                                    <div class="range-selector">
-                                        <h5><i class="fas fa-calendar-plus"></i> Generar fechas por rango</h5>
-                                        <div class="range-inputs">
-                                            <input type="date" id="range-start">
-                                            <span>a</span>
-                                            <input type="date" id="range-end">
-                                        </div>
-                                        <div class="range-days">
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="1"> Lun</label>
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="2"> Mar</label>
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="3"> Mié</label>
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="4"> Jue</label>
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="5"> Vie</label>
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="6"> Sáb</label>
-                                            <label><input type="checkbox" class="dia-semana-checkbox" value="0"> Dom</label>
-                                        </div>
-                                        <button type="button" class="btn-small" onclick="generarFechasPorRango()"><i class="fas fa-calendar-plus"></i> Generar fechas</button>
-                                    </div>
-
-                                    <div class="date-options">
-                                        <button type="button" class="btn-small" id="clear-all-dates"><i class="fas fa-trash-alt"></i> Limpiar todas</button>
-                                        <button type="button" class="btn-small" id="select-weekends"><i class="fas fa-umbrella-beach"></i> Solo fines de semana</button>
-                                        <button type="button" class="btn-small" id="select-weekdays"><i class="fas fa-briefcase"></i> Solo días laborables</button>
-                                    </div>
-
-                                    <input type="hidden" id="service-dates" name="service-dates" value="">
-
-                                    <!-- Matriz de cupos -->
-                                    <div class="cupos-matrix-section">
-                                        <h5><i class="fas fa-table"></i> Matriz de cupos
-                                            <i class="fas fa-question-circle help-icon" data-tooltip="Ajusta cupos específicos para cada fecha y hora. Usa los botones ↕ y ↓ para edición masiva. Cupo 0 deshabilita ese turno."></i>
-                                        </h5>
-                                        <div id="modules-cupos-container"></div>
-                                        <div class="economic-summary" id="economic-summary">
-                                            <span class="eco-item"><i class="fas fa-calendar-check"></i> Total turnos: <strong id="eco-total-turnos">0</strong></span>
-                                            <span class="eco-item"><i class="fas fa-dollar-sign"></i> Ingreso potencial: <strong id="eco-ingreso">$0</strong></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </details>
+                            
 
                             <!-- Botones de acción (fuera de acordeones) -->
                             <div class="form-actions">
