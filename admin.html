@@ -369,9 +369,74 @@
                             </details>
                             <!-- ===== PASO 2: HORARIOS ===== -->
                             <details class="form-step">
-                                <summary><i class="fas fa-clock"></i> 3. Horarios del servicio <i class="fas fa-question-circle help-icon" data-tooltip="Define los bloques de tiempo que ofreces (ej. 10:00-11:00). Cada servicio puede tener varios horarios."></i></summary>
+                                <summary><i class="fas fa-clock"></i> 3. Horarios del servicio <i class="fas fa-question-circle help-icon" data-tooltip="Define los bloques de tiempo que ofreces (ej. 10:00-11:00). Puedes asignar horarios a todas las fechas, por día de la semana, o personalizados por fecha."></i></summary>
                                 <div class="step-content">
-                                    <p class="form-hint">Genera los horarios que ofrecerás. Cada módulo se genera automáticamente con 60 min de duración. Luego puedes editar cada uno.</p>
+                                    <p class="form-hint">Define cómo se asignan los horarios a las fechas seleccionadas en el calendario.</p>
+                                    
+                                    <!-- SELECTOR DE MODO DE ASIGNACIÓN -->
+                                    <div class="assignment-mode-selector" style="margin-bottom:15px;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
+                                        <label style="display:block;margin-bottom:8px;font-weight:600;color:var(--text-light);">
+                                            <i class="fas fa-cog"></i> Modo de asignación de horarios:
+                                        </label>
+                                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                            <button type="button" class="btn-small mode-btn active" data-mode="all" onclick="setAssignmentMode('all')" style="background:var(--primary-color);">
+                                                <i class="fas fa-globe"></i> Todas las fechas
+                                            </button>
+                                            <button type="button" class="btn-small mode-btn" data-mode="weekday" onclick="setAssignmentMode('weekday')" style="background:rgba(255,255,255,0.1);">
+                                                <i class="fas fa-calendar-week"></i> Por día de semana
+                                            </button>
+                                            <button type="button" class="btn-small mode-btn" data-mode="date" onclick="setAssignmentMode('date')" style="background:rgba(255,255,255,0.1);">
+                                                <i class="fas fa-calendar-day"></i> Por fecha específica
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Panel: Modo 'weekday' - seleccionar días -->
+                                        <div id="weekday-selector" style="display:none;margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                            <label style="display:block;margin-bottom:6px;font-size:0.9rem;color:var(--text-muted);">
+                                                <i class="fas fa-hand-pointer"></i> Selecciona los días para los módulos actuales:
+                                            </label>
+                                            <div style="display:flex;gap:6px;flex-wrap:wrap;" id="weekday-checkboxes">
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="1"> Lun
+                                                </label>
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="2"> Mar
+                                                </label>
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="3"> Mié
+                                                </label>
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="4"> Jue
+                                                </label>
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="5"> Vie
+                                                </label>
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="6"> Sáb
+                                                </label>
+                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
+                                                    <input type="checkbox" class="weekday-cb" value="0"> Dom
+                                                </label>
+                                            </div>
+                                            <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">
+                                                <i class="fas fa-info-circle"></i> Los módulos que generes se asignarán automáticamente a las fechas del calendario que coincidan con los días seleccionados.
+                                            </p>
+                                        </div>
+                                        
+                                        <!-- Panel: Modo 'date' - selector de fecha -->
+                                        <div id="date-selector-panel" style="display:none;margin-top:10px;padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;">
+                                            <label style="display:block;margin-bottom:6px;font-size:0.9rem;color:var(--text-muted);">
+                                                <i class="fas fa-hand-pointer"></i> Selecciona una fecha del calendario para asignarle módulos:
+                                            </label>
+                                            <select id="date-selector-select" class="filter-select" style="width:100%;margin-bottom:6px;" onchange="onDateSelectorChange(this)">
+                                                <option value="">— Selecciona una fecha —</option>
+                                            </select>
+                                            <p style="font-size:0.8rem;color:var(--text-muted);">
+                                                <i class="fas fa-info-circle"></i> Las fechas sin módulos personalizados usan los módulos generales.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
                                     <div class="module-form">
                                         <div class="form-row">
                                             <div class="input-with-label">

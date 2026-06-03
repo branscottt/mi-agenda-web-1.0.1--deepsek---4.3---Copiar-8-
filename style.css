@@ -7941,6 +7941,29 @@ input:-moz-autofill {
 .module-cupos-input[value="0"] {
     color: var(--danger-color);
 }
+
+/* Celda no aplicable en modo asignación por día/fecha */
+.cupo-cell.not-in-mode input,
+.cupo-cell.not-in-mode .btn-disable-cupo {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+/* Estilos selector de modo de asignación */
+.assignment-mode-selector .mode-btn {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+.assignment-mode-selector .mode-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+#weekday-selector label {
+    transition: background 0.2s ease;
+}
+#weekday-selector label:hover {
+    background: rgba(157, 78, 221, 0.2) !important;
+}
 @media (max-width: 500px) {
     .module-card-body {
         flex-direction: column;
