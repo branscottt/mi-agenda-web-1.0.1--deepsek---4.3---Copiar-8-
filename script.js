@@ -2944,7 +2944,7 @@ async function iniciarAdmin() {
     }
 
     // ========== DELEGAR VISTA PRINCIPAL A DASHBOARDVIEW MODULAR ==========
-    const mainContainer = document.getElementById('main-container');
+    const mainContainer = document.getElementById('dynamic-content');
     if (mainContainer) {
         try {
             const { renderDashboard } = await import('./src/dashboard/ui/DashboardView.js');
@@ -3091,6 +3091,11 @@ async function iniciarAdmin() {
     if (typeof setupNotificacionesListeners === 'function') setupNotificacionesListeners();
     
     await cargarSuscripcionTenant();
+    
+    // Cargar dashboard al inicio
+    if (typeof actualizarDashboardFinanzas === 'function') {
+        setTimeout(() => actualizarDashboardFinanzas(), 200);
+    }
 
     // ========== BOTÓN CANCELAR SUSCRIPCIÓN ==========
     const cancelBtn = document.getElementById('cancel-subscription-btn');
@@ -5027,10 +5032,8 @@ function initModules() {
 window.initModules = initModules;
 
 function setupModuleEvents() {
-    document.getElementById('module-start-time')?.addEventListener('change', updateDurationDisplay);
-    document.getElementById('module-end-time')?.addEventListener('change', updateDurationDisplay);
-
-    document.getElementById('add-module-btn')?.addEventListener('click', addModule);
+    document.getElementById('generate-modules-btn')?.addEventListener('click', generarModulosAutomaticos);
+    document.getElementById('confirm-modules-btn')?.addEventListener('click', confirmarModulos);
 
     document.getElementById('service-modules')?.addEventListener('change', function() {
         loadModulesFromHiddenField();
@@ -5038,32 +5041,27 @@ function setupModuleEvents() {
 }
 window.setupModuleEvents = setupModuleEvents;
 
+/**
+ * updateDurationDisplay — muestra la duración total de todos los módulos configurados
+ * Reimplementada porque fue eliminada por error (llamada desde varios lugares)
+ */
 function updateDurationDisplay() {
-    const startTime = document.getElementById('module-start-time')?.value;
-    const endTime = document.getElementById('module-end-time')?.value;
-
-    if (!startTime || !endTime) return;
-
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
-
-    let durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-
-    if (durationMinutes < 0) {
-        durationMinutes += 24 * 60;
+    if (!window.serviceModules || !window.serviceModules.length) return;
+    const totalMin = window.serviceModules.reduce((acc, m) => {
+        if (m.startTime && m.endTime) {
+            const [h1, m1] = m.startTime.split(':').map(Number);
+            const [h2, m2] = m.endTime.split(':').map(Number);
+            return acc + ((h2 * 60 + m2) - (h1 * 60 + m1));
+        }
+        return acc + (m.duration || 60);
+    }, 0);
+    const horas = Math.floor(totalMin / 60);
+    const mins = totalMin % 60;
+    // Buscar un elemento existente para mostrar la duración, o mostrarlo en consola
+    const durEl = document.getElementById('srv-duration-display') || document.querySelector('.duration-summary');
+    if (durEl) {
+        durEl.textContent = horas > 0 ? `${horas}h ${mins}min` : `${mins}min`;
     }
-
-    const durationDisplay = document.getElementById('main-duration-display');
-    if (durationDisplay) {
-        durationDisplay.textContent = durationMinutes;
-    }
-
-    const smallDurationDisplay = document.getElementById('duration-minutes');
-    if (smallDurationDisplay) {
-        smallDurationDisplay.textContent = durationMinutes;
-    }
-
-    return durationMinutes;
 }
 window.updateDurationDisplay = updateDurationDisplay;
 
@@ -5102,70 +5100,151 @@ function horariosSolapan(s1, e1, s2, e2) {
     return start1 < end2 && start2 < end1;
 }
 
-function addModule() {
-    const startTime = document.getElementById('module-start-time')?.value;
-    const endTime = document.getElementById('module-end-time')?.value;
+function generarModulosAutomaticos() {
+    const count = parseInt(document.getElementById('module-count')?.value) || 3;
+    const desde = document.getElementById('module-start-gen')?.value || '09:00';
+    const DURACION = 60;
 
-    if (!startTime || !endTime) {
-        mostrarMensaje("Selecciona hora inicio y hora fin", "warning");
+    // Validar
+    if (count < 1) {
+        mostrarMensaje("Ingresa al menos 1 modulo", "warning");
         return;
     }
 
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
+    // Limpiar modulos existentes
+    serviceModules = [];
 
-    let startTotal = startHour * 60 + startMin;
-    let endTotal = endHour * 60 + endMin;
+    const [h, m] = desde.split(':').map(Number);
+    let minutosInicio = h * 60 + m;
 
-    if (endTotal <= startTotal) {
-        if (endTotal + (24 * 60) <= startTotal + (24 * 60)) {
-            mostrarMensaje("La hora fin debe ser mayor que la hora inicio", "error");
-            return;
-        }
+    for (let i = 0; i < count; i++) {
+        const inicio = String(Math.floor(minutosInicio / 60) % 24).padStart(2, '0') + ':' + String(minutosInicio % 60).padStart(2, '0');
+        const finMinutos = minutosInicio + DURACION;
+        const fin = String(Math.floor(finMinutos / 60) % 24).padStart(2, '0') + ':' + String(finMinutos % 60).padStart(2, '0');
+        
+        serviceModules.push({
+            id: Date.now() + i,
+            hora: inicio,
+            cupos: 1,
+            duration: DURACION,
+            editable: true
+        });
+        
+        minutosInicio += DURACION;
     }
 
-    // --- Validación de solapamiento (Mejora #2) ---
-    for (const mod of serviceModules) {
-        // Calcular endTime del módulo existente a partir de su hora + duración
-        const modEndTime = calcularFinModulo(mod.hora, mod.duration);
-        if (horariosSolapan(startTime, endTime, mod.hora, modEndTime)) {
-            mostrarMensaje(
-                `El horario ${startTime}-${endTime} se solapa con ${mod.hora}-${modEndTime}. Ajusta los horarios.`,
-                "error"
-            );
-            return;
-        }
+    renderModulesEditable();
+    saveModulesToHiddenField();
+    mostrarMensaje(`${count} modulo(s) generados`, "success");
+}
+
+function renderModulesEditable() {
+    const container = document.getElementById('modules-list');
+    if (!container) return;
+
+    if (!serviceModules || serviceModules.length === 0) {
+        container.innerHTML = '<div class="empty-modules"><i class="fas fa-clock"></i><p>No hay horarios configurados</p><small>Usa "Generar" para crear los módulos</small></div>';
+        document.getElementById('confirm-modules-btn').style.display = 'none';
+        return;
     }
-    // ------------------------------------------------
 
-    const duration = updateDurationDisplay();
-
-    const rawCap = document.getElementById('srv-capacity')?.value;
-    const cupos = (rawCap === '') ? 0 : (parseInt(rawCap) || 0);
-
-    const newModule = {
-        id: Date.now() + Math.random(),
-        hora: startTime,
-        cupos: Number(cupos),
-        duration: duration
-    };
-
-    serviceModules.push(newModule);
-    Array.from(selectedDates).forEach(fecha => {
-        moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
-        moduleDateCupos[fecha][startTime] = Number(newModule.cupos || 0);
+    let html = '';
+    serviceModules.forEach((mod, idx) => {
+        const fin = calcularFinModulo(mod.hora, mod.duration || 60);
+        html += '<div class="module-card">';
+        html += '  <div class="module-card-header">';
+        html += '    <span class="module-number">#' + (idx + 1) + '</span>';
+        html += '    <button type="button" class="btn-icon-danger module-delete-btn" data-index="' + idx + '" title="Eliminar modulo">&times;</button>';
+        html += '  </div>';
+        html += '  <div class="module-card-body">';
+        html += '    <div class="module-time-group">';
+        html += '      <label>Inicio</label>';
+        html += '      <input type="time" class="module-time-input module-time-start" data-index="' + idx + '" value="' + mod.hora + '">';
+        html += '    </div>';
+        html += '    <div class="module-time-group">';
+        html += '      <label>Fin</label>';
+        html += '      <input type="time" class="module-time-input module-time-end" data-index="' + idx + '" value="' + fin + '">';
+        html += '    </div>';
+        html += '    <div class="module-cupos-group">';
+        html += '      <label>Cupos</label>';
+        html += '      <input type="number" class="module-cupos-input" data-index="' + idx + '" value="' + (mod.cupos || 1) + '" min="0">';
+        html += '    </div>';
+        html += '  </div>';
+        html += '</div>';
     });
 
-    renderModulesList();
-    saveModulesToHiddenField();
+    container.innerHTML = html;
 
-    mostrarMensaje(`Horario ${startTime} - ${endTime} agregado`, "success");
+    // Mostrar boton Confirmar
+    const confirmBtn = document.getElementById('confirm-modules-btn');
+    if (confirmBtn) confirmBtn.style.display = 'inline-block';
+
+    // Eventos para inputs editables
+    container.querySelectorAll('.module-time-start').forEach(inp => {
+        inp.addEventListener('change', function() {
+            const idx = parseInt(this.dataset.index);
+            const finInput = container.querySelector('.module-time-end[data-index="' + idx + '"]');
+            if (serviceModules[idx]) {
+                serviceModules[idx].hora = this.value;
+                if (finInput) {
+                    const fin = calcularFinModulo(this.value, serviceModules[idx].duration || 60);
+                    finInput.value = fin;
+                }
+                saveModulesToHiddenField();
+            }
+        });
+    });
+
+    container.querySelectorAll('.module-time-end').forEach(inp => {
+        inp.addEventListener('change', function() {
+            const idx = parseInt(this.dataset.index);
+            const startInput = container.querySelector('.module-time-start[data-index="' + idx + '"]');
+            if (serviceModules[idx] && startInput) {
+                // Calcular duracion desde inicio hasta fin
+                const [h1, m1] = startInput.value.split(':').map(Number);
+                const [h2, m2] = this.value.split(':').map(Number);
+                let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+                if (diff < 0) diff += 24 * 60;
+                serviceModules[idx].duration = diff;
+                saveModulesToHiddenField();
+            }
+        });
+    });
+
+    container.querySelectorAll('.module-cupos-input').forEach(inp => {
+        inp.addEventListener('change', function() {
+            const idx = parseInt(this.dataset.index);
+            if (serviceModules[idx]) {
+                serviceModules[idx].cupos = parseInt(this.value) || 0;
+                saveModulesToHiddenField();
+            }
+        });
+    });
+
+    container.querySelectorAll('.module-delete-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const idx = parseInt(this.dataset.index);
+            serviceModules.splice(idx, 1);
+            if (serviceModules.length === 0) {
+                document.getElementById('confirm-modules-btn').style.display = 'none';
+            }
+            renderModulesEditable();
+            saveModulesToHiddenField();
+        });
+    });
 }
-window.addModule = addModule;        
-    // Actualizar resumen después de agregar módulo
-    setTimeout(() => {
-        if (typeof actualizarResumenEconomico === 'function') actualizarResumenEconomico();
-    }, 50);
+
+function confirmarModulos() {
+    if (!serviceModules || serviceModules.length === 0) {
+        mostrarMensaje("No hay modulos para confirmar", "warning");
+        return;
+    }
+    // Marcar como confirmados
+    serviceModules.forEach(m => m.editable = false);
+    renderModulesEditable();
+    saveModulesToHiddenField();
+    mostrarMensaje("Modulos confirmados", "success");
+}
 
 function renderModulesList() {
     const modulesList = document.getElementById('modules-list');
@@ -5180,7 +5259,7 @@ function renderModulesList() {
     }
 
     const sortedDates = [...selectedDates].sort((a, b) => a.localeCompare(b));
-    const sortedModules = [...serviceModules].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const sortedModules = [...serviceModules].sort((a, b) => (a.hora || a.startTime).localeCompare(b.hora || b.startTime));
 
     // Mostrar primeras 5 fechas, el resto colapsable
     const COLLAPSE_LIMIT = 5;
@@ -5502,12 +5581,12 @@ window.mostrarVistaPrevia = mostrarVistaPrevia;
 // ============================================
 function getServiceDuration() {
     const durVal = document.getElementById('srv-duration');
-    if (durVal && durVal.value && Number(durVal.value) > 0) return Number(durVal.value);
+    if (durVal && durVal?.value && Number(durVal?.value) > 0) return Number(durVal?.value);
     // Si hay servicio editándose con duración propia, usarla
     const editingId = document.getElementById('editing-service-id');
     if (editingId && editingId.value) {
         const durHidden = document.getElementById('srv-duration-hidden');
-        if (durHidden && durHidden.value) return Number(durHidden.value);
+        if (durHidden && durHidden?.value) return Number(durHidden?.value);
     }
     if (serviceModules.length > 0) return serviceModules[0].duration || 60;
     return 60;
@@ -5670,12 +5749,12 @@ window.actualizarResumenEconomico = actualizarResumenEconomico;
 
 function getServiceDuration() {
     const durVal = document.getElementById('srv-duration');
-    if (durVal && durVal.value && Number(durVal.value) > 0) return Number(durVal.value);
+    if (durVal && durVal?.value && Number(durVal?.value) > 0) return Number(durVal?.value);
     // Si hay servicio editándose con duración propia, usarla
     const editingId = document.getElementById('editing-service-id');
     if (editingId && editingId.value) {
         const durHidden = document.getElementById('srv-duration-hidden');
-        if (durHidden && durHidden.value) return Number(durHidden.value);
+        if (durHidden && durHidden?.value) return Number(durHidden?.value);
     }
     if (serviceModules.length > 0) return serviceModules[0].duration || 60;
     return 60;
@@ -8813,6 +8892,8 @@ window.diagnosticarSistema = diagnosticarSistema;
 // ============================================
 // COMPARTIR ENLACE DE CLIENTES
 // ============================================
+// navigateTo eliminado: se usa la versión definida en admin.html (inline)
+// que tiene la lógica completa de navegación y carga de datos por sección.
 function configurarCompartirEnlace() {
     const linkInput = document.getElementById('client-share-link');
     const copyBtn = document.getElementById('copy-link-btn');
