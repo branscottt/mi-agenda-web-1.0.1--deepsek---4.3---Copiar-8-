@@ -486,6 +486,19 @@
                                                 <small>Usa "Generar" para crear los módulos</small>
                                             </div>
                                         </div>
+                                        <div id="assignment-save-area" style="display:none; margin-top:10px; padding:12px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(157,78,221,0.3);">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                                                <div>
+                                                    <strong style="color:var(--primary-light);"><i class="fas fa-save"></i> Asignación de módulos</strong>
+                                                    <div id="assignment-status" style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">
+                                                        No hay módulos guardados para esta selección.
+                                                    </div>
+                                                </div>
+                                                <button type="button" class="btn-grad btn-small" id="btn-save-assignment" onclick="guardarAsignacionActual()">
+                                                    <i class="fas fa-check-double"></i> Guardar asignación
+                                                </button>
+                                            </div>
+                                        </div>
                                         <button type="button" class="btn-grad" id="confirm-modules-btn" style="display:none;margin-top:10px;">
                                             <i class="fas fa-check-circle"></i> Confirmar módulos
                                         </button>

@@ -282,9 +282,9 @@ let reprogramInfo = { citaId: null, serviceId: null, citaActual: null };
 let idCitaEnEdicion = null;
 
 // Módulos de horario (admin)
-let serviceModules = [];
-let moduleDateCupos = {};
-
+window.serviceModules = [];
+window.moduleDateCupos = {};
+// Almacena módulos específicos por día de la semana
 // Filtros (cliente)
 let currentFilterTerm = '';
 let currentFilterDate = '';
@@ -3686,9 +3686,22 @@ async function crearServicio() {
         return;
     }
 
-    if (activo && serviceModules.length === 0) {
+    if (activo && (!window.serviceModules || window.serviceModules.length === 0)) {
         mostrarMensaje("⚠️ El servicio está marcado como activo pero no tiene horarios configurados. Agrega al menos un horario.", "warning");
         return;
+    }
+
+    // Validar asignación completa en modos 'weekday' o 'date'
+    if (activo && (_assignmentMode === 'weekday' || _assignmentMode === 'date')) {
+        const estado = obtenerEstadoAsignacion();
+        if (!estado.completo) {
+            const faltan = estado.pendientes.join(', ');
+            mostrarMensaje(`⚠️ Faltan módulos por asignar: ${faltan}. Usa "Guardar asignación" para completar antes de crear el servicio.`, "warning");
+            // Hacer scroll al área de asignación
+            const saveArea = document.getElementById('assignment-save-area');
+            if (saveArea) saveArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
     }
 
     // Leer duración: si existe input srv-duration, usarlo; si no, inferir del primer módulo
@@ -3696,8 +3709,8 @@ async function crearServicio() {
     const durInput = document.getElementById('srv-duration');
     if (durInput && durInput.value && Number(durInput.value) > 0) {
         duracion = Number(durInput.value);
-    } else if (serviceModules.length > 0) {
-        duracion = serviceModules[0].duration || 60;
+    } else if (window.serviceModules && window.serviceModules.length > 0) {
+        duracion = window.serviceModules[0].duration || 60;
     }
 
     const disponibilidad = buildDisponibilidadFromForm();
@@ -4137,12 +4150,12 @@ async function editarServicio(id) {
             });
         });
         Object.values(horaMap).forEach(h => serviceModules.push(h));
-        moduleDateCupos = {};
+        window.moduleDateCupos = {};
         Object.keys(servicio.disponibilidad || {}).forEach(fecha => {
-            moduleDateCupos[fecha] = {};
+            window.moduleDateCupos[fecha] = {};
             (servicio.disponibilidad[fecha] || []).forEach(mod => {
                 const hora = mod.hora || mod.startTime || '00:00';
-                moduleDateCupos[fecha][hora] = Number(mod.cupos || 0);
+                window.moduleDateCupos[fecha][hora] = Number(mod.cupos || 0);
             });
         });
         renderModulesList();
@@ -4229,7 +4242,7 @@ async function actualizarServicio(id) {
     if (durInput && durInput.value && Number(durInput.value) > 0) {
         duracion = Number(durInput.value);
     } else if (serviceModules.length > 0) {
-        duracion = serviceModules[0].duration || 60;
+        duracion = window.serviceModules[0].duration || 60;
     }
 
     const disponibilidadNueva = buildDisponibilidadFromForm();
@@ -4960,10 +4973,10 @@ function updateDatesPreview() {
     });
 
     sortedDates.forEach(fecha => {
-        moduleDateCupos[fecha] = moduleDateCupos[fecha] || {};
+        window.moduleDateCupos[fecha] = window.moduleDateCupos[fecha] || {};
         serviceModules.forEach(mod => {
-            if (typeof moduleDateCupos[fecha][mod.hora] === 'undefined') {
-                moduleDateCupos[fecha][mod.hora] = Number(mod.cupos || 0);
+            if (typeof window.moduleDateCupos[fecha][mod.hora] === 'undefined') {
+                window.moduleDateCupos[fecha][mod.hora] = Number(mod.cupos || 0);
             }
         });
     });
@@ -5057,6 +5070,8 @@ let _weekdayModules = {};
 let _dateSpecificModules = {};
 // Fecha actualmente seleccionada en el panel de fecha específica
 let _selectedDateForModules = null;
+// Flag de cambios sin guardar
+let _unsavedChanges = false;
 
 /**
  * setAssignmentMode — cambia el modo de asignación de horarios
@@ -5123,17 +5138,30 @@ function actualizarSelectorFechas() {
  * onDateSelectorChange — cuando el usuario selecciona una fecha en modo 'date'
  */
 function onDateSelectorChange(sel) {
-    _selectedDateForModules = sel.value || null;
+    const newDate = sel.value || null;
+    
+    // Preguntar si hay cambios sin guardar
+    if (_unsavedChanges && _selectedDateForModules && newDate !== _selectedDateForModules) {
+        if (!confirm('Tienes cambios sin guardar en los módulos actuales. ¿Guardarlos antes de cambiar de fecha?')) {
+            // No guardar, restaurar el valor anterior
+            sel.value = _selectedDateForModules;
+            return;
+        }
+        // Guardar antes de cambiar
+        guardarAsignacionActual();
+    }
+    
+    _selectedDateForModules = newDate;
     if (_selectedDateForModules) {
-        // Cargar los módulos de esa fecha específica en el editor
         cargarModulosDeFecha(_selectedDateForModules);
     }
+    _unsavedChanges = false;
 }
 window.onDateSelectorChange = onDateSelectorChange;
 
 /**
  * cargarModulosDeFecha — carga los módulos de una fecha específica al editor
- * Si la fecha no tiene módulos personalizados, carga los generales (serviceModules)
+ * Si la fecha no tiene módulos personalizados, carga los generales (window.serviceModules)
  */
 function cargarModulosDeFecha(fecha) {
     if (!fecha) return;
@@ -5143,7 +5171,7 @@ function cargarModulosDeFecha(fecha) {
     // Cargar módulos de la fecha (o generales si no tiene)
     const mods = _dateSpecificModules[fecha] || [];
     if (mods.length > 0) {
-        // Reemplazar serviceModules con los de esta fecha
+        // Reemplazar window.serviceModules con los de esta fecha
         window.serviceModules = mods.map(m => ({...m}));
     } else {
         // Si no hay específicos, mostrar los generales o vacío
@@ -5276,6 +5304,10 @@ function saveModulesToHiddenField() {
 }
 window.saveModulesToHiddenField = saveModulesToHiddenField;
 function initModules() {
+    // Inicializar modo de asignación (ocultar área de guardado si es 'all')
+    if (typeof setAssignmentMode === 'function') {
+        setAssignmentMode('all');
+    }
     setupModuleEvents();
     setupWeekdayCheckboxEvents();
     updateDurationDisplay();
@@ -5302,7 +5334,7 @@ function setupWeekdayCheckboxEvents() {
                 // Si no queda ningún día marcado, mostrar módulos generales
                 const anyChecked = [...document.querySelectorAll('.weekday-cb:checked')].length > 0;
                 if (!anyChecked) {
-                    // No cambiar serviceModules, mantener los generales
+                    // No cambiar window.serviceModules, mantener los generales
                 }
             }
             if (typeof renderModulesList === 'function') {
@@ -5313,6 +5345,150 @@ function setupWeekdayCheckboxEvents() {
 }
 window.setupWeekdayCheckboxEvents = setupWeekdayCheckboxEvents;
 
+/**
+ * guardarAsignacionActual — guarda los módulos actuales del editor
+ * en los días/fechas seleccionados según el modo activo.
+ * También actualiza los indicadores de estado.
+ */
+function guardarAsignacionActual() {
+    if (!window.serviceModules || window.serviceModules.length === 0) {
+        mostrarMensaje('No hay módulos para guardar. Genera algunos primero.', 'warning');
+        return;
+    }
+    
+    if (_assignmentMode === 'weekday') {
+        const checkedDays = [...document.querySelectorAll('.weekday-cb:checked')].map(cb => parseInt(cb.value));
+        if (checkedDays.length === 0) {
+            mostrarMensaje('Selecciona al menos un día de la semana para asignar los módulos.', 'warning');
+            return;
+        }
+        checkedDays.forEach(day => {
+            _weekdayModules[day] = window.serviceModules.map(m => ({...m}));
+        });
+        mostrarMensaje(`✅ Módulos asignados a ${checkedDays.length} día(s): ${checkedDays.map(d => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}`, 'success');
+    } else if (_assignmentMode === 'date') {
+        if (!_selectedDateForModules) {
+            mostrarMensaje('Selecciona una fecha específica en el panel de arriba.', 'warning');
+            return;
+        }
+        if (window.serviceModules.length > 0) {
+            _dateSpecificModules[_selectedDateForModules] = window.serviceModules.map(m => ({...m}));
+            mostrarMensaje(`✅ Módulos asignados a la fecha ${_selectedDateForModules}`, 'success');
+        } else {
+            delete _dateSpecificModules[_selectedDateForModules];
+            mostrarMensaje('Módulos eliminados de la fecha (vacío).', 'info');
+        }
+        // Actualizar el selector de fechas para mostrar ✏️
+        if (typeof actualizarSelectorFechas === 'function') {
+            actualizarSelectorFechas();
+        }
+    } else {
+        mostrarMensaje('Cambia a modo "Por día de semana" o "Por fecha específica" para usar esta función.', 'info');
+        return;
+    }
+    
+    // Actualizar indicadores de estado
+    actualizarEstadoAsignacion();
+    _unsavedChanges = false;
+    saveModulesToHiddenField();
+    if (typeof renderModulesList === 'function') renderModulesList();
+}
+window.guardarAsignacionActual = guardarAsignacionActual;
+
+/**
+ * actualizarEstadoAsignacion — muestra qué días/fechas tienen módulos asignados y cuáles faltan
+ */
+function actualizarEstadoAsignacion() {
+    const statusEl = document.getElementById('assignment-status');
+    if (!statusEl) return;
+    
+    if (_assignmentMode === 'weekday') {
+        const allDays = [0, 1, 2, 3, 4, 5, 6];
+        const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        let partes = [];
+        let pendientes = [];
+        allDays.forEach(d => {
+            // Solo mostrar los días que tienen fechas en el calendario
+            const fechaEjemplo = [...(selectedDates || [])].find(f => {
+                return new Date(f + 'T12:00:00').getDay() === d;
+            });
+            if (!fechaEjemplo) return; // este día no tiene fechas en calendario
+            
+            const assigned = _weekdayModules[d] && _weekdayModules[d].length > 0;
+            const icon = assigned ? '✅' : '⬜';
+            partes.push(`${icon} ${dayNames[d]}`);
+            if (!assigned) pendientes.push(dayNames[d]);
+        });
+        if (partes.length === 0) {
+            statusEl.textContent = 'No hay fechas seleccionadas en el calendario para este modo.';
+        } else if (pendientes.length === 0) {
+            statusEl.innerHTML = partes.join(' · ') + ' — <strong style="color:#00b894;">Completo ✅</strong>';
+        } else {
+            statusEl.innerHTML = partes.join(' · ') + ` — <strong style="color:var(--warning-color);">Faltan: ${pendientes.join(', ')} ⬜</strong>`;
+        }
+    } else if (_assignmentMode === 'date') {
+        const totalDates = selectedDates ? selectedDates.size : 0;
+        if (totalDates === 0) {
+            statusEl.textContent = 'No hay fechas seleccionadas en el calendario.';
+            return;
+        }
+        let asignadas = 0;
+        selectedDates.forEach(f => {
+            if (_dateSpecificModules[f] && _dateSpecificModules[f].length > 0) asignadas++;
+        });
+        const pendientes = totalDates - asignadas;
+        if (pendientes === 0) {
+            statusEl.innerHTML = `${asignadas} de ${totalDates} fechas asignadas — <strong style="color:#00b894;">Completo ✅</strong>`;
+        } else {
+            statusEl.innerHTML = `${asignadas} de ${totalDates} fechas asignadas — <strong style="color:var(--warning-color);">${pendientes} pendientes ⬜</strong>`;
+        }
+    }
+}
+window.actualizarEstadoAsignacion = actualizarEstadoAsignacion;
+
+/**
+ * obtenerEstadoAsignacion — devuelve un objeto con el estado de asignación
+ * para validación antes de crear servicio
+ */
+function obtenerEstadoAsignacion() {
+    const result = { completo: true, pendientes: [] };
+    if (_assignmentMode === 'all' || _assignmentMode === undefined) return result;
+    
+    if (_assignmentMode === 'weekday') {
+        const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const diasEnCalendario = new Set();
+        (selectedDates || []).forEach(f => {
+            diasEnCalendario.add(new Date(f + 'T12:00:00').getDay());
+        });
+        diasEnCalendario.forEach(d => {
+            if (!_weekdayModules[d] || _weekdayModules[d].length === 0) {
+                result.completo = false;
+                result.pendientes.push(dayNames[d]);
+            }
+        });
+    } else if (_assignmentMode === 'date') {
+        (selectedDates || []).forEach(f => {
+            if (!_dateSpecificModules[f] || _dateSpecificModules[f].length === 0) {
+                // Verificar si tiene módulos de un día de la semana (herencia de weekdays)
+                const day = new Date(f + 'T12:00:00').getDay();
+                if (!_weekdayModules[day] || _weekdayModules[day].length === 0) {
+                    result.completo = false;
+                    result.pendientes.push(f);
+                }
+            }
+        });
+    }
+    return result;
+}
+
+/**
+ * Modificar setAssignmentMode para mostrar/ocultar el área de guardado
+ * y actualizar el estado
+ */
+const _originalSetAssignmentMode = window.setAssignmentMode;
+/**
+ * setupModuleEvents — addEventListener para generación y confirmación de módulos
+ */
 function setupModuleEvents() {
     document.getElementById('generate-modules-btn')?.addEventListener('click', generarModulosAutomaticos);
     document.getElementById('confirm-modules-btn')?.addEventListener('click', confirmarModulos);
@@ -5322,6 +5498,8 @@ function setupModuleEvents() {
     });
 }
 window.setupModuleEvents = setupModuleEvents;
+
+// ============ FIN ASIGNACIÓN DE MÓDULOS ============
 
 /**
  * updateDurationDisplay — muestra la duración total de todos los módulos configurados
@@ -5393,6 +5571,13 @@ function generarModulosAutomaticos() {
         return;
     }
 
+    // Confirmar si va a sobrescribir módulos existentes
+    if (window.serviceModules && window.serviceModules.length > 0) {
+        if (!confirm(`¿Reemplazar los ${window.serviceModules.length} módulo(s) existente(s) por ${count} nuevo(s)?`)) {
+            return;
+        }
+    }
+
     // Guardar módulos actuales antes de sobrescribir (asignación por día/fecha)
     if (typeof guardarModulosActuales === 'function') {
         guardarModulosActuales();
@@ -5422,6 +5607,7 @@ function generarModulosAutomaticos() {
 
     renderModulesEditable();
     saveModulesToHiddenField();
+    _unsavedChanges = false;
     mostrarMensaje(`${count} modulo(s) generados`, "success");
 }
 
@@ -5429,14 +5615,14 @@ function renderModulesEditable() {
     const container = document.getElementById('modules-list');
     if (!container) return;
 
-    if (!serviceModules || serviceModules.length === 0) {
+    if (!window.serviceModules || window.serviceModules.length === 0) {
         container.innerHTML = '<div class="empty-modules"><i class="fas fa-clock"></i><p>No hay horarios configurados</p><small>Usa "Generar" para crear los módulos</small></div>';
         document.getElementById('confirm-modules-btn').style.display = 'none';
         return;
     }
 
     let html = '';
-    serviceModules.forEach((mod, idx) => {
+    window.serviceModules.forEach((mod, idx) => {
         const fin = calcularFinModulo(mod.hora, mod.duration || 60);
         html += '<div class="module-card">';
         html += '  <div class="module-card-header">';
@@ -5471,12 +5657,13 @@ function renderModulesEditable() {
         inp.addEventListener('change', function() {
             const idx = parseInt(this.dataset.index);
             const finInput = container.querySelector('.module-time-end[data-index="' + idx + '"]');
-            if (serviceModules[idx]) {
-                serviceModules[idx].hora = this.value;
+            if (window.serviceModules && window.serviceModules[idx]) {
+                window.serviceModules[idx].hora = this.value;
                 if (finInput) {
-                    const fin = calcularFinModulo(this.value, serviceModules[idx].duration || 60);
+                    const fin = calcularFinModulo(this.value, window.serviceModules[idx].duration || 60);
                     finInput.value = fin;
                 }
+                _unsavedChanges = true;
                 saveModulesToHiddenField();
             }
         });
@@ -5486,13 +5673,13 @@ function renderModulesEditable() {
         inp.addEventListener('change', function() {
             const idx = parseInt(this.dataset.index);
             const startInput = container.querySelector('.module-time-start[data-index="' + idx + '"]');
-            if (serviceModules[idx] && startInput) {
-                // Calcular duracion desde inicio hasta fin
+            if (window.serviceModules && window.serviceModules[idx] && startInput) {
                 const [h1, m1] = startInput.value.split(':').map(Number);
                 const [h2, m2] = this.value.split(':').map(Number);
                 let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
                 if (diff < 0) diff += 24 * 60;
-                serviceModules[idx].duration = diff;
+                window.serviceModules[idx].duration = diff;
+                _unsavedChanges = true;
                 saveModulesToHiddenField();
             }
         });
@@ -5501,8 +5688,9 @@ function renderModulesEditable() {
     container.querySelectorAll('.module-cupos-input').forEach(inp => {
         inp.addEventListener('change', function() {
             const idx = parseInt(this.dataset.index);
-            if (serviceModules[idx]) {
-                serviceModules[idx].cupos = parseInt(this.value) || 0;
+            if (window.serviceModules && window.serviceModules[idx]) {
+                window.serviceModules[idx].cupos = parseInt(this.value) || 0;
+                _unsavedChanges = true;
                 saveModulesToHiddenField();
             }
         });
@@ -5511,12 +5699,15 @@ function renderModulesEditable() {
     container.querySelectorAll('.module-delete-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const idx = parseInt(this.dataset.index);
-            serviceModules.splice(idx, 1);
-            if (serviceModules.length === 0) {
-                document.getElementById('confirm-modules-btn').style.display = 'none';
+            if (window.serviceModules) {
+                window.serviceModules.splice(idx, 1);
+                _unsavedChanges = true;
+                if (window.serviceModules.length === 0) {
+                    document.getElementById('confirm-modules-btn').style.display = 'none';
+                }
+                renderModulesEditable();
+                saveModulesToHiddenField();
             }
-            renderModulesEditable();
-            saveModulesToHiddenField();
         });
     });
 }
@@ -5564,7 +5755,7 @@ function renderModulesList() {
     const visibleDates = showAll ? sortedDates : sortedDates.slice(0, COLLAPSE_LIMIT);
     const hiddenCount = sortedDates.length - COLLAPSE_LIMIT;
 
-    // Inicializar moduleDateCupos con los módulos correctos para cada fecha
+    // Inicializar window.moduleDateCupos con los módulos correctos para cada fecha
     if (!window.moduleDateCupos) window.moduleDateCupos = {};
     sortedDates.forEach(date => {
         if (!window.moduleDateCupos[date]) window.moduleDateCupos[date] = {};
@@ -5781,9 +5972,9 @@ function generarFechasPorRango() {
         const fechasNuevas = Array.from(selectedDates).sort();
         serviceModules.forEach(mod => {
             fechasNuevas.forEach(f => {
-                moduleDateCupos[f] = moduleDateCupos[f] || {};
-                if (typeof moduleDateCupos[f][mod.hora] === 'undefined') {
-                    moduleDateCupos[f][mod.hora] = Number(mod.cupos || 0);
+                window.moduleDateCupos[f] = window.moduleDateCupos[f] || {};
+                if (typeof window.moduleDateCupos[f][mod.hora] === 'undefined') {
+                    window.moduleDateCupos[f][mod.hora] = Number(mod.cupos || 0);
                 }
             });
         });
@@ -5831,17 +6022,18 @@ async function duplicarServicio(id) {
                 }
             });
         });
-        Object.values(horaMap).forEach(h => serviceModules.push(h));
-        moduleDateCupos = {};
+        Object.values(horaMap).forEach(h => window.serviceModules.push(h));
+        window.moduleDateCupos = {};
         Object.keys(original.disponibilidad).forEach(fecha => {
-            moduleDateCupos[fecha] = {};
+            window.moduleDateCupos[fecha] = {};
             (original.disponibilidad[fecha] || []).forEach(mod => {
-                moduleDateCupos[fecha][mod.hora || mod.startTime || '00:00'] = Number(mod.cupos || 0);
+                window.moduleDateCupos[fecha][mod.hora || mod.startTime || '00:00'] = Number(mod.cupos || 0);
             });
         });
     }
     renderModulesList();
     saveModulesToHiddenField();
+    _unsavedChanges = false;
     // Ir al formulario
     document.getElementById('service-creator')?.scrollIntoView({ behavior: 'smooth' });
     mostrarMensaje('Servicio duplicado — revisa y guarda', 'info');
@@ -5899,7 +6091,7 @@ function getServiceDuration() {
         const durHidden = document.getElementById('srv-duration-hidden');
         if (durHidden && durHidden?.value) return Number(durHidden?.value);
     }
-    if (serviceModules.length > 0) return serviceModules[0].duration || 60;
+    if (window.serviceModules && window.serviceModules.length > 0) return window.serviceModules[0].duration || 60;
     return 60;
 }
 window.getServiceDuration = getServiceDuration;
@@ -5938,12 +6130,12 @@ function removeModule(moduleId) {
     window.serviceModules = window.serviceModules.filter(m => String(m.id) !== String(moduleId));
 
     if (horaRemovida) {
-        Object.keys(moduleDateCupos).forEach(fecha => {
-            if (moduleDateCupos[fecha] && Object.prototype.hasOwnProperty.call(moduleDateCupos[fecha], horaRemovida)) {
-                delete moduleDateCupos[fecha][horaRemovida];
+        Object.keys(window.moduleDateCupos).forEach(fecha => {
+            if (window.moduleDateCupos[fecha] && Object.prototype.hasOwnProperty.call(window.moduleDateCupos[fecha], horaRemovida)) {
+                delete window.moduleDateCupos[fecha][horaRemovida];
             }
-            if (moduleDateCupos[fecha] && Object.keys(moduleDateCupos[fecha]).length === 0) {
-                delete moduleDateCupos[fecha];
+            if (window.moduleDateCupos[fecha] && Object.keys(window.moduleDateCupos[fecha]).length === 0) {
+                delete window.moduleDateCupos[fecha];
             }
         });
     }
@@ -5954,14 +6146,6 @@ function removeModule(moduleId) {
     mostrarMensaje("Horario eliminado", "info");
 }
 window.removeModule = removeModule;
-
-function saveModulesToHiddenField() {
-    const hiddenField = document.getElementById('service-modules');
-    if (hiddenField) {
-        hiddenField.value = JSON.stringify(serviceModules);
-    }
-}
-window.saveModulesToHiddenField = saveModulesToHiddenField;
 
 function loadModulesFromHiddenField() {
     const hiddenField = document.getElementById('service-modules');
@@ -6049,7 +6233,7 @@ window.actualizarCupo = function(input) {
     if (!window.moduleDateCupos[date]) window.moduleDateCupos[date] = {};
     window.moduleDateCupos[date][hora] = value;
     
-    // Reflejar cambio en serviceModules
+    // Reflejar cambio en window.serviceModules
     const mod = serviceModules.find(m => (m.hora || m.startTime) === hora);
     if (mod) {
         if (!mod.cupos) mod.cupos = {};
@@ -6080,9 +6264,9 @@ function actualizarResumenEconomico() {
     if (!totalEl || !ingresoEl) return;
     
     let totalCupos = 0;
-    if (window.moduleDateCupos && selectedDates && serviceModules) {
+    if (window.moduleDateCupos && selectedDates && window.serviceModules) {
         for (const date of selectedDates) {
-            for (const mod of serviceModules) {
+            for (const mod of window.serviceModules) {
                 const key = mod.hora || mod.startTime;
                 const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined'
                     ? Number(window.moduleDateCupos[date][key]) : 0;
@@ -6107,7 +6291,7 @@ function getServiceDuration() {
         const durHidden = document.getElementById('srv-duration-hidden');
         if (durHidden && durHidden?.value) return Number(durHidden?.value);
     }
-    if (serviceModules.length > 0) return serviceModules[0].duration || 60;
+    if (window.serviceModules && window.serviceModules.length > 0) return window.serviceModules[0].duration || 60;
     return 60;
 }
 window.getServiceDuration = getServiceDuration;
