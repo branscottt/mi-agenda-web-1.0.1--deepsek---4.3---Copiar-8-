@@ -7908,55 +7908,12 @@ input:-moz-autofill {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.module-time-input {
-    background: rgba(10, 10, 20, 0.6);
-    border: 1px solid rgba(157, 78, 221, 0.35);
-    border-radius: var(--radius-sm);
-    color: var(--text-light);
-    padding: 7px 10px 7px 32px;
-    font-size: 0.88rem;
-    width: 120px;
-    transition: var(--transition);
-    cursor: pointer;
-    position: relative;
-}
-.module-time-input:hover {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 8px rgba(157, 78, 221, 0.25);
-    background: rgba(20, 20, 40, 0.8);
-}
-.module-time-input:focus {
-    border-color: var(--primary-color);
-    outline: none;
-    box-shadow: 0 0 10px rgba(157, 78, 221, 0.4);
-    background: rgba(25, 25, 50, 0.9);
-}
-/* El label Inicio y Fin más visibles */
 .module-time-group label {
     font-size: 0.72rem;
     color: var(--primary-light);
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 600;
-}
-/* Contenedor de cada input-time con icono */
-.module-time-wrapper {
-    position: relative;
-    display: inline-block;
-}
-.module-time-wrapper i {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--primary-light);
-    font-size: 0.8rem;
-    pointer-events: none;
-    opacity: 0.7;
-    z-index: 1;
-}
-.module-time-wrapper:hover i {
-    opacity: 1;
 }
 .module-cupos-input {
     background: rgba(10, 10, 20, 0.6);
@@ -8004,7 +7961,7 @@ input:-moz-autofill {
         flex-direction: column;
         gap: 8px;
     }
-    .module-time-input {
+    .module-time-group .module-time-selects select {
         width: 100%;
     }
     .module-cupos-input {
@@ -8012,95 +7969,42 @@ input:-moz-autofill {
     }
 }
 
-/* ===== POPUP SELECTOR DE HORA (PASO 3) ===== */
-.module-time-popup {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    z-index: 9999;
-    background: rgba(20, 20, 45, 0.97);
-    border: 1px solid rgba(157, 78, 221, 0.5);
-    border-radius: var(--radius-md);
-    padding: 12px 14px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-    min-width: 180px;
-    display: none;
-    backdrop-filter: blur(12px);
-}
-.module-time-popup.open {
-    display: block;
-}
-.module-time-popup .popup-title {
-    font-size: 0.7rem;
-    color: var(--primary-light);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-.module-time-popup .popup-selectors {
+/* ===== SELECTORES DE HORA (PASO 3) ===== */
+.module-time-group .module-time-selects {
     display: flex;
-    gap: 10px;
+    gap: 4px;
     align-items: center;
 }
-.module-time-popup .popup-selectors select {
-    background: rgba(10, 10, 25, 0.8);
-    border: 1px solid rgba(157, 78, 221, 0.3);
+.module-time-group .module-time-selects select {
+    background: rgba(10, 10, 20, 0.7);
+    border: 1px solid rgba(157, 78, 221, 0.35);
     border-radius: var(--radius-sm);
     color: var(--text-light);
-    padding: 8px 6px;
-    font-size: 0.95rem;
+    padding: 6px 4px;
+    font-size: 0.85rem;
     cursor: pointer;
-    flex: 1;
-    min-width: 60px;
     text-align: center;
+    transition: var(--transition);
     -webkit-appearance: none;
     appearance: none;
 }
-.module-time-popup .popup-selectors select:hover {
+.module-time-group .module-time-selects select:hover {
     border-color: var(--primary-color);
+    box-shadow: 0 0 6px rgba(157, 78, 221, 0.2);
+    background: rgba(20, 20, 40, 0.85);
 }
-.module-time-popup .popup-selectors select:focus {
+.module-time-group .module-time-selects select:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 6px rgba(157, 78, 221, 0.3);
+    box-shadow: 0 0 8px rgba(157, 78, 221, 0.3);
 }
-.module-time-popup .popup-selectors select option {
+.module-time-group .module-time-selects select option {
     background: #1a1a2e;
     color: #fff;
 }
-.module-time-popup .popup-selectors .popup-sep {
+.module-time-group .module-time-selects .time-select-sep {
     color: var(--primary-light);
     font-weight: 700;
-    font-size: 1.1rem;
-}
-.module-time-popup .popup-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-    justify-content: flex-end;
-}
-.module-time-popup .popup-actions button {
-    padding: 5px 14px;
-    border-radius: var(--radius-sm);
-    font-size: 0.78rem;
-    cursor: pointer;
-    border: none;
-    font-weight: 600;
-    transition: var(--transition);
-}
-.module-time-popup .popup-apply-btn {
-    background: var(--gradient, linear-gradient(135deg, #9d4edd, #7b2cbf));
-    color: #fff;
-}
-.module-time-popup .popup-apply-btn:hover {
-    opacity: 0.9;
-    transform: scale(1.03);
-}
-.module-time-popup .popup-cancel-btn {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-muted);
-}
-.module-time-popup .popup-cancel-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
+    font-size: 0.95rem;
+    padding: 0 2px;
 }

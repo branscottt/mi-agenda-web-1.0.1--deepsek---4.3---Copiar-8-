@@ -5621,6 +5621,26 @@ function renderModulesEditable() {
         return;
     }
 
+    function buildTimeSelects(currentTime, baseClass, idx) {
+        const [h, m] = currentTime.split(':').map(Number);
+        const minRedondeado = Math.round(m / 5) * 5;
+        let horas = '';
+        for (let i = 0; i < 24; i++) {
+            const val = String(i).padStart(2, '0');
+            horas += '<option value="' + val + '"' + (i === h ? ' selected' : '') + '>' + val + '</option>';
+        }
+        let mins = '';
+        for (let i = 0; i < 60; i += 5) {
+            const val = String(i).padStart(2, '0');
+            mins += '<option value="' + val + '"' + (i === minRedondeado ? ' selected' : '') + '>' + val + '</option>';
+        }
+        return '<div class="module-time-selects">' +
+            '<select class="' + baseClass + '-hora" data-index="' + idx + '">' + horas + '</select>' +
+            '<span class="time-select-sep">:</span>' +
+            '<select class="' + baseClass + '-min" data-index="' + idx + '">' + mins + '</select>' +
+            '</div>';
+    }
+
     let html = '';
     window.serviceModules.forEach((mod, idx) => {
         const fin = calcularFinModulo(mod.hora, mod.duration || 60);
@@ -5632,17 +5652,11 @@ function renderModulesEditable() {
         html += '  <div class="module-card-body">';
         html += '    <div class="module-time-group">';
         html += '      <label><i class="fas fa-play"></i> Inicio</label>';
-        html += '      <div class="module-time-wrapper">';
-        html += '        <i class="fas fa-pen"></i>';
-        html += '        <input type="time" class="module-time-input module-time-start" data-index="' + idx + '" value="' + mod.hora + '">';
-        html += '      </div>';
+        html +=        buildTimeSelects(mod.hora, 'module-time-start', idx);
         html += '    </div>';
         html += '    <div class="module-time-group">';
         html += '      <label><i class="fas fa-stop"></i> Fin</label>';
-        html += '      <div class="module-time-wrapper">';
-        html += '        <i class="fas fa-pen"></i>';
-        html += '        <input type="time" class="module-time-input module-time-end" data-index="' + idx + '" value="' + fin + '">';
-        html += '      </div>';
+        html +=        buildTimeSelects(fin, 'module-time-end', idx);
         html += '    </div>';
         html += '    <div class="module-cupos-group">';
         html += '      <label>Cupos</label>';
@@ -5658,36 +5672,67 @@ function renderModulesEditable() {
     const confirmBtn = document.getElementById('confirm-modules-btn');
     if (confirmBtn) confirmBtn.style.display = 'inline-block';
 
-    // Eventos para inputs editables
-    container.querySelectorAll('.module-time-start').forEach(inp => {
-        inp.addEventListener('change', function() {
-            const idx = parseInt(this.dataset.index);
-            const finInput = container.querySelector('.module-time-end[data-index="' + idx + '"]');
-            if (window.serviceModules && window.serviceModules[idx]) {
-                window.serviceModules[idx].hora = this.value;
-                if (finInput) {
-                    const fin = calcularFinModulo(this.value, window.serviceModules[idx].duration || 60);
-                    finInput.value = fin;
+    // Eventos para selects de hora
+    function getTimeValue(group) {
+        const h = group.querySelector('select').value;
+        const m = group.querySelectorAll('select')[1].value;
+        return h + ':' + m;
+    }
+
+    container.querySelectorAll('.module-time-group').forEach(group => {
+        const isInicio = group.querySelector('.module-time-start-hora');
+        const idx = parseInt((isInicio || group.querySelector('.module-time-end-hora')).dataset.index);
+
+        group.querySelectorAll('select').forEach(sel => {
+            sel.addEventListener('change', function() {
+                if (!window.serviceModules || !window.serviceModules[idx]) return;
+
+                const startGroup = container.querySelectorAll('.module-time-group')[Array.from(container.querySelectorAll('.module-time-group')).indexOf(group) - (isInicio ? 0 : 1)];
+                const endGroup = isInicio
+                    ? container.querySelectorAll('.module-time-group')[Array.from(container.querySelectorAll('.module-time-group')).indexOf(group) + 1]
+                    : group;
+
+                // Mejor: buscar por data-index en lugar de posición
+                const allStartGroups = container.querySelectorAll('.module-time-start-hora');
+                const allEndGroups = container.querySelectorAll('.module-time-end-hora');
+                let startVal, endVal;
+
+                allStartGroups.forEach(s => {
+                    if (parseInt(s.dataset.index) === idx) {
+                        const parent = s.closest('.module-time-group');
+                        startVal = getTimeValue(parent);
+                    }
+                });
+                allEndGroups.forEach(s => {
+                    if (parseInt(s.dataset.index) === idx) {
+                        const parent = s.closest('.module-time-group');
+                        endVal = getTimeValue(parent);
+                    }
+                });
+
+                if (isInicio) {
+                    window.serviceModules[idx].hora = startVal;
+                    // Recalcular fin
+                    const newFin = calcularFinModulo(startVal, window.serviceModules[idx].duration || 60);
+                    allEndGroups.forEach(s => {
+                        if (parseInt(s.dataset.index) === idx) {
+                            const parent = s.closest('.module-time-group');
+                            const [nh, nm] = newFin.split(':').map(Number);
+                            parent.querySelector('.module-time-end-hora').value = String(nh).padStart(2, '0');
+                            parent.querySelector('.module-time-end-min').value = String(nm).padStart(2, '0');
+                        }
+                    });
+                } else {
+                    // Calcular duracion
+                    const [h1, m1] = startVal.split(':').map(Number);
+                    const [h2, m2] = endVal.split(':').map(Number);
+                    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+                    if (diff < 0) diff += 24 * 60;
+                    window.serviceModules[idx].duration = diff;
                 }
                 _unsavedChanges = true;
                 saveModulesToHiddenField();
-            }
-        });
-    });
-
-    container.querySelectorAll('.module-time-end').forEach(inp => {
-        inp.addEventListener('change', function() {
-            const idx = parseInt(this.dataset.index);
-            const startInput = container.querySelector('.module-time-start[data-index="' + idx + '"]');
-            if (window.serviceModules && window.serviceModules[idx] && startInput) {
-                const [h1, m1] = startInput.value.split(':').map(Number);
-                const [h2, m2] = this.value.split(':').map(Number);
-                let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-                if (diff < 0) diff += 24 * 60;
-                window.serviceModules[idx].duration = diff;
-                _unsavedChanges = true;
-                saveModulesToHiddenField();
-            }
+            });
         });
     });
 
@@ -5713,18 +5758,6 @@ function renderModulesEditable() {
                 }
                 renderModulesEditable();
                 saveModulesToHiddenField();
-            }
-        });
-    });
-
-    // Evento para iconos de lápiz → abrir selector de hora
-    container.querySelectorAll('.module-time-wrapper i.fa-pen').forEach(icon => {
-        icon.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const wrapper = this.closest('.module-time-wrapper');
-            const input = wrapper.querySelector('.module-time-input');
-            if (input) {
-                abrirSelectorHora(this, input);
             }
         });
     });
@@ -9637,99 +9670,3 @@ window.JwtManager = {
         localStorage.removeItem(STORAGE_KEYS.USER_DATA);
     }
 };
-
-/* ===== POPUP SELECTOR DE HORA (PASO 3) ===== */
-function abrirSelectorHora(triggerEl, inputRelacionado) {
-    // Cerrar cualquier popup abierto
-    cerrarSelectorHora();
-
-    const existing = document.querySelector('.module-time-popup');
-    if (existing) existing.remove();
-
-    const [h, m] = inputRelacionado.value.split(':').map(Number);
-
-    // Crear popup
-    const popup = document.createElement('div');
-    popup.className = 'module-time-popup open';
-
-    // Generar opciones hora (00-23)
-    let horasOpts = '';
-    for (let i = 0; i < 24; i++) {
-        const val = String(i).padStart(2, '0');
-        const sel = i === h ? ' selected' : '';
-        horasOpts += '<option value="' + val + '"' + sel + '>' + val + '</option>';
-    }
-
-    // Generar opciones minuto (00,05,10,...,55)
-    let minsOpts = '';
-    const minRedondeado = Math.round(m / 5) * 5;
-    for (let i = 0; i < 60; i += 5) {
-        const val = String(i).padStart(2, '0');
-        const sel = i === minRedondeado ? ' selected' : '';
-        minsOpts += '<option value="' + val + '"' + sel + '>' + val + '</option>';
-    }
-
-    // Determinar si es Inicio o Fin para el titulo
-    const esInicio = inputRelacionado.classList.contains('module-time-start');
-    const titulo = esInicio ? 'EDITAR INICIO' : 'EDITAR FIN';
-
-    popup.innerHTML =
-        '<div class="popup-title">' + titulo + '</div>' +
-        '<div class="popup-selectors">' +
-        '  <select class="popup-hour-sel">' + horasOpts + '</select>' +
-        '  <span class="popup-sep">:</span>' +
-        '  <select class="popup-min-sel">' + minsOpts + '</select>' +
-        '</div>' +
-        '<div class="popup-actions">' +
-        '  <button type="button" class="popup-cancel-btn" data-action="cancel">Cancelar</button>' +
-        '  <button type="button" class="popup-apply-btn" data-action="apply">Aplicar</button>' +
-        '</div>';
-
-    // Posicionar popup debajo del trigger
-    const rect = triggerEl.getBoundingClientRect();
-    popup.style.position = 'fixed';
-    popup.style.left = rect.left + 'px';
-    popup.style.top = (rect.bottom + 4) + 'px';
-
-    document.body.appendChild(popup);
-
-    // Boton Aplicar
-    popup.querySelector('[data-action="apply"]').addEventListener('click', function(e) {
-        e.stopPropagation();
-        const hSel = popup.querySelector('.popup-hour-sel').value;
-        const mSel = popup.querySelector('.popup-min-sel').value;
-        const nuevoValor = hSel + ':' + mSel;
-        if (inputRelacionado.value !== nuevoValor) {
-            inputRelacionado.value = nuevoValor;
-            inputRelacionado.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        cerrarSelectorHora();
-    });
-
-    // Boton Cancelar
-    popup.querySelector('[data-action="cancel"]').addEventListener('click', function(e) {
-        e.stopPropagation();
-        cerrarSelectorHora();
-    });
-
-    // Cerrar al hacer clic fuera
-    setTimeout(function() {
-        document.addEventListener('click', cerrarSelectorHoraHandler);
-    }, 10);
-}
-
-function cerrarSelectorHora() {
-    const popup = document.querySelector('.module-time-popup');
-    if (popup) {
-        popup.classList.remove('open');
-        popup.remove();
-    }
-    document.removeEventListener('click', cerrarSelectorHoraHandler);
-}
-
-function cerrarSelectorHoraHandler(e) {
-    const popup = document.querySelector('.module-time-popup');
-    if (popup && !popup.contains(e.target) && !e.target.closest('.module-time-popup')) {
-        cerrarSelectorHora();
-    }
-}
