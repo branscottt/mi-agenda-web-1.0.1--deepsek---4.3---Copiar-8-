@@ -5631,12 +5631,18 @@ function renderModulesEditable() {
         html += '  </div>';
         html += '  <div class="module-card-body">';
         html += '    <div class="module-time-group">';
-        html += '      <label>Inicio</label>';
-        html += '      <input type="time" class="module-time-input module-time-start" data-index="' + idx + '" value="' + mod.hora + '">';
+        html += '      <label><i class="fas fa-play"></i> Inicio</label>';
+        html += '      <div class="module-time-wrapper">';
+        html += '        <i class="fas fa-pen"></i>';
+        html += '        <input type="time" class="module-time-input module-time-start" data-index="' + idx + '" value="' + mod.hora + '">';
+        html += '      </div>';
         html += '    </div>';
         html += '    <div class="module-time-group">';
-        html += '      <label>Fin</label>';
-        html += '      <input type="time" class="module-time-input module-time-end" data-index="' + idx + '" value="' + fin + '">';
+        html += '      <label><i class="fas fa-stop"></i> Fin</label>';
+        html += '      <div class="module-time-wrapper">';
+        html += '        <i class="fas fa-pen"></i>';
+        html += '        <input type="time" class="module-time-input module-time-end" data-index="' + idx + '" value="' + fin + '">';
+        html += '      </div>';
         html += '    </div>';
         html += '    <div class="module-cupos-group">';
         html += '      <label>Cupos</label>';
@@ -5707,6 +5713,18 @@ function renderModulesEditable() {
                 }
                 renderModulesEditable();
                 saveModulesToHiddenField();
+            }
+        });
+    });
+
+    // Evento para iconos de lápiz → abrir selector de hora
+    container.querySelectorAll('.module-time-wrapper i.fa-pen').forEach(icon => {
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const wrapper = this.closest('.module-time-wrapper');
+            const input = wrapper.querySelector('.module-time-input');
+            if (input) {
+                abrirSelectorHora(this, input);
             }
         });
     });
@@ -9619,3 +9637,99 @@ window.JwtManager = {
         localStorage.removeItem(STORAGE_KEYS.USER_DATA);
     }
 };
+
+/* ===== POPUP SELECTOR DE HORA (PASO 3) ===== */
+function abrirSelectorHora(triggerEl, inputRelacionado) {
+    // Cerrar cualquier popup abierto
+    cerrarSelectorHora();
+
+    const existing = document.querySelector('.module-time-popup');
+    if (existing) existing.remove();
+
+    const [h, m] = inputRelacionado.value.split(':').map(Number);
+
+    // Crear popup
+    const popup = document.createElement('div');
+    popup.className = 'module-time-popup open';
+
+    // Generar opciones hora (00-23)
+    let horasOpts = '';
+    for (let i = 0; i < 24; i++) {
+        const val = String(i).padStart(2, '0');
+        const sel = i === h ? ' selected' : '';
+        horasOpts += '<option value="' + val + '"' + sel + '>' + val + '</option>';
+    }
+
+    // Generar opciones minuto (00,05,10,...,55)
+    let minsOpts = '';
+    const minRedondeado = Math.round(m / 5) * 5;
+    for (let i = 0; i < 60; i += 5) {
+        const val = String(i).padStart(2, '0');
+        const sel = i === minRedondeado ? ' selected' : '';
+        minsOpts += '<option value="' + val + '"' + sel + '>' + val + '</option>';
+    }
+
+    // Determinar si es Inicio o Fin para el titulo
+    const esInicio = inputRelacionado.classList.contains('module-time-start');
+    const titulo = esInicio ? 'EDITAR INICIO' : 'EDITAR FIN';
+
+    popup.innerHTML =
+        '<div class="popup-title">' + titulo + '</div>' +
+        '<div class="popup-selectors">' +
+        '  <select class="popup-hour-sel">' + horasOpts + '</select>' +
+        '  <span class="popup-sep">:</span>' +
+        '  <select class="popup-min-sel">' + minsOpts + '</select>' +
+        '</div>' +
+        '<div class="popup-actions">' +
+        '  <button type="button" class="popup-cancel-btn" data-action="cancel">Cancelar</button>' +
+        '  <button type="button" class="popup-apply-btn" data-action="apply">Aplicar</button>' +
+        '</div>';
+
+    // Posicionar popup debajo del trigger
+    const rect = triggerEl.getBoundingClientRect();
+    popup.style.position = 'fixed';
+    popup.style.left = rect.left + 'px';
+    popup.style.top = (rect.bottom + 4) + 'px';
+
+    document.body.appendChild(popup);
+
+    // Boton Aplicar
+    popup.querySelector('[data-action="apply"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        const hSel = popup.querySelector('.popup-hour-sel').value;
+        const mSel = popup.querySelector('.popup-min-sel').value;
+        const nuevoValor = hSel + ':' + mSel;
+        if (inputRelacionado.value !== nuevoValor) {
+            inputRelacionado.value = nuevoValor;
+            inputRelacionado.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        cerrarSelectorHora();
+    });
+
+    // Boton Cancelar
+    popup.querySelector('[data-action="cancel"]').addEventListener('click', function(e) {
+        e.stopPropagation();
+        cerrarSelectorHora();
+    });
+
+    // Cerrar al hacer clic fuera
+    setTimeout(function() {
+        document.addEventListener('click', cerrarSelectorHoraHandler);
+    }, 10);
+}
+
+function cerrarSelectorHora() {
+    const popup = document.querySelector('.module-time-popup');
+    if (popup) {
+        popup.classList.remove('open');
+        popup.remove();
+    }
+    document.removeEventListener('click', cerrarSelectorHoraHandler);
+}
+
+function cerrarSelectorHoraHandler(e) {
+    const popup = document.querySelector('.module-time-popup');
+    if (popup && !popup.contains(e.target) && !e.target.closest('.module-time-popup')) {
+        cerrarSelectorHora();
+    }
+}
