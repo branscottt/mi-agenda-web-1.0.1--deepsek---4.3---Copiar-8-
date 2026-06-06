@@ -8008,3 +8008,15 @@ input:-moz-autofill {
     font-size: 0.95rem;
     padding: 0 2px;
 }
+
+/* Sin asignar - modo weekday/date */
+.modules-table .cupo-cell.sin-asignar {
+    background: rgba(255, 70, 70, 0.12);
+    text-align: center;
+    color: #ff6b6b;
+    font-size: 0.75rem;
+    font-style: italic;
+}
+.modules-table .cupo-cell.sin-asignar .sin-asignar-msg {
+    display: block;
+    padding: 6px 4px;

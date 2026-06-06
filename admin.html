@@ -396,27 +396,7 @@
                                                 <i class="fas fa-hand-pointer"></i> Selecciona los días para los módulos actuales:
                                             </label>
                                             <div style="display:flex;gap:6px;flex-wrap:wrap;" id="weekday-checkboxes">
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="1"> Lun
-                                                </label>
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="2"> Mar
-                                                </label>
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="3"> Mié
-                                                </label>
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="4"> Jue
-                                                </label>
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="5"> Vie
-                                                </label>
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="6"> Sáb
-                                                </label>
-                                                <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">
-                                                    <input type="checkbox" class="weekday-cb" value="0"> Dom
-                                                </label>
+                                                <!-- Generado dinámicamente por JS -->
                                             </div>
                                             <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">
                                                 <i class="fas fa-info-circle"></i> Los módulos que generes se asignarán automáticamente a las fechas del calendario que coincidan con los días seleccionados.
@@ -432,8 +412,11 @@
                                                 <option value="">— Selecciona una fecha —</option>
                                             </select>
                                             <p style="font-size:0.8rem;color:var(--text-muted);">
-                                                <i class="fas fa-info-circle"></i> Las fechas sin módulos personalizados usan los módulos generales.
+                                                <i class="fas fa-info-circle"></i> Debes guardar módulos para cada fecha individualmente. Las fechas sin asignación aparecerán en rojo y no se podrá crear el servicio.
                                             </p>
+                                            <div id="weekday-editing-indicator" style="margin-top:8px;padding:6px 10px;background:rgba(157,78,221,0.15);border-radius:6px;border:1px solid rgba(157,78,221,0.3);display:none;font-size:0.85rem;color:var(--primary-light);font-weight:600;">
+                                                <i class="fas fa-pen"></i> Editando módulos para: <span id="weekday-editing-name">—</span>
+                                            </div>
                                         </div>
                                     </div>
                                     
@@ -496,6 +479,9 @@
                                                 </div>
                                                 <button type="button" class="btn-grad btn-small" id="btn-save-assignment" onclick="guardarAsignacionActual()">
                                                     <i class="fas fa-check-double"></i> Guardar asignación
+                                                </button>
+                                                <button type="button" class="btn-small" id="clear-current-assignment" style="background:rgba(255,70,70,0.2);color:#ff6b6b;border:1px solid rgba(255,70,70,0.3);">
+                                                    <i class="fas fa-eraser"></i> Limpiar asignación
                                                 </button>
                                             </div>
                                         </div>

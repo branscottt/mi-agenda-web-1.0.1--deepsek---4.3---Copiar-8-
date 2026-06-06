@@ -4928,6 +4928,10 @@ function toggleDateSelection(dateStr, dayElement = null) {
     if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
         actualizarSelectorFechas();
     }
+    // Refrescar checkboxes weekday si está en modo weekday
+    if (_assignmentMode === 'weekday' && typeof refrescarCheckboxesWeekday === 'function') {
+        refrescarCheckboxesWeekday();
+    }
 }
 window.toggleDateSelection = toggleDateSelection;
 
@@ -5033,8 +5037,11 @@ function selectWeekendsOnly() {
     if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
         actualizarSelectorFechas();
     }
+    // Refrescar checkboxes weekday si está en modo weekday
+    if (_assignmentMode === 'weekday' && typeof refrescarCheckboxesWeekday === 'function') {
+        refrescarCheckboxesWeekday();
+    }
 }
-window.selectWeekendsOnly = selectWeekendsOnly;
 
 function selectWeekdaysOnly() {
     const today = new Date();
@@ -5058,6 +5065,10 @@ function selectWeekdaysOnly() {
     if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
         actualizarSelectorFechas();
     }
+    // Refrescar checkboxes weekday si está en modo weekday
+    if (_assignmentMode === 'weekday' && typeof refrescarCheckboxesWeekday === 'function') {
+        refrescarCheckboxesWeekday();
+    }
 }
 window.selectWeekdaysOnly = selectWeekdaysOnly;
 
@@ -5072,6 +5083,8 @@ let _dateSpecificModules = {};
 let _selectedDateForModules = null;
 // Flag de cambios sin guardar
 let _unsavedChanges = false;
+// Día activo en modo weekday
+let _currentEditingWeekday = null;
 
 /**
  * setAssignmentMode — cambia el modo de asignación de horarios
@@ -5101,9 +5114,21 @@ function setAssignmentMode(mode) {
         actualizarSelectorFechas();
     }
     
+    // En modo 'weekday', refrescar checkboxes según las fechas reales
+    if (mode === 'weekday') {
+        if (typeof refrescarCheckboxesWeekday === 'function') {
+            refrescarCheckboxesWeekday();
+        }
+    }
+    
     // Refrescar la vista de módulos
     if (typeof renderModulesList === 'function') {
         renderModulesList();
+    }
+    
+    // Si no es modo weekday, limpiar variable e indicador
+    if (mode !== 'weekday') {
+        _currentEditingWeekday = null;
     }
     
     console.log('[modo-asignacion] Cambiado a:', mode);
@@ -5213,7 +5238,7 @@ function guardarModulosActuales() {
  * según el modo de asignación activo
  */
 function getModulesForDate(fecha) {
-    if (!fecha) return window.serviceModules || [];
+    if (!fecha) return [];
     
     if (_assignmentMode === 'all') {
         return window.serviceModules || [];
@@ -5222,19 +5247,15 @@ function getModulesForDate(fecha) {
     if (_assignmentMode === 'weekday') {
         const day = new Date(fecha + 'T12:00:00').getDay();
         const dayMods = _weekdayModules[day];
-        if (dayMods && dayMods.length > 0) return dayMods;
-        // Fallback a módulos generales
-        return window.serviceModules || [];
+        return (dayMods && dayMods.length > 0) ? dayMods : [];
     }
     
     if (_assignmentMode === 'date') {
         const dateMods = _dateSpecificModules[fecha];
-        if (dateMods && dateMods.length > 0) return dateMods;
-        // Fallback a módulos generales
-        return window.serviceModules || [];
+        return (dateMods && dateMods.length > 0) ? dateMods : [];
     }
     
-    return window.serviceModules || [];
+    return [];
 }
 
 /**
@@ -5310,6 +5331,7 @@ function initModules() {
     }
     setupModuleEvents();
     setupWeekdayCheckboxEvents();
+    setupClearAssignmentButton();
     updateDurationDisplay();
     loadModulesFromHiddenField();
 }
@@ -5320,30 +5342,100 @@ function setupWeekdayCheckboxEvents() {
         cb.addEventListener('change', function() {
             if (_assignmentMode !== 'weekday') return;
             const day = parseInt(this.value);
-            // Guardar módulos actuales antes de cambiar
-            if (typeof guardarModulosActuales === 'function') {
+            
+            // Guardar módulos actuales en el día que se estaba editando
+            if (_currentEditingWeekday !== null && _currentEditingWeekday !== day) {
                 guardarModulosActuales();
             }
-            // Cargar módulos del día seleccionado (o generales si no tiene)
+            
+            _currentEditingWeekday = this.checked ? day : null;
+            
             if (this.checked && _weekdayModules[day] && _weekdayModules[day].length > 0) {
+                // Cargar módulos guardados de este día
                 window.serviceModules = _weekdayModules[day].map(m => ({...m}));
                 renderModulesEditable();
+            } else if (this.checked && (!_weekdayModules[day] || _weekdayModules[day].length === 0)) {
+                // Sin módulos guardados → mantener módulos generales como plantilla
+                renderModulesEditable();
             } else if (!this.checked) {
-                // Si desmarcó, borrar los módulos de ese día
+                // Desmarcó → borrar módulos de ese día
                 delete _weekdayModules[day];
-                // Si no queda ningún día marcado, mostrar módulos generales
-                const anyChecked = [...document.querySelectorAll('.weekday-cb:checked')].length > 0;
-                if (!anyChecked) {
-                    // No cambiar window.serviceModules, mantener los generales
-                }
             }
+            
+            // Actualizar indicador visual
+            actualizarIndicadorWeekday();
+            
             if (typeof renderModulesList === 'function') {
                 renderModulesList();
+            }
+            if (typeof actualizarEstadoAsignacion === 'function') {
+                actualizarEstadoAsignacion();
             }
         });
     });
 }
 window.setupWeekdayCheckboxEvents = setupWeekdayCheckboxEvents;
+
+/**
+ * actualizarIndicadorWeekday — muestra/oculta el indicador de qué día se edita
+ */
+function actualizarIndicadorWeekday() {
+    const indicator = document.getElementById('weekday-editing-indicator');
+    const nameSpan = document.getElementById('weekday-editing-name');
+    if (!indicator || !nameSpan) return;
+    
+    if (_assignmentMode === 'weekday' && _currentEditingWeekday !== null) {
+        const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        nameSpan.textContent = dayNames[_currentEditingWeekday];
+        indicator.style.display = 'block';
+    } else {
+        indicator.style.display = 'none';
+    }
+}
+window.actualizarIndicadorWeekday = actualizarIndicadorWeekday;
+
+/**
+ * refrescarCheckboxesWeekday — actualiza los checkboxes según las fechas del calendario
+ * Solo muestra días que existen en selectedDates
+ */
+function refrescarCheckboxesWeekday() {
+    const container = document.getElementById('weekday-checkboxes');
+    if (!container) return;
+    
+    // Obtener días únicos presentes en selectedDates
+    const diasEnCalendario = new Set();
+    (selectedDates || []).forEach(f => {
+        diasEnCalendario.add(new Date(f + 'T12:00:00').getDay());
+    });
+    
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Lun primero
+    
+    let html = '';
+    dayOrder.forEach(d => {
+        if (!diasEnCalendario.has(d)) return;
+        
+        const checked = _weekdayModules[d] && _weekdayModules[d].length > 0 ? ' checked' : '';
+        html += '<label style="display:flex;align-items:center;gap:4px;padding:4px 8px;background:rgba(255,255,255,0.05);border-radius:4px;cursor:pointer;">' +
+            '<input type="checkbox" class="weekday-cb" value="' + d + '"' + checked + '> ' + dayNames[d] +
+            '</label>';
+    });
+    
+    container.innerHTML = html;
+    
+    // Re-asignar eventos a los nuevos checkbox
+    setupWeekdayCheckboxEvents();
+    
+    // Si el día que se estaba editando ya no existe en los checkboxes, limpiar
+    if (_currentEditingWeekday !== null) {
+        const dayExists = container.querySelector('.weekday-cb[value="' + _currentEditingWeekday + '"]');
+        if (!dayExists) {
+            _currentEditingWeekday = null;
+        }
+    }
+    actualizarIndicadorWeekday();
+}
+window.refrescarCheckboxesWeekday = refrescarCheckboxesWeekday;
 
 /**
  * guardarAsignacionActual — guarda los módulos actuales del editor
@@ -5357,15 +5449,21 @@ function guardarAsignacionActual() {
     }
     
     if (_assignmentMode === 'weekday') {
-        const checkedDays = [...document.querySelectorAll('.weekday-cb:checked')].map(cb => parseInt(cb.value));
-        if (checkedDays.length === 0) {
-            mostrarMensaje('Selecciona al menos un día de la semana para asignar los módulos.', 'warning');
+        if (_currentEditingWeekday === null) {
+            mostrarMensaje('Selecciona un día de la semana para asignar los módulos.', 'warning');
             return;
         }
-        checkedDays.forEach(day => {
-            _weekdayModules[day] = window.serviceModules.map(m => ({...m}));
-        });
-        mostrarMensaje(`✅ Módulos asignados a ${checkedDays.length} día(s): ${checkedDays.map(d => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}`, 'success');
+        if (!window.serviceModules || window.serviceModules.length === 0) {
+            mostrarMensaje('No hay módulos para guardar. Genera algunos primero.', 'warning');
+            return;
+        }
+        _weekdayModules[_currentEditingWeekday] = window.serviceModules.map(m => ({...m}));
+        // Refrescar checkboxes para mostrar checked correcto
+        if (typeof refrescarCheckboxesWeekday === 'function') {
+            refrescarCheckboxesWeekday();
+        }
+        const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        mostrarMensaje(`✅ Módulos asignados a ${dayNames[_currentEditingWeekday]}`, 'success');
     } else if (_assignmentMode === 'date') {
         if (!_selectedDateForModules) {
             mostrarMensaje('Selecciona una fecha específica en el panel de arriba.', 'warning');
@@ -5469,12 +5567,8 @@ function obtenerEstadoAsignacion() {
     } else if (_assignmentMode === 'date') {
         (selectedDates || []).forEach(f => {
             if (!_dateSpecificModules[f] || _dateSpecificModules[f].length === 0) {
-                // Verificar si tiene módulos de un día de la semana (herencia de weekdays)
-                const day = new Date(f + 'T12:00:00').getDay();
-                if (!_weekdayModules[day] || _weekdayModules[day].length === 0) {
-                    result.completo = false;
-                    result.pendientes.push(f);
-                }
+                result.completo = false;
+                result.pendientes.push(f);
             }
         });
     }
@@ -5498,6 +5592,55 @@ function setupModuleEvents() {
     });
 }
 window.setupModuleEvents = setupModuleEvents;
+
+/**
+ * setupClearAssignmentButton — botón para limpiar la asignación del día/fecha activo
+ */
+function setupClearAssignmentButton() {
+    document.getElementById('clear-current-assignment')?.addEventListener('click', function() {
+        if (_assignmentMode === 'weekday') {
+            if (_currentEditingWeekday === null) {
+                mostrarMensaje('No hay un día seleccionado para limpiar.', 'warning');
+                return;
+            }
+            if (!_weekdayModules[_currentEditingWeekday] || _weekdayModules[_currentEditingWeekday].length === 0) {
+                mostrarMensaje('Este día no tiene módulos asignados.', 'info');
+                return;
+            }
+            const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            if (!confirm(`¿Limpiar módulos asignados para ${dayNames[_currentEditingWeekday]}?`)) return;
+            delete _weekdayModules[_currentEditingWeekday];
+            // Desmarcar checkbox
+            const cb = document.querySelector('.weekday-cb[value="' + _currentEditingWeekday + '"]');
+            if (cb) cb.checked = false;
+            _currentEditingWeekday = null;
+            mostrarMensaje('🧹 Asignación limpiada para ese día.', 'info');
+            if (typeof refrescarCheckboxesWeekday === 'function') refrescarCheckboxesWeekday();
+            actualizarIndicadorWeekday();
+        } else if (_assignmentMode === 'date') {
+            if (!_selectedDateForModules) {
+                mostrarMensaje('No hay una fecha seleccionada para limpiar.', 'warning');
+                return;
+            }
+            if (!_dateSpecificModules[_selectedDateForModules] || _dateSpecificModules[_selectedDateForModules].length === 0) {
+                mostrarMensaje('Esta fecha no tiene módulos asignados.', 'info');
+                return;
+            }
+            if (!confirm(`¿Limpiar módulos asignados para ${_selectedDateForModules}?`)) return;
+            delete _dateSpecificModules[_selectedDateForModules];
+            mostrarMensaje(`🧹 Asignación limpiada para ${_selectedDateForModules}.`, 'info');
+            if (typeof actualizarSelectorFechas === 'function') actualizarSelectorFechas();
+        } else {
+            mostrarMensaje('Esta opción solo está disponible en modo "Por día de semana" o "Por fecha específica".', 'info');
+            return;
+        }
+        _unsavedChanges = false;
+        saveModulesToHiddenField();
+        if (typeof renderModulesList === 'function') renderModulesList();
+        if (typeof actualizarEstadoAsignacion === 'function') actualizarEstadoAsignacion();
+    });
+}
+window.setupClearAssignmentButton = setupClearAssignmentButton;
 
 // ============ FIN ASIGNACIÓN DE MÓDULOS ============
 
@@ -5843,27 +5986,39 @@ function renderModulesList() {
     visibleDates.forEach(date => {
         const modsForDate = getModulesForDate(date);
         const modKeysForDate = new Set(modsForDate.map(m => m.hora || m.startTime));
-        const totalFecha = [...allKeysSorted].reduce((sum, key) => {
+        const tieneMods = modsForDate.length > 0;
+        const totalFecha = tieneMods ? [...allKeysSorted].reduce((sum, key) => {
             const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
                 ? Number(window.moduleDateCupos[date][key]) : 0;
             return sum + cupo;
-        }, 0);
+        }, 0) : 0;
         
-        const tieneModsPropios = modsForDate.length > 0 && _assignmentMode !== 'all';
-        html += '<tr><td class="col-fecha">' + formatFechaCorta(date) + (tieneModsPropios ? ' <span title="Tiene módulos personalizados" style="color:var(--secondary-color);">★</span>' : '') + '</td>';
-        allKeysSorted.forEach(key => {
-            const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
-                ? Number(window.moduleDateCupos[date][key]) : 0;
-            const zeroClass = cupo <= 0 ? 'zero-cupo' : '';
-            const disabledClass = !modKeysForDate.has(key) && modsForDate.length > 0 ? ' not-in-mode' : '';
-            html += '<td class="cupo-cell ' + zeroClass + disabledClass + '">';
-            html += '<div class="cupo-input-group">';
-            html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" onchange="actualizarCupo(this)">';
-            html += '<button type="button" class="btn-disable-cupo" title="Deshabilitar este turno (cupo=0)" onclick="deshabilitarCupo(\'' + date + '\',\'' + key + '\')">×</button>';
-            html += '</div>';
-            html += '</td>';
-        });
-        html += '<td class="col-total">' + totalFecha + '</td>';
+        const tieneModsPropios = tieneMods && _assignmentMode !== 'all';
+        html += '<tr><td class="col-fecha">' + formatFechaCorta(date) + 
+            (tieneModsPropios ? ' <span title="Tiene módulos personalizados" style="color:var(--secondary-color);">★</span>' : '') + 
+            (!tieneMods && _assignmentMode !== 'all' ? ' <span title="Sin asignar" style="color:#ff6b6b;">⚠️</span>' : '') + 
+            '</td>';
+        
+        if (!tieneMods && _assignmentMode !== 'all') {
+            // Sin módulos asignados → celda roja que ocupa todo el ancho
+            html += '<td class="cupo-cell sin-asignar" colspan="' + allKeysSorted.length + '">' +
+                '<span class="sin-asignar-msg">⚠️ Sin módulos asignados</span></td>';
+            html += '<td class="col-total">—</td>';
+        } else {
+            allKeysSorted.forEach(key => {
+                const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
+                    ? Number(window.moduleDateCupos[date][key]) : 0;
+                const zeroClass = cupo <= 0 ? 'zero-cupo' : '';
+                const disabledClass = !modKeysForDate.has(key) && modsForDate.length > 0 ? ' not-in-mode' : '';
+                html += '<td class="cupo-cell ' + zeroClass + disabledClass + '">';
+                html += '<div class="cupo-input-group">';
+                html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" onchange="actualizarCupo(this)">';
+                html += '<button type="button" class="btn-disable-cupo" title="Deshabilitar este turno (cupo=0)" onclick="deshabilitarCupo(\'' + date + '\',\'' + key + '\')">×</button>';
+                html += '</div>';
+                html += '</td>';
+            });
+            html += '<td class="col-total">' + totalFecha + '</td>';
+        }
         html += '</tr>';
     });
 
