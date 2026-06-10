@@ -5114,10 +5114,13 @@ function setAssignmentMode(mode) {
     }
     
     // En modo 'weekday', refrescar checkboxes según las fechas reales
+    // y tomar snapshot de la base general para reset inteligente
     if (mode === 'weekday') {
         if (typeof refrescarCheckboxesWeekday === 'function') {
             refrescarCheckboxesWeekday();
         }
+        // Snapshot de la base general actual (deep clone) para reset inteligente
+        window._weekdayBaseSnapshot = structuredClone(window.serviceModules || []);
     }
     
     // Refrescar la vista de módulos
@@ -5217,15 +5220,15 @@ function guardarModulosActuales() {
     if (!window.serviceModules) return;
     
     if (_assignmentMode === 'weekday') {
-        // Guardar en día semana activo (los checkboxes marcados)
+        // Guardar en día semana activo (los checkboxes marcados) — deep clone
         document.querySelectorAll('.weekday-cb:checked').forEach(cb => {
             const day = parseInt(cb.value);
-            _weekdayModules[day] = window.serviceModules.map(m => ({...m}));
+            _weekdayModules[day] = structuredClone(window.serviceModules);
         });
     } else if (_assignmentMode === 'date' && _selectedDateForModules) {
-        // Guardar en fecha específica
+        // Guardar en fecha específica — deep clone
         if (window.serviceModules.length > 0) {
-            _dateSpecificModules[_selectedDateForModules] = window.serviceModules.map(m => ({...m}));
+            _dateSpecificModules[_selectedDateForModules] = structuredClone(window.serviceModules);
         } else {
             delete _dateSpecificModules[_selectedDateForModules];
         }
@@ -5404,15 +5407,23 @@ function setupWeekdayCheckboxEvents() {
             _currentEditingWeekday = this.checked ? day : null;
             
             if (this.checked && _weekdayModules[day] && _weekdayModules[day].length > 0) {
-                // Cargar módulos guardados de este día
-                window.serviceModules = _weekdayModules[day].map(m => ({...m}));
+                // Cargar módulos guardados de este día (deep clone)
+                window.serviceModules = structuredClone(_weekdayModules[day]);
                 renderModulesEditable();
             } else if (this.checked && (!_weekdayModules[day] || _weekdayModules[day].length === 0)) {
-                // Sin módulos guardados → mantener módulos generales como plantilla
+                // Sin módulos guardados → reset inteligente: cargar deep clone de la base general
+                const base = window._weekdayBaseSnapshot || window.serviceModules;
+                window.serviceModules = structuredClone(base);
                 renderModulesEditable();
             } else if (!this.checked) {
-                // Desmarcó → borrar módulos de ese día
-                delete _weekdayModules[day];
+                // Desmarcó → solo pierde el foco de edición, NO borra módulos guardados
+                // Si ya no hay checkboxes marcados, restaurar base general en el editor
+                const anyChecked = !!document.querySelector('.weekday-cb:checked');
+                if (!anyChecked && _currentEditingWeekday === null) {
+                    const base = window._weekdayBaseSnapshot || window.serviceModules;
+                    window.serviceModules = structuredClone(base);
+                    renderModulesEditable();
+                }
             }
             
             // Actualizar indicador visual
@@ -5957,7 +5968,95 @@ function renderModulesEditable() {
             }
         });
     });
+    
+    // ===== Boton Copiar desde en editor =====
+    if (_assignmentMode === 'weekday') {
+        const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+        let opts = '<option value="">Seleccionar origen...</option>';
+        opts += '<option value="general">General (todos los dias)</option>';
+        for (let d = 0; d < 7; d++) {
+            const tiene = _weekdayModules[d] && _weekdayModules[d].length > 0;
+            if (tiene || d === _currentEditingWeekday) continue;
+            opts += '<option value="' + d + '">' + dayNames[d] + '</option>';
+        }
+        const div = document.createElement('div');
+        div.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:8px;';
+        div.innerHTML = '<label style="font-size:0.8rem;color:var(--text-muted);">Copiar desde:</label>' +
+            '<select id="copy-modules-from" style="padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:#fff;font-size:0.8rem;">' + opts + '</select>' +
+            '<button type="button" class="btn-small" id="btn-copy-modules" style="padding:4px 10px;font-size:0.75rem;" disabled>Aplicar</button>';
+        container.appendChild(div);
+        
+        document.getElementById('copy-modules-from')?.addEventListener('change', function() {
+            document.getElementById('btn-copy-modules').disabled = !this.value;
+        });
+        document.getElementById('btn-copy-modules')?.addEventListener('click', function() {
+            const src = document.getElementById('copy-modules-from').value;
+            if (!src) return;
+            if (copiarModulosDesde(src)) {
+                mostrarMensaje('Modulos copiados al editor. Usa Guardar asignacion para fijarlos.', 'success');
+                renderModulesEditable();
+            }
+        });
+    } else if (_assignmentMode === 'date') {
+        let opts = '<option value="">Seleccionar origen...</option>';
+        opts += '<option value="general">General (todos los dias)</option>';
+        const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+        for (let d = 0; d < 7; d++) {
+            const tiene = _weekdayModules[d] && _weekdayModules[d].length > 0;
+            if (!tiene) continue;
+            opts += '<option value="wd:' + d + '">' + dayNames[d] + '</option>';
+        }
+        Object.keys(_dateSpecificModules || {}).sort().forEach(f => {
+            if (f === _selectedDateForModules) return;
+            opts += '<option value="date:' + f + '">' + f + '</option>';
+        });
+        const div = document.createElement('div');
+        div.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:8px;';
+        div.innerHTML = '<label style="font-size:0.8rem;color:var(--text-muted);">Copiar desde:</label>' +
+            '<select id="copy-modules-from" style="padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:#fff;font-size:0.8rem;">' + opts + '</select>' +
+            '<button type="button" class="btn-small" id="btn-copy-modules" style="padding:4px 10px;font-size:0.75rem;" disabled>Aplicar</button>';
+        container.appendChild(div);
+        
+        document.getElementById('copy-modules-from')?.addEventListener('change', function() {
+            document.getElementById('btn-copy-modules').disabled = !this.value;
+        });
+        document.getElementById('btn-copy-modules')?.addEventListener('click', function() {
+            const src = document.getElementById('copy-modules-from').value;
+            if (!src) return;
+            if (copiarModulosDesde(src)) {
+                mostrarMensaje('Modulos copiados al editor. Usa Guardar asignacion para fijarlos.', 'success');
+                renderModulesEditable();
+            }
+        });
+    }
 }
+window.renderModulesEditable = renderModulesEditable;
+
+// ===== Boton Copiar desde (logica) =====
+function copiarModulosDesde(origen) {
+    let sourceMods = null;
+    if (origen === 'general') {
+        sourceMods = window.serviceModules;
+    } else if (origen.startsWith('wd:')) {
+        const d = parseInt(origen.split(':')[1]);
+        sourceMods = _weekdayModules[d];
+    } else if (origen.startsWith('date:')) {
+        const f = origen.split(':')[1];
+        sourceMods = _dateSpecificModules[f];
+    } else {
+        const d = parseInt(origen);
+        sourceMods = _weekdayModules[d];
+    }
+    if (!sourceMods || sourceMods.length === 0) {
+        mostrarMensaje('El origen no tiene modulos para copiar.', 'warning');
+        return false;
+    }
+    // Deep clone para romper toda referencia en memoria
+    window.serviceModules = structuredClone(sourceMods);
+    saveModulesToHiddenField();
+    return true;
+}
+window.copiarModulosDesde = copiarModulosDesde;
 
 function confirmarModulos() {
     if (!window.serviceModules || window.serviceModules.length === 0) {
@@ -5965,7 +6064,7 @@ function confirmarModulos() {
         return;
     }
     
-    // Nivel 3 — Alerta preventiva no bloqueante si modo ALL y hay configuraciones específicas
+    // Nivel 3
     if (_assignmentMode === 'all' || !_assignmentMode || _assignmentMode === 'default') {
         const jerarquia = contarFechasEspecificasActivas();
         if (jerarquia.tieneEspecificos) {
