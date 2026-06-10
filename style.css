@@ -1832,58 +1832,11 @@ body {
         flex-direction: column;
     }
     /* ===== ESTILOS PARA LISTA DE HORARIOS (ADMIN) ===== */
-    .modules-list .modules-table {
-        border-radius: 8px;
-        overflow: hidden;
-        background: rgba(255,255,255,0.02);
-        border: 1px solid rgba(0,0,0,0.04);
-    }
-    .modules-table-head,
-    .modules-table-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px 10px;
-    }
-    .modules-table-head {
-        background: rgba(0,0,0,0.03);
-        font-weight: 600;
-    }
-    .modules-table-row:nth-child(odd) {
-        background: rgba(0,0,0,0.01);
-    }
-    .modules-table-row .col-hour {
-        flex: 0 0 120px;
-        color: var(--muted-color, #666);
-    }
-    .modules-table-row .col-date {
-        flex: 1 1 auto;
-    }
-    .modules-table-row .col-date input.module-cupos-input {
-        width: 76px;
-        max-width: 100%;
-        padding: 6px 8px;
-        border: 1px solid rgba(0,0,0,0.08);
-        border-radius: 6px;
-        background: #fff;
-    }
-    .modules-table-row .col-actions {
-        flex: 0 0 64px;
-        display: flex;
-        justify-content: center;
-    }
-    .btn-remove-module {
-        background: transparent;
-        border: none;
-        color: var(--danger-color, #e74c3c);
-        cursor: pointer;
-        padding: 6px;
-        border-radius: 6px;
-    }
     .btn-remove-module:hover {
         background: rgba(231,76,60,0.08);
     }
 }
+··
 ····················
 
 /* ===== ESTILOS PARA SECCIÓN CREAR SERVICIO ===== */
@@ -2438,70 +2391,8 @@ body {
 .modules-list {
     padding: 0;
 }
-.modules-list .modules-table {
-    border-radius: 10px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--glass-border);
-}
-.modules-table-head,
-.modules-table-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-}
-.modules-table-head {
-    background: rgba(255, 255, 255, 0.04);
-    font-weight: 600;
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.5);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-.modules-table-row {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    transition: background 0.2s;
-}
-.modules-table-row:last-child {
-    border-bottom: none;
-}
-.modules-table-row:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-.modules-table-row .col-hour {
-    flex: 0 0 100px;
-    font-weight: 600;
-    color: #ddd;
-    font-size: 0.9rem;
-}
-.modules-table-row .col-date {
-    flex: 1 1 auto;
-    min-width: 80px;
-}
-.modules-table-row .col-date input.module-cupos-input {
-    width: 65px;
-    max-width: 100%;
-    padding: 6px 8px;
-    background: rgba(20, 20, 30, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 7px;
-    color: #f0f0f0;
-    text-align: center;
-    font-size: 0.85rem;
-    transition: all 0.2s;
-}
-.modules-table-row .col-date input.module-cupos-input:focus {
-    border-color: var(--primary-color, #9d4edd);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(157, 78, 221, 0.1);
-}
-.modules-table-row .col-actions {
-    flex: 0 0 100px;
-    display: flex;
-    gap: 4px;
-    justify-content: flex-end;
-}
+/* === (ELIMINADO) .modules-table, .modules-table-row y relacionados === */
+/* Ya no se usan. Reemplazados por cards por fecha en renderModulesList() */
 
 /* Botón eliminar módulo */
 .btn-remove-module {

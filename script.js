@@ -3740,37 +3740,36 @@ async function crearServicio() {
 window.crearServicio = crearServicio;
 
 function buildDisponibilidadFromForm() {
-    const disponibilidad = {};
+    // Primero recolectar cupos desde la matriz/cards actual
     const modulesList = document.getElementById('modules-list');
     if (modulesList) {
         const inputs = modulesList.querySelectorAll('.module-cupos-input');
         inputs.forEach(inp => {
             const fecha = inp.dataset.fecha;
             const hora = inp.dataset.hora;
+            if (!fecha || !hora) return;
             if (!window.moduleDateCupos) window.moduleDateCupos = {};
             if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
             window.moduleDateCupos[fecha][hora] = Number(inp.value || 0);
         });
     }
-    const fechas = Array.from(selectedDates || []).sort();
-    fechas.forEach(fecha => {
-        // Obtener los módulos que aplican a esta fecha según el modo de asignación
-        const modsForDate = getModulesForDate(fecha);
-        const modulesSource = modsForDate.length > 0 ? modsForDate : (window.serviceModules || []);
-        
-        disponibilidad[fecha] = modulesSource.map(m => {
-            const hora = m.hora || m.startTime || '00:00';
-            const cupos = (window.moduleDateCupos && window.moduleDateCupos[fecha] && typeof window.moduleDateCupos[fecha][hora] !== 'undefined') 
-                ? Number(window.moduleDateCupos[fecha][hora]) 
-                : (typeof m.cupos !== 'undefined' ? Number(m.cupos) : 0);
-            return {
-                id: m.id || (Date.now() + Math.random()),
-                hora: hora,
-                cupos: cupos,
-                duration: m.duration || 0
-            };
+    
+    // Generar la disponibilidad final respetando jerarquía (date > weekday > general)
+    const disponibilidad = generarDisponibilidadFinal();
+    
+    // Sobre-escribir cupos con los valores editados en la matriz/cards
+    if (window.moduleDateCupos) {
+        Object.keys(disponibilidad).forEach(fecha => {
+            disponibilidad[fecha] = disponibilidad[fecha].map(m => {
+                const hora = m.hora || m.startTime || '00:00';
+                if (window.moduleDateCupos[fecha] && typeof window.moduleDateCupos[fecha][hora] !== 'undefined') {
+                    m.cupos = Number(window.moduleDateCupos[fecha][hora]);
+                }
+                return m;
+            });
         });
-    });
+    }
+    
     return disponibilidad;
 }
 window.buildDisponibilidadFromForm = buildDisponibilidadFromForm;
@@ -5234,29 +5233,83 @@ function guardarModulosActuales() {
 }
 
 /**
- * getModulesForDate — obtiene los módulos que aplican a una fecha específica
- * según el modo de asignación activo
+ * generarDisponibilidadFinal — Consolida los 3 almacenes actuales respetando jerarquía:
+ *   1. _dateSpecificModules[fecha]   (máxima prioridad)
+ *   2. _weekdayModules[dia]          (prioridad media)
+ *   3. window.serviceModules         (base general)
+ * 
+ * Devuelve: { "2026-06-10": [{ hora:"09:00", cupos:5, duration:60, endTime:"10:00", ... }], ... }
+ * Solo incluye las fechas que existen en selectedDates.
  */
-function getModulesForDate(fecha) {
-    if (!fecha) return [];
+function generarDisponibilidadFinal() {
+    const resultado = {};
     
-    if (_assignmentMode === 'all') {
-        return window.serviceModules || [];
-    }
+    const fechas = Array.from(selectedDates || []).sort();
+    if (fechas.length === 0) return resultado;
     
-    if (_assignmentMode === 'weekday') {
+    // Pre-coleccionar qué días de semana están presentes en selectedDates
+    const diasConFechas = new Set();
+    fechas.forEach(f => diasConFechas.add(new Date(f + 'T12:00:00').getDay()));
+    
+    fechas.forEach(fecha => {
         const day = new Date(fecha + 'T12:00:00').getDay();
-        const dayMods = _weekdayModules[day];
-        return (dayMods && dayMods.length > 0) ? dayMods : [];
-    }
+        let mods = null;
+        let fuente = 'ninguna';
+        
+        // 1. Prioridad máxima: fecha específica
+        if (_dateSpecificModules[fecha] && _dateSpecificModules[fecha].length > 0) {
+            mods = _dateSpecificModules[fecha];
+            fuente = 'dateSpecific';
+        }
+        // 2. Prioridad media: día de la semana
+        else if (_weekdayModules[day] && _weekdayModules[day].length > 0) {
+            mods = _weekdayModules[day];
+            fuente = 'weekday';
+        }
+        // 3. Prioridad base: generales
+        else if (window.serviceModules && window.serviceModules.length > 0) {
+            mods = window.serviceModules;
+            fuente = 'general';
+        }
+        
+        if (mods && mods.length > 0) {
+            resultado[fecha] = mods.map(m => ({
+                id: m.id || (Date.now() + Math.random()),
+                hora: m.hora || m.startTime || '00:00',
+                startTime: m.startTime || m.hora || '00:00',
+                endTime: m.endTime || calcularFinModulo(m.hora || m.startTime || '00:00', m.duration || 60),
+                cupos: typeof m.cupos !== 'undefined' ? Number(m.cupos) : 0,
+                duration: m.duration || 60,
+                editable: m.editable !== false,
+                _fuente: fuente
+            }));
+        }
+    });
     
-    if (_assignmentMode === 'date') {
-        const dateMods = _dateSpecificModules[fecha];
-        return (dateMods && dateMods.length > 0) ? dateMods : [];
-    }
-    
-    return [];
+    return resultado;
 }
+window.generarDisponibilidadFinal = generarDisponibilidadFinal;
+
+/**
+ * contarFechasEspecificasActivas — Cuenta y categoriza las configuraciones específicas activas
+ * que tienen prioridad sobre la base general (all).
+ */
+function contarFechasEspecificasActivas() {
+    const fechasEspecificas = Object.keys(_dateSpecificModules || {}).filter(f => {
+        return _dateSpecificModules[f] && _dateSpecificModules[f].length > 0;
+    }).length;
+
+    const diasSemanaEspecificos = Object.keys(_weekdayModules || {}).filter(d => {
+        return _weekdayModules[d] && _weekdayModules[d].length > 0;
+    }).length;
+
+    return {
+        tieneEspecificos: fechasEspecificas > 0 || diasSemanaEspecificos > 0,
+        fechasEspecificas,
+        diasSemanaEspecificos
+    };
+}
+window.contarFechasEspecificasActivas = contarFechasEspecificasActivas;
 
 /**
  * Sobrescribe saveModulesToHiddenField para incluir datos de asignación
@@ -5911,9 +5964,21 @@ function confirmarModulos() {
         mostrarMensaje("No hay modulos para confirmar", "warning");
         return;
     }
+    
+    // Nivel 3 — Alerta preventiva no bloqueante si modo ALL y hay configuraciones específicas
+    if (_assignmentMode === 'all' || !_assignmentMode || _assignmentMode === 'default') {
+        const jerarquia = contarFechasEspecificasActivas();
+        if (jerarquia.tieneEspecificos) {
+            mostrarMensaje(
+                '⚠️ Al confirmar en modo global, recuerda que existen ' + jerarquia.fechasEspecificas + ' fechas específicas y ' + jerarquia.diasSemanaEspecificos + ' días personalizados que mantendrán sus propios horarios prioritarios.',
+                'warning'
+            );
+        }
+    }
+    
     // Guardar módulos actuales según el modo de asignación
-    if (typeof guardarModulosActuales === 'function') {
-        guardarModulosActuales();
+    if (typeof guardarAsignacionActual === 'function') {
+        guardarAsignacionActual();
     }
     // Marcar como confirmados
     window.serviceModules.forEach(m => m.editable = false);
@@ -5921,8 +5986,89 @@ function confirmarModulos() {
     saveModulesToHiddenField();
     // Refrescar la matriz de cupos
     if (typeof renderModulesList === 'function') renderModulesList();
-    mostrarMensaje("Modulos confirmados", "success");
+    mostrarMensaje("✅ Módulos confirmados y asignación guardada", "success");
 }
+
+/**
+ * asignarDiaWeekday — carga un día específico en el editor en modo weekday
+ */
+function asignarDiaWeekday(day) {
+    _assignmentMode = 'weekday';
+    _currentEditingWeekday = day;
+    // Marcar checkbox correspondiente
+    refrescarCheckboxesWeekday();
+    // Cargar módulos del día o mantener generales como plantilla
+    if (_weekdayModules[day] && _weekdayModules[day].length > 0) {
+        window.serviceModules = _weekdayModules[day].map(m => ({...m}));
+    } else if (!window.serviceModules || window.serviceModules.length === 0) {
+        window.serviceModules = [];
+    }
+    renderModulesEditable();
+    actualizarIndicadorWeekday();
+    // Hacer scroll al editor de módulos
+    document.getElementById('service-modules')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (typeof setAssignmentMode === 'function') {
+        document.querySelector('.btn-mode[data-mode="weekday"]')?.click();
+    }
+    renderModulesList();
+}
+
+/**
+ * asignarFechaDate — carga una fecha específica en el editor en modo date
+ */
+function asignarFechaDate(fecha) {
+    _assignmentMode = 'date';
+    _selectedDateForModules = fecha;
+    // Actualizar el selector de fechas
+    actualizarSelectorFechas();
+    // Seleccionar la fecha en el select
+    const sel = document.getElementById('date-selector-select');
+    if (sel) sel.value = fecha;
+    // Cargar módulos de la fecha
+    cargarModulosDeFecha(fecha);
+    // Hacer scroll al editor de módulos
+    document.getElementById('service-modules')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (typeof setAssignmentMode === 'function') {
+        document.querySelector('.btn-mode[data-mode="date"]')?.click();
+    }
+}
+
+/**
+ * obtenerFechasPendientes — devuelve los días/fechas que faltan por asignar
+ * Cada elemento: { label: string, onClick: string }
+ */
+function obtenerFechasPendientes() {
+    const result = [];
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    
+    if (_assignmentMode === 'weekday') {
+        const diasEnCalendario = new Set();
+        (selectedDates || []).forEach(f => {
+            diasEnCalendario.add(new Date(f + 'T12:00:00').getDay());
+        });
+        dayOrder = [1, 2, 3, 4, 5, 6, 0];
+        dayOrder.forEach(d => {
+            if (!diasEnCalendario.has(d)) return;
+            if (!_weekdayModules[d] || _weekdayModules[d].length === 0) {
+                result.push({
+                    label: dayNames[d],
+                    onClick: 'asignarDiaWeekday(' + d + ')'
+                });
+            }
+        });
+    } else if (_assignmentMode === 'date') {
+        (selectedDates || []).sort().forEach(f => {
+            if (!_dateSpecificModules[f] || _dateSpecificModules[f].length === 0) {
+                result.push({
+                    label: f,
+                    onClick: 'asignarFechaDate("' + f + '")'
+                });
+            }
+        });
+    }
+    return result;
+}
+window.obtenerFechasPendientes = obtenerFechasPendientes;
 
 function renderModulesList() {
     const modulesList = document.getElementById('modules-list');
@@ -5931,146 +6077,159 @@ function renderModulesList() {
         return;
     }
 
-    // Determinar qué módulos mostrar según el modo de asignación
-    let effectiveModules = window.serviceModules || [];
-    let displayDates = Array.from(selectedDates || []).sort((a, b) => a.localeCompare(b));
-
-    if (!effectiveModules || effectiveModules.length === 0 || !displayDates || displayDates.length === 0) {
-        modulesList.innerHTML = '<div class="empty-modules"><i class="fas fa-clock"></i><p>No hay horarios configurados o fechas seleccionadas</p><small>Agrega horarios y selecciona fechas para ver la matriz</small></div>';
+    const sortedDates = Array.from(selectedDates || []).sort((a, b) => a.localeCompare(b));
+    if (sortedDates.length === 0) {
+        modulesList.innerHTML = '<div class="empty-modules"><i class="fas fa-clock"></i><p>No hay fechas seleccionadas</p><small>Selecciona fechas en el calendario para ver los horarios</small></div>';
         return;
     }
 
-    const sortedDates = displayDates;
-    const sortedModules = [...effectiveModules].sort((a, b) => (a.hora || a.startTime).localeCompare(b.hora || b.startTime));
+    // Obtener disponibilidad completa con jerarquía (date > weekday > general)
+    const disponibilidad = generarDisponibilidadFinal();
 
-    // Mostrar primeras 5 fechas, el resto colapsable
-    const COLLAPSE_LIMIT = 5;
-    const showAll = modulesList.dataset.showAll === 'true';
-    const visibleDates = showAll ? sortedDates : sortedDates.slice(0, COLLAPSE_LIMIT);
-    const hiddenCount = sortedDates.length - COLLAPSE_LIMIT;
-
-    // Inicializar window.moduleDateCupos con los módulos correctos para cada fecha
+    // Inicializar window.moduleDateCupos para persistencia de cupos editados
     if (!window.moduleDateCupos) window.moduleDateCupos = {};
     sortedDates.forEach(date => {
         if (!window.moduleDateCupos[date]) window.moduleDateCupos[date] = {};
-        const modsForDate = getModulesForDate(date);
-        (modsForDate.length > 0 ? modsForDate : sortedModules).forEach(mod => {
-            const key = mod.hora || mod.startTime;
+        const mods = disponibilidad[date] || [];
+        mods.forEach(m => {
+            const key = m.hora || m.startTime;
             if (typeof window.moduleDateCupos[date][key] === 'undefined') {
-                window.moduleDateCupos[date][key] = (typeof mod.cupos !== 'undefined') ? Number(mod.cupos) : 0;
+                window.moduleDateCupos[date][key] = typeof m.cupos !== 'undefined' ? Number(m.cupos) : 0;
             }
         });
     });
 
-    // Cabecera de la tabla: mostrar los módulos generales (todos los que existan)
-    let allModuleKeys = new Set();
-    sortedDates.forEach(date => {
-        const mods = getModulesForDate(date);
-        (mods.length > 0 ? mods : sortedModules).forEach(mod => {
-            allModuleKeys.add(mod.hora || mod.startTime);
-        });
-    });
-    const allKeysSorted = [...allModuleKeys].sort();
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const badgeColors = {
+        dateSpecific: { bg: 'rgba(157,78,221,0.2)', color: '#c084fc', text: 'Fecha específica', title: 'Ignora configuración de día y general' },
+        weekday:     { bg: 'rgba(0,184,148,0.2)', color: '#00b894', text: 'Por día de semana', title: 'Sigue configuración del día, ignora base general' },
+        general:     { bg: 'rgba(116,185,255,0.2)', color: '#74b9ff', text: 'General', title: 'Usa configuración base general para todos los días' }
+    };
 
-    let html = '<div class="modules-table-wrapper"><table class="modules-table">';
-    html += '<thead><tr><th class="col-fecha">Fecha</th>';
-    allKeysSorted.forEach(horaKey => {
-        const mod = sortedModules.find(m => (m.hora || m.startTime) === horaKey) || {hora: horaKey};
-        html += '<th class="col-hora">' + formatTimeDisplay(horaKey) + 
-                ' <button type="button" class="btn-mass-cupo-fila" title="Aplicar cupo a todas las fechas" onclick="aplicarCupoAFechas(\'' + horaKey + '\')">↕</button></th>';
-    });
-    html += '<th class="col-total"><i class="fas fa-calculator" title="Total cupos por fecha"></i></th>';
-    html += '</tr></thead><tbody>';
+    // Nivel 2 — Barra de estado del sistema (resumen de jerarquía)
+    const jerarquia = contarFechasEspecificasActivas();
+    const totalFechas = sortedDates.length;
 
-    // Filas: cada fecha
-    visibleDates.forEach(date => {
-        const modsForDate = getModulesForDate(date);
-        const modKeysForDate = new Set(modsForDate.map(m => m.hora || m.startTime));
-        const tieneMods = modsForDate.length > 0;
-        const totalFecha = tieneMods ? [...allKeysSorted].reduce((sum, key) => {
-            const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
-                ? Number(window.moduleDateCupos[date][key]) : 0;
-            return sum + cupo;
-        }, 0) : 0;
-        
-        const tieneModsPropios = tieneMods && _assignmentMode !== 'all';
-        html += '<tr><td class="col-fecha">' + formatFechaCorta(date) + 
-            (tieneModsPropios ? ' <span title="Tiene módulos personalizados" style="color:var(--secondary-color);">★</span>' : '') + 
-            (!tieneMods && _assignmentMode !== 'all' ? ' <span title="Sin asignar" style="color:#ff6b6b;">⚠️</span>' : '') + 
-            '</td>';
-        
-        if (!tieneMods && _assignmentMode !== 'all') {
-            // Sin módulos asignados → celda roja que ocupa todo el ancho
-            html += '<td class="cupo-cell sin-asignar" colspan="' + allKeysSorted.length + '">' +
-                '<span class="sin-asignar-msg">⚠️ Sin módulos asignados</span></td>';
-            html += '<td class="col-total">—</td>';
-        } else {
-            allKeysSorted.forEach(key => {
-                const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
-                    ? Number(window.moduleDateCupos[date][key]) : 0;
-                const zeroClass = cupo <= 0 ? 'zero-cupo' : '';
-                const disabledClass = !modKeysForDate.has(key) && modsForDate.length > 0 ? ' not-in-mode' : '';
-                html += '<td class="cupo-cell ' + zeroClass + disabledClass + '">';
-                html += '<div class="cupo-input-group">';
-                html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" onchange="actualizarCupo(this)">';
-                html += '<button type="button" class="btn-disable-cupo" title="Deshabilitar este turno (cupo=0)" onclick="deshabilitarCupo(\'' + date + '\',\'' + key + '\')">×</button>';
-                html += '</div>';
-                html += '</td>';
-            });
-            html += '<td class="col-total">' + totalFecha + '</td>';
-        }
-        html += '</tr>';
-    });
-
-    // Fila de colapso
-    if (hiddenCount > 0) {
-        html += '<tr class="collapse-row"><td colspan="' + (sortedModules.length + 2) + '">';
-        html += '<button type="button" class="btn-small" onclick="toggleFechasMatriz()">';
-        html += showAll ? '<i class="fas fa-chevron-up"></i> Mostrar menos' : '<i class="fas fa-chevron-down"></i> Mostrar ' + hiddenCount + ' fechas más';
-        html += '</button></td></tr>';
+    let html = '<div class="hierarchy-status-bar" style="margin-bottom:12px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid rgba(255,255,255,0.06);font-size:0.8rem;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap;align-items:center;">';
+    html += '<span>📅 ' + totalFechas + ' fechas</span>';
+    if (jerarquia.fechasEspecificas > 0) {
+        html += '<span style="color:#c084fc;">🟣 ' + jerarquia.fechasEspecificas + ' con fecha específica</span>';
     }
-
-    // Fila: totales por horario + gran total
-    html += '<tr class="total-row"><td class="col-fecha"><strong>Total</strong></td>';
-    let granTotal = 0;
-    sortedModules.forEach(mod => {
-        const key = mod.hora || mod.startTime;
-        const totalMod = sortedDates.reduce((sum, date) => {
-            const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined' 
-                ? Number(window.moduleDateCupos[date][key]) : 0;
-            return sum + cupo;
-        }, 0);
-        granTotal += totalMod;
-        html += '<td class="col-total"><strong>' + totalMod + '</strong></td>';
-    });
-    html += '<td class="col-total"><strong>' + granTotal + '</strong></td>';
-    html += '</tr>';
-
-    // Botones de cupo masivo por fecha (abajo de la tabla)
-    html += '</tbody></table></div>';
-
-    // Fila de botones por fecha (aplicar cupo a todos los horarios de esa fecha)
-    html += '<div class="mass-cupo-fechas">';
-    visibleDates.forEach(date => {
-        html += '<button type="button" class="btn-mass-cupo-col btn-small" onclick="aplicarCupoAHorarios(\'' + date + '\')" title="Aplicar cupo a todos los horarios de esta fecha">↓ ' + formatFechaCorta(date) + '</button>';
-    });
+    if (jerarquia.diasSemanaEspecificos > 0) {
+        html += '<span style="color:#00b894;">🟢 ' + jerarquia.diasSemanaEspecificos + ' días de semana con configuración propia</span>';
+    }
+    const fechasSinDateSpec = totalFechas - jerarquia.fechasEspecificas;
+    if (fechasSinDateSpec > 0) {
+        html += '<span style="color:#74b9ff;">🔵 ' + fechasSinDateSpec + ' heredan de día/general</span>';
+    }
+    if (jerarquia.tieneEspecificos && (_assignmentMode === 'all' || !_assignmentMode || _assignmentMode === 'default')) {
+        html += '<span style="color:#ffaa00;font-weight:500;">⚠️ Modo general activo — las configuraciones específicas se mantienen</span>';
+    }
     html += '</div>';
 
+    html += '<div class="modules-cards-container">';
+
+    sortedDates.forEach((date) => {
+        const day = new Date(date + 'T12:00:00').getDay();
+        const mods = disponibilidad[date] || [];
+        const tieneMods = mods.length > 0;
+        const fuente = tieneMods ? (mods[0]._fuente || 'general') : 'ninguna';
+        const badge = badgeColors[fuente] || badgeColors.general;
+
+        // Calcular total de cupos para esta fecha
+        const totalCuposFecha = tieneMods ? mods.reduce((sum, m) => {
+            const key = m.hora || m.startTime;
+            const cupo = (window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined')
+                ? Number(window.moduleDateCupos[date][key])
+                : (typeof m.cupos !== 'undefined' ? Number(m.cupos) : 0);
+            return sum + cupo;
+        }, 0) : 0;
+
+        html += '<div class="fecha-card" style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 14px;margin-bottom:10px;border:1px solid rgba(255,255,255,0.08);">';
+
+        // Header de la card
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">';
+        html += '<div>';
+        html += '<strong style="font-size:0.95rem;">' + formatFechaCorta(date) + '</strong>';
+        html += ' <span style="color:var(--text-muted);font-size:0.8rem;">(' + dayNames[day] + ')</span>';
+        if (tieneMods) {
+            html += ' <span style="display:inline-block;font-size:0.7rem;padding:1px 7px;border-radius:8px;background:' + badge.bg + ';color:' + badge.color + ';margin-left:6px;cursor:help;" title="' + badge.title + '">' + badge.text + '</span>';
+        }
+        html += '</div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-muted);">';
+        // Botón cupo masivo para esta fecha
+        if (tieneMods) {
+            html += '<button type="button" class="btn-small" style="font-size:0.7rem;padding:2px 8px;" onclick="aplicarCupoAHorarios(\'' + date + '\')" title="Aplicar cupo a todos los horarios de esta fecha">↓ Cupo masivo</button>';
+        }
+        html += 'Total: <strong>' + totalCuposFecha + '</strong> cupos';
+        html += '</div>';
+        html += '</div>';
+
+        if (!tieneMods) {
+            // Sin módulos → indicador rojo
+            html += '<div style="padding:14px;background:rgba(255,70,70,0.1);border-radius:6px;text-align:center;color:#ff6b6b;font-size:0.85rem;">';
+            html += '<i class="fas fa-exclamation-triangle"></i> Sin módulos asignados para esta fecha';
+            html += '</div>';
+        } else {
+            // Listado de módulos como filas compactas
+            mods.forEach((m) => {
+                const key = m.hora || m.startTime;
+                const cupo = (window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined')
+                    ? Number(window.moduleDateCupos[date][key])
+                    : (typeof m.cupos !== 'undefined' ? Number(m.cupos) : 0);
+                const zeroClass = cupo <= 0 ? 'opacity:0.5;' : '';
+
+                html += '<div class="modulo-row" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:4px;' + zeroClass + '">';
+
+                // Hora inicio - fin
+                html += '<span style="font-size:0.85rem;font-weight:500;min-width:100px;">';
+                html += m.hora || m.startTime || '--:--';
+                if (m.endTime) html += ' - ' + m.endTime;
+                html += '</span>';
+
+                // Duración
+                if (m.duration) {
+                    html += '<span style="font-size:0.75rem;color:var(--text-muted);min-width:50px;">' + m.duration + 'min</span>';
+                }
+
+                // Cupo input
+                html += '<div class="cupo-input-group" style="display:flex;align-items:center;gap:4px;margin-left:auto;">';
+                html += '<label style="font-size:0.75rem;color:var(--text-muted);">Cupos:</label>';
+                html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" onchange="actualizarCupo(this)" style="width:55px;padding:3px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:#fff;text-align:center;">';
+                html += '<button type="button" class="btn-disable-cupo" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;" onclick="deshabilitarCupo(\'' + date + '\',\'' + key + '\')" title="Deshabilitar (cupo=0)">×</button>';
+                html += '</div>';
+
+                html += '</div>'; // fin modulo-row
+            });
+        }
+
+        html += '</div>'; // fin fecha-card
+    });
+
+    html += '</div>'; // fin modules-cards-container
+
+    // Sección de fechas/días pendientes (solo en modo weekday/date)
+    if (_assignmentMode === 'weekday' || _assignmentMode === 'date') {
+        const pendientes = obtenerFechasPendientes();
+        if (pendientes.length > 0) {
+            html += '<div class="pendientes-section" style="margin-top:14px;padding:12px;background:rgba(255,70,70,0.08);border-radius:8px;border:1px solid rgba(255,70,70,0.2);">';
+            html += '<div style="margin-bottom:8px;font-size:0.85rem;color:#ff6b6b;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> ' + pendientes.length + ' elemento(s) sin módulos asignados:</div>';
+            html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+            pendientes.forEach(item => {
+                html += '<button type="button" class="btn-small" style="background:rgba(255,70,70,0.2);color:#ff6b6b;border:1px solid rgba(255,70,70,0.3);padding:4px 12px;cursor:pointer;" onclick="' + item.onClick + '">➕ ' + item.label + '</button>';
+            });
+            html += '</div></div>';
+        }
+    }
+
     modulesList.innerHTML = html;
-    
+
     // Actualizar resumen económico
-    actualizarResumenEconomico();
+    if (typeof actualizarResumenEconomico === 'function') {
+        actualizarResumenEconomico();
+    }
 }
 window.renderModulesList = renderModulesList;
-// Función toggle fechas matriz (colapsar/expandir)
-function toggleFechasMatriz() {
-    const modulesList = document.getElementById('modules-list');
-    if (!modulesList) return;
-    const current = modulesList.dataset.showAll;
-    modulesList.dataset.showAll = current === 'true' ? 'false' : 'true';
-    renderModulesList();
-}
-window.toggleFechasMatriz = toggleFechasMatriz;
 
 // Actualizar cupo individual desde input
 function actualizarCupo(input) {
