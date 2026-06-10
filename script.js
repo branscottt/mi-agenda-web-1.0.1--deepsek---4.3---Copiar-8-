@@ -3672,11 +3672,10 @@ window.configurarFormulario = configurarFormulario;
 
 async function crearServicio() {
     const nombre = document.getElementById('srv-name').value;
-    const categoria = document.getElementById('srv-category').value;
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
 
-    if (!nombre || !categoria || !precio) {
+    if (!nombre || !precio) {
         mostrarMensaje("Por favor completa todos los campos obligatorios", "error");
         return;
     }
@@ -3717,7 +3716,6 @@ async function crearServicio() {
 
     const nuevoServicio = {
         nombre: nombre,
-        categoria: categoria,
         precio: parseFloat(precio),
         duracion: duracion,
         imagen: document.getElementById('srv-image-url').value || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874',
@@ -4109,7 +4107,6 @@ async function editarServicio(id) {
     }
 
     document.getElementById('srv-name').value = servicio.nombre;
-    document.getElementById('srv-category').value = servicio.categoria;
     document.getElementById('srv-price').value = servicio.precio;
     const capInput = document.getElementById('srv-capacity');
     if (servicio.disponibilidad && Object.keys(servicio.disponibilidad).length > 0) {
@@ -4217,11 +4214,10 @@ async function actualizarServicio(id) {
     }
 
     const nombre = document.getElementById('srv-name').value;
-    const categoria = document.getElementById('srv-category').value;
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
 
-    if (!nombre || !categoria || !precio) {
+    if (!nombre || !precio) {
         mostrarMensaje("Por favor completa todos los campos obligatorios", "error");
         return;
     }
@@ -4249,7 +4245,6 @@ async function actualizarServicio(id) {
     const servicioActualizado = {
         id: id,
         nombre: nombre,
-        categoria: categoria,
         precio: parseFloat(precio),
         duracion: duracion,
         imagen: document.getElementById('srv-image-url').value || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874',
@@ -5218,6 +5213,21 @@ function cargarModulosDeFecha(fecha) {
  */
 function guardarModulosActuales() {
     if (!window.serviceModules) return;
+    
+    // Sincronizar cupos editados en cards antes de guardar
+    // Esto evita que guardar pisos los cupos personalizados por fecha
+    const modulesList = document.getElementById('modules-list');
+    if (modulesList) {
+        const inputs = modulesList.querySelectorAll('.module-cupos-input');
+        inputs.forEach(inp => {
+            const fecha = inp.dataset.fecha;
+            const hora = inp.dataset.hora;
+            if (!fecha || !hora) return;
+            if (!window.moduleDateCupos) window.moduleDateCupos = {};
+            if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
+            window.moduleDateCupos[fecha][hora] = Number(inp.value || 0);
+        });
+    }
     
     if (_assignmentMode === 'weekday') {
         // Guardar en día semana activo (los checkboxes marcados) — deep clone
