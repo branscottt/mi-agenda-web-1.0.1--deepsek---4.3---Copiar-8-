@@ -2758,70 +2758,6 @@ function diagnosticarDatos() {
 }
 window.diagnosticarDatos = diagnosticarDatos;
 
-async function crearDatosEjemplo() {
-    let servicios = await ServiciosManager.getAll();
-    if (servicios.length === 0) {
-        const tenantId = await getCurrentTenantId();
-        if (!tenantId) return [];
-        
-        const serviciosEjemplo = [
-            {
-                nombre: "Masaje Relajante",
-                categoria: "bienestar",
-                precio: 60,
-                imagen: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874",
-                descripcion: "Sesión de masaje terapeútico para aliviar tensiones y estrés. Incluye aromaterapia.",
-                destacado: true,
-                activo: true,
-                disponibilidad: {
-                    [new Date().toISOString().slice(0,10)]: [
-                        { hora: "10:00", cupos: 4 },
-                        { hora: "11:00", cupos: 4 },
-                        { hora: "12:00", cupos: 4 }
-                    ]
-                }
-            },
-            {
-                nombre: "Corte de Cabello Premium",
-                categoria: "belleza",
-                precio: 35,
-                imagen: "https://images.unsplash.com/photo-1560066984-138dadb4c035",
-                descripcion: "Corte profesional con lavado, tratamiento y acabado premium por nuestro estilista experto.",
-                destacado: true,
-                activo: true,
-                disponibilidad: {
-                    [new Date().toISOString().slice(0,10)]: [
-                        { hora: "15:00", cupos: 6 },
-                        { hora: "16:00", cupos: 6 }
-                    ]
-                }
-            },
-            {
-                nombre: "Facial Rejuvenecedor",
-                categoria: "belleza",
-                precio: 80,
-                imagen: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881",
-                descripcion: "Tratamiento facial completo con productos premium para rejuvenecer la piel.",
-                destacado: false,
-                activo: true,
-                disponibilidad: {
-                    [new Date().toISOString().slice(0,10)]: [
-                        { hora: "09:00", cupos: 3 },
-                        { hora: "10:00", cupos: 3 }
-                    ]
-                }
-            }
-        ];
-        
-        for (const s of serviciosEjemplo) {
-            await ServiciosManager.save(s);
-        }
-        return serviciosEjemplo;
-    }
-    return servicios;
-}
-window.crearDatosEjemplo = crearDatosEjemplo;
-
 async function iniciarAdmin() {
     console.log('Iniciando admin...');
 
@@ -3075,7 +3011,6 @@ async function iniciarAdmin() {
     }
     
     diagnosticarDatos();
-    await crearDatosEjemplo();
     await limpiarCitasAntiguas();
     probarEventosBasicos();
     configurarFormulario();
@@ -3734,6 +3669,12 @@ async function crearServicio() {
     clearAllModules();
     renderCalendar();
     cargarServiciosExistentes();
+    // Redirigir a Mis Servicios
+    if (typeof navigateTo === 'function') {
+        navigateTo('mis-servicios');
+    } else {
+        document.getElementById('service-form').scrollIntoView({ behavior: 'smooth' });
+    }
 }
 window.crearServicio = crearServicio;
 
@@ -4137,7 +4078,7 @@ async function editarServicio(id) {
                 const h = module.hora || module.startTime || '00:00';
                 if(!horaMap[h]){
                     horaMap[h] = {
-                        id: module.id || Date.now() + Math.random(),
+                        id: module.id || crypto.randomUUID(),
                         hora: h,
                         cupos: (typeof module.cupos !== 'undefined') ? Number(module.cupos) : 0,
                         duration: module.duration || 0
@@ -4160,7 +4101,7 @@ async function editarServicio(id) {
     } else if (servicio.modulos && servicio.modulos.length > 0) {
         servicio.modulos.forEach(module => {
             serviceModules.push({
-                id: module.id || Date.now() + Math.random(),
+                id: module.id || crypto.randomUUID(),
                 hora: module.hora || module.startTime || '00:00',
                 cupos: (typeof module.cupos !== 'undefined') ? Number(module.cupos) : (typeof module.capacidad !== 'undefined' ? Number(module.capacidad) : 0),
                 duration: module.duration || 0
@@ -4895,6 +4836,9 @@ function setupCalendarEvents() {
         if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
             actualizarSelectorFechas();
         }
+        if (typeof renderModulesList === 'function') {
+            renderModulesList();
+        }
     });
 
     document.getElementById('select-weekends')?.addEventListener('click', () => {
@@ -4925,6 +4869,10 @@ function toggleDateSelection(dateStr, dayElement = null) {
     // Refrescar checkboxes weekday si está en modo weekday
     if (_assignmentMode === 'weekday' && typeof refrescarCheckboxesWeekday === 'function') {
         refrescarCheckboxesWeekday();
+    }
+    // Refrescar cards de horarios con las nuevas fechas seleccionadas
+    if (typeof renderModulesList === 'function') {
+        renderModulesList();
     }
 }
 window.toggleDateSelection = toggleDateSelection;
@@ -5035,6 +4983,10 @@ function selectWeekendsOnly() {
     if (_assignmentMode === 'weekday' && typeof refrescarCheckboxesWeekday === 'function') {
         refrescarCheckboxesWeekday();
     }
+    // Refrescar cards de horarios con las nuevas fechas seleccionadas
+    if (typeof renderModulesList === 'function') {
+        renderModulesList();
+    }
 }
 
 function selectWeekdaysOnly() {
@@ -5062,6 +5014,10 @@ function selectWeekdaysOnly() {
     // Refrescar checkboxes weekday si está en modo weekday
     if (_assignmentMode === 'weekday' && typeof refrescarCheckboxesWeekday === 'function') {
         refrescarCheckboxesWeekday();
+    }
+    // Refrescar cards de horarios con las nuevas fechas seleccionadas
+    if (typeof renderModulesList === 'function') {
+        renderModulesList();
     }
 }
 window.selectWeekdaysOnly = selectWeekdaysOnly;
@@ -5106,6 +5062,16 @@ function setAssignmentMode(mode) {
     // En modo 'date', actualizar el selector de fechas
     if (mode === 'date') {
         actualizarSelectorFechas();
+    }
+    
+    // En modo 'all', restaurar la base general en el editor
+    if (mode === 'all') {
+        if (window._weekdayBaseSnapshot && window._weekdayBaseSnapshot.length > 0) {
+            window.serviceModules = structuredClone(window._weekdayBaseSnapshot);
+        }
+        if (typeof renderModulesEditable === 'function') {
+            renderModulesEditable();
+        }
     }
     
     // En modo 'weekday', refrescar checkboxes según las fechas reales
@@ -5193,14 +5159,12 @@ function cargarModulosDeFecha(fecha) {
     // Cargar módulos de la fecha (o generales si no tiene)
     const mods = _dateSpecificModules[fecha] || [];
     if (mods.length > 0) {
-        // Reemplazar window.serviceModules con los de esta fecha
-        window.serviceModules = mods.map(m => ({...m}));
+        // Reemplazar window.serviceModules con los de esta fecha (deep clone)
+        window.serviceModules = structuredClone(mods);
     } else {
-        // Si no hay específicos, mostrar los generales o vacío
-        if (!window.serviceModules || window.serviceModules.length === 0) {
-            window.serviceModules = [];
-        }
-        // Si hay generales, mantenerlos para que el usuario pueda editarlos como base
+        // Sin módulos específicos → reset inteligente: cargar deep clone del snapshot base
+        const base = window._weekdayBaseSnapshot || window.serviceModules || [];
+        window.serviceModules = base.length > 0 ? structuredClone(base) : [];
     }
     
     renderModulesEditable();
@@ -5287,7 +5251,7 @@ function generarDisponibilidadFinal() {
         
         if (mods && mods.length > 0) {
             resultado[fecha] = mods.map(m => ({
-                id: m.id || (Date.now() + Math.random()),
+                id: m.id || (crypto.randomUUID()),
                 hora: m.hora || m.startTime || '00:00',
                 startTime: m.startTime || m.hora || '00:00',
                 endTime: m.endTime || calcularFinModulo(m.hora || m.startTime || '00:00', m.duration || 60),
@@ -5522,16 +5486,15 @@ function guardarAsignacionActual() {
         return;
     }
     
+    // Centralizar: delegar el guardado real a guardarModulosActuales()
+    // que ya sincroniza cupos de cards y hace deep clone
+    guardarModulosActuales();
+    
     if (_assignmentMode === 'weekday') {
         if (_currentEditingWeekday === null) {
             mostrarMensaje('Selecciona un día de la semana para asignar los módulos.', 'warning');
             return;
         }
-        if (!window.serviceModules || window.serviceModules.length === 0) {
-            mostrarMensaje('No hay módulos para guardar. Genera algunos primero.', 'warning');
-            return;
-        }
-        _weekdayModules[_currentEditingWeekday] = window.serviceModules.map(m => ({...m}));
         // Refrescar checkboxes para mostrar checked correcto
         if (typeof refrescarCheckboxesWeekday === 'function') {
             refrescarCheckboxesWeekday();
@@ -5543,13 +5506,7 @@ function guardarAsignacionActual() {
             mostrarMensaje('Selecciona una fecha específica en el panel de arriba.', 'warning');
             return;
         }
-        if (window.serviceModules.length > 0) {
-            _dateSpecificModules[_selectedDateForModules] = window.serviceModules.map(m => ({...m}));
-            mostrarMensaje(`✅ Módulos asignados a la fecha ${_selectedDateForModules}`, 'success');
-        } else {
-            delete _dateSpecificModules[_selectedDateForModules];
-            mostrarMensaje('Módulos eliminados de la fecha (vacío).', 'info');
-        }
+        mostrarMensaje(`✅ Módulos asignados a la fecha ${_selectedDateForModules}`, 'success');
         // Actualizar el selector de fechas para mostrar ✏️
         if (typeof actualizarSelectorFechas === 'function') {
             actualizarSelectorFechas();
@@ -5777,6 +5734,38 @@ function horariosSolapan(s1, e1, s2, e2) {
     return start1 < end2 && start2 < end1;
 }
 
+/**
+ * haySolapamientoEnEditor — Verifica si un módulo se solapa con otro existente
+ * @param {number} idx — índice del módulo que se está editando (se excluye de la comparación)
+ * @param {string} startTime — "HH:MM" nuevo inicio
+ * @param {string} endTime — "HH:MM" nuevo fin
+ * @returns {boolean} true si hay solapamiento
+ */
+function haySolapamientoEnEditor(idx, startTime, endTime) {
+    if (!window.serviceModules) return false;
+    const [nsH, nsM] = startTime.split(':').map(Number);
+    const [neH, neM] = endTime.split(':').map(Number);
+    const nuevoInicio = nsH * 60 + nsM;
+    const nuevoFin = neH * 60 + neM;
+
+    for (let i = 0; i < window.serviceModules.length; i++) {
+        if (i === idx) continue;
+        const m = window.serviceModules[i];
+        const eHora = m.hora || m.startTime || '00:00';
+        const eFin = m.endTime || calcularFinModulo(eHora, m.duration || 60);
+        const [esH, esM] = eHora.split(':').map(Number);
+        const [eeH, eeM] = eFin.split(':').map(Number);
+        const existenteInicio = esH * 60 + esM;
+        const existenteFin = eeH * 60 + eeM;
+
+        if (nuevoInicio < existenteFin && nuevoFin > existenteInicio) {
+            mostrarMensaje('⚠️ El horario se solapa con otro módulo existente.', 'warning');
+            return true;
+        }
+    }
+    return false;
+}
+
 function generarModulosAutomaticos() {
     const count = parseInt(document.getElementById('module-count')?.value) || 3;
     const desde = document.getElementById('module-start-gen')?.value || '09:00';
@@ -5812,7 +5801,7 @@ function generarModulosAutomaticos() {
         const fin = String(Math.floor(finMinutos / 60) % 24).padStart(2, '0') + ':' + String(finMinutos % 60).padStart(2, '0');
         
         serviceModules.push({
-            id: Date.now() + i,
+            id: crypto.randomUUID(),
             hora: inicio,
             cupos: 1,
             duration: DURACION,
@@ -5928,9 +5917,10 @@ function renderModulesEditable() {
                 });
 
                 if (isInicio) {
-                    window.serviceModules[idx].hora = startVal;
-                    // Recalcular fin
                     const newFin = calcularFinModulo(startVal, window.serviceModules[idx].duration || 60);
+                    // Validar solapamiento antes de aplicar
+                    if (haySolapamientoEnEditor(idx, startVal, newFin)) return;
+                    window.serviceModules[idx].hora = startVal;
                     allEndGroups.forEach(s => {
                         if (parseInt(s.dataset.index) === idx) {
                             const parent = s.closest('.module-time-group');
@@ -5940,6 +5930,8 @@ function renderModulesEditable() {
                         }
                     });
                 } else {
+                    // Validar solapamiento antes de aplicar cambio de fin
+                    if (haySolapamientoEnEditor(idx, startVal, endVal)) return;
                     // Calcular duracion
                     const [h1, m1] = startVal.split(':').map(Number);
                     const [h2, m2] = endVal.split(':').map(Number);
@@ -6492,7 +6484,7 @@ async function duplicarServicio(id) {
             (original.disponibilidad[f] || []).forEach(mod => {
                 const h = mod.hora || mod.startTime || '00:00';
                 if (!horaMap[h]) {
-                    horaMap[h] = { id: Date.now() + Math.random(), hora: h, cupos: Number(mod.cupos || 0), duration: mod.duration || 0 };
+                    horaMap[h] = { id: crypto.randomUUID(), hora: h, cupos: Number(mod.cupos || 0), duration: mod.duration || 0 };
                 }
             });
         });
@@ -6634,7 +6626,7 @@ function loadModulesFromHiddenField() {
                 _dateSpecificModules = raw.dateSpecific || {};
                 const generalMods = raw.general || [];
                 window.serviceModules = generalMods.map(m => ({
-                    id: m.id || Date.now() + Math.random(),
+                    id: m.id || crypto.randomUUID(),
                     hora: m.hora || m.startTime,
                     startTime: m.startTime || m.hora,
                     endTime: m.endTime,
@@ -6654,14 +6646,14 @@ function loadModulesFromHiddenField() {
                 window.serviceModules = (raw || []).map(m => {
                     if (m.hora || m.cupos) {
                         return {
-                            id: m.id || Date.now() + Math.random(),
+                            id: m.id || crypto.randomUUID(),
                             hora: m.hora || m.startTime,
                             cupos: (typeof m.cupos !== 'undefined') ? Number(m.cupos) : (typeof m.capacidad !== 'undefined' ? Number(m.capacidad) : 0),
                             duration: m.duration || 0
                         };
                     }
                     return {
-                        id: m.id || Date.now() + Math.random(),
+                        id: m.id || crypto.randomUUID(),
                         hora: m.startTime || m.hora || '00:00',
                         cupos: (typeof m.capacidad !== 'undefined') ? Number(m.capacidad) : 0,
                         duration: m.duration || 0
