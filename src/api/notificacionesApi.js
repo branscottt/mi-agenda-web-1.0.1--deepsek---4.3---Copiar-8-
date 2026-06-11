@@ -10,7 +10,7 @@ export async function getAllNotificaciones(tenantId) {
         .from(TABLE)
         .select('*')
         .eq('tenant_id', String(tenantId).trim())
-        .order('created_at', { ascending: false });
+        .order('creado_en', { ascending: false });
     if (error) throw error;
     return data || [];
 }

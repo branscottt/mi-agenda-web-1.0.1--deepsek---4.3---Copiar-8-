@@ -48,7 +48,7 @@ export async function getNotificaciones(optionalTenantId) {
             leida: n.leida === true || n.leido === true,
             leido: n.leido === true || n.leida === true,
             accion: n.accion || null,
-            creadoEn: n.created_at
+            creadoEn: n.creado_en
         }));
     } catch (e) {
         console.error('Error getNotificaciones:', e);
