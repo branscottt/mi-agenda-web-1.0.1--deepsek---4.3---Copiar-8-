@@ -79,7 +79,14 @@ export function iniciarLogin() {
         });
     }
 
-    // --- REGISTRO ---
+    // --- REGISTRO con orden secuencial seguro: signUp → createTenant → updateUser ---
+    // Orden corregido para evitar orphan tenants y garantizar RLS.
+    // 1. signUp: crear usuario en Auth (rol: 'admin' desde el inicio)
+    // 2. signInWithPassword: activar sesion
+    // 3. createTenant: crear negocio (usuario autenticado, RLS OK)
+    // 4. updateUser: inyectar tenant_id en metadatos
+    // 5. refreshSession: propagar tenant_id al JWT local
+    // 6. redirect a planes.html
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -88,9 +95,10 @@ export function iniciarLogin() {
             const password = document.getElementById('register-password')?.value;
             const confirmPassword = document.getElementById('register-confirm-password')?.value;
             const whatsapp = document.getElementById('register-whatsapp')?.value.trim();
-            
+
             if (registerErrorDiv) { registerErrorDiv.style.display = 'none'; registerErrorDiv.textContent = ''; }
-            
+
+            // --- Validaciones ---
             if (!nombre || !email || !password || !confirmPassword || !whatsapp) {
                 if (registerErrorDiv) { registerErrorDiv.textContent = 'Completa todos los campos'; registerErrorDiv.style.display = 'block'; }
                 return;
@@ -103,34 +111,110 @@ export function iniciarLogin() {
                 if (registerErrorDiv) { registerErrorDiv.textContent = 'La contraseña debe tener al menos 6 caracteres'; registerErrorDiv.style.display = 'block'; }
                 return;
             }
-            
+            const digits = whatsapp.replace(/\D/g, '');
+            if (digits.length < 8) {
+                if (registerErrorDiv) { registerErrorDiv.textContent = 'WhatsApp inválido (mínimo 8 dígitos)'; registerErrorDiv.style.display = 'block'; }
+                return;
+            }
+            const whatsappClean = whatsapp.startsWith('+') ? '+' + digits : digits;
+
+            // --- Estado de carga ---
             const btn = e.target.querySelector('button[type="submit"]');
-            if (btn) { btn.disabled = true; btn.textContent = '...'; }
-            
+            if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
+
+            const supabase = getSupabase();
+            if (!supabase) {
+                if (registerErrorDiv) { registerErrorDiv.textContent = 'Error de conexión. Recarga la página.'; registerErrorDiv.style.display = 'block'; }
+                if (btn) { btn.disabled = false; btn.textContent = 'Crear Cuenta'; }
+                return;
+            }
+
             try {
-                // 1. Crear tenant via API
-                const newTenant = await createTenant({
-                    nombre_negocio: nombre + ' - ' + email,
-                    email_contacto: email,
-                    plan: 'freemium'
+                // ================================================================
+                // PASO 1: signUp — crear usuario en Supabase Auth
+                // rol: 'admin' desde el primer momento (no temporal)
+                // ================================================================
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            nombre: nombre,
+                            rol: 'admin',
+                            whatsapp: whatsappClean
+                        }
+                    }
                 });
-                const tenantId = newTenant.id;
-                
-                // 2. Registrar usuario con rol admin
-                const result = await register(email, password, {
-                    nombre,
-                    rol: 'admin',
-                    tenant_id: tenantId,
-                    whatsapp
+                if (signUpError) throw signUpError;
+                if (!signUpData || !signUpData.user) throw new Error('Error al crear la cuenta. Intenta nuevamente.');
+
+                console.log('[LoginPage] signUp OK:', signUpData.user.id);
+
+                // ================================================================
+                // PASO 2: signInWithPassword — activar sesión (necesaria para RLS)
+                // ================================================================
+                const { error: signInError } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
                 });
-                
-                if (!result.success) throw new Error(result.error);
-                
-                mostrarToast('Cuenta creada exitosamente. Elige tu plan.', 'success');
-                window.location.href = `planes.html?tenant_id=${tenantId}&new=true`;
+                if (signInError) throw signInError;
+
+                // ================================================================
+                // PASO 3: createTenant — crear el negocio (usuario autenticado)
+                // ================================================================
+                const { data: tenant, error: tenantError } = await supabase
+                    .from('tenants')
+                    .insert({
+                        nombre_negocio: nombre + "'s negocio",
+                        email_contacto: email,
+                        plan: null
+                    })
+                    .select()
+                    .single();
+                if (tenantError) throw tenantError;
+
+                console.log('[LoginPage] tenant created:', tenant.id);
+
+                // ================================================================
+                // PASO 4: updateUser — inyectar tenant_id y rol admin en metadatos
+                // ================================================================
+                const { error: updateError } = await supabase.auth.updateUser({
+                    data: {
+                        tenant_id: tenant.id,
+                        rol: 'admin',
+                        nombre: nombre
+                    }
+                });
+                if (updateError) throw updateError;
+
+                // ================================================================
+                // PASO 5: refreshSession — propagar metadatos al JWT local
+                // ================================================================
+                await supabase.auth.refreshSession();
+
+                // Sincronizar JwtManager
+                const { JwtManager } = await import('../../auth/infrastructure/JwtManager.js');
+                const { data: { session: freshSession } } = await supabase.auth.getSession();
+                if (freshSession) {
+                    JwtManager.setTokens(freshSession.access_token, freshSession.refresh_token);
+                }
+
+                // ================================================================
+                // PASO 6: Redirigir a selección de plan
+                // ================================================================
+                mostrarToast('¡Cuenta creada exitosamente! Elige tu plan.', 'success');
+                window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
+
             } catch (err) {
-                if (registerErrorDiv) { registerErrorDiv.textContent = err.message; registerErrorDiv.style.display = 'block'; }
-                mostrarToast(err.message, 'error');
+                console.error('[LoginPage] Registration error:', err);
+                let msg = err.message;
+                if (msg.includes('User already registered')) msg = 'Este correo ya está registrado';
+                if (msg.includes('weak_password')) msg = 'La contraseña es muy débil. Usa al menos 6 caracteres.';
+                if (registerErrorDiv) {
+                    registerErrorDiv.textContent = msg;
+                    registerErrorDiv.style.display = 'block';
+                }
+                mostrarToast(msg, 'error');
             } finally {
                 if (btn) { btn.disabled = false; btn.textContent = 'Crear Cuenta'; }
             }

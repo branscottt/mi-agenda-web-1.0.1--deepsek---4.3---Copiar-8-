@@ -9009,244 +9009,44 @@ function iniciarLogin() {
     if (registerModeBtn) registerModeBtn.addEventListener('click', (e) => { e.preventDefault(); showRegister(); });
     if (backToLogin) backToLogin.addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
 
-    // --- LOGIN con email/password ---
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email')?.value.trim().toLowerCase();
-            const password = document.getElementById('login-password')?.value;
-            const remember = document.getElementById('remember-me')?.checked;
+    // ====================================================================
+    // [BLOQUE DESACTIVADO] LOGIN con email/password
+    // Manejo delegado a src/auth/ui/LoginPage.js (modulo moderno)
+    // LoginPage.js es el unico handler de submit del formulario de login.
+    // ====================================================================
+    // Codigo original comentado en el commit 05ab538 si se necesita restaurar.
+    // if (loginForm) {
+    //     loginForm.addEventListener('submit', async (e) => { ... });
+    // }
+    console.log('[script.js] Login handler delegado a LoginPage.js');
 
-            if (!email || !password) {
-                mostrarMensaje('Completa todos los campos', 'warning');
-                return;
-            }
+    // ====================================================================
+    // [BLOQUE DESACTIVADO] REGISTRO con creacion de tenant
+    // Manejo delegado a src/auth/ui/LoginPage.js (modulo moderno)
+    // LoginPage.js ejecuta el orden SECUENCIAL: signUp → createTenant → updateUser
+    // ====================================================================
+    // if (registerForm) {
+    //     registerForm.addEventListener('submit', async (e) => { ... });
+    // }
+    console.log('[script.js] Register handler delegado a LoginPage.js');
 
-            try {
-                // Iniciar sesión con Supabase
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-                if (error) throw error;
+    // ====================================================================
+    // [BLOQUE DESACTIVADO] Botón de Google (signInWithOAuth)
+    // Manejo delegado a src/auth/ui/LoginPage.js (modulo moderno)
+    // LoginPage.js redirige a /admin.html de forma consistente.
+    // ====================================================================
+    // if (googleBtn) {
+    //     googleBtn.addEventListener('click', async () => { ... });
+    // }
+    console.log('[script.js] Google OAuth handler delegado a LoginPage.js');
 
-                // Guardar JWT en localStorage via JwtManager
-                if (window.JwtManager && data.session) {
-                    window.JwtManager.setTokens(data.session.access_token, data.session.refresh_token);
-                }
-
-                // Recordarme (opcional: persistence local)
-                if (remember) {
-                    // Por defecto Supabase ya guarda sesión, pero podemos forzar
-                    await supabaseClient.auth.setSession(data.session);
-                }
-
-                mostrarMensaje('Inicio de sesión exitoso', 'success');
-                // Redirigir según el rol
-                const emailUser = data.user.email || '';
-                const SUPER_ADMIN_EMAILS = ['super@demo.com'];
-                const rol = SUPER_ADMIN_EMAILS.includes(emailUser) ? 'super_admin' : (data.user.user_metadata?.rol || 'cliente');
-                if (rol === 'super_admin') {
-                    window.location.href = 'superadmin.html';
-                } else if (rol === 'admin') {
-                    window.location.href = 'admin.html';
-                } else {
-                    window.location.href = 'cliente.html';
-                }
-            } catch (err) {
-                console.error('Error login:', err);
-                let msg = err.message;
-                if (msg.includes('Invalid login credentials')) msg = 'Correo o contraseña incorrectos';
-                if (loginErrorDiv) {
-                    loginErrorDiv.textContent = msg;
-                    loginErrorDiv.style.display = 'block';
-                } else {
-                    mostrarMensaje(msg, 'error');
-                }
-            }
-        });
-    }
-
-    // --- REGISTRO con creación automática de tenant (versión corregida) ---
-    if (registerForm) {
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const nombre = document.getElementById('register-name')?.value.trim();
-            const email = document.getElementById('register-email')?.value.trim().toLowerCase();
-            const password = document.getElementById('register-password')?.value;
-            const confirm = document.getElementById('register-confirm-password')?.value;
-            const whatsappRaw = document.getElementById('register-whatsapp')?.value.trim();
-
-            if (!nombre || !email || !password || !whatsappRaw) {
-                mostrarMensaje('Completa todos los campos', 'warning');
-                return;
-            }
-            if (password !== confirm) {
-                mostrarMensaje('Las contraseñas no coinciden', 'error');
-                return;
-            }
-            if (password.length < 6) {
-                mostrarMensaje('La contraseña debe tener al menos 6 caracteres', 'error');
-                return;
-            }
-
-            const digits = whatsappRaw.replace(/\D/g, '');
-            if (digits.length < 8) {
-                mostrarMensaje('Número de WhatsApp inválido (mínimo 8 dígitos)', 'error');
-                return;
-            }
-            let whatsappClean = digits;
-            if (whatsappRaw.startsWith('+')) {
-                whatsappClean = '+' + digits;
-            }
-
-            try {
-                // 1. Registrar usuario en Auth
-                const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: {
-                            nombre: nombre,
-                            rol: 'cliente',      // temporal, luego se actualizará a admin
-                            whatsapp: whatsappClean
-                        }
-                    }
-                });
-                if (signUpError) throw signUpError;
-
-                // Pequeña pausa para que Supabase complete el registro
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // 2. Iniciar sesión automáticamente (para tener sesión activa)
-                const { error: signInError } = await supabaseClient.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-                if (signInError) throw signInError;
-
-                // 3. Verificar que la sesión esté activa
-                const { data: { session }, error: sessionError } = JwtManager.getSession();
-                if (sessionError || !session) throw new Error('No se pudo establecer la sesión');
-
-                // 4. Crear tenant (ahora con usuario autenticado)
-                const { data: tenant, error: tenantError } = await supabaseClient
-                    .from('tenants')
-                    .insert({
-                        nombre_negocio: nombre + "'s negocio",
-                        email_contacto: email,
-                        plan: null
-                    })
-                    .select()
-                    .single();
-                if (tenantError) throw tenantError;
-
-                // 4. Actualizar metadatos del usuario (rol admin y tenant_id)
-                const { error: updateError } = await supabaseClient.auth.updateUser({
-                    data: {
-                        tenant_id: tenant.id,
-                        rol: 'admin',
-                        nombre: nombre
-                    }
-                });
-                if (updateError) throw updateError;
-
-                // 5. Refrescar sesión para obtener nuevos metadatos
-                await supabaseClient.auth.refreshSession();
-
-                mostrarMensaje(`¡Cuenta creada! Bienvenido ${nombre}`, 'success');
-                // Redirigir a planes.html para elegir plan
-                setTimeout(() => {
-                    window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
-                }, 1500);
-
-            } catch (err) {
-                console.error('Error registro:', err);
-                let msg = err.message;
-                if (msg.includes('User already registered')) msg = 'El correo ya está registrado';
-                if (registerErrorDiv) {
-                    registerErrorDiv.textContent = msg;
-                    registerErrorDiv.style.display = 'block';
-                } else {
-                    mostrarMensaje(msg, 'error');
-                }
-            }
-        });
-    }
-
-    // --- Botón de Google (signInWithOAuth) ---
-    if (googleBtn) {
-        googleBtn.addEventListener('click', async () => {
-            try {
-                const { error } = await supabaseClient.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: {
-                        redirectTo: window.location.origin + '/admin.html'
-                    }
-                });
-                if (error) throw error;
-            } catch (err) {
-                console.error('Error en Google OAuth:', err);
-                mostrarToast('Error al iniciar con Google: ' + err.message, 'error');
-            }
-        });
-    }
-
-    // --- Recuperación de contraseña ---
-    if (forgotLink) {
-        forgotLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            const modal = document.getElementById('reset-modal');
-            const resetEmail = document.getElementById('reset-email');
-            const resetMessage = document.getElementById('reset-message');
-            resetEmail.value = '';
-            resetMessage.style.display = 'none';
-            modal.style.display = 'flex';
-        });
-    }
-
-    // Configurar eventos del modal de reset
-    const resetModal = document.getElementById('reset-modal');
-    const closeModalBtn = resetModal?.querySelector('.modal-close');
-    const cancelBtn = document.getElementById('btn-cancel-reset');
-    const sendBtn = document.getElementById('btn-send-reset');
-
-    if (resetModal) {
-        const cerrarModal = () => { resetModal.style.display = 'none'; };
-        closeModalBtn?.addEventListener('click', cerrarModal);
-        cancelBtn?.addEventListener('click', cerrarModal);
-        window.addEventListener('click', (e) => { if (e.target === resetModal) cerrarModal(); });
-        
-        sendBtn?.addEventListener('click', async () => {
-            const email = document.getElementById('reset-email').value.trim();
-            const messageDiv = document.getElementById('reset-message');
-            if (!email) {
-                messageDiv.textContent = 'Por favor ingresa tu correo electrónico.';
-                messageDiv.style.display = 'block';
-                return;
-            }
-            sendBtn.disabled = true;
-            sendBtn.textContent = 'Enviando...';
-            try {
-                const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-                    redirectTo: window.location.origin + '/login.html'  // redirige al login después de cambiar pass
-                });
-                if (error) throw error;
-                messageDiv.style.color = '#00b894';
-                messageDiv.textContent = '¡Revisa tu correo! Te hemos enviado un enlace para restablecer tu contraseña.';
-                messageDiv.style.display = 'block';
-                setTimeout(() => cerrarModal(), 4000);
-            } catch (err) {
-                console.error(err);
-                messageDiv.style.color = '#e74c3c';
-                messageDiv.textContent = err.message || 'Error al enviar el correo. Intenta nuevamente.';
-                messageDiv.style.display = 'block';
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.textContent = 'Enviar enlace';
-            }
-        });
-    }
+    // ====================================================================
+    // [BLOQUE DESACTIVADO] Recuperación de contraseña
+    // Manejo delegado a src/auth/ui/LoginPage.js (modulo moderno)
+    // ====================================================================
+    // if (forgotLink) { ... }
+    // if (resetModal) { ... }
+    console.log('[script.js] Password recovery delegado a LoginPage.js');
 
     // Asegurar que empiece en Login
     showLogin();
