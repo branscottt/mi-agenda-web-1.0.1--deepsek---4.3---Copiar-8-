@@ -2599,7 +2599,7 @@ async function getSession() {
             id: session.user.id,
             nombre: session.user.user_metadata?.nombre || session.user.email?.split('@')[0] || 'Usuario',
             email: session.user.email,
-            rol: session.user.user_metadata?.rol || 'cliente',
+            rol: (session.user.email && ['super@demo.com'].includes(session.user.email)) ? 'super_admin' : (session.user.user_metadata?.rol || 'cliente'),
             tenant_id: session.user.user_metadata?.tenant_id
         };
         
@@ -9043,7 +9043,9 @@ function iniciarLogin() {
 
                 mostrarMensaje('Inicio de sesión exitoso', 'success');
                 // Redirigir según el rol
-                const rol = data.user.user_metadata?.rol;
+                const emailUser = data.user.email || '';
+                const SUPER_ADMIN_EMAILS = ['super@demo.com'];
+                const rol = SUPER_ADMIN_EMAILS.includes(emailUser) ? 'super_admin' : (data.user.user_metadata?.rol || 'cliente');
                 if (rol === 'super_admin') {
                     window.location.href = 'superadmin.html';
                 } else if (rol === 'admin') {
