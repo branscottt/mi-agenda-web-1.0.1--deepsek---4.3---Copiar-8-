@@ -10,8 +10,7 @@ const STORAGE_KEYS = {
     USER_DATA: 'agendapro_user_data'
 };
 
-// Lista de emails con rol super_admin (detectados por email, sin depender del JWT)
-const SUPER_ADMIN_EMAILS = ['super@demo.com'];
+// const SUPER_ADMIN_EMAILS = ['super@demo.com'];
 
 /**
  * Decodifica la parte central (payload) de un JWT sin verificar la firma.
@@ -41,8 +40,8 @@ export const JwtManager = {
         if (payload) {
             const meta = payload.user_metadata || {};
             const email = payload.email || '';
-            // Detectar super_admin por email (sobrescribe cualquier rol del JWT)
-            const rol = SUPER_ADMIN_EMAILS.includes(email) ? 'super_admin' : (meta.rol || 'cliente');
+            // Rol exclusivamente desde user_metadata (sin override por email)
+            const rol = meta.rol || 'cliente';
             localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify({
                 id: payload.sub,
                 nombre: meta.nombre || (email ? email.split('@')[0] : 'Usuario'),
@@ -51,9 +50,6 @@ export const JwtManager = {
                 tenant_id: meta.tenant_id,
                 whatsapp: meta.whatsapp || ''
             }));
-            if (SUPER_ADMIN_EMAILS.includes(email) && meta.rol !== 'super_admin') {
-                console.log('[JwtManager] Superadmin detectado por email:', email);
-            }
         }
     },
 

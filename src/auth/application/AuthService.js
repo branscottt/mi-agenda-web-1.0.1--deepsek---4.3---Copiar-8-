@@ -45,6 +45,10 @@ export async function loginWithGoogle() {
     const supabase = getSupabase();
     if (!supabase) return;
     try {
+        // Limpiar cualquier sesión previa antes de iniciar OAuth
+        JwtManager.clear();
+        await supabase.auth.signOut();
+
         await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: { redirectTo: window.location.origin + '/admin.html' }

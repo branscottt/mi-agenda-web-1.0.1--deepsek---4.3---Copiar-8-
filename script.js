@@ -1583,30 +1583,37 @@ async function cargarPlanes() {
     const isNewAdmin = urlParams.get('new') === 'true';
     const tenantIdFromUrl = urlParams.get('tenant_id');
 
-    // Obtener sesión usando JwtManager o fallback
-    let session = null;
-    let rol = null;
-    let tenantId = null;
-    let suscripcionActual = null;
-    const esSuperAdmin = false;
-
-    try {
-        const result = JwtManager.getSession();
-        session = result?.data?.session || null;
-        if (session) {
-            rol = session.user?.user_metadata?.rol;
-            tenantId = session.user?.user_metadata?.tenant_id;
-        }
-    } catch (e) {
-        console.warn('[cargarPlanes] Error obteniendo sesión:', e.message);
+    // Obtener sesión fresca con retry (similar a iniciarAdmin)
+    let sessionData = null;
+    for (let i = 0; i < 10; i++) {
+        sessionData = await getSession();
+        // Si encontramos sesión con tenant_id, salir
+        if (sessionData && sessionData.tenant_id) break;
+        // Si no hay sesión pero hay pending_whatsapp en URL, también seguir
+        if (sessionData && urlParams.get('pending_whatsapp') === 'true') break;
+        await new Promise(r => setTimeout(r, 200));
     }
 
-    // Para un nuevo admin que viene del registro, usar tenant_id de URL
-    if (isNewAdmin && tenantIdFromUrl && !session) {
-        tenantId = tenantIdFromUrl;
-    } else if (rol === 'admin' && tenantId) {
+    let rol = sessionData?.rol || null;
+    // tenantId: priorizar URL sobre sesión (la URL es la fuente de verdad después de crear tenant)
+    let tenantId = tenantIdFromUrl || sessionData?.tenant_id || null;
+    let suscripcionActual = null;
+    const esSuperAdmin = sessionData?.user?.email === 'super@demo.com';
+
+    console.log('[Planes] sesión:', sessionData ? '✅' : '❌', '| rol:', rol, '| tenantId:', tenantId, '| pending_ww:', urlParams.get('pending_whatsapp'));
+
+    // Si no hay sesión ni tenant (ni siquiera de URL), redirigir
+    if (!sessionData && !tenantIdFromUrl) {
+        console.log('[Planes] Sin sesión ni tenant, redirigiendo a login');
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // Obtener suscripción si tenemos tenantId y rol admin
+    if (rol === 'admin' && tenantId) {
         try {
             suscripcionActual = await SuscripcionManager.getCurrent();
+            console.log('[Planes] suscripcionActual:', suscripcionActual?.status || 'ninguna');
         } catch (e) {
             console.warn('[cargarPlanes] Error obteniendo suscripción:', e.message);
         }
@@ -1661,6 +1668,13 @@ async function cargarPlanes() {
     const pendingWhatsapp = urlParams.get('pending_whatsapp') === 'true';
 
     if (pendingWhatsapp) {
+        // BYPASS SUPERADMIN: super@demo.com no necesita WhatsApp
+        if (esSuperAdmin) {
+            console.log('[Planes] Superadmin detectado, saltando modal WhatsApp → superadmin.html');
+            window.location.replace('superadmin.html');
+            return;
+        }
+
         let modal = document.getElementById('whatsapp-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -1691,7 +1705,7 @@ async function cargarPlanes() {
         const errorMsg = document.getElementById('whatsapp-error');
         const infoMsg = document.getElementById('whatsapp-info');
         const btn = document.getElementById('btn-guardar-whatsapp');
-        const userEmail = session?.user?.email || '';
+        const userEmail = sessionData?.user?.email || '';
 
         // Trapar tecla Escape (modal forzoso)
         const trapEscape = (e) => { if (e.key === 'Escape') e.preventDefault(); };
@@ -1762,7 +1776,7 @@ async function cargarPlanes() {
                         modal.style.display = 'none';
                         document.removeEventListener('keydown', trapEscape);
                         mostrarToast(`Vinculado a "${tenantPorWhatsapp.nombre_negocio}". Bienvenido de vuelta!`, 'success');
-                        window.location.href = 'admin.html';
+                        window.location.replace('admin.html');
                         return;
                     }
 
@@ -1831,13 +1845,43 @@ async function cargarPlanes() {
                         window.JwtManager.setTokens(freshSession.access_token, freshSession.refresh_token);
                     }
 
+                    // Verificar datos frescos en JwtManager
+                    const freshUserData = window.JwtManager?.getUserData();
+                    console.log('[WhatsApp] JwtManager post-refresh:', {
+                        rol: freshUserData?.rol,
+                        tenant_id: freshUserData?.tenant_id,
+                        whatsapp: freshUserData?.whatsapp
+                    });
+
                     modal.style.display = 'none';
                     document.removeEventListener('keydown', trapEscape);
-                    const cleanUrl = window.location.pathname + (window.location.search.includes('new=true') ? '?new=true' : '');
-                    window.history.replaceState({}, '', cleanUrl);
+
+                    // Determinar tenantId (desde URL o desde sesión)
+                    const tenantIdFinal = urlParams.get('tenant_id') || tenantIdActual || '';
+
+                    // Verificar si ya tiene suscripción activa (usando SuscripcionManager)
+                    let tienePlan = false;
+                    if (tenantIdFinal) {
+                        try {
+                            const sub = await SuscripcionManager.getCurrent();
+                            tienePlan = !!(sub && sub.status === 'active');
+                        } catch (e) {
+                            console.warn('[WhatsApp] Error verificando suscripción:', e.message);
+                        }
+                    }
 
                     mostrarToast('WhatsApp guardado correctamente', 'success');
-                    window.location.href = 'admin.html';
+
+                    if (tienePlan) {
+                        // Ya tiene plan → dashboard
+                        window.location.replace('admin.html');
+                    } else if (tenantIdFinal) {
+                        // Tiene tenant pero no plan → elegir plan
+                        window.location.replace(`planes.html?tenant_id=${tenantIdFinal}`);
+                    } else {
+                        // Sin tenant conocido → admin.html (iniciarAdmin manejará)
+                        window.location.replace('admin.html');
+                    }
 
                 } catch (err) {
                     console.error('[WhatsApp] Error:', err);
@@ -2799,7 +2843,8 @@ async function getSession() {
             id: session.user.id,
             nombre: session.user.user_metadata?.nombre || session.user.email?.split('@')[0] || 'Usuario',
             email: session.user.email,
-            rol: (session.user.email && ['super@demo.com'].includes(session.user.email)) ? 'super_admin' : (session.user.user_metadata?.rol || 'cliente'),
+            // Rol exclusivamente desde user_metadata (sin override por email)
+            rol: session.user.user_metadata?.rol || 'cliente',
             tenant_id: session.user.user_metadata?.tenant_id,
             whatsapp: session.user.user_metadata?.whatsapp || ''
         };
@@ -2831,6 +2876,14 @@ async function verificarProteccionRutas() {
 
         // Si HAY sesión
         if (session) {
+
+            // ========== PLANES (SIEMPRE PERMITIDO) ==========
+            // La página de planes es parte del onboarding (WhatsApp + plan).
+            // Nunca redirigir desde aquí, independientemente del rol.
+            if (pathname === 'planes.html') {
+                console.log('[Rutas] planes.html — acceso libre');
+                return;
+            }
            
             // ========== ADMIN ==========
             if (pathname === 'admin.html') {
@@ -3092,130 +3145,156 @@ async function iniciarAdmin() {
         }
     }
 
-    // ========== SESIÓN Y PERMISOS ==========
-    const session = await getSession();
+    // ================================================================
+    // PASO 1: OBTENER SESIÓN
+    // ================================================================
+    let session = await getSession();
 
-    // Verificar si el usuario viene de OAuth y no tiene tenant_id
-    if (session && (!session.tenant_id || session.tenant_id === '')) {
-        console.log('[AuthGuard] Usuario sin tenant_id, buscando o creando tenant por email...');
-        
-        // Buscar tenant existente por email_contacto
-        let { data: tenant, error: tenantError } = await supabaseClient
-            .from('tenants')
-            .select('id')
-            .eq('email_contacto', session.email)
-            .maybeSingle();
-        
-        if (tenantError) {
-            console.error('[AuthGuard] Error buscando tenant:', tenantError);
-            mostrarToast('Error al verificar tu cuenta. Contacta al soporte.', 'error');
-            await supabaseClient.auth.signOut();
-            window.location.href = 'login.html';
-            return;
+    // Retry OAuth (hasta 3s)
+    if (!session) {
+        console.log('[AuthGuard] Sin sesión inmediata. Esperando OAuth...');
+        for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 200));
+            session = await getSession();
+            if (session) { console.log('[AuthGuard] Sesión obtenida tras espera:', session.rol); break; }
         }
-        
-        // Flag: true si acabamos de crear el tenant, false si ya existía
-        let _esNuevoTenant = false;
-        
-        // Si no existe, crear un nuevo tenant
-        if (!tenant) {
-            console.log('[AuthGuard] No se encontró tenant, creando uno nuevo...');
-            _esNuevoTenant = true;
-            const nombreNegocio = session.nombre || session.email.split('@')[0] + "'s negocio";
-            const { data: newTenant, error: createError } = await supabaseClient
-                .from('tenants')
-                .insert({
-                    nombre_negocio: nombreNegocio,
-                    email_contacto: session.email,
-                    plan: null
-                })
-                .select()
-                .single();
-            
-            if (createError) {
-                console.error('[AuthGuard] Error creando tenant:', createError);
-                mostrarToast('Error al crear tu negocio. Intenta nuevamente.', 'error');
-                await supabaseClient.auth.signOut();
-                window.location.href = 'login.html';
-                return;
-            }
-            tenant = newTenant;
-        }
-        
-        // Actualizar metadatos del usuario con tenant_id y rol admin
-        const { error: updateError } = await supabaseClient.auth.updateUser({
-            data: {
-                tenant_id: tenant.id,
-                rol: 'admin',
-                nombre: session.nombre || session.email.split('@')[0]
-            }
-        });
-        if (updateError) {
-            console.error('[AuthGuard] Error actualizando metadatos:', updateError);
-            mostrarToast('Error al configurar tu cuenta. Contacta al soporte.', 'error');
-            await supabaseClient.auth.signOut();
-            window.location.href = 'login.html';
-            return;
-        }
-        
-        // Refrescar sesión para obtener nuevos metadatos
-        await supabaseClient.auth.refreshSession();
-        
-        // REDIRECCIÓN CORREGIDA:
-        // - Tenant NUEVO → va a planes.html a elegir plan y dar WhatsApp
-        // - Tenant EXISTENTE → ya tiene plan, va a admin.html
-        if (_esNuevoTenant) {
-            console.log('[AuthGuard] Tenant nuevo → redirigiendo a planes.html');
-            window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
-        } else {
-            console.log('[AuthGuard] Tenant existente → redirigiendo a admin.html');
-            window.location.href = 'admin.html';
-        }
-        return;
     }
 
-    // ========== AUTH GUARD: Verificar WhatsApp ==========
-    // Si el usuario tiene tenant_id pero NO tiene WhatsApp, redirigir a planes.html
-    if (session && session.tenant_id && !session.whatsapp) {
-        console.log('[AuthGuard] Usuario sin WhatsApp → redirigiendo a planes.html');
-        window.location.href = 'planes.html?pending_whatsapp=true';
-        return;
-    }
-
-    if (!session || (session.rol !== 'admin' && session.rol !== 'super_admin')) {
-        console.log('[AuthGuard] No hay sesión de admin/superadmin, redirigiendo...');
+    if (!session) {
+        console.log('[AuthGuard] No hay sesión, redirigiendo...');
         window.location.href = 'login.html';
         return;
     }
 
-    // ========== VALIDAR SUSCRIPCIÓN ACTIVA (solo para admins) ==========
-    if (session.rol === 'admin') {
-        // Si acabamos de crear una suscripción, damos tiempo para que Supabase propague
-        const urlParams = new URLSearchParams(window.location.search);
-        const justSubscribed = urlParams.get('subscription_created') === 'true';
-        if (justSubscribed) {
-            history.replaceState({}, '', window.location.pathname); // limpiar parámetro
-            console.log('🕐 Suscripción recién creada, esperando propagación...');
-            // Esperar 500ms y refrescar la sesión
-            await new Promise(r => setTimeout(r, 500));
-            const { data: refreshed } = JwtManager.getSession();
-            if (refreshed?.session) {
-                console.log('🕐 Sesión refrescada. Continuando sin validación de suscripción.');
-                // Saltamos la validación — la suscripción acaba de crearse
-            } else {
-                // Si no hay sesión, redirigir a login
-                window.location.href = 'login.html';
-                return;
-            }
-        } else {
-            const suscripcionActiva = await SuscripcionManager.getCurrent();
-            if (!suscripcionActiva || suscripcionActiva.status !== 'active') {
-                mostrarToast('No tienes una suscripción activa. Selecciona un plan para continuar.', 'warning');
-                window.location.href = 'planes.html';
-                return;
-            }
-        }
+    // ================================================================
+    // BYPASS SUPERADMIN: super@demo.com NO necesita WhatsApp ni tenant
+    // ================================================================
+    if (session.email === 'super@demo.com') {
+        console.log('[AuthGuard] Superadmin detectado, redirigiendo a superadmin.html');
+        // Asegurar JWT con rol super_admin
+        await supabaseClient.auth.updateUser({
+            data: { rol: 'super_admin', tenant_id: null, whatsapp: '' }
+        }).catch(() => {});
+        await supabaseClient.auth.refreshSession();
+        const { data: { session: freshS } } = await supabaseClient.auth.getSession();
+        if (freshS && window.JwtManager) window.JwtManager.setTokens(freshS.access_token, freshS.refresh_token);
+        window.location.href = 'superadmin.html';
+        return;
     }
+
+    // ================================================================
+    // PASO 2: BUSCAR TENANT EN BD (siempre priorizando BD sobre JWT)
+    // ================================================================
+    let tenantBD = null;
+    let tenantError = null;
+
+    try {
+        const result = await supabaseClient
+            .from('tenants')
+            .select('id, whatsapp')
+            .eq('email_contacto', session.email)
+            .maybeSingle();
+        tenantBD = result.data;
+        tenantError = result.error;
+    } catch (e) {
+        console.error('[ERROR SUPABASE FLUJO TENANT SELECT]:', e.message || e);
+        tenantError = e;
+    }
+
+    if (tenantError) {
+        console.error('[AuthGuard] Error buscando tenant:', tenantError);
+        mostrarToast('Error al verificar tu cuenta.', 'error');
+        await supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // ================================================================
+    // PASO 3: DECIDIR SEGÚN EXISTENCIA DEL TENANT
+    // ================================================================
+
+    // --- CASO A: NO EXISTE TENANT → CREAR NUEVO ---
+    if (!tenantBD) {
+        console.log('[AuthGuard] CASO A: No existe tenant. Creando uno nuevo...');
+        const nombreNegocio = session.nombre || session.email.split('@')[0] + "'s negocio";
+
+        let newTenant = null;
+        try {
+            const r = await supabaseClient
+                .from('tenants')
+                .insert({ nombre_negocio: nombreNegocio, email_contacto: session.email, plan: null, whatsapp: null })
+                .select()
+                .single();
+            newTenant = r.data;
+            if (r.error) throw r.error;
+        } catch (e) {
+            console.error('[ERROR SUPABASE FLUJO TENANT INSERT]:', e.message || e);
+            mostrarToast('Error al crear tu negocio.', 'error');
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // Actualizar JWT con tenant_id + rol admin
+        const { error: upErr } = await supabaseClient.auth.updateUser({
+            data: { tenant_id: newTenant.id, rol: 'admin', nombre: session.nombre || session.email.split('@')[0] }
+        });
+        if (upErr) { console.error('[AuthGuard] Error updateUser:', upErr); /* non-fatal */ }
+
+        await supabaseClient.auth.refreshSession();
+        // Sincronizar JwtManager
+        const { data: { session: freshS } } = await supabaseClient.auth.getSession();
+        if (freshS && window.JwtManager) window.JwtManager.setTokens(freshS.access_token, freshS.refresh_token);
+
+        console.log('[AuthGuard] CASO A → redirect a planes.html (WhatsApp)');
+        window.location.href = `planes.html?tenant_id=${newTenant.id}&pending_whatsapp=true`;
+        return;
+    }
+
+    // --- CASO B: EXISTE TENANT → sincronizar JWT con datos reales de BD ---
+    console.log('[AuthGuard] CASO B: Tenant existe en BD. whatsapp:', tenantBD.whatsapp ? '✅' : '❌');
+
+    // Sincronizar JWT con datos reales del tenant (whatsapp desde BD)
+    const { error: syncErr } = await supabaseClient.auth.updateUser({
+        data: {
+            tenant_id: tenantBD.id,
+            rol: 'admin',
+            whatsapp: tenantBD.whatsapp || '',
+            nombre: session.nombre || session.email.split('@')[0]
+        }
+    });
+    if (syncErr) console.warn('[AuthGuard] Error sincronizando JWT:', syncErr);
+
+    await supabaseClient.auth.refreshSession();
+    const { data: { session: freshS2 } } = await supabaseClient.auth.getSession();
+    if (freshS2 && window.JwtManager) window.JwtManager.setTokens(freshS2.access_token, freshS2.refresh_token);
+
+    // Releer sesión fresca
+    session = await getSession();
+
+    // --- SUBCASO B1: SIN WHATSAPP → redirigir a planes.html para ingresarlo ---
+    if (!tenantBD.whatsapp) {
+        console.log('[AuthGuard] CASO B1: Sin WhatsApp → planes.html');
+        window.location.href = `planes.html?tenant_id=${tenantBD.id}&pending_whatsapp=true`;
+        return;
+    }
+
+    // --- SUBCASO B2: CON WHATSAPP → verificar suscripción activa ---
+    let suscripcionActiva = null;
+    try {
+        suscripcionActiva = await SuscripcionManager.getCurrent();
+    } catch (e) {
+        console.warn('[AuthGuard] Error verificando suscripción:', e.message);
+    }
+
+    if (!suscripcionActiva || suscripcionActiva.status !== 'active') {
+        console.log('[AuthGuard] CASO B2: Sin plan activo → planes.html');
+        window.location.href = `planes.html?tenant_id=${tenantBD.id}`;
+        return;
+    }
+
+    // --- B2 con todo OK → DASHBOARD ---
+    console.log('[AuthGuard] CASO B2: WhatsApp + plan activo → DASHBOARD');
     // ================================================================
 
     const permisosOK = await verificarPermisosAdmin();
