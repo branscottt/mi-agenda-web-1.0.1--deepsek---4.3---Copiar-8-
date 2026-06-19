@@ -48,7 +48,8 @@ export const JwtManager = {
                 nombre: meta.nombre || (email ? email.split('@')[0] : 'Usuario'),
                 email: email,
                 rol: rol,
-                tenant_id: meta.tenant_id
+                tenant_id: meta.tenant_id,
+                whatsapp: meta.whatsapp || ''
             }));
             if (SUPER_ADMIN_EMAILS.includes(email) && meta.rol !== 'super_admin') {
                 console.log('[JwtManager] Superadmin detectado por email:', email);
@@ -131,7 +132,8 @@ export const JwtManager = {
                         user_metadata: {
                             nombre: userData.nombre,
                             rol: userData.rol,
-                            tenant_id: userData.tenant_id
+                            tenant_id: userData.tenant_id,
+                            whatsapp: userData.whatsapp || ''
                         }
                     }
                 }

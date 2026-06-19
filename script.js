@@ -1649,6 +1649,206 @@ async function cargarPlanes() {
             }
         });
     });
+
+    // ================================================================
+    // WHATSAPP MODAL — SISTEMA ANTIFRAUDE (Google OAuth)
+    // Aparece cuando se detecta ?pending_whatsapp=true en la URL
+    // VALIDACIÓN + VERIFICACIÓN CRUZADA en BD antes de guardar:
+    //   a) Si WhatsApp ya existe en tenants → VINCULAR al tenant existente
+    //   b) Si email ya tiene tenant → ACTUALIZAR su WhatsApp
+    //   c) Si es todo nuevo → CREAR y persistir (doble save: Auth + BD)
+    // ================================================================
+    const pendingWhatsapp = urlParams.get('pending_whatsapp') === 'true';
+
+    if (pendingWhatsapp) {
+        let modal = document.getElementById('whatsapp-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'whatsapp-modal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+            modal.innerHTML = `
+                <div class="glass-panel" style="max-width:420px;padding:30px;position:relative;">
+                    <h3 style="margin-bottom:15px;"><i class="fab fa-whatsapp"></i> Completa tu número de WhatsApp</h3>
+                    <p style="margin-bottom:15px;color:#b0b0b0;font-size:0.9rem;">
+                        Necesitamos tu WhatsApp para que tus clientes puedan contactarte.<br>
+                        <strong>Importante:</strong> Si ya tienes un negocio registrado con este número, te vincularemos automáticamente.
+                    </p>
+                    <input type="tel" id="whatsapp-input" class="form-input"
+                           placeholder="Ej: +56912345678" maxlength="16"
+                           oninput="this.value=this.value.replace(/[^0-9+]/g,'')"
+                           style="width:100%;margin-bottom:10px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:white;font-size:1rem;">
+                    <p id="whatsapp-info" style="display:none;color:#ffd700;margin-bottom:10px;font-size:0.85rem;"></p>
+                    <p id="whatsapp-error" style="display:none;color:#e74c3c;margin-bottom:10px;font-size:0.85rem;"></p>
+                    <button id="btn-guardar-whatsapp" class="btn-grad" style="width:100%;padding:12px;">
+                        <i class="fas fa-check"></i> Guardar WhatsApp
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        const input = document.getElementById('whatsapp-input');
+        const errorMsg = document.getElementById('whatsapp-error');
+        const infoMsg = document.getElementById('whatsapp-info');
+        const btn = document.getElementById('btn-guardar-whatsapp');
+        const userEmail = session?.user?.email || '';
+
+        // Trapar tecla Escape (modal forzoso)
+        const trapEscape = (e) => { if (e.key === 'Escape') e.preventDefault(); };
+        document.addEventListener('keydown', trapEscape);
+
+        if (btn) {
+            btn.addEventListener('click', async function guardarWhatsapp() {
+                const raw = input.value.trim();
+                errorMsg.style.display = 'none';
+                infoMsg.style.display = 'none';
+
+                // ============================================================
+                // VALIDACIÓN RELAJADA (MODO TEST): mínimo 8 dígitos
+                // Permite números ficticios como '123456789' para pruebas.
+                // ============================================================
+                if (!raw) {
+                    errorMsg.textContent = 'Ingresa tu número de WhatsApp.';
+                    errorMsg.style.display = 'block'; return;
+                }
+                const digits = raw.replace(/\D/g, '');
+                if (digits.length < 8) {
+                    errorMsg.textContent = 'Número inválido. Debe tener al menos 8 dígitos.';
+                    errorMsg.style.display = 'block'; return;
+                }
+                const whatsapp = raw.startsWith('+') ? '+' + digits : digits;
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+
+                try {
+                    // ============================================================
+                    // PASO A: BUSCAR POR WHATSAPP — ¿otro negocio ya usa este número?
+                    // ============================================================
+                    const { data: tenantPorWhatsapp, error: buscaWAError } = await supabaseClient
+                        .from('tenants')
+                        .select('id, nombre_negocio')
+                        .eq('whatsapp', whatsapp)
+                        .maybeSingle();
+
+                    if (buscaWAError) throw buscaWAError;
+
+                    // Email del admin de pruebas (bypass antifraude)
+                    const _esAdminPruebas = userEmail === 'super@demo.com';
+
+                    if (tenantPorWhatsapp && !_esAdminPruebas) {
+                        // 🔴 VINCULACIÓN: Este WhatsApp ya pertenece a otro negocio
+                        infoMsg.textContent = `🔗 Vinculando con "${tenantPorWhatsapp.nombre_negocio}"...`;
+                        infoMsg.style.display = 'block';
+
+                        // Actualizar metadata del usuario con el tenant existente
+                        const { error: linkError } = await supabaseClient.auth.updateUser({
+                            data: {
+                                tenant_id: tenantPorWhatsapp.id,
+                                rol: 'admin',
+                                whatsapp: whatsapp
+                            }
+                        });
+                        if (linkError) throw linkError;
+
+                        await supabaseClient.auth.refreshSession();
+
+                        // Sincronizar JwtManager
+                        const { data: { session: fresh } } = await supabaseClient.auth.getSession();
+                        if (fresh && window.JwtManager) {
+                            window.JwtManager.setTokens(fresh.access_token, fresh.refresh_token);
+                        }
+
+                        modal.style.display = 'none';
+                        document.removeEventListener('keydown', trapEscape);
+                        mostrarToast(`Vinculado a "${tenantPorWhatsapp.nombre_negocio}". Bienvenido de vuelta!`, 'success');
+                        window.location.href = 'admin.html';
+                        return;
+                    }
+
+                    // ============================================================
+                    // PASO B: BUSCAR POR EMAIL — ¿este correo ya tiene un tenant?
+                    // ============================================================
+                    let tenantIdActual = tenantId; // tenantId de la URL o sesión
+
+                    if (!tenantIdActual && userEmail) {
+                        const { data: tenantPorEmail } = await supabaseClient
+                            .from('tenants')
+                            .select('id')
+                            .eq('email_contacto', userEmail)
+                            .maybeSingle();
+
+                        if (tenantPorEmail) {
+                            // Email ya tiene tenant → actualizar su WhatsApp (no crear nuevo)
+                            tenantIdActual = tenantPorEmail.id;
+                            console.log('[WhatsApp] Email ya tiene tenant, actualizando WhatsApp');
+                        }
+                    }
+
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+                    // ============================================================
+                    // PERSISTENCIA #1: Auth metadata (JWT/sesión del cliente)
+                    // ============================================================
+                    const { error: authError } = await supabaseClient.auth.updateUser({
+                        data: { whatsapp: whatsapp }
+                    });
+                    if (authError) throw authError;
+
+                    // ============================================================
+                    // PERSISTENCIA #2: Base de datos (tabla public.tenants)
+                    // ============================================================
+                    if (tenantIdActual) {
+                        const { error: dbError } = await supabaseClient
+                            .from('tenants')
+                            .update({ whatsapp: whatsapp })
+                            .eq('id', tenantIdActual);
+                        if (dbError) throw dbError;
+                    } else {
+                        // Sin tenant asociado — es un caso borde, crear uno
+                        const nombreNegocio = userEmail.split('@')[0] + "'s negocio";
+                        const { data: newTenant, error: createError } = await supabaseClient
+                            .from('tenants')
+                            .insert({ nombre_negocio: nombreNegocio, email_contacto: userEmail, whatsapp: whatsapp, plan: null })
+                            .select()
+                            .single();
+                        if (createError) throw createError;
+                        tenantIdActual = newTenant.id;
+
+                        // Actualizar metadata con el nuevo tenant
+                        await supabaseClient.auth.updateUser({
+                            data: { tenant_id: newTenant.id, rol: 'admin', whatsapp: whatsapp }
+                        });
+                    }
+
+                    console.log('[WhatsApp] Guardado en Auth metadata y BD:', whatsapp);
+
+                    await supabaseClient.auth.refreshSession();
+
+                    // Sincronizar JwtManager
+                    const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
+                    if (freshSession && window.JwtManager) {
+                        window.JwtManager.setTokens(freshSession.access_token, freshSession.refresh_token);
+                    }
+
+                    modal.style.display = 'none';
+                    document.removeEventListener('keydown', trapEscape);
+                    const cleanUrl = window.location.pathname + (window.location.search.includes('new=true') ? '?new=true' : '');
+                    window.history.replaceState({}, '', cleanUrl);
+
+                    mostrarToast('WhatsApp guardado correctamente', 'success');
+                    window.location.href = 'admin.html';
+
+                } catch (err) {
+                    console.error('[WhatsApp] Error:', err);
+                    errorMsg.textContent = err.message || 'Error al guardar. Intenta de nuevo.';
+                    errorMsg.style.display = 'block';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Guardar WhatsApp';
+                }
+            });
+        }
+    }
 }
 
 // Nueva función para crear suscripción inicial (alta de nuevo admin)
@@ -2600,7 +2800,8 @@ async function getSession() {
             nombre: session.user.user_metadata?.nombre || session.user.email?.split('@')[0] || 'Usuario',
             email: session.user.email,
             rol: (session.user.email && ['super@demo.com'].includes(session.user.email)) ? 'super_admin' : (session.user.user_metadata?.rol || 'cliente'),
-            tenant_id: session.user.user_metadata?.tenant_id
+            tenant_id: session.user.user_metadata?.tenant_id,
+            whatsapp: session.user.user_metadata?.whatsapp || ''
         };
         
         console.log('Datos de usuario procesados:', userData);
@@ -2896,7 +3097,7 @@ async function iniciarAdmin() {
 
     // Verificar si el usuario viene de OAuth y no tiene tenant_id
     if (session && (!session.tenant_id || session.tenant_id === '')) {
-        console.log('Usuario sin tenant_id, buscando o creando tenant por email...');
+        console.log('[AuthGuard] Usuario sin tenant_id, buscando o creando tenant por email...');
         
         // Buscar tenant existente por email_contacto
         let { data: tenant, error: tenantError } = await supabaseClient
@@ -2906,16 +3107,20 @@ async function iniciarAdmin() {
             .maybeSingle();
         
         if (tenantError) {
-            console.error('Error buscando tenant:', tenantError);
+            console.error('[AuthGuard] Error buscando tenant:', tenantError);
             mostrarToast('Error al verificar tu cuenta. Contacta al soporte.', 'error');
             await supabaseClient.auth.signOut();
             window.location.href = 'login.html';
             return;
         }
         
+        // Flag: true si acabamos de crear el tenant, false si ya existía
+        let _esNuevoTenant = false;
+        
         // Si no existe, crear un nuevo tenant
         if (!tenant) {
-            console.log('No se encontró tenant, creando uno nuevo...');
+            console.log('[AuthGuard] No se encontró tenant, creando uno nuevo...');
+            _esNuevoTenant = true;
             const nombreNegocio = session.nombre || session.email.split('@')[0] + "'s negocio";
             const { data: newTenant, error: createError } = await supabaseClient
                 .from('tenants')
@@ -2928,7 +3133,7 @@ async function iniciarAdmin() {
                 .single();
             
             if (createError) {
-                console.error('Error creando tenant:', createError);
+                console.error('[AuthGuard] Error creando tenant:', createError);
                 mostrarToast('Error al crear tu negocio. Intenta nuevamente.', 'error');
                 await supabaseClient.auth.signOut();
                 window.location.href = 'login.html';
@@ -2946,7 +3151,7 @@ async function iniciarAdmin() {
             }
         });
         if (updateError) {
-            console.error('Error actualizando metadatos:', updateError);
+            console.error('[AuthGuard] Error actualizando metadatos:', updateError);
             mostrarToast('Error al configurar tu cuenta. Contacta al soporte.', 'error');
             await supabaseClient.auth.signOut();
             window.location.href = 'login.html';
@@ -2956,21 +3161,29 @@ async function iniciarAdmin() {
         // Refrescar sesión para obtener nuevos metadatos
         await supabaseClient.auth.refreshSession();
         
-        // Redirigir a planes.html para elegir plan (solo si es un tenant nuevo)
-        // Si ya existía el tenant, asumimos que ya eligió plan y redirigimos a admin
-        // Delay de 500ms para asegurar que los metadatos se propaguen
-        setTimeout(() => {
-            if (!tenant) {
-                window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
-            } else {
-                window.location.href = 'admin.html';
-            }
-        }, 500);
+        // REDIRECCIÓN CORREGIDA:
+        // - Tenant NUEVO → va a planes.html a elegir plan y dar WhatsApp
+        // - Tenant EXISTENTE → ya tiene plan, va a admin.html
+        if (_esNuevoTenant) {
+            console.log('[AuthGuard] Tenant nuevo → redirigiendo a planes.html');
+            window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
+        } else {
+            console.log('[AuthGuard] Tenant existente → redirigiendo a admin.html');
+            window.location.href = 'admin.html';
+        }
+        return;
+    }
+
+    // ========== AUTH GUARD: Verificar WhatsApp ==========
+    // Si el usuario tiene tenant_id pero NO tiene WhatsApp, redirigir a planes.html
+    if (session && session.tenant_id && !session.whatsapp) {
+        console.log('[AuthGuard] Usuario sin WhatsApp → redirigiendo a planes.html');
+        window.location.href = 'planes.html?pending_whatsapp=true';
         return;
     }
 
     if (!session || (session.rol !== 'admin' && session.rol !== 'super_admin')) {
-        console.log('No hay sesión de admin/superadmin, redirigiendo...');
+        console.log('[AuthGuard] No hay sesión de admin/superadmin, redirigiendo...');
         window.location.href = 'login.html';
         return;
     }
