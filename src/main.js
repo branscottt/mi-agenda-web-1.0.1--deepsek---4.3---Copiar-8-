@@ -7,6 +7,21 @@
     'use strict';
 
     // ============================================
+    // SILENCIAR ERRORES DE RED DEL SDK (falsos positivos)
+    // El SDK de Supabase intenta auto-recuperar sesiones previas
+    // al crear el cliente. Si no hay conexión o hay CORS,
+    // lanza un NetworkError que NO es un error real de la app.
+    // ============================================
+    window.addEventListener('unhandledrejection', (event) => {
+        const msg = (event.reason?.message || event.reason || '').toString().toLowerCase();
+        if (msg.includes('networkerror') || msg.includes('fetch') || msg.includes('network')) {
+            if (msg.includes('supabase') || msg.includes('localhost') || msg.includes('127.0.0.1')) {
+                event.preventDefault();
+            }
+        }
+    });
+
+    // ============================================
     // CREAR CLIENTE SUPABASE DE FORMA SINCRONA (sin import)
     // ============================================
     try {

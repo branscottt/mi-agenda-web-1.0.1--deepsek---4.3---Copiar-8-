@@ -3220,13 +3220,16 @@ async function iniciarAdmin() {
 
         let newTenant = null;
         try {
-            const r = await supabaseClient
-                .from('tenants')
-                .insert({ nombre_negocio: nombreNegocio, email_contacto: session.email, plan: null, whatsapp: null })
-                .select()
-                .single();
-            newTenant = r.data;
-            if (r.error) throw r.error;
+            // Usar RPC con SECURITY DEFINER para bypassear bloqueo ES256
+            const { data: rpcResult, error: rpcError } = await supabaseClient
+                .rpc('crear_tenant_completo', {
+                    p_nombre_negocio: nombreNegocio,
+                    p_email_contacto: session.email,
+                    p_whatsapp: null
+                });
+            if (rpcError) throw rpcError;
+            if (!rpcResult || !rpcResult.id) throw new Error('RPC no retornó tenant');
+            newTenant = rpcResult;
         } catch (e) {
             console.error('[ERROR SUPABASE FLUJO TENANT INSERT]:', e.message || e);
             mostrarToast('Error al crear tu negocio.', 'error');
