@@ -6,6 +6,7 @@
     <title>Agenda Pro - Panel Admin</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Nunito:wght@400;600&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Chart.js para gráficos -->
@@ -587,31 +588,143 @@
                     <div class="glass-panel">
                         <h3><i class="fas fa-palette"></i> Personalización Visual</h3>
                         <form id="customization-form">
-                            <div class="form-row">
-                                <div class="input-with-label">
-                                    <label><i class="fas fa-fill-drip"></i> Color primario</label>
-                                    <input type="color" id="primary-color" value="#9d4edd">
-                                </div>
-                                <div class="input-with-label">
-                                    <label><i class="fas fa-fill-drip"></i> Color secundario</label>
-                                    <input type="color" id="secondary-color" value="#ff6d00">
+                            <!-- TEMAS PREDEFINIDOS -->
+                            <div class="form-section">
+                                <h4 class="form-section-title"><i class="fas fa-paint-roller"></i> Temas Rápidos</h4>
+                                <div id="temas-grid" class="temas-grid"></div>
+                                <span class="field-hint" style="margin-top:10px;display:block;">Selecciona un tema para previsualizarlo al instante. Haz clic en "Guardar cambios" para aplicarlo.</span>
+                            </div>
+
+                            <!-- COLORES -->
+                            <div class="form-section">
+                                <h4 class="form-section-title"><i class="fas fa-fill-drip"></i> Colores</h4>
+                                <div class="color-grid">
+                                    <div class="input-with-label">
+                                        <label>Primario</label>
+                                        <input type="color" id="cfg-primary" value="#9d4edd">
+                                        <span class="field-hint-swatch">Botones, enlaces, acentos</span>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label>Secundario</label>
+                                        <input type="color" id="cfg-secondary" value="#ff6d00">
+                                        <span class="field-hint-swatch">Gradientes, hovers</span>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label>Fondo</label>
+                                        <input type="color" id="cfg-bg" value="#0d0d0d">
+                                        <span class="field-hint-swatch">Fondo general</span>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label>Texto</label>
+                                        <input type="color" id="cfg-text" value="#e0e0e0">
+                                        <span class="field-hint-swatch">Textos y contenido</span>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label>Tarjetas</label>
+                                        <input type="color" id="cfg-card" value="#1a1a2e">
+                                        <span class="field-hint-swatch">Paneles, headers</span>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label>Bordes</label>
+                                        <input type="color" id="cfg-border" value="#2a2a4a">
+                                        <span class="field-hint-swatch">Separadores, contornos</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="form-row">
-                                <div class="input-with-label">
-                                    <label><i class="fas fa-image"></i> URL del logo</label>
-                                    <input type="url" id="logo-url" placeholder="https://ejemplo.com/logo.png">
+
+                            <!-- TIPOGRAFÍA Y FORMA -->
+                            <div class="form-section">
+                                <h4 class="form-section-title"><i class="fas fa-font"></i> Tipografía y Estilo</h4>
+                                <div class="form-row two-cols">
+                                    <div class="input-with-label">
+                                        <label><i class="fas fa-text-height"></i> Fuente</label>
+                                        <div class="font-select-custom" id="font-select-custom">
+                                            <div class="font-select-trigger" id="font-select-trigger">
+                                                <span class="font-select-value" id="font-select-value">Inter</span>
+                                                <i class="fas fa-chevron-down font-select-arrow"></i>
+                                            </div>
+                                            <div class="font-select-dropdown" id="font-select-dropdown"></div>
+                                            <select id="cfg-font" class="filter-select" style="display:none;"></select>
+                                        </div>
+                                        <span class="field-hint">Afecta a todos los textos del panel y vista cliente</span>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label><i class="fas fa-moon"></i> Modo</label>
+                                        <select id="cfg-theme-mode" class="filter-select">
+                                            <option value="dark">Oscuro</option>
+                                            <option value="light">Claro</option>
+                                        </select>
+                                        <span class="field-hint">Afecta al fondo general y color de texto</span>
+                                    </div>
+                                </div>
+                                <div class="form-row two-cols">
+                                    <div class="input-with-label">
+                                        <label><i class="fas fa-square"></i> Borde redondo</label>
+                                        <div class="range-with-value">
+                                            <input type="range" id="cfg-radius" min="0" max="24" value="12">
+                                            <span id="cfg-radius-value">12px</span>
+                                        </div>
+                                        <span class="field-hint">Afecta a botones, tarjetas, paneles e inputs</span>
+                                        <!-- Preview en vivo del border-radius — esquinas cambian -->
+                                        <div class="radius-preview" id="radius-preview-demo">
+                                            <div class="radius-preview-box" id="radius-demo-box">
+                                                <span class="radius-corner tl"></span>
+                                                <span class="radius-corner tr"></span>
+                                                <span class="radius-corner bl"></span>
+                                                <span class="radius-corner br"></span>
+                                                <span class="radius-preview-icon"><i class="fas fa-arrows-alt-h"></i></span>
+                                            </div>
+                                            <div class="radius-preview-label">
+                                                Las esquinas se redondean en <strong id="radius-preview-text">12px</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label><i class="fas fa-hourglass-half"></i> Velocidad animación</label>
+                                        <div class="range-with-value">
+                                            <input type="range" id="cfg-anim-speed" min="0.1" max="1.0" step="0.1" value="0.3">
+                                            <span id="cfg-anim-speed-value">0.3s</span>
+                                        </div>
+                                        <span class="field-hint">Afecta a transiciones, hovers y micro-interacciones</span>
+                                        <!-- Preview en vivo de velocidad — cajita rebota -->
+                                        <div class="speed-preview" id="speed-preview-demo">
+                                            <div class="speed-track">
+                                                <div class="speed-ball" id="speed-demo-box"></div>
+                                            </div>
+                                            <div class="speed-preview-label">
+                                                El movimiento dura <strong id="speed-preview-text">0.3s</strong>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="form-row">
-                                <div class="input-with-label">
-                                    <label><i class="fas fa-code"></i> CSS personalizado</label>
-                                    <textarea id="custom-css" rows="4" placeholder="/* Escribe aquí tus estilos personalizados */"></textarea>
+
+                            <!-- LOGO Y FAVICON -->
+                            <div class="form-section">
+                                <h4 class="form-section-title"><i class="fas fa-image"></i> Logo y Favicon</h4>
+                                <div class="form-row two-cols">
+                                    <div class="input-with-label">
+                                        <label><i class="fas fa-image"></i> URL del Logo</label>
+                                        <input type="url" id="cfg-logo" placeholder="https://ejemplo.com/logo.png">
+                                    </div>
+                                    <div class="input-with-label">
+                                        <label><i class="fas fa-globe"></i> URL del Favicon</label>
+                                        <input type="url" id="cfg-favicon" placeholder="https://ejemplo.com/favicon.ico">
+                                    </div>
                                 </div>
                             </div>
+
+                            <!-- CSS PERSONALIZADO -->
+                            <div class="form-section">
+                                <h4 class="form-section-title"><i class="fas fa-code"></i> CSS Personalizado</h4>
+                                <textarea id="custom-css" rows="4" placeholder="/* Escribe aquí tus estilos CSS personalizados */" style="width:100%;background:rgba(0,0,0,0.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:var(--border-radius);padding:12px;font-family:monospace;resize:vertical;"></textarea>
+                            </div>
+
+                            <!-- ACCIONES -->
                             <div class="form-actions">
-                                <button type="button" class="btn-secondary" id="reset-customization">Restablecer</button>
-                                <button type="submit" class="btn-grad"><i class="fas fa-save"></i> Guardar cambios</button>
+                                <button type="button" class="btn-secondary" id="cfg-preview-btn"><i class="fas fa-eye"></i> Vista Previa</button>
+                                <button type="button" class="btn-secondary" id="cfg-reset-btn"><i class="fas fa-undo"></i> Restablecer</button>
+                                <button type="submit" class="btn-grad" id="cfg-save-btn"><i class="fas fa-save"></i> Guardar cambios</button>
                             </div>
                             <div id="solicitar-css-container" style="margin-top: 15px; display: none;">
                                 <button type="button" id="btn-solicitar-css" class="btn-secondary" style="width: 100%;">
@@ -679,20 +792,6 @@
     <div id="notif-mark-all-btn" style="display:none"></div>
     <div id="cart-sidebar" style="display:none"></div>
     <div id="cart-toggle-btn" style="display:none"></div>
-    <div id="temas-grid" style="display:none"></div>
-    <div id="cfg-primary" style="display:none"></div>
-    <div id="cfg-secondary" style="display:none"></div>
-    <div id="cfg-bg" style="display:none"></div>
-    <div id="cfg-text" style="display:none"></div>
-    <div id="cfg-card" style="display:none"></div>
-    <div id="cfg-radius" style="display:none"></div>
-    <div id="cfg-anim-speed" style="display:none"></div>
-    <div id="cfg-font" style="display:none"></div>
-    <div id="cfg-logo" style="display:none"></div>
-    <div id="cfg-favicon" style="display:none"></div>
-    <div id="cfg-save-btn" style="display:none"></div>
-    <div id="cfg-reset-btn" style="display:none"></div>
-    <div id="cfg-preview-btn" style="display:none"></div>
     <div id="popup-reserva-overlay" style="display:none"></div>
     <div id="popup-cerrar" style="display:none"></div>
     <div id="popup-titulo" style="display:none"></div>
@@ -803,8 +902,13 @@
                     }
                     break;
                 case 'personalizar':
-                    if (typeof cargarSuscripcionTenant === 'function') {
-                        setTimeout(() => cargarSuscripcionTenant(), 100);
+                    if (typeof VisualConfigManager !== 'undefined') {
+                        setTimeout(async () => {
+                            const cfg = await VisualConfigManager.loadConfig();
+                            VisualConfigManager.applyConfigToForm(cfg);
+                            VisualConfigManager.applyStyles(cfg);
+                            console.log('[admin] Formulario personalizar sincronizado');
+                        }, 100);
                     }
                     break;
                 case 'compartir':

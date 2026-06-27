@@ -1258,103 +1258,217 @@ window.SuscripcionManager = SuscripcionManager;
 // GESTIÓN DE CONFIGURACIÓN VISUAL POR TENANT
 // ============================================
 const VisualConfigManager = {
+    // Temas predefinidos
+    TEMAS: [
+        {
+            id: 'clasico',
+            name: 'Clásico',
+            config: {
+                primary_color: '#9d4edd', secondary_color: '#ff6d00',
+                bg_color: '#0d0d0d', text_color: '#e0e0e0',
+                card_bg: '#1a1a2e', border_color: '#2a2a4a',
+                theme_mode: 'dark', font_family: "'Inter', sans-serif",
+                border_radius: 12, animation_speed: 0.3
+            }
+        },
+        {
+            id: 'oscuro',
+            name: 'Oscuro',
+            config: {
+               primary_color: '#00b894', secondary_color: '#00cec9',
+                bg_color: '#000000', text_color: '#dfe6e9',
+                card_bg: '#111111', border_color: '#2d2d2d',
+                theme_mode: 'dark', font_family: "'Inter', sans-serif",
+                border_radius: 8, animation_speed: 0.2
+            }
+        },
+        {
+            id: 'minimalista',
+            name: 'Minimalista',
+            config: {
+                primary_color: '#0984e3', secondary_color: '#74b9ff',
+                bg_color: '#0a0a0f', text_color: '#f5f5f5',
+                card_bg: '#141420', border_color: '#2a2a3a',
+                theme_mode: 'dark', font_family: "'Inter', sans-serif",
+                border_radius: 4, animation_speed: 0.15
+            }
+        },
+        {
+            id: 'naturaleza',
+            name: 'Naturaleza',
+            config: {
+                primary_color: '#27ae60', secondary_color: '#2ecc71',
+                bg_color: '#0a120a', text_color: '#e8f5e9',
+                card_bg: '#0f1a0f', border_color: '#1e3a1e',
+                theme_mode: 'dark', font_family: "'Inter', sans-serif",
+                border_radius: 16, animation_speed: 0.35
+            }
+        },
+        {
+            id: 'atardecer',
+            name: 'Atardecer',
+            config: {
+                primary_color: '#e17055', secondary_color: '#fdcb6e',
+                bg_color: '#1a0f0a', text_color: '#fce4d6',
+                card_bg: '#25150d', border_color: '#4a2a1a',
+                theme_mode: 'dark', font_family: "'Inter', sans-serif",
+                border_radius: 10, animation_speed: 0.25
+            }
+        },
+        {
+            id: 'claro',
+            name: 'Claro',
+            config: {
+                primary_color: '#6c5ce7', secondary_color: '#a29bfe',
+                bg_color: '#f8f9fa', text_color: '#2d3436',
+                card_bg: '#ffffff', border_color: '#dfe6e9',
+                theme_mode: 'light', font_family: "'Inter', sans-serif",
+                border_radius: 12, animation_speed: 0.3
+            }
+        }
+    ],
+
+    FONTS: [
+        "'Inter', sans-serif",
+        "'Poppins', sans-serif",
+        "'Roboto', sans-serif",
+        "'Open Sans', sans-serif",
+        "'Montserrat', sans-serif",
+        "'Nunito', sans-serif",
+        "'Playfair Display', serif",
+        "'Merriweather', serif",
+        "'JetBrains Mono', monospace"
+    ],
+
     /**
-     * Carga la configuración visual del tenant actual
-     * @returns {Promise<Object>} Configuración con primary_color, secondary_color, logo_url, custom_css
+     * Retorna la configuración por defecto completa
+     */
+    getDefaultConfig() {
+        return {
+            primary_color: '#9d4edd',
+            secondary_color: '#ff6d00',
+            bg_color: '#0d0d0d',
+            text_color: '#e0e0e0',
+            card_bg: '#1a1a2e',
+            border_color: '#2a2a4a',
+            theme_mode: 'dark',
+            font_family: "'Inter', sans-serif",
+            border_radius: 12,
+            animation_speed: 0.3,
+            logo_url: '',
+            favicon_url: '',
+            custom_css: ''
+        };
+    },
+
+    /** Obtener key de localStorage para tenant */
+    _cacheKey(tenantId) {
+        return `tenant_config_${tenantId}`;
+    },
+
+    /** Obtener key de localStorage para campos extendidos */
+    _extKey(tenantId) {
+        return `tenant_config_ext_${tenantId}`;
+    },
+
+    /**
+     * Carga configuración completa: columnas BD + campos extendidos desde localStorage
      */
     async loadConfig() {
         try {
             const tenantId = await getCurrentTenantId();
             if (!tenantId) return this.getDefaultConfig();
-            
-            // Intentar desde localStorage (caché de sesión)
-            const cached = localStorage.getItem(`tenant_config_${tenantId}`);
-            if (cached) {
+
+            const def = this.getDefaultConfig();
+
+            // 1. Cargar desde localStorage (caché completo)
+            const fullCache = localStorage.getItem(this._cacheKey(tenantId));
+            if (fullCache) {
                 try {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && parsed.primary_color) return parsed;
-                } catch(e) {}
+                    const parsed = JSON.parse(fullCache);
+                    if (parsed && parsed.primary_color) return this._mergeWithDefaults(parsed);
+                } catch (e) {}
             }
-            
+
+            // 2. Cargar columnas desde BD
             const { data, error } = await supabaseClient
                 .from('tenant_config')
                 .select('primary_color, secondary_color, logo_url, custom_css')
                 .eq('tenant_id', tenantId)
                 .maybeSingle();
-                
             if (error) throw error;
-            
-            let config = this.getDefaultConfig();
+
+            // 3. Cargar campos extendidos desde localStorage
+            let extras = {};
+            try {
+                const extRaw = localStorage.getItem(this._extKey(tenantId));
+                if (extRaw) extras = JSON.parse(extRaw);
+            } catch (e) {}
+
+            let config = { ...def, ...extras };
             if (data) {
-                config = {
-                    primary_color: data.primary_color || config.primary_color,
-                    secondary_color: data.secondary_color || config.secondary_color,
-                    logo_url: data.logo_url || config.logo_url,
-                    custom_css: data.custom_css || config.custom_css
-                };
+                config.primary_color = data.primary_color || def.primary_color;
+                config.secondary_color = data.secondary_color || def.secondary_color;
+                config.logo_url = data.logo_url || '';
+                config.custom_css = data.custom_css || '';
             }
-            // Guardar en caché
-            localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify(config));
+
+            // Guardar en caché completa
+            localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(config));
             return config;
         } catch (e) {
             console.error('Error cargando configuración visual:', e);
             return this.getDefaultConfig();
         }
     },
-    
-    getDefaultConfig() {
-        return {
-            primary_color: '#9d4edd',
-            secondary_color: '#ff6d00',
-            logo_url: '',
-            custom_css: ''
-        };
-    },
-    
-        /**
-     * Guarda la configuración visual del tenant actual
-     * @param {Object} config - { primary_color, secondary_color, logo_url, custom_css }
-     * @returns {Promise<boolean>}
+
+    /**
+     * Guarda configuración: columnas BD + campos extendidos en localStorage
      */
     async saveConfig(config) {
         try {
-            // ========== NUEVO: Verificar plan antes de guardar ==========
             const suscripcion = await SuscripcionManager.getCurrent();
             if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual')) {
                 mostrarToast('No tienes permisos para personalizar. Actualiza a un plan de pago.', 'error');
                 return false;
             }
-            // ============================================================
 
             const tenantId = await getCurrentTenantId();
             if (!tenantId) throw new Error('No tenant ID');
-            
-            // Limpiar valores vacíos
-            const cleanConfig = {
-                tenant_id: tenantId,
-                primary_color: config.primary_color || this.getDefaultConfig().primary_color,
-                secondary_color: config.secondary_color || this.getDefaultConfig().secondary_color,
-                logo_url: config.logo_url || null,
-                custom_css: config.custom_css || null
-            };
-            
-            // Upsert
+
+            const full = this._mergeWithDefaults(config);
+
+            // Escribir columnas a BD (solo las que existen en la tabla)
             const { error } = await supabaseClient
                 .from('tenant_config')
-                .upsert(cleanConfig, { onConflict: 'tenant_id' });
-                
+                .upsert({
+                    tenant_id: tenantId,
+                    primary_color: full.primary_color,
+                    secondary_color: full.secondary_color,
+                    logo_url: full.logo_url || null,
+                    custom_css: full.custom_css || null
+                }, { onConflict: 'tenant_id' });
             if (error) throw error;
-            
-            // Actualizar caché
-            localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify({
-                primary_color: cleanConfig.primary_color,
-                secondary_color: cleanConfig.secondary_color,
-                logo_url: cleanConfig.logo_url,
-                custom_css: cleanConfig.custom_css
-            }));
-            
+
+            // Guardar campos extendidos en localStorage
+            const extras = {
+                bg_color: full.bg_color,
+                text_color: full.text_color,
+                card_bg: full.card_bg,
+                border_color: full.border_color,
+                theme_mode: full.theme_mode,
+                font_family: full.font_family,
+                border_radius: full.border_radius,
+                animation_speed: full.animation_speed,
+                favicon_url: full.favicon_url
+            };
+            localStorage.setItem(this._extKey(tenantId), JSON.stringify(extras));
+
+            // Guardar caché completa
+            localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(full));
+
             // Aplicar estilos inmediatamente
-            this.applyStyles(cleanConfig);
+            this.applyStyles(full);
             return true;
         } catch (e) {
             console.error('Error guardando configuración visual:', e);
@@ -1362,147 +1476,549 @@ const VisualConfigManager = {
         }
     },
 
-    // Dentro de const VisualConfigManager = { ... }
-async loadConfigForTenant(tenantId) {
-    if (!tenantId) return this.getDefaultConfig();
-    try {
-        const cached = localStorage.getItem(`tenant_config_${tenantId}`);
-        if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.primary_color) return parsed;
-        }
-        const { data, error } = await supabaseClient
-            .from('tenant_config')
-            .select('primary_color, secondary_color, logo_url, custom_css')
-            .eq('tenant_id', tenantId)
-            .maybeSingle();
-        if (error) throw error;
-        let config = this.getDefaultConfig();
-        if (data) {
-            config = {
-                primary_color: data.primary_color || config.primary_color,
-                secondary_color: data.secondary_color || config.secondary_color,
-                logo_url: data.logo_url || config.logo_url,
-                custom_css: data.custom_css || config.custom_css
-            };
-        }
-        localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify(config));
-        return config;
-    } catch (e) {
-        console.error('Error cargando configuración para tenant', tenantId, e);
-        return this.getDefaultConfig();
-    }
-},
-
-async saveConfigForTenant(tenantId, config) {
-    if (!tenantId) throw new Error('Tenant ID requerido');
-    try {
-        const cleanConfig = {
-            tenant_id: tenantId,
-            primary_color: config.primary_color || this.getDefaultConfig().primary_color,
-            secondary_color: config.secondary_color || this.getDefaultConfig().secondary_color,
-            logo_url: config.logo_url || null,
-            custom_css: config.custom_css || null
-        };
-        const { error } = await supabaseClient
-            .from('tenant_config')
-            .upsert(cleanConfig, { onConflict: 'tenant_id' });
-        if (error) throw error;
-        localStorage.setItem(`tenant_config_${tenantId}`, JSON.stringify({
-            primary_color: cleanConfig.primary_color,
-            secondary_color: cleanConfig.secondary_color,
-            logo_url: cleanConfig.logo_url,
-            custom_css: cleanConfig.custom_css
-        }));
-        return true;
-    } catch (e) {
-        console.error('Error guardando configuración para tenant', tenantId, e);
-        return false;
-    }
-},
-    
     /**
-     * Aplica los estilos dinámicos al documento
-     * @param {Object} config 
+     * Aplica estilos completos al documento
      */
     applyStyles(config) {
-        // Remover bloque de estilos personalizados anterior si existe
+        const c = this._mergeWithDefaults(config);
+
+        // Remover bloque anterior
         const oldStyle = document.getElementById('tenant-custom-styles');
         if (oldStyle) oldStyle.remove();
-        
-        // Crear nuevo bloque <style>
+
         const styleEl = document.createElement('style');
         styleEl.id = 'tenant-custom-styles';
-        
-        let cssRules = `
-            :root {
-                --primary-color: ${config.primary_color};
-                --secondary-color: ${config.secondary_color};
-                --primary-glow: ${config.primary_color}80;
-            }
-            /* Ajustes adicionales para botones y bordes */
-            .btn-grad {
-                background: linear-gradient(90deg, ${config.primary_color}, ${config.secondary_color}) !important;
-            }
-            .btn-grad:hover {
-                background: linear-gradient(90deg, ${config.secondary_color}, ${config.primary_color}) !important;
-            }
-            .stat-box::before {
-                background: linear-gradient(to bottom, ${config.primary_color}, ${config.secondary_color});
-            }
-            .calendar-day.selected {
-                background: ${config.primary_color};
-            }
-            .service-card-category.belleza,
-            .service-card-category.bienestar,
-            .service-card-category.salud {
-                border-color: ${config.primary_color};
-                color: ${config.primary_color};
-            }
-        `;
-        
-        if (config.custom_css && config.custom_css.trim()) {
-            cssRules += `\n/* Custom CSS del tenant */\n${config.custom_css}`;
-        }
-        
-        styleEl.textContent = cssRules;
-        document.head.appendChild(styleEl);
-        
-        // Actualizar logo si existe
-        this.updateLogo(config.logo_url);
-    },
-    
-    updateLogo(logoUrl) {
-    // Buscar todos los elementos con clase 'tenant-logo' que sean imágenes
-    const logoImages = document.querySelectorAll('.tenant-logo img, img.tenant-logo');
-    logoImages.forEach(img => {
-        if (logoUrl && logoUrl.trim() !== '') {
-            img.src = logoUrl;
-            img.style.display = 'inline-block';
-        } else {
-            img.style.display = 'none';
-        }
-    });
 
-    // Opcional: también soportar elementos con background-image
-    const logoBgElements = document.querySelectorAll('.tenant-logo-bg');
-    logoBgElements.forEach(el => {
-        if (logoUrl && logoUrl.trim() !== '') {
-            el.style.backgroundImage = `url('${logoUrl}')`;
-            el.style.backgroundSize = 'contain';
-            el.style.backgroundRepeat = 'no-repeat';
-            el.style.backgroundPosition = 'center';
-        } else {
-            el.style.backgroundImage = 'none';
-        }
-    });
+        const primaryGlow = c.primary_color + '80';
+        const isDark = c.theme_mode === 'dark';
 
-    if (logoUrl && logoUrl.trim() !== '') {
-        console.log('Logo actualizado:', logoUrl);
-    } else {
-        console.log('Logo no configurado (omitido)');
-    }
+        let css = `
+:root {
+    --primary-color: ${c.primary_color};
+    --secondary-color: ${c.secondary_color};
+    --primary-glow: ${primaryGlow};
+    --bg-color: ${c.bg_color};
+    --text-color: ${c.text_color};
+    --card-bg: ${c.card_bg};
+    --border-color: ${c.border_color};
+    --border-radius: ${c.border_radius}px;
+    --transition-speed: ${c.animation_speed}s;
+    font-family: ${c.font_family};
 }
+
+/* Tema */
+body, .admin-screen, .client-screen {
+    background: ${c.bg_color} !important;
+    color: ${c.text_color} !important;
+}
+.glass-panel {
+    background: ${c.card_bg}e6 !important;
+    border-color: ${c.border_color} !important;
+}
+.glass-panel:hover {
+    border-color: ${primaryGlow} !important;
+}
+.admin-header, .client-header {
+    background: ${c.card_bg} !important;
+    border-bottom-color: ${c.border_color} !important;
+}
+
+/* Botones */
+.btn-grad {
+    background: linear-gradient(90deg, ${c.primary_color}, ${c.secondary_color}) !important;
+}
+.btn-grad:hover {
+    background: linear-gradient(90deg, ${c.secondary_color}, ${c.primary_color}) !important;
+}
+
+/* Stats */
+.stat-box::before {
+    background: linear-gradient(to bottom, ${c.primary_color}, ${c.secondary_color});
+}
+
+/* Calendar */
+.calendar-day.selected {
+    background: ${c.primary_color} !important;
+}
+
+/* Service cards */
+.service-card-category.belleza,
+.service-card-category.bienestar,
+.service-card-category.salud {
+    border-color: ${c.primary_color} !important;
+    color: ${c.primary_color} !important;
+}
+
+/* Border radius */
+.glass-panel, .btn-grad, .btn-secondary, btn-small,
+.admin-panel, .stat-box, .sidebar-nav, .sidebar-item,
+input, select, textarea, .tema-card, .notification-item,
+.nav-card, .modal-content, .popup-inner {
+    border-radius: ${c.border_radius}px !important;
+}
+
+/* Transitions */
+* {
+    transition-duration: ${c.animation_speed}s !important;
+}
+
+/* Modo claro */
+${!isDark ? `
+.glass-panel { backdrop-filter: none !important; }
+input, select, textarea {
+    background: rgba(0,0,0,0.04) !important;
+    color: #2d3436 !important;
+    border-color: #dfe6e9 !important;
+}
+.form-section { border-bottom-color: rgba(0,0,0,0.06) !important; }
+` : ''}
+`;
+        if (c.custom_css && c.custom_css.trim()) {
+            css += `\n/* Custom CSS */\n${c.custom_css}`;
+        }
+
+        styleEl.textContent = css;
+        document.head.appendChild(styleEl);
+
+        // Aplicar logo y favicon
+        this.updateLogo(c.logo_url);
+        this.updateFavicon(c.favicon_url);
+    },
+
+    /** Aplica cambios en tiempo real (preview sin guardar) */
+    applyPreview(config) {
+        this.applyStyles(config);
+    },
+
+    /** Actualiza el logo en DOM (reparado: también busca #tenant-logo) */
+    updateLogo(logoUrl) {
+        // Clase .tenant-logo
+        const logoImages = document.querySelectorAll('.tenant-logo img, img.tenant-logo');
+        logoImages.forEach(img => {
+            if (logoUrl && logoUrl.trim()) {
+                img.src = logoUrl;
+                img.style.display = 'inline-block';
+            } else {
+                img.style.display = 'none';
+            }
+        });
+
+        // ID #tenant-logo (el del admin header)
+        const headerLogo = document.getElementById('tenant-logo');
+        if (headerLogo) {
+            if (logoUrl && logoUrl.trim()) {
+                headerLogo.src = logoUrl;
+                headerLogo.style.display = 'inline-block';
+            } else {
+                headerLogo.style.display = 'none';
+            }
+        }
+
+        // Background-image
+        document.querySelectorAll('.tenant-logo-bg').forEach(el => {
+            if (logoUrl && logoUrl.trim()) {
+                el.style.backgroundImage = `url('${logoUrl}')`;
+                el.style.backgroundSize = 'contain';
+                el.style.backgroundRepeat = 'no-repeat';
+                el.style.backgroundPosition = 'center';
+            } else {
+                el.style.backgroundImage = 'none';
+            }
+        });
+    },
+
+    /** Actualiza el favicon */
+    updateFavicon(faviconUrl) {
+        let link = document.querySelector('link[rel="icon"]');
+        if (faviconUrl && faviconUrl.trim()) {
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.head.appendChild(link);
+            }
+            link.href = faviconUrl;
+        } else {
+            if (link) link.remove();
+        }
+    },
+
+    /** Renderiza los temas predefinidos en el grid — cada card es un espejo del tema */
+    renderThemePresets() {
+        const grid = document.getElementById('temas-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        this.TEMAS.forEach(tema => {
+            const card = document.createElement('div');
+            card.className = 'tema-card';
+            card.dataset.temaId = tema.id;
+            const cfg = tema.config;
+            // Extraer colores para los puntitos
+            const dots = Object.values(cfg).filter(v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)).slice(0, 5);
+            const dotsHtml = dots.map(c => `<span style="background:${c}"></span>`).join('');
+            // Render: la card usa bg_color como fondo y text_color para el texto de muestra
+            card.innerHTML = `
+                <div class="tema-check"><i class="fas fa-check-circle"></i></div>
+                <div class="tema-preview" style="background:${cfg.bg_color}; color:${cfg.text_color}; border-color:${cfg.border_color};">
+                    <div class="tema-preview-header" style="background:${cfg.card_bg}; border-bottom-color:${cfg.border_color};">
+                        <span class="tema-preview-dot" style="background:${cfg.primary_color};"></span>
+                        <span class="tema-pseudo-text" style="background:${cfg.text_color}40;"></span>
+                    </div>
+                    <div class="tema-preview-body">
+                        <div class="tema-pseudo-line" style="background:${cfg.text_color}30;"></div>
+                        <div class="tema-pseudo-line short" style="background:${cfg.text_color}20;"></div>
+                        <div class="tema-preview-btn" style="background:${cfg.primary_color}; color:${cfg.text_color};">
+                            ${tema.name}
+                        </div>
+                    </div>
+                </div>
+                <div class="tema-colors">${dotsHtml}</div>
+                <div class="tema-meta">Botones · Tarjetas · Fondo · Textos</div>
+            `;
+            card.addEventListener('click', () => this.applyTheme(tema.id));
+            grid.appendChild(card);
+        });
+    },
+
+    /** Aplica un tema por ID */
+    applyTheme(temaId) {
+        const tema = this.TEMAS.find(t => t.id === temaId);
+        if (!tema) return;
+        this.applyConfigToForm(tema.config);
+        this.applyPreview(tema.config);
+
+        // Marcar card activa
+        document.querySelectorAll('.tema-card').forEach(c => c.classList.remove('active'));
+        const card = document.querySelector(`.tema-card[data-tema-id="${temaId}"]`);
+        if (card) card.classList.add('active');
+    },
+
+    /** Inicializa el selector de fuentes — dropdown visual con preview real */
+    initFontSelector() {
+        const sel = document.getElementById('cfg-font');
+        const dropdown = document.getElementById('font-select-dropdown');
+        const trigger = document.getElementById('font-select-trigger');
+        const valueEl = document.getElementById('font-select-value');
+        if (!sel || !dropdown) return;
+
+        // Poblar <select> oculto (para que gatherFormConfig() siga funcionando)
+        sel.innerHTML = '';
+        this.FONTS.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f.replace(/['"]/g, '').split(',')[0];
+            opt.style.fontFamily = f;
+            sel.appendChild(opt);
+        });
+
+        // Construir items del dropdown visual
+        dropdown.innerHTML = '';
+        this.FONTS.forEach(f => {
+            const name = f.replace(/['"]/g, '').split(',')[0];
+            const item = document.createElement('div');
+            item.className = 'font-select-item';
+            item.dataset.value = f;
+            item.style.fontFamily = f;
+            item.textContent = name;
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Actualizar select oculto
+                sel.value = f;
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                // Actualizar trigger
+                valueEl.textContent = name;
+                valueEl.style.fontFamily = f;
+                // Cerrar dropdown
+                dropdown.classList.remove('open');
+                trigger.classList.remove('open');
+            });
+            dropdown.appendChild(item);
+        });
+
+        // Abrir/cerrar dropdown
+        if (trigger) {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = dropdown.classList.contains('open');
+                // Cerrar todos los demás dropdowns abiertos
+                document.querySelectorAll('.font-select-dropdown.open').forEach(d => d.classList.remove('open'));
+                document.querySelectorAll('.font-select-trigger.open').forEach(t => t.classList.remove('open'));
+                if (!isOpen) {
+                    dropdown.classList.add('open');
+                    trigger.classList.add('open');
+                }
+            });
+        }
+
+        // Cerrar al hacer clic fuera
+        document.addEventListener('click', () => {
+            dropdown.classList.remove('open');
+            trigger.classList.remove('open');
+        });
+
+        // Sincronizar trigger con el valor inicial del select
+        if (sel.value && valueEl) {
+            const name = sel.options[sel.selectedIndex]?.textContent || sel.value.replace(/['"]/g, '').split(',')[0];
+            valueEl.textContent = name;
+            valueEl.style.fontFamily = sel.value;
+        }
+    },
+
+    /** Recolecta la configuración actual del formulario */
+    gatherFormConfig() {
+        const g = id => {
+            const el = document.getElementById(id);
+            return el ? el.value : null;
+        };
+        const parseFloatSafe = (id, def) => {
+            const el = document.getElementById(id);
+            return el ? parseFloat(el.value) || def : def;
+        };
+        return this._mergeWithDefaults({
+            primary_color: g('cfg-primary'),
+            secondary_color: g('cfg-secondary'),
+            bg_color: g('cfg-bg'),
+            text_color: g('cfg-text'),
+            card_bg: g('cfg-card'),
+            border_color: g('cfg-border'),
+            theme_mode: g('cfg-theme-mode'),
+            font_family: g('cfg-font'),
+            border_radius: parseFloatSafe('cfg-radius', 12),
+            animation_speed: parseFloatSafe('cfg-anim-speed', 0.3),
+            logo_url: g('cfg-logo'),
+            favicon_url: g('cfg-favicon'),
+            custom_css: g('custom-css')
+        });
+    },
+
+    /** Rellena el formulario con una configuración */
+    applyConfigToForm(config) {
+        const s = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        };
+        const c = this._mergeWithDefaults(config);
+        s('cfg-primary', c.primary_color);
+        s('cfg-secondary', c.secondary_color);
+        s('cfg-bg', c.bg_color);
+        s('cfg-text', c.text_color);
+        s('cfg-card', c.card_bg);
+        s('cfg-border', c.border_color);
+        s('cfg-theme-mode', c.theme_mode);
+        s('cfg-font', c.font_family);
+        // Sincronizar trigger visual del dropdown de fuentes
+        const valEl = document.getElementById('font-select-value');
+        if (valEl) {
+            const name = c.font_family.replace(/['"]/g, '').split(',')[0];
+            valEl.textContent = name;
+            valEl.style.fontFamily = c.font_family;
+        }
+
+        const r = document.getElementById('cfg-radius');
+        if (r) { r.value = c.border_radius; this._updateRangeLabel('cfg-radius', 'cfg-radius-value', 'px');
+            // Sincronizar preview border-radius
+            const box = document.getElementById('radius-demo-box');
+            if (box) box.style.borderRadius = c.border_radius + 'px';
+            const txt = document.getElementById('radius-preview-text');
+            if (txt) txt.textContent = c.border_radius + 'px';
+        }
+
+        const a = document.getElementById('cfg-anim-speed');
+        if (a) { a.value = c.animation_speed; this._updateRangeLabel('cfg-anim-speed', 'cfg-anim-speed-value', 's');
+            // Sincronizar preview velocidad
+            const ball = document.getElementById('speed-demo-box');
+            if (ball) ball.style.animationDuration = (c.animation_speed * 0.8 + 0.2) + 's';
+            const stxt = document.getElementById('speed-preview-text');
+            if (stxt) stxt.textContent = c.animation_speed + 's';
+        }
+
+        s('cfg-logo', c.logo_url || '');
+        s('cfg-favicon', c.favicon_url || '');
+        s('custom-css', c.custom_css || '');
+
+        // Marcar tema activo si coincide
+        this._highlightMatchingTheme(c);
+
+        // Actualizar badge
+        this._updateRangeLabel('cfg-radius', 'cfg-radius-value', 'px');
+        this._updateRangeLabel('cfg-anim-speed', 'cfg-anim-speed-value', 's');
+    },
+
+    /** Marca la card del tema que coincide, si hay match */
+    _highlightMatchingTheme(config) {
+        document.querySelectorAll('.tema-card').forEach(c => c.classList.remove('active'));
+        for (const tema of this.TEMAS) {
+            const tc = tema.config;
+            const match = Object.keys(tc).every(k => {
+                const v = config[k];
+                return v !== undefined && String(v) === String(tc[k]);
+            });
+            if (match) {
+                const card = document.querySelector(`.tema-card[data-tema-id="${tema.id}"]`);
+                if (card) card.classList.add('active');
+                return;
+            }
+        }
+    },
+
+    /** Actualiza el label de un range slider */
+    _updateRangeLabel(rangeId, labelId, suffix) {
+        const range = document.getElementById(rangeId);
+        const label = document.getElementById(labelId);
+        if (range && label) {
+            label.textContent = parseFloat(range.value) + suffix;
+        }
+    },
+
+    /** Conecta listeners en tiempo real a todos los controles del formulario */
+    connectLivePreview() {
+        const onChange = () => {
+            this.applyPreview(this.gatherFormConfig());
+        };
+        const onChangeWithThemeClear = () => {
+            document.querySelectorAll('.tema-card').forEach(c => c.classList.remove('active'));
+            onChange();
+        };
+
+        // Color pickers
+        ['cfg-primary', 'cfg-secondary', 'cfg-bg', 'cfg-text', 'cfg-card', 'cfg-border'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', onChangeWithThemeClear);
+        });
+
+        // Selects
+        ['cfg-font', 'cfg-theme-mode'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', onChangeWithThemeClear);
+        });
+
+        // Range sliders
+        const onRange = (id, labelId, suffix) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', () => {
+                    const val = parseFloat(el.value);
+                    const label = document.getElementById(labelId);
+                    if (label) label.textContent = val + suffix;
+                    // Sincronizar preview contextual
+                    if (id === 'cfg-radius') {
+                        const box = document.getElementById('radius-demo-box');
+                        if (box) box.style.borderRadius = val + 'px';
+                        const txt = document.getElementById('radius-preview-text');
+                        if (txt) txt.textContent = val + 'px';
+                    }
+                    if (id === 'cfg-anim-speed') {
+                        const ball = document.getElementById('speed-demo-box');
+                        if (ball) {
+                            ball.style.animationDuration = (val * 0.8 + 0.2) + 's';
+                        }
+                        const txt = document.getElementById('speed-preview-text');
+                        if (txt) txt.textContent = val + 's';
+                    }
+                    onChangeWithThemeClear();
+                });
+            }
+        };
+        onRange('cfg-radius', 'cfg-radius-value', 'px');
+        onRange('cfg-anim-speed', 'cfg-anim-speed-value', 's');
+
+        // Logo / favicon
+        const onInput = (id, fn) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', fn);
+        };
+        onInput('cfg-logo', () => {
+            const url = document.getElementById('cfg-logo').value;
+            this.updateLogo(url);
+        });
+        onInput('cfg-favicon', () => {
+            const url = document.getElementById('cfg-favicon').value;
+            this.updateFavicon(url);
+        });
+
+        // Custom CSS
+        const cssEl = document.getElementById('custom-css');
+        if (cssEl) cssEl.addEventListener('input', onChangeWithThemeClear);
+    },
+
+    /** Interno: merge con defaults */
+    _mergeWithDefaults(config) {
+        const def = this.getDefaultConfig();
+        const merged = {};
+        for (const key of Object.keys(def)) {
+            const v = config[key];
+            merged[key] = (v !== undefined && v !== null && v !== '') ? v : def[key];
+        }
+        return merged;
+    },
+
+    // ============================================================
+    // SUPERADMIN: load/save para tenant específico
+    // ============================================================
+    async loadConfigForTenant(tenantId) {
+        if (!tenantId) return this.getDefaultConfig();
+        try {
+            const fullCache = localStorage.getItem(this._cacheKey(tenantId));
+            if (fullCache) {
+                try {
+                    const parsed = JSON.parse(fullCache);
+                    if (parsed && parsed.primary_color) return this._mergeWithDefaults(parsed);
+                } catch (e) {}
+            }
+            const { data, error } = await supabaseClient
+                .from('tenant_config')
+                .select('primary_color, secondary_color, logo_url, custom_css')
+                .eq('tenant_id', tenantId)
+                .maybeSingle();
+            if (error) throw error;
+            let extras = {};
+            try {
+                const extRaw = localStorage.getItem(this._extKey(tenantId));
+                if (extRaw) extras = JSON.parse(extRaw);
+            } catch (e) {}
+            let config = { ...this.getDefaultConfig(), ...extras };
+            if (data) {
+                config.primary_color = data.primary_color || config.primary_color;
+                config.secondary_color = data.secondary_color || config.secondary_color;
+                config.logo_url = data.logo_url || '';
+                config.custom_css = data.custom_css || '';
+            }
+            localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(config));
+            return config;
+        } catch (e) {
+            console.error('Error loadConfigForTenant', tenantId, e);
+            return this.getDefaultConfig();
+        }
+    },
+
+    async saveConfigForTenant(tenantId, config) {
+        if (!tenantId) throw new Error('Tenant ID requerido');
+        try {
+            const full = this._mergeWithDefaults(config);
+            const { error } = await supabaseClient
+                .from('tenant_config')
+                .upsert({
+                    tenant_id: tenantId,
+                    primary_color: full.primary_color,
+                    secondary_color: full.secondary_color,
+                    logo_url: full.logo_url || null,
+                    custom_css: full.custom_css || null
+                }, { onConflict: 'tenant_id' });
+            if (error) throw error;
+            const extras = {
+                bg_color: full.bg_color, text_color: full.text_color,
+                card_bg: full.card_bg, border_color: full.border_color,
+                theme_mode: full.theme_mode, font_family: full.font_family,
+                border_radius: full.border_radius, animation_speed: full.animation_speed,
+                favicon_url: full.favicon_url
+            };
+            localStorage.setItem(this._extKey(tenantId), JSON.stringify(extras));
+            localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(full));
+            return true;
+        } catch (e) {
+            console.error('Error saveConfigForTenant', tenantId, e);
+            return false;
+        }
+    }
 };
 
 async function enviarSolicitudCSS() {
@@ -3063,7 +3579,13 @@ async function iniciarAdmin() {
         visualConfig = VisualConfigManager.getDefaultConfig();
     }
 
-    // ========== NUEVO: Verificar plan de suscripción y restringir personalización ==========
+    // ========== CONFIGURACIÓN VISUAL: inicializar panel completo ==========
+    VisualConfigManager.initFontSelector();
+    VisualConfigManager.renderThemePresets();
+    VisualConfigManager.applyConfigToForm(visualConfig);
+    VisualConfigManager.connectLivePreview();
+
+    // ========== Verificar plan de suscripción y restringir personalización ==========
     let suscripcion = null;
     let esPlanPago = false;
     try {
@@ -3073,40 +3595,60 @@ async function iniciarAdmin() {
         console.warn('Error obteniendo suscripción:', e);
     }
 
-    const primaryInput = document.getElementById('primary-color');
-    const secondaryInput = document.getElementById('secondary-color');
-    const logoInput = document.getElementById('logo-url');
-    const customCssTextarea = document.getElementById('custom-css');
-    const saveBtn = document.querySelector('#customization-form button[type="submit"]');
-    const resetBtn = document.getElementById('reset-customization');
-    const formFields = [primaryInput, secondaryInput, logoInput, customCssTextarea];
+    const allCustomFields = [
+        'cfg-primary', 'cfg-secondary', 'cfg-bg', 'cfg-text', 'cfg-card', 'cfg-border',
+        'cfg-theme-mode', 'cfg-font', 'cfg-radius', 'cfg-anim-speed',
+        'cfg-logo', 'cfg-favicon', 'custom-css'
+    ];
 
     if (!esPlanPago) {
-        // Deshabilitar campos y botón guardar
-        formFields.forEach(field => { if (field) field.disabled = true; });
+        // Deshabilitar todos los campos y botones
+        allCustomFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = true;
+        });
+        const saveBtn = document.getElementById('cfg-save-btn');
+        const resetBtn = document.getElementById('cfg-reset-btn');
+        const previewBtn = document.getElementById('cfg-preview-btn');
         if (saveBtn) saveBtn.disabled = true;
         if (resetBtn) resetBtn.disabled = true;
+        if (previewBtn) previewBtn.disabled = true;
+        // Temas también deshabilitados visualmente
+        document.querySelectorAll('.tema-card').forEach(c => {
+            c.style.opacity = '0.4';
+            c.style.pointerEvents = 'none';
+        });
         // Mostrar mensaje de upgrade
         let upgradeMsg = document.getElementById('upgrade-message');
         if (!upgradeMsg) {
             upgradeMsg = document.createElement('div');
             upgradeMsg.id = 'upgrade-message';
             upgradeMsg.className = 'warning-message';
-            upgradeMsg.style.cssText = 'background: rgba(255,193,7,0.2); border-left: 4px solid #ffc107; padding: 12px; margin: 15px 0; border-radius: 8px;';
+            upgradeMsg.style.cssText = 'background: rgba(255,193,7,0.2); border-left: 4px solid #ffc107; padding: 12px; margin: 0 0 15px 0; border-radius: 8px;';
             upgradeMsg.innerHTML = `⚠️ <strong>Personalización visual disponible en planes Pro y Premium.</strong> <a href="planes.html" style="color: #ffc107;">Actualiza tu plan aquí</a>`;
             const form = document.getElementById('customization-form');
             if (form) form.parentNode.insertBefore(upgradeMsg, form);
         }
     } else {
-        // Asegurar que los campos estén habilitados (por si se recarga)
-        formFields.forEach(field => { if (field) field.disabled = false; });
+        allCustomFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = false;
+        });
+        const saveBtn = document.getElementById('cfg-save-btn');
+        const resetBtn = document.getElementById('cfg-reset-btn');
+        const previewBtn = document.getElementById('cfg-preview-btn');
         if (saveBtn) saveBtn.disabled = false;
         if (resetBtn) resetBtn.disabled = false;
+        if (previewBtn) previewBtn.disabled = false;
+        document.querySelectorAll('.tema-card').forEach(c => {
+            c.style.opacity = '1';
+            c.style.pointerEvents = 'auto';
+        });
         const existingMsg = document.getElementById('upgrade-message');
         if (existingMsg) existingMsg.remove();
     }
 
-    // ========== NUEVO: Mostrar/ocultar botón de solicitud CSS según plan ==========
+    // ========== Mostrar/ocultar botón de solicitud CSS según plan ==========
     const solicitarContainer = document.getElementById('solicitar-css-container');
     if (solicitarContainer) {
         solicitarContainer.style.display = esPlanPago ? 'block' : 'none';
@@ -3130,19 +3672,6 @@ async function iniciarAdmin() {
                 if (descInput) descInput.value = '';
             };
         }
-    }
-
-    // ========== RELLENAR FORMULARIO DE PERSONALIZACIÓN (solo si existen los campos) ==========
-    if (primaryInput) primaryInput.value = visualConfig.primary_color;
-    if (secondaryInput) secondaryInput.value = visualConfig.secondary_color;
-    if (logoInput) logoInput.value = visualConfig.logo_url || '';
-    if (customCssTextarea) customCssTextarea.value = visualConfig.custom_css || '';
-
-    // Listener en tiempo real para el logo
-    if (logoInput) {
-        logoInput.addEventListener('input', (e) => {
-            VisualConfigManager.updateLogo(e.target.value);
-        });
     }
 
     // ========== DELEGAR VISTA PRINCIPAL A DASHBOARDVIEW MODULAR ==========
@@ -3360,50 +3889,45 @@ async function iniciarAdmin() {
         });
     }
     
-    // ========== CONFIGURAR EVENTOS DEL FORMULARIO DE PERSONALIZACIÓN ==========
+    // ========== CONFIGURAR EVENTOS DEL FORMULARIO DE PERSONALIZACIÓN (NUEVO) ==========
     const customForm = document.getElementById('customization-form');
     if (customForm) {
         customForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const newConfig = {
-                primary_color: document.getElementById('primary-color').value,
-                secondary_color: document.getElementById('secondary-color').value,
-                logo_url: document.getElementById('logo-url').value,
-                custom_css: document.getElementById('custom-css').value
-            };
+            const newConfig = VisualConfigManager.gatherFormConfig();
             const success = await VisualConfigManager.saveConfig(newConfig);
             const feedback = document.getElementById('customization-feedback');
             if (success) {
-                feedback.textContent = '✅ Configuración guardada y aplicada.';
+                feedback.innerHTML = '✅ Configuración guardada <strong>y aplicada</strong> — visible en panel admin y vista cliente.';
                 feedback.className = 'success';
-                setTimeout(() => feedback.textContent = '', 3000);
+                setTimeout(() => feedback.innerHTML = '', 4000);
+                // Refrescar el formulario con los valores guardados
+                VisualConfigManager.applyConfigToForm(newConfig);
             } else {
-                feedback.textContent = '❌ Error al guardar. Revisa consola.';
+                feedback.innerHTML = '❌ Error al guardar. Verifica que tengas un plan Pro o Premium activo. <a href="planes.html" style="color:#ffc107;">Ver planes</a>';
                 feedback.className = 'error';
             }
         });
-        
-        const resetBtnForm = document.getElementById('reset-customization');
+
+        // Botón restablecer
+        const resetBtnForm = document.getElementById('cfg-reset-btn');
         if (resetBtnForm) {
             resetBtnForm.addEventListener('click', async () => {
                 const defaultConfig = VisualConfigManager.getDefaultConfig();
-                const primaryInput = document.getElementById('primary-color');
-                const secondaryInput = document.getElementById('secondary-color');
-                const logoInput = document.getElementById('logo-url');
-                const customCssTextarea = document.getElementById('custom-css');
-                if (primaryInput) primaryInput.value = defaultConfig.primary_color;
-                if (secondaryInput) secondaryInput.value = defaultConfig.secondary_color;
-                if (logoInput) logoInput.value = '';
-                if (customCssTextarea) customCssTextarea.value = '';
-                const success = await VisualConfigManager.saveConfig(defaultConfig);
+                VisualConfigManager.applyConfigToForm(defaultConfig);
+                VisualConfigManager.applyPreview(defaultConfig);
                 const feedback = document.getElementById('customization-feedback');
-                if (success) {
-                    feedback.textContent = '✅ Configuración restablecida a valores por defecto.';
-                    feedback.className = 'success';
-                } else {
-                    feedback.textContent = '❌ Error al restablecer.';
-                    feedback.className = 'error';
-                }
+                feedback.textContent = '↺ Valores restablecidos a por defecto (sin guardar). Haz clic en "Guardar cambios" para persistir.';
+                feedback.className = 'success';
+                setTimeout(() => feedback.textContent = '', 4000);
+            });
+        }
+
+        // Botón vista previa (abre cliente.html en nueva pestaña)
+        const previewBtn = document.getElementById('cfg-preview-btn');
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => {
+                window.open('cliente.html', '_blank');
             });
         }
     }
