@@ -42,19 +42,24 @@ export async function register(email, password, metadata) {
 }
 
 export async function loginWithGoogle() {
+    console.log('[AuthService] loginWithGoogle iniciado');
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase) {
+        console.error('[AuthService] Supabase no disponible');
+        return;
+    }
     try {
-        // Limpiar cualquier sesión previa antes de iniciar OAuth
+        console.log('[AuthService] Limpiando sesión previa');
         JwtManager.clear();
         await supabase.auth.signOut();
-
+        console.log('[AuthService] Sesión limpiada, iniciando OAuth');
         await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: { redirectTo: window.location.origin + '/admin.html' }
         });
+        console.log('[AuthService] OAuth iniciado (popup abierto)');
     } catch (e) {
-        console.error('Error Google OAuth:', e);
+        console.error('[AuthService] Error:', e);
     }
 }
 

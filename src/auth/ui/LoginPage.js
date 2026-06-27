@@ -225,6 +225,7 @@ export function iniciarLogin() {
     if (googleBtn) {
         googleBtn.addEventListener('click', async (e) => {
             e.preventDefault();
+            console.log('[LoginPage] Botón Google clickeado, llamando a loginWithGoogle()');
             await loginWithGoogle();
         });
     }

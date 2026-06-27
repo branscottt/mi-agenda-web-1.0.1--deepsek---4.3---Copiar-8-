@@ -127,7 +127,9 @@ async function syncJwtSession() {
             try {
                 const { iniciarLogin } = await import('./auth/ui/LoginPage.js');
                 iniciarLogin();
-            } catch (e) { /* script.js maneja login */ }
+            } catch (e) {
+                console.warn('[main.js] Error cargando LoginPage.js:', e.message);
+            }
         }
 
         if (esAdmin) {
