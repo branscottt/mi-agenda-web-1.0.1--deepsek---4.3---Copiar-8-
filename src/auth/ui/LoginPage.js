@@ -6,7 +6,6 @@ import { login, register, loginWithGoogle, resetPassword } from '../application/
 import { redirectByRole } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { createTenant } from '../../api/tenantsApi.js';
 
 export function iniciarLogin() {
     console.log('Iniciando login moderno...');
@@ -79,11 +78,10 @@ export function iniciarLogin() {
         });
     }
 
-    // --- REGISTRO con orden secuencial seguro: signUp → createTenant → updateUser ---
-    // Orden corregido para evitar orphan tenants y garantizar RLS.
+    // --- REGISTRO con orden secuencial seguro: signUp → crear_tenant_completo (RPC) → updateUser ---
     // 1. signUp: crear usuario en Auth (rol: 'admin' desde el inicio)
-    // 2. signInWithPassword: activar sesion
-    // 3. createTenant: crear negocio (usuario autenticado, RLS OK)
+    // 2. Activar sesión (signUp session auto-activada || signInWithPassword legacy)
+    // 3. crear_tenant_completo (RPC SECURITY DEFINER): tenant + trigger subscription
     // 4. updateUser: inyectar tenant_id en metadatos
     // 5. refreshSession: propagar tenant_id al JWT local
     // 6. redirect a planes.html
@@ -151,27 +149,36 @@ export function iniciarLogin() {
                 console.log('[LoginPage] signUp OK:', signUpData.user.id);
 
                 // ================================================================
-                // PASO 2: signInWithPassword — activar sesión (necesaria para RLS)
+                // PASO 2: Activar sesión (necesaria para RLS)
+                // Si signUp ya devolvió sesión (email auto-confirmado), la usamos
+                // directamente para evitar un bug del SDK en signInWithPassword
+                // post-signUp. Si no hay sesión (confirmación ON), hacemos login
+                // tradicional. Esto garantiza retrocompatibilidad total.
                 // ================================================================
-                const { error: signInError } = await supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-                if (signInError) throw signInError;
+                if (!signUpData.session) {
+                    const { error: signInError } = await supabase.auth.signInWithPassword({
+                        email: email,
+                        password: password
+                    });
+                    if (signInError) throw signInError;
+                } else {
+                    console.log('[LoginPage] Sesión auto-activada por signUp (confirmación OFF)');
+                }
 
                 // ================================================================
-                // PASO 3: createTenant — crear el negocio (usuario autenticado)
+                // PASO 3: crear_tenant_completo — crear el negocio vía RPC
+                // Usamos RPC con SECURITY DEFINER para bypassear el bloqueo
+                // del API Gateway con JWTs ES256. La función también dispara
+                // el trigger de creación de suscripción automáticamente.
                 // ================================================================
                 const { data: tenant, error: tenantError } = await supabase
-                    .from('tenants')
-                    .insert({
-                        nombre_negocio: nombre + "'s negocio",
-                        email_contacto: email,
-                        plan: null
-                    })
-                    .select()
-                    .single();
+                    .rpc('crear_tenant_completo', {
+                        p_nombre_negocio: nombre + "'s negocio",
+                        p_email_contacto: email,
+                        p_whatsapp: whatsappClean
+                    });
                 if (tenantError) throw tenantError;
+                if (!tenant || !tenant.id) throw new Error('Error al crear el negocio. Intenta nuevamente.');
 
                 console.log('[LoginPage] tenant created:', tenant.id);
 
