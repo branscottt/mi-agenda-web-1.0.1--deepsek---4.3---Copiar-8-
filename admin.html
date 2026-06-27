@@ -253,7 +253,7 @@
             <div id="section-crear-servicio" class="section-content" style="display:none;">
                 <aside class="admin-panel">
                     <div class="glass-panel">
-                        <h3><i class="fas fa-plus-circle"></i> Crear Nuevo Servicio</h3>
+                        <h3 id="section-title-servicio"><i class="fas fa-plus-circle"></i> Crear Nuevo Servicio</h3>
                         <form id="service-form" class="form-group">
                             
                             <!-- ===== PASO 1: DATOS BÁSICOS ===== -->
@@ -263,6 +263,15 @@
                                     <div class="form-row">
                                         <input type="text" id="srv-name" placeholder="Nombre del servicio*" required>
                                         <input type="number" id="srv-price" placeholder="Precio ($)*" min="0" required>
+                                    </div>
+                                    <div class="form-row" style="margin-top:12px;">
+                                        <label for="srv-duration" style="flex:1;display:flex;align-items:center;gap:8px;">
+                                            <i class="fas fa-hourglass-half"></i> Duración promedio de sesiones
+                                        </label>
+                                        <div style="display:flex;align-items:center;gap:6px;flex:1;">
+                                            <input type="number" id="srv-duration" placeholder="Duración en minutos" min="1" value="60" style="flex:1;">
+                                            <span style="color:var(--text-muted);font-size:0.85rem;white-space:nowrap;">min</span>
+                                        </div>
                                     </div>
                                     <div class="image-section">
                                         <label for="srv-image-url"><i class="fas fa-image"></i> Imagen del servicio</label>
@@ -457,6 +466,9 @@
                                                 <i class="fas fa-magic"></i> Generar
                                             </button>
                                         </div>
+                                    </div>
+                                    <div style="margin-bottom:12px;font-size:0.8rem;color:var(--text-muted);">
+                                        <i class="fas fa-info-circle"></i> La duración de cada módulo se toma del campo "Duración promedio de sesiones" (Paso 1). Puedes ajustar cada módulo individualmente después de generarlos.
                                     </div>
                                     <div class="modules-list-container">
                                         <h5><i class="fas fa-list"></i> Horarios configurados</h5>

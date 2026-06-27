@@ -877,7 +877,7 @@ const ServiciosManager = {
 
             const { data, error } = await supabaseClient
                 .from('servicios')
-                .select('id, nombre, categoria, precio, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at')
+                .select('id, nombre, categoria, precio, duracion, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at, assignment_mode, weekday_modules, date_specific_modules, module_date_cupos')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
 
@@ -893,13 +893,19 @@ const ServiciosManager = {
                 nombre: s.nombre,
                 categoria: s.categoria,
                 precio: s.precio,
+                duracion: s.duracion || 60,
                 descripcion: s.descripcion || '',
                 imagen: s.imagen || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874',
                 destacado: s.destacado || false,
                 activo: s.activo !== false,
                 disponibilidad: s.disponibilidad || {},
                 fechas: s.fechas || Object.keys(s.disponibilidad || {}),
-                fechaCreacion: s.created_at
+                fechaCreacion: s.created_at,
+                // Campos de modo de asignación avanzada
+                assignment_mode: s.assignment_mode || 'all',
+                weekday_modules: s.weekday_modules || {},
+                date_specific_modules: s.date_specific_modules || {},
+                module_date_cupos: s.module_date_cupos || {}
             }));
         } catch (e) {
             console.error('Error en getAll servicios:', e);
@@ -925,8 +931,14 @@ const ServiciosManager = {
                 imagen: servicio.imagen,
                 destacado: servicio.destacado || false,
                 activo: servicio.activo !== false,
+                duracion: typeof servicio.duracion !== 'undefined' ? servicio.duracion : 60,
                 disponibilidad: servicio.disponibilidad || {},
-                fechas: Object.keys(servicio.disponibilidad || {})
+                fechas: Object.keys(servicio.disponibilidad || {}),
+                // Campos de modo de asignación avanzada
+                assignment_mode: servicio.assignment_mode || 'all',
+                weekday_modules: servicio.weekday_modules || {},
+                date_specific_modules: servicio.date_specific_modules || {},
+                module_date_cupos: servicio.module_date_cupos || {}
             };
             
             let result;
@@ -3890,7 +3902,14 @@ function configurarFormulario() {
     if (textarea && contador) {
         textarea.addEventListener('input', function() { contador.textContent = this.value.length; });
     }
-    form.addEventListener('submit', function(evento) { evento.preventDefault(); crearServicio(); });
+    form.addEventListener('submit', function(evento) {
+        evento.preventDefault();
+        if (editServiceId !== null) {
+            actualizarServicio();
+        } else {
+            crearServicio();
+        }
+    });
     const btnLimpiarImg = document.getElementById('clear-image');
     if (btnLimpiarImg) {
         btnLimpiarImg.addEventListener('click', function() { document.getElementById('srv-image-url').value = ''; });
@@ -3901,6 +3920,8 @@ function configurarFormulario() {
 window.configurarFormulario = configurarFormulario;
 
 async function crearServicio() {
+    const submitBtn = document.querySelector('#service-form button[type="submit"]');
+
     const nombre = document.getElementById('srv-name').value;
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
@@ -3926,21 +3947,14 @@ async function crearServicio() {
         if (!estado.completo) {
             const faltan = estado.pendientes.join(', ');
             mostrarMensaje(`⚠️ Faltan módulos por asignar: ${faltan}. Usa "Guardar asignación" para completar antes de crear el servicio.`, "warning");
-            // Hacer scroll al área de asignación
             const saveArea = document.getElementById('assignment-save-area');
             if (saveArea) saveArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
     }
 
-    // Leer duración: si existe input srv-duration, usarlo; si no, inferir del primer módulo
-    let duracion = getServiceDuration();
-    const durInput = document.getElementById('srv-duration');
-    if (durInput && durInput.value && Number(durInput.value) > 0) {
-        duracion = Number(durInput.value);
-    } else if (window.serviceModules && window.serviceModules.length > 0) {
-        duracion = window.serviceModules[0].duration || 60;
-    }
+    // Leer duración (con validación y fallback)
+    const duracion = getServiceDuration();
 
     const disponibilidad = buildDisponibilidadFromForm();
 
@@ -3956,19 +3970,23 @@ async function crearServicio() {
         fechas: Object.keys(disponibilidad).sort()
     };
 
-    await ServiciosManager.save(nuevoServicio);
-    mostrarMensaje(`✅ Servicio "${nombre}" creado con ${selectedDates.size} fecha(s) y ${serviceModules.length} horario(s)`, "success");
+    try {
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...'; }
 
-    document.getElementById('service-form').reset();
-    selectedDates.clear();
-    clearAllModules();
-    renderCalendar();
-    cargarServiciosExistentes();
-    // Redirigir a Mis Servicios
-    if (typeof navigateTo === 'function') {
-        navigateTo('mis-servicios');
-    } else {
-        document.getElementById('service-form').scrollIntoView({ behavior: 'smooth' });
+        await ServiciosManager.save(nuevoServicio);
+        mostrarMensaje(`✅ Servicio "${nombre}" creado con ${selectedDates.size} fecha(s) y ${serviceModules.length} horario(s)`, "success");
+
+        limpiarEstadoEdicion();
+        cargarServiciosExistentes();
+        if (typeof navigateTo === 'function') {
+            navigateTo('mis-servicios');
+        } else {
+            document.getElementById('service-form').scrollIntoView({ behavior: 'smooth' });
+        }
+    } catch (e) {
+        console.error('Error creando servicio:', e);
+        mostrarMensaje('❌ Error al crear el servicio: ' + (e.message || 'Desconocido'), 'error');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> CREAR SERVICIO'; }
     }
 }
 window.crearServicio = crearServicio;
@@ -4357,6 +4375,8 @@ async function editarServicio(id) {
     document.getElementById('srv-desc').value = servicio.descripcion || '';
     document.getElementById('srv-featured').checked = servicio.destacado;
     document.getElementById('srv-active').checked = servicio.activo;
+    const durEl = document.getElementById('srv-duration');
+    if (durEl) durEl.value = servicio.duracion || 60;
 
     if (servicio.fechas && servicio.fechas.length > 0) {
         selectedDates = new Set(servicio.fechas);
@@ -4366,6 +4386,25 @@ async function editarServicio(id) {
 
     renderCalendar();
     clearAllModules();
+
+    // --- Cargar modo de asignación avanzado ---
+    _assignmentMode = servicio.assignment_mode || 'all';
+    _weekdayModules = servicio.weekday_modules || {};
+    _dateSpecificModules = servicio.date_specific_modules || {};
+    window.moduleDateCupos = servicio.module_date_cupos || {};
+
+    // Reflejar el modo en la UI
+    if (typeof setAssignmentMode === 'function') {
+        setAssignmentMode(_assignmentMode);
+    }
+    if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
+        actualizarSelectorFechas();
+    }
+    if (typeof refrescarCheckboxesWeekday === 'function') {
+        refrescarCheckboxesWeekday();
+    }
+
+    // Cargar módulos desde disponibilidad
     if (servicio.disponibilidad && Object.keys(servicio.disponibilidad).length > 0) {
         const horaMap = {};
         Object.keys(servicio.disponibilidad).forEach(f => {
@@ -4382,9 +4421,8 @@ async function editarServicio(id) {
             });
         });
         Object.values(horaMap).forEach(h => serviceModules.push(h));
-        window.moduleDateCupos = {};
         Object.keys(servicio.disponibilidad || {}).forEach(fecha => {
-            window.moduleDateCupos[fecha] = {};
+            if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
             (servicio.disponibilidad[fecha] || []).forEach(mod => {
                 const hora = mod.hora || mod.startTime || '00:00';
                 window.moduleDateCupos[fecha][hora] = Number(mod.cupos || 0);
@@ -4407,21 +4445,28 @@ async function editarServicio(id) {
         updateDurationDisplay();
     }
 
+    // --- Establecer modo edición ---
+    editServiceId = id;
+
+    // === UX: navegar a la sección del formulario ===
+    if (typeof navigateTo === 'function') {
+        navigateTo('crear-servicio');
+    }
+    // Scroll suave al formulario
+    setTimeout(() => {
+        const formEl = document.getElementById('service-form');
+        if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+
+    // === UX: cambiar título de la sección ===
+    const titleEl = document.getElementById('section-title-servicio');
+    if (titleEl) {
+        titleEl.innerHTML = `<i class="fas fa-edit"></i> ✏️ Editando Servicio: <span style="color:var(--primary-light);">${servicio.nombre}</span>`;
+    }
+
     const form = document.getElementById('service-form');
     const submitBtn = form.querySelector('button[type="submit"]');
-
-    const originalSubmit = form.onsubmit;
-
-    form.onsubmit = function(e) {
-        e.preventDefault();
-        actualizarServicio(id);
-    };
-
-    submitBtn.innerHTML = '<i class="fas fa-save"></i> ACTUALIZAR SERVICIO';
-    submitBtn.onclick = function(e) {
-        e.preventDefault();
-        actualizarServicio(id);
-    };
+    submitBtn.innerHTML = '<i class="fas fa-save"></i> GUARDAR CAMBIOS';
 
     const formActions = document.querySelector('.form-actions');
     if (!document.getElementById('cancel-edit')) {
@@ -4431,7 +4476,7 @@ async function editarServicio(id) {
         cancelBtn.className = 'btn-secondary';
         cancelBtn.innerHTML = '<i class="fas fa-times"></i> Cancelar edición';
         cancelBtn.onclick = function() {
-            cancelarEdicion(originalSubmit);
+            cancelarEdicion();
         };
         formActions.appendChild(cancelBtn);
     }
@@ -4440,12 +4485,21 @@ async function editarServicio(id) {
 }
 window.editarServicio = editarServicio;
 
-async function actualizarServicio(id) {
+async function actualizarServicio() {
+    const id = editServiceId;
+    if (!id) {
+        mostrarMensaje("❌ No hay servicio en edición", "error");
+        limpiarEstadoEdicion();
+        return;
+    }
+    const submitBtn = document.querySelector('#service-form button[type="submit"]');
+
     const servicios = await ServiciosManager.getAll();
-    const index = servicios.findIndex(s => s.id === id);
+    const index = servicios.findIndex(s => String(s.id) === String(id));
 
     if (index === -1) {
         mostrarMensaje("Servicio no encontrado", "error");
+        limpiarEstadoEdicion();
         return;
     }
 
@@ -4467,14 +4521,7 @@ async function actualizarServicio(id) {
         return;
     }
 
-    // Mejora #5: duración desde input si existe
-    let duracion = getServiceDuration();
-    const durInput = document.getElementById('srv-duration');
-    if (durInput && durInput.value && Number(durInput.value) > 0) {
-        duracion = Number(durInput.value);
-    } else if (serviceModules.length > 0) {
-        duracion = window.serviceModules[0].duration || 60;
-    }
+    const duracion = getServiceDuration();
 
     const disponibilidadNueva = buildDisponibilidadFromForm();
 
@@ -4490,36 +4537,32 @@ async function actualizarServicio(id) {
         disponibilidad: disponibilidadNueva,
         fechas: Object.keys(disponibilidadNueva).sort(),
         fechaCreacion: servicios[index].fechaCreacion,
-        fechaActualizacion: new Date().toISOString()
+        fechaActualizacion: new Date().toISOString(),
+        // Preservar modos de asignación avanzados
+        assignment_mode: _assignmentMode,
+        weekday_modules: _weekdayModules,
+        date_specific_modules: _dateSpecificModules,
+        module_date_cupos: window.moduleDateCupos || {}
     };
 
-    await ServiciosManager.save(servicioActualizado);
+    try {
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...'; }
 
-    cancelarEdicion();
-    cargarServiciosExistentes();
+        await ServiciosManager.save(servicioActualizado);
+        mostrarMensaje(`✅ Servicio "${servicioActualizado.nombre}" actualizado correctamente`, "success");
 
-    mostrarMensaje(`✅ Servicio "${servicioActualizado.nombre}" actualizado correctamente`, "success");
+        limpiarEstadoEdicion();
+        cargarServiciosExistentes();
+        if (typeof navigateTo === 'function') {
+            navigateTo('mis-servicios');
+        }
+    } catch (e) {
+        console.error('Error actualizando servicio:', e);
+        mostrarMensaje('❌ Error al actualizar el servicio: ' + (e.message || 'Desconocido'), 'error');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-save"></i> GUARDAR CAMBIOS'; }
+    }
 }
 window.actualizarServicio = actualizarServicio;
-
-function cancelarEdicion() {
-    const form = document.getElementById('service-form');
-    form.reset();
-
-    const submitBtn = form.querySelector('button[type="submit"]');
-    submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> CREAR SERVICIO';
-    submitBtn.onclick = null;
-
-    const cancelBtn = document.getElementById('cancel-edit');
-    if (cancelBtn) {
-        cancelBtn.remove();
-    }
-
-    selectedDates.clear();
-    renderCalendar();
-    clearAllModules();
-}
-window.cancelarEdicion = cancelarEdicion;
 
 async function actualizarEstadisticas() {
     const servicios = await ServiciosManager.getAll();
@@ -4782,9 +4825,7 @@ const btnPrimerServicio = document.getElementById('create-first-service');
     const btnLimpiar = document.getElementById('discard-changes');
     if (btnLimpiar) {
         btnLimpiar.addEventListener('click', function() {
-            setTimeout(() => {
-                mostrarMensaje("Formulario limpiado", "info");
-            }, 100);
+            cancelarEdicion();
         });
     }
 }
@@ -5330,6 +5371,39 @@ let _selectedDateForModules = null;
 let _unsavedChanges = false;
 // Día activo en modo weekday
 let _currentEditingWeekday = null;
+// ============ ESTADO DE EDICIÓN ============
+// ID del servicio que se está editando (null = modo creación)
+let editServiceId = null;
+// Limpieza centralizada del estado de edición
+function limpiarEstadoEdicion() {
+    editServiceId = null;
+    const form = document.getElementById('service-form');
+    if (form) {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> CREAR SERVICIO';
+            submitBtn.disabled = false;
+        }
+        form.reset();
+    }
+    const cancelBtn = document.getElementById('cancel-edit');
+    if (cancelBtn) cancelBtn.remove();
+    // Restaurar variables globales de módulos a valores iniciales
+    selectedDates.clear();
+    _assignmentMode = 'all';
+    _weekdayModules = {};
+    _dateSpecificModules = {};
+    window.moduleDateCupos = {};
+    window.serviceModules = [];
+    if (typeof renderCalendar === 'function') renderCalendar();
+    if (typeof clearAllModules === 'function') clearAllModules();
+    // === UX: restaurar título de la sección ===
+    const titleEl = document.getElementById('section-title-servicio');
+    if (titleEl) {
+        titleEl.innerHTML = '<i class="fas fa-plus-circle"></i> Crear Nuevo Servicio';
+    }
+}
+window.limpiarEstadoEdicion = limpiarEstadoEdicion;
 
 /**
  * setAssignmentMode — cambia el modo de asignación de horarios
@@ -6064,7 +6138,7 @@ function haySolapamientoEnEditor(idx, startTime, endTime) {
 function generarModulosAutomaticos() {
     const count = parseInt(document.getElementById('module-count')?.value) || 3;
     const desde = document.getElementById('module-start-gen')?.value || '09:00';
-    const DURACION = 60;
+    const DURACION = getServiceDuration();
 
     // Validar
     if (count < 1) {
@@ -6844,15 +6918,16 @@ window.mostrarVistaPrevia = mostrarVistaPrevia;
 // Mejora #5 – getServiceDuration mejorada (lee servicio.duracion si existe)
 // ============================================
 function getServiceDuration() {
-    const durVal = document.getElementById('srv-duration');
-    if (durVal && durVal?.value && Number(durVal?.value) > 0) return Number(durVal?.value);
-    // Si hay servicio editándose con duración propia, usarla
-    const editingId = document.getElementById('editing-service-id');
-    if (editingId && editingId.value) {
-        const durHidden = document.getElementById('srv-duration-hidden');
-        if (durHidden && durHidden?.value) return Number(durHidden?.value);
+    const durInput = document.getElementById('srv-duration');
+    if (durInput && durInput.value) {
+        const parsed = parseInt(durInput.value, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
     }
-    if (window.serviceModules && window.serviceModules.length > 0) return window.serviceModules[0].duration || 60;
+    // Fallback: duración del primer módulo o 60
+    if (window.serviceModules && window.serviceModules.length > 0) {
+        const modDur = parseInt(window.serviceModules[0].duration, 10);
+        if (!isNaN(modDur) && modDur > 0) return modDur;
+    }
     return 60;
 }
 window.getServiceDuration = getServiceDuration;
@@ -6867,14 +6942,10 @@ function cancelarEdicion() {
     if (nombre || precio || selectedDates.size > 0 || serviceModules.length > 0) {
         if (!confirm('¿Descartar cambios? Los datos ingresados se perderán.')) return;
     }
-    const form = document.getElementById('service-form');
-    form.reset();
-    document.getElementById('btn-guardar').style.display = 'inline-block';
-    document.getElementById('btn-actualizar').style.display = 'none';
-    document.getElementById('editing-service-id').value = '';
-    selectedDates.clear();
-    clearAllModules();
-    renderCalendar();
+    limpiarEstadoEdicion();
+    if (typeof navigateTo === 'function') {
+        navigateTo('mis-servicios');
+    }
     mostrarMensaje('Edición cancelada', 'info');
 }
 window.cancelarEdicion = cancelarEdicion;
@@ -7044,15 +7115,16 @@ window.actualizarResumenEconomico = actualizarResumenEconomico;
 
 
 function getServiceDuration() {
-    const durVal = document.getElementById('srv-duration');
-    if (durVal && durVal?.value && Number(durVal?.value) > 0) return Number(durVal?.value);
-    // Si hay servicio editándose con duración propia, usarla
-    const editingId = document.getElementById('editing-service-id');
-    if (editingId && editingId.value) {
-        const durHidden = document.getElementById('srv-duration-hidden');
-        if (durHidden && durHidden?.value) return Number(durHidden?.value);
+    const durInput = document.getElementById('srv-duration');
+    if (durInput && durInput.value) {
+        const parsed = parseInt(durInput.value, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
     }
-    if (window.serviceModules && window.serviceModules.length > 0) return window.serviceModules[0].duration || 60;
+    // Fallback: duración del primer módulo o 60
+    if (window.serviceModules && window.serviceModules.length > 0) {
+        const modDur = parseInt(window.serviceModules[0].duration, 10);
+        if (!isNaN(modDur) && modDur > 0) return modDur;
+    }
     return 60;
 }
 window.getServiceDuration = getServiceDuration;
