@@ -4071,8 +4071,8 @@ async function abrirModalGestionSuscripcion(tenantId) {
     // === NUEVO: actualizar las opciones del select con los planes correctos ===
     document.getElementById('sub-plan').innerHTML = `
         <option value="freemium">Freemium</option>
-        <option value="pro">Pro ($5.000/mes)</option>
-        <option value="premium_anual">Premium Anual ($36.000/año)</option>
+        <option value="pro">Pro ($15.000/mes)</option>
+        <option value="premium_anual">Premium Anual ($140.000/año)</option>
     `;
     // ================================================================
     
@@ -4133,6 +4133,8 @@ async function guardarSuscripcion() {
         mostrarToast('Suscripción actualizada correctamente', 'success');
         document.getElementById('subscription-modal').style.display = 'none';
         await cargarTenants(); // refrescar lista
+        await cargarEstadisticasGlobales(); // refrescar contadores
+        await cargarMetricasGlobales(); // refrescar MRR y gráfico
     }
 }
 
@@ -4406,7 +4408,9 @@ async function eliminarTenant(id) {
     } else {
         mostrarToast('Tenant eliminado', 'success');
         await cargarTenants();
-        await cargarUsuarios();
+        await cargarEstadisticasGlobales();
+        await cargarMetricasGlobales();
+        if (typeof cargarUsuarios === 'function') await cargarUsuarios();
     }
 }
 
@@ -10026,14 +10030,17 @@ function esperarApisGlobales(timeout = 3000) {
     });
 }
 
-// --- Inicializar SuperAdmin (fallback si modulos no cargan) ---
+// --- Inicializar SuperAdmin: SIEMPRE poblar el DOM visible ---
 window.iniciarSuperAdmin = async function() {
+    // NOTA: Aunque los módulos ES estén cargados, el DOM visible de superadmin.html
+    // (stats, tenant cards, tabs, chart) NO se puebla automáticamente.
+    // SuperAdminView.js renderiza dentro de #superadmin-content (display:none),
+    // por lo que debemos ejecutar el fallback SIEMPRE para llenar los elementos visibles.
     if (window.__tenantsApi && window.__subscriptionsApi) {
-        // Sistema modular cargado, delegar a SuperAdminView.js
-        return;
+        console.log('[SuperAdmin] Modulos ES cargados, ejecutando fallback visible igualmente');
     }
     
-    // Fallback legacy: usar supabaseClient directamente
+    // Poblar el DOM visible con datos
     await cargarTenants();
     await cargarEstadisticasGlobales();
     await cargarMetricasGlobales();
@@ -10111,23 +10118,37 @@ async function cargarEstadisticasGlobales() {
 async function cargarMetricasGlobales() {
     if (!supabaseClient) return;
     try {
-        // 1. MRR via API de suscripciones
+        // 1. MRR via API de suscripciones (precios reales de planesData)
         const { data: subs } = await supabaseClient.from('subscriptions').select('plan, status');
         const activeSubs = (subs || []).filter(s => s.status === 'active');
         let mrr = 0;
-        let countPro = 0, countPremium = 0;
+        let totalPro = 0, totalPremiumAnual = 0, totalFreemium = 0;
         activeSubs.forEach(sub => {
-            if (sub.plan === 'pro') { mrr += 5000; countPro++; }
-            else if (sub.plan === 'premium_anual') { mrr += 3000; countPremium++; }
+            if (sub.plan === 'pro') { mrr += 15000; totalPro++; }
+            else if (sub.plan === 'premium_anual') { mrr += Math.round(140000 / 12); totalPremiumAnual++; }
+            else if (sub.plan === 'freemium') { totalFreemium++; }
         });
         const mrrEl = document.getElementById('mrr-value');
         if (mrrEl) mrrEl.textContent = '$' + mrr.toLocaleString();
         const planEl = document.getElementById('plan-breakdown');
-        if (planEl) planEl.innerHTML = `Pro: ${countPro} | Premium Anual: ${countPremium}`;
+        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000) | Premium Anual: ${totalPremiumAnual} (x $11.667/mes) | Freemium: ${totalFreemium}`;
 
         // 2. Evolución tenants (mensual)
         const { data: tenants } = await supabaseClient.from('tenants').select('fecha_registro');
-        if (!tenants || tenants.length === 0) return;
+        if (!tenants || tenants.length === 0) {
+            const chartContainer = document.querySelector('.chart-container');
+            if (chartContainer) {
+                const existingMsg = chartContainer.querySelector('.chart-empty-msg');
+                if (!existingMsg) {
+                    const msg = document.createElement('p');
+                    msg.className = 'chart-empty-msg';
+                    msg.style.cssText = 'color: var(--text-muted); text-align: center; padding: 20px;';
+                    msg.textContent = 'No hay tenants registrados para mostrar evolución';
+                    chartContainer.appendChild(msg);
+                }
+            }
+            return;
+        }
 
         const map = new Map();
         tenants.forEach(t => {
@@ -10140,36 +10161,73 @@ async function cargarMetricasGlobales() {
 
         const canvas = document.getElementById('tenants-evolution-chart');
         if (!canvas) return;
-        if (window.tenantsChart) window.tenantsChart.destroy();
-        canvas.removeAttribute('width');
-        canvas.removeAttribute('height');
+        if (window.tenantsChart) {
+            window.tenantsChart.destroy();
+            window.tenantsChart = null;
+        }
+        
+        // Chart.js responsive maneja las dimensiones automáticamente
+        canvas.style.display = 'block';
         canvas.style.width = '100%';
         canvas.style.height = '300px';
 
+        // Verificar que Chart.js esté cargado
+        if (typeof Chart === 'undefined') {
+            console.error('[cargarMetricasGlobales] Chart.js no está cargado');
+            const chartContainer = canvas.parentElement;
+            if (chartContainer) {
+                const existingMsg = chartContainer.querySelector('.chart-empty-msg');
+                if (!existingMsg) {
+                    const msg = document.createElement('p');
+                    msg.className = 'chart-empty-msg';
+                    msg.style.cssText = 'color: var(--danger); text-align: center; padding: 20px;';
+                    msg.textContent = 'Error: Chart.js no se pudo cargar. Verifica tu conexión.';
+                    chartContainer.appendChild(msg);
+                }
+            }
+            return;
+        }
+
         const ctx = canvas.getContext('2d');
         window.tenantsChart = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: sortedKeys,
                 datasets: [{
                     label: 'Tenants registrados',
                     data: counts,
+                    backgroundColor: 'rgba(179,0,255,0.7)',
                     borderColor: '#b300ff',
-                    backgroundColor: 'rgba(179,0,255,0.1)',
-                    fill: true,
-                    tension: 0.3
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.6
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { mode: 'index', intersect: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.parsed.y + ' tenant' + (ctx.parsed.y !== 1 ? 's' : '');
+                            }
+                        }
+                    }
                 },
                 scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0,
+                            stepSize: 1
+                        },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    },
                     x: {
-                        ticks: { maxRotation: 45, minRotation: 30, autoSkip: true }
+                        grid: { display: false },
+                        ticks: { maxRotation: 45, minRotation: 30 }
                     }
                 }
             }
@@ -10179,12 +10237,12 @@ async function cargarMetricasGlobales() {
     }
 }
 
-// --- Usuarios con acciones (reemplaza la tabla simple) ---
+// --- Usuarios con nombre de tenant (resuelve tenant_id → nombre_negocio) ---
 async function cargarUsuariosSuper() {
     const tbody = document.getElementById('users-list-body');
     if (!tbody) return;
     
-    tbody.innerHTML = '<tr><td colspan="5">Cargando...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">Cargando...</td></tr>';
     
     try {
         let users;
@@ -10201,8 +10259,25 @@ async function cargarUsuariosSuper() {
         }
         
         if (!users || users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6">No hay usuarios registrados</td></tr>';
             return;
+        }
+        
+        // Resolver tenant_ids a nombres de negocio
+        const tenantIds = [...new Set(users.map(u => u.tenant_id).filter(Boolean))];
+        let tenantMap = {};
+        if (tenantIds.length > 0) {
+            try {
+                const { data: tenants } = await supabaseClient
+                    .from('tenants')
+                    .select('id, nombre_negocio')
+                    .in('id', tenantIds);
+                if (tenants) {
+                    tenants.forEach(t => { tenantMap[t.id] = t.nombre_negocio; });
+                }
+            } catch (e) {
+                console.warn('[cargarUsuariosSuper] Error resolviendo nombres de tenants:', e);
+            }
         }
         
         let html = '';
@@ -10212,11 +10287,13 @@ async function cargarUsuariosSuper() {
             else if (user.rol === 'admin') rolBadge = '<span class="role-badge-admin">Admin</span>';
             else rolBadge = '<span class="role-badge-cliente">Cliente</span>';
             
+            const tenantNombre = user.tenant_id ? (tenantMap[user.tenant_id] || escapeHtml(user.tenant_id.slice(0,8)) + '…') : '<span class="text-muted">—</span>';
+            
             html += `<tr>
                 <td>${escapeHtml(user.email)}</td>
                 <td>${escapeHtml(user.nombre || '-')}</td>
                 <td>${rolBadge}</td>
-                <td>${escapeHtml(user.tenant_id || 'N/A')}</td>
+                <td style="font-size:0.85rem;">${tenantNombre}</td>
                 <td class="action-icons">
                     ${user.rol !== 'super_admin' ? `
                         <select onchange="cambiarRolUsuarioDirecto('${user.id}', this.value)" class="filter-select" style="padding:4px; width:100px;">
@@ -10234,7 +10311,7 @@ async function cargarUsuariosSuper() {
         
     } catch (error) {
         console.error('Error cargando usuarios:', error);
-        tbody.innerHTML = '<tr><td colspan="5">Error al cargar usuarios</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6">Error al cargar usuarios</td></tr>';
     }
 }
 
@@ -10562,7 +10639,7 @@ async function abrirModalEditarTenant(tenantId) {
         
         if (tenant) {
             document.getElementById('tenant-id').value = tenant.id;
-            document.getElementById('tenant-nombre').value = tenant.nombre;
+            document.getElementById('tenant-nombre').value = tenant.nombre_negocio;
             document.getElementById('tenant-email').value = tenant.email_contacto || '';
             document.getElementById('tenant-plan').value = tenant.plan || 'freemium';
             document.getElementById('tenant-estado').value = tenant.estado || 'activo';

@@ -12,7 +12,7 @@ export const PLANES = {
     },
     pro: {
         nombre: 'Pro',
-        precio: '$5.000',
+        precio: '$15.000',
         periodo: '/mes',
         features: ['Servicios ilimitados', 'Citas ilimitadas', 'Estadísticas avanzadas', 'Soporte prioritario'],
         color: '#b300ff',
@@ -20,7 +20,7 @@ export const PLANES = {
     },
     premium_anual: {
         nombre: 'Premium',
-        precio: '$36.000',
+        precio: '$140.000',
         periodo: '/año',
         features: ['Todo lo de Pro', 'Personalización de diseño', 'Onboarding dedicado', 'SLA 99.9%'],
         color: '#ffd700',

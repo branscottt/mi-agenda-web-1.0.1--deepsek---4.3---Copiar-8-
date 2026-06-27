@@ -6515,14 +6515,14 @@ input:-moz-autofill {
     }
 }
 
-/* Contenedor del gráfico de evolución - evitar estiramiento */
+/* Contenedor del gráfico de evolución - Chart.js maneja dimensiones */
 #tenants-evolution-chart {
     max-width: 100%;
-    height: auto !important;
 }
 .chart-container {
-    overflow-x: auto;
-    overflow-y: hidden;
+    width: 100%;
+    height: 340px;
+    overflow: hidden;
 }
 
 /* ===== CITAS PROGRAMADAS - CARDS MODERNAS ===== */
