@@ -4010,7 +4010,7 @@ async function cargarTenants() {
         const planDisplayNames = {
             'freemium': 'Freemium',
             'pro': 'Pro',
-            'premium_anual': 'Premium Anual'
+            'premium_anual': 'Premium'
         };
         
         let html = '';
@@ -4072,7 +4072,7 @@ async function abrirModalGestionSuscripcion(tenantId) {
     document.getElementById('sub-plan').innerHTML = `
         <option value="freemium">Freemium</option>
         <option value="pro">Pro ($15.000/mes)</option>
-        <option value="premium_anual">Premium Anual ($140.000/año)</option>
+        <option value="premium_anual">Premium ($140.000/año)</option>
     `;
     // ================================================================
     
@@ -4138,13 +4138,17 @@ async function guardarSuscripcion() {
     }
 }
 
-// Event listeners del modal
+// Event listeners del modal suscripción
 document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('subscription-modal');
     if (modal) {
         modal.querySelector('.modal-close').addEventListener('click', () => modal.style.display = 'none');
         document.getElementById('cancel-sub-modal')?.addEventListener('click', () => modal.style.display = 'none');
         document.getElementById('save-subscription')?.addEventListener('click', guardarSuscripcion);
+        // Cerrar al hacer clic fuera del contenido
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
     }
 });
 
@@ -4265,10 +4269,12 @@ function configurarModalTenant() {
     const cancelBtn = document.getElementById('cancel-modal');
     const form = document.getElementById('tenant-form');
     const btnNew = document.getElementById('btn-new-tenant');
+    const guardarBtn = document.getElementById('btn-guardar-tenant');
 
     // Función de cierre (única, reutilizable)
     const cerrarModal = () => {
         modal.style.display = 'none';
+        modal.removeAttribute('data-current-id');
         if (form) form.reset();
     };
 
@@ -4293,9 +4299,17 @@ function configurarModalTenant() {
         cancelBtn.addEventListener('click', cancelBtn._listener);
     }
 
+    // Cerrar al hacer clic fuera del contenido del modal (en el overlay)
+    removeOldEvents(modal, 'click');
+    modal._listener = (e) => {
+        if (e.target === modal) cerrarModal();
+    };
+    modal.addEventListener('click', modal._listener);
+
     // Abrir modal para nuevo tenant
     if (btnNew && !btnNew._listener) {
         const abrirNuevo = () => {
+            modal.removeAttribute('data-current-id');
             document.getElementById('modal-title').textContent = 'Nuevo Tenant';
             document.getElementById('tenant-id').value = '';
             document.getElementById('tenant-nombre').value = '';
@@ -4308,11 +4322,19 @@ function configurarModalTenant() {
         btnNew.addEventListener('click', btnNew._listener);
     }
 
-    // Manejo del formulario (crear/editar)
-    if (form && !form._listener) {
-        form._listener = async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('tenant-id').value;
+    // Manejo del botón Guardar (type="button" — no hay submit del form)
+    if (guardarBtn && !guardarBtn._listener) {
+        guardarBtn._listener = async () => {
+            const modal = document.getElementById('tenant-modal');
+            const id = document.getElementById('tenant-id').value || modal.dataset.currentId || '';
+            
+            // Validar ID antes de cualquier operación
+            console.log('[Guardar Tenant] ID:', id, '| modal.dataset.currentId:', modal.dataset.currentId);
+            if (!id) {
+                mostrarToast('Error: ID del tenant no válido. Intenta recargar la página.', 'error');
+                return;
+            }
+            
             const data = {
                 nombre_negocio: document.getElementById('tenant-nombre').value,
                 email_contacto: document.getElementById('tenant-email').value,
@@ -4321,39 +4343,48 @@ function configurarModalTenant() {
             };
 
             let result;
-            if (id) {
-                if (window.__tenantsApi?.update) {
-                    result = await window.__tenantsApi.update(id, data);
+            try {
+                if (id) {
+                    if (window.__tenantsApi?.update) {
+                        result = await window.__tenantsApi.update(id, data);
+                    } else {
+                        const { error } = await supabaseClient
+                            .from('tenants')
+                            .update(data)
+                            .eq('id', id);
+                        result = error ? { error } : { data: true };
+                    }
                 } else {
-                    const { error } = await supabaseClient
-                        .from('tenants')
-                        .update(data)
-                        .eq('id', id);
-                    result = error ? { error } : { data: true };
+                    data.fecha_registro = new Date().toISOString();
+                    if (window.__tenantsApi?.create) {
+                        result = await window.__tenantsApi.create(data);
+                    } else {
+                        const { error } = await supabaseClient
+                            .from('tenants')
+                            .insert(data);
+                        result = error ? { error } : { data: true };
+                    }
                 }
-            } else {
-                data.fecha_registro = new Date().toISOString();
-                if (window.__tenantsApi?.create) {
-                    result = await window.__tenantsApi.create(data);
-                } else {
-                    const { error } = await supabaseClient
-                        .from('tenants')
-                        .insert(data);
-                    result = error ? { error } : { data: true };
-                }
+            } catch (e) {
+                console.error('[configurarModalTenant] Excepción:', e);
+                mostrarToast('Error de red: ' + (e.message || 'Error inesperado'), 'error');
+                return;
             }
 
-            if (result.error) {
-                mostrarToast('Error: ' + result.error.message, 'error');
+            if (result?.error) {
+                console.error('[Guardar Tenant] Error en UPDATE:', result.error);
+                mostrarToast('Error: ' + (result.error.message || 'Error desconocido'), 'error');
             } else {
-                mostrarToast(id ? 'Tenant actualizado' : 'Tenant creado', 'success');
+                mostrarToast(id ? 'Tenant actualizado correctamente' : 'Tenant creado correctamente', 'success');
                 cerrarModal();
-                if (typeof cargarTenants === 'function') await cargarTenants();
-                if (typeof cargarUsuarios === 'function') await cargarUsuarios();
-                if (typeof cargarEstadisticasGlobales === 'function') await cargarEstadisticasGlobales();
+                // Refrescar datos — cada función con try/catch individual para no propagar errores
+                try { if (typeof cargarTenants === 'function') await cargarTenants(); } catch (e) { console.warn('[refresh] cargarTenants falló:', e); }
+                try { if (typeof cargarUsuarios === 'function') await cargarUsuarios(); } catch (e) { console.warn('[refresh] cargarUsuarios falló:', e); }
+                try { if (typeof cargarEstadisticasGlobales === 'function') await cargarEstadisticasGlobales(); } catch (e) { console.warn('[refresh] cargarEstadisticasGlobales falló:', e); }
+                try { if (typeof cargarMetricasGlobales === 'function') await cargarMetricasGlobales(); } catch (e) { console.warn('[refresh] cargarMetricasGlobales falló:', e); }
             }
         };
-        form.addEventListener('submit', form._listener);
+        guardarBtn.addEventListener('click', guardarBtn._listener);
     }
 
     modalTenantInitialized = true;
@@ -4391,22 +4422,32 @@ async function editarTenant(id) {
 }
 
 async function eliminarTenant(id) {
-    if (!confirm('¿Eliminar este tenant? Se perderán todos sus servicios y citas.')) return;
-    let error;
-    if (window.__tenantsApi?.delete) {
-        const result = await window.__tenantsApi.delete(id);
-        error = result.error;
-    } else {
-        const result = await supabaseClient
-            .from('tenants')
-            .delete()
-            .eq('id', id);
-        error = result.error;
+    if (!id) return;
+    if (!confirm('¿Eliminar este tenant? Se perderán todos sus servicios, citas y suscripciones. Esta acción no se puede deshacer.')) return;
+    
+    let error = null;
+    try {
+        if (window.__tenantsApi?.delete) {
+            const result = await window.__tenantsApi.delete(id);
+            error = result?.error || null;
+        } else {
+            const { error: err } = await supabaseClient
+                .from('tenants')
+                .delete()
+                .eq('id', id);
+            error = err || null;
+        }
+    } catch (e) {
+        console.error('[eliminarTenant] Excepción:', e);
+        mostrarToast('Error al eliminar: ' + (e.message || 'Error de red'), 'error');
+        return;
     }
+    
     if (error) {
-        mostrarToast('Error: ' + error.message, 'error');
+        console.error('[eliminarTenant] Error de BD:', error);
+        mostrarToast('Error: ' + (error.message || 'Permiso denegado por RLS'), 'error');
     } else {
-        mostrarToast('Tenant eliminado', 'success');
+        mostrarToast('Tenant eliminado correctamente', 'success');
         await cargarTenants();
         await cargarEstadisticasGlobales();
         await cargarMetricasGlobales();
@@ -10040,6 +10081,9 @@ window.iniciarSuperAdmin = async function() {
         console.log('[SuperAdmin] Modulos ES cargados, ejecutando fallback visible igualmente');
     }
     
+    // Configurar eventos del modal ANTES de poblar datos
+    configurarModalTenant();
+    
     // Poblar el DOM visible con datos
     await cargarTenants();
     await cargarEstadisticasGlobales();
@@ -10131,7 +10175,7 @@ async function cargarMetricasGlobales() {
         const mrrEl = document.getElementById('mrr-value');
         if (mrrEl) mrrEl.textContent = '$' + mrr.toLocaleString();
         const planEl = document.getElementById('plan-breakdown');
-        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000) | Premium Anual: ${totalPremiumAnual} (x $11.667/mes) | Freemium: ${totalFreemium}`;
+        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000) | Premium: ${totalPremiumAnual} (x $11.667/mes) | Freemium: ${totalFreemium}`;
 
         // 2. Evolución tenants (mensual)
         const { data: tenants } = await supabaseClient.from('tenants').select('fecha_registro');
@@ -10629,25 +10673,31 @@ async function abrirModalAplicarCSS(solicitudId, tenantId) {
 
 // Función auxiliar para abrir modal con datos del tenant (si no existe)
 async function abrirModalEditarTenant(tenantId) {
-    // Asumiendo que ya tienes una función que maneja el modal, aquí solo un ejemplo:
     try {
-        const { data: tenant } = await supabaseClient
+        const { data: tenant, error } = await supabaseClient
             .from('tenants')
             .select('*')
             .eq('id', tenantId)
             .single();
         
+        if (error) throw error;
+        
         if (tenant) {
+            const modal = document.getElementById('tenant-modal');
             document.getElementById('tenant-id').value = tenant.id;
-            document.getElementById('tenant-nombre').value = tenant.nombre_negocio;
+            modal.dataset.currentId = tenant.id;
+            document.getElementById('tenant-nombre').value = tenant.nombre_negocio || '';
             document.getElementById('tenant-email').value = tenant.email_contacto || '';
             document.getElementById('tenant-plan').value = tenant.plan || 'freemium';
             document.getElementById('tenant-estado').value = tenant.estado || 'activo';
             document.getElementById('modal-title').textContent = 'Editar Tenant';
             document.getElementById('tenant-modal').style.display = 'flex';
+        } else {
+            mostrarToast('No se encontraron datos del tenant', 'error');
         }
     } catch (error) {
-        console.error('Error abriendo modal:', error);
+        console.error('[abrirModalEditarTenant] Error:', error);
+        mostrarToast('Error al cargar datos del tenant: ' + (error.message || 'Error de red'), 'error');
     }
 }
 

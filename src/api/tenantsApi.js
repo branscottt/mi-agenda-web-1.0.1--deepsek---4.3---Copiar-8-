@@ -45,14 +45,12 @@ export async function createTenant(data) {
 }
 
 export async function updateTenant(id, updates) {
-    const { data, error } = await getSupabase()
+    const { error } = await getSupabase()
         .from(TABLE)
         .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
     if (error) throw error;
-    return data;
+    return true;
 }
 
 export async function deleteTenant(id) {
