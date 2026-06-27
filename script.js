@@ -4375,6 +4375,42 @@ function configurarModalTenant() {
                 console.error('[Guardar Tenant] Error en UPDATE:', result.error);
                 mostrarToast('Error: ' + (result.error.message || 'Error desconocido'), 'error');
             } else {
+                // Si se cambió el plan, sincronizar también la suscripción activa
+                if (id && data.plan) {
+                    try {
+                        // Buscar suscripción activa existente
+                        const { data: existingSubs } = await supabaseClient
+                            .from('subscriptions')
+                            .select('id, plan, status')
+                            .eq('tenant_id', id)
+                            .eq('status', 'active');
+                        const activeSub = existingSubs?.[0];
+                        
+                        if (activeSub && activeSub.plan !== data.plan) {
+                            // Actualizar plan de la suscripción activa
+                            await supabaseClient
+                                .from('subscriptions')
+                                .update({ plan: data.plan })
+                                .eq('id', activeSub.id);
+                            console.log('[Guardar Tenant] Subscripción sincronizada al plan:', data.plan);
+                        } else if (!activeSub) {
+                            // Crear nueva suscripción si no hay una activa
+                            await supabaseClient
+                                .from('subscriptions')
+                                .insert({
+                                    tenant_id: id,
+                                    plan: data.plan,
+                                    status: 'active',
+                                    start_date: new Date().toISOString()
+                                });
+                            console.log('[Guardar Tenant] Nueva subscripción creada:', data.plan);
+                        }
+                    } catch (subError) {
+                        console.warn('[Guardar Tenant] Error sincronizando subscripción:', subError);
+                        // No bloqueamos el flujo principal por un error de suscripción
+                    }
+                }
+                
                 mostrarToast(id ? 'Tenant actualizado correctamente' : 'Tenant creado correctamente', 'success');
                 cerrarModal();
                 // Refrescar datos — cada función con try/catch individual para no propagar errores
