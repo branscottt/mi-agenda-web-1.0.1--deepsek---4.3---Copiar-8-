@@ -3595,6 +3595,39 @@ async function iniciarAdmin() {
         console.warn('Error obteniendo suscripción:', e);
     }
 
+    // ========== VERIFICAR EXPIRACIÓN DE SUSCRIPCIÓN ==========
+    // Si la suscripción tiene end_date en el pasado, el tenant queda bloqueado
+    // hasta que el superadmin o el usuario renueve.
+    if (suscripcion && suscripcion.end_date) {
+        const ahora = new Date();
+        const fin = new Date(suscripcion.end_date);
+        if (fin < ahora) {
+            console.log('[Admin] Suscripción expirada el', suscripcion.end_date);
+            // Mostrar pantalla de bloqueo
+            const adminContent = document.querySelector('.admin-screen') || document.querySelector('.glass-panel');
+            if (adminContent) {
+                adminContent.innerHTML = `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; text-align:center; padding:40px;">
+                        <i class="fas fa-exclamation-triangle" style="font-size:5rem; color:#ffc107; margin-bottom:20px;"></i>
+                        <h2 style="color:white; margin-bottom:10px;">Tu suscripción ha expirado</h2>
+                        <p style="color:#b0b0b0; font-size:1.1rem; max-width:500px; margin-bottom:25px;">
+                            El plan <strong>${suscripcion.plan === 'pro' ? 'Pro' : 'Premium'}</strong> finalizó el ${fin.toLocaleDateString()}.
+                            Para seguir usando todas las funciones, debes renovar tu plan.
+                        </p>
+                        <a href="planes.html" class="btn-grad" style="padding:14px 40px; font-size:1.1rem; text-decoration:none;">
+                            <i class="fas fa-credit-card"></i> Ver planes disponibles
+                        </a>
+                    </div>
+                `;
+            }
+            // Ocultar navegación del admin
+            const sidebar = document.querySelector('.admin-sidebar, .sidebar');
+            if (sidebar) sidebar.style.display = 'none';
+            return; // Detener toda la inicialización del admin
+        }
+    }
+    // ==========================================================
+
     const allCustomFields = [
         'cfg-primary', 'cfg-secondary', 'cfg-bg', 'cfg-text', 'cfg-card', 'cfg-border',
         'cfg-theme-mode', 'cfg-font', 'cfg-radius', 'cfg-anim-speed',
