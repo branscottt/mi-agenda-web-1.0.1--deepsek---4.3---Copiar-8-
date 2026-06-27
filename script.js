@@ -10198,20 +10198,20 @@ async function cargarEstadisticasGlobales() {
 async function cargarMetricasGlobales() {
     if (!supabaseClient) return;
     try {
-        // 1. MRR via API de suscripciones (precios reales de planesData)
+        // 1. Ingresos por suscripciones activas (precios reales de planesData)
         const { data: subs } = await supabaseClient.from('subscriptions').select('plan, status');
         const activeSubs = (subs || []).filter(s => s.status === 'active');
-        let mrr = 0;
+        let ingresos = 0;
         let totalPro = 0, totalPremiumAnual = 0, totalFreemium = 0;
         activeSubs.forEach(sub => {
-            if (sub.plan === 'pro') { mrr += 15000; totalPro++; }
-            else if (sub.plan === 'premium_anual') { mrr += Math.round(140000 / 12); totalPremiumAnual++; }
+            if (sub.plan === 'pro') { ingresos += 15000; totalPro++; }
+            else if (sub.plan === 'premium_anual') { ingresos += 140000; totalPremiumAnual++; }
             else if (sub.plan === 'freemium') { totalFreemium++; }
         });
         const mrrEl = document.getElementById('mrr-value');
-        if (mrrEl) mrrEl.textContent = '$' + mrr.toLocaleString();
+        if (mrrEl) mrrEl.textContent = '$' + ingresos.toLocaleString();
         const planEl = document.getElementById('plan-breakdown');
-        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000) | Premium: ${totalPremiumAnual} (x $11.667/mes) | Freemium: ${totalFreemium}`;
+        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000/mes) | Premium: ${totalPremiumAnual} (x $140.000/año) | Freemium: ${totalFreemium}`;
 
         // 2. Evolución tenants (mensual)
         const { data: tenants } = await supabaseClient.from('tenants').select('fecha_registro');
