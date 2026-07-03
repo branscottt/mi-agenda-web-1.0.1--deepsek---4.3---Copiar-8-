@@ -13,9 +13,6 @@
         <!-- Header -->
         <header class="client-header">
             <div class="header-left">
-                <a href="login.html" class="btn-back">
-                    <i class="fas fa-arrow-left"></i> Volver a Login
-                </a>
                 <h1><i class="fas fa-shopping-bag"></i> Catálogo de Servicios</h1>
                 <img id="tenant-logo" src="" alt="Logo" style="height: 40px; display: none;">
             </div>
@@ -30,10 +27,6 @@
                         <span>Cliente Demo</span>
                     </div>
                 </div>
-                
-                <a href="admin.html" class="btn-grad admin-access">
-                    <i class="fas fa-user-shield"></i> Acceso Admin
-                </a>
                 <button id="logout-btn" class="btn-small" onclick="cerrarSesion()" title="Cerrar sesión" style="margin-left:10px;">
                     <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
                 </button>
@@ -110,26 +103,10 @@
                 <!-- Navegación entre pantallas -->
                 <div class="screen-navigation">
                     <div class="nav-cards vertical">
-                        <a href="login.html" class="nav-card">
-                            <div class="nav-number">1</div>
-                            <div>
-                                <h4>Login/Registro</h4>
-                                <p><i class="fas fa-arrow-left"></i> Volver</p>
-                            </div>
-                        </a>
-                        
-                        <a href="admin.html" class="nav-card">
-                            <div class="nav-number">2</div>
-                            <div>
-                                <h4>Panel Admin</h4>
-                                <p><i class="fas fa-arrow-left"></i> Ir a Admin</p>
-                            </div>
-                        </a>
-                        
                         <div class="nav-card current">
-                            <div class="nav-number">3</div>
+                            <div class="nav-number"><i class="fas fa-store"></i></div>
                             <div>
-                                <h4>Vista Cliente</h4>
+                                <h4>Catálogo de Servicios</h4>
                                 <p>Pantalla actual</p>
                             </div>
                         </div>
