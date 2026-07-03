@@ -37,13 +37,23 @@ export async function getSession() {
 
 /**
  * Obtiene el tenant_id desde el JWT cacheado (sin llamar a Supabase).
+ * Si no hay JWT, fallback a window.__clientTenantId (para clientes sin Auth).
  */
 export async function getCurrentTenantId() {
+    // 1. Intentar desde JWT
     const userData = JwtManager.getUserData();
-    if (!userData || !userData.tenant_id) return null;
-    const cleanId = userData.tenant_id.trim();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(cleanId) ? cleanId : null;
+    if (userData && userData.tenant_id) {
+        const cleanId = userData.tenant_id.trim();
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(cleanId)) return cleanId;
+    }
+
+    // 2. Fallback: tenant_id de cliente externo (sesión local, seteado por ClientSession)
+    if (window.__clientTenantId) {
+        return window.__clientTenantId;
+    }
+
+    return null;
 }
 
 /**

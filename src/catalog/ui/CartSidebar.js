@@ -5,7 +5,6 @@
 import { getCarrito, suscribirseCarrito, quitarDelCarrito, vaciarCarrito, totalCarrito, confirmarReserva } from '../application/CatalogService.js';
 import { formatearDinero, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { getSession } from '../../shared/infrastructure/router.js';
 
 let _sidebarAbierto = false;
 
@@ -99,10 +98,9 @@ function renderCart(items) {
 }
 
 async function handleCheckout() {
-    const session = await getSession();
+    const session = window.getClienteSession ? window.getClienteSession() : null;
     if (!session) {
-        mostrarToast('Debes iniciar sesion', 'error');
-        window.location.href = 'login.html';
+        mostrarToast('Debes ingresar tus datos primero', 'error');
         return;
     }
 
@@ -115,7 +113,7 @@ async function handleCheckout() {
     const contacto = {
         nombre: session.nombre || 'Cliente',
         email: session.email || '',
-        telefono: session.user_metadata?.whatsapp || ''
+        telefono: session.whatsapp || ''
     };
 
     const btn = document.getElementById('cart-checkout-btn');

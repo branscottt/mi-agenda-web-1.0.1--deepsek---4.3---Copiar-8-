@@ -175,18 +175,44 @@ async function syncJwtSession() {
 
         if (esCliente) {
             try {
-                const { renderCatalogo } = await import('./catalog/ui/CatalogPage.js');
-                renderCatalogo('client-services-grid');
+                // 1. Inicializar sesión del cliente (formulario nombre/email/whatsapp)
+                const { initClientSession, getClienteSession } = await import('./clients/ui/ClientSession.js');
+                window.getClienteSession = getClienteSession;
 
-                const { initCartSidebar } = await import('./catalog/ui/CartSidebar.js');
-                initCartSidebar('cart-sidebar');
+                initClientSession(async (session) => {
+                    // 2. Setear tenant_id global para que getCurrentTenantId() funcione
+                    //    incluso sin sesión Supabase Auth (clientes externos)
+                    if (session && session.tenant_id) {
+                        window.__clientTenantId = session.tenant_id;
+                        console.log('[main.js] tenant_id de cliente:', session.tenant_id);
+                    }
 
-                const { renderMisReservas } = await import('./appointments/ui/ClientReservationList.js');
-                renderMisReservas('mis-reservas-list');
+                    // 3. Una vez que el cliente ingresó sus datos, cargar el catálogo
+                    try {
+                        const { renderCatalogo } = await import('./catalog/ui/CatalogPage.js');
+                        renderCatalogo('client-services-grid');
+                    } catch (e) {
+                        console.warn('[main.js] CatalogPage no disponible:', e.message);
+                    }
 
-                console.log('[main.js] Modulos cliente cargados correctamente');
+                    try {
+                        const { initCartSidebar } = await import('./catalog/ui/CartSidebar.js');
+                        initCartSidebar('cart-sidebar');
+                    } catch (e) {
+                        console.warn('[main.js] CartSidebar no disponible:', e.message);
+                    }
+
+                    try {
+                        const { renderMisReservas } = await import('./appointments/ui/ClientReservationList.js');
+                        renderMisReservas('mis-reservas-list');
+                    } catch (e) {
+                        console.warn('[main.js] ClientReservationList no disponible:', e.message);
+                    }
+
+                    console.log('[main.js] Modulos cliente cargados correctamente');
+                });
             } catch (e) {
-                console.warn('[main.js] Modulos cliente no disponibles:', e.message);
+                console.warn('[main.js] Error en inicialización cliente:', e.message);
             }
         }
 

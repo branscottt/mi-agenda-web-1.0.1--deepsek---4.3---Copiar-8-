@@ -7913,16 +7913,29 @@ async function _renderCitasBase(contenedorId, opciones = {}) {
     const todas = await CitasManager.getAll();
 
     let citas = todas;
-    if (soloUsuario && session) {
-        citas = todas.filter(c => {
-            if (session.id && c.contacto?.userId) {
-                return String(c.contacto.userId) === String(session.id);
-            }
-            if (session.nombre && c.contacto?.nombre) {
-                return String(c.contacto.nombre).trim().toLowerCase() === String(session.nombre).trim().toLowerCase();
-            }
-            return false;
-        });
+    if (soloUsuario) {
+        // PRIORIDAD 1: Sesión local (cliente del link compartido) — filtrar por email
+        if (window.__clienteSession && window.__clienteSession.email) {
+            const emailCliente = window.__clienteSession.email.toLowerCase().trim();
+            citas = todas.filter(c => {
+                const cEmail = (c.contacto?.email || '').toLowerCase().trim();
+                return cEmail === emailCliente;
+            });
+        // PRIORIDAD 2: Sesión Supabase Auth
+        } else if (session) {
+            citas = todas.filter(c => {
+                if (session.id && c.contacto?.userId) {
+                    return String(c.contacto.userId) === String(session.id);
+                }
+                if (session.nombre && c.contacto?.nombre) {
+                    return String(c.contacto.nombre).trim().toLowerCase() === String(session.nombre).trim().toLowerCase();
+                }
+                return false;
+            });
+        } else {
+            // Sin sesión: no mostrar nada
+            citas = [];
+        }
     }
 
     if (citas.length === 0) {
@@ -8170,13 +8183,110 @@ window.renderMisReservas = renderMisReservas;
 // ============================================
 // FUNCIONES DE CLIENTE (modificadas para async)
 // ============================================
+
+// ── Sesión local del cliente (sessionStorage) ──
+const SESSION_KEY = 'agenda_cliente_session';
+
+function getClienteSession() {
+    try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+
+function setClienteSession(data) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+}
+
+function clearClienteSession() {
+    sessionStorage.removeItem(SESSION_KEY);
+}
+
+/**
+ * Muestra formulario de registro para clientes externos (sin Auth).
+ */
+function mostrarFormularioCliente(onCompletado) {
+    let overlay = document.getElementById('cliente-registro-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'cliente-registro-overlay';
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-content glass-panel cliente-registro-modal">
+                <div class="cliente-registro-icon">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <h2>¡Bienvenido!</h2>
+                <p class="muted">Ingresa tus datos para comenzar a reservar servicios</p>
+                <form id="cliente-registro-form" class="form-group" autocomplete="off">
+                    <div class="input-with-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="cliente-registro-nombre" placeholder="Tu nombre*" required>
+                    </div>
+                    <div class="input-with-icon">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="cliente-registro-email" placeholder="Tu correo electrónico*" required>
+                    </div>
+                    <div class="input-with-icon">
+                        <i class="fab fa-whatsapp"></i>
+                        <input type="tel" id="cliente-registro-whatsapp" placeholder="Tu WhatsApp (ej: +569****5678)">
+                    </div>
+                    <button type="submit" class="btn-grad btn-full">
+                        <i class="fas fa-arrow-right"></i> Ingresar al catálogo
+                    </button>
+                </form>
+                <p class="muted small" style="margin-top:12px;font-size:0.75rem;">
+                    <i class="fas fa-shield-alt"></i> Tus datos solo se usan para tus reservas.
+                    Al cerrar la pestaña la sesión se elimina.
+                </p>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    }
+
+    overlay.style.display = 'flex';
+
+    const form = document.getElementById('cliente-registro-form');
+    const nombreInput = document.getElementById('cliente-registro-nombre');
+    const emailInput = document.getElementById('cliente-registro-email');
+    const whatsappInput = document.getElementById('cliente-registro-whatsapp');
+
+    form.onsubmit = (e) => {
+        e.preventDefault();
+        const nombre = nombreInput.value.trim();
+        const email = emailInput.value.trim();
+        const whatsapp = whatsappInput.value.trim();
+        if (!nombre || !email) { mostrarToast('Completa nombre y correo', 'warning'); return; }
+
+        const sessionData = { nombre, email, whatsapp };
+        setClienteSession(sessionData);
+        window.__clienteSession = sessionData;
+        overlay.style.display = 'none';
+
+        // Pre-llenar campos del popup de reserva si ya existen
+        const nombreField = document.getElementById('cliente-nombre');
+        if (nombreField) nombreField.value = nombre;
+        const telField = document.getElementById('cliente-tel');
+        if (telField) telField.value = whatsapp;
+        const emailField = document.getElementById('cliente-email');
+        if (emailField) emailField.value = email;
+
+        // Actualizar header
+        const userSpan = document.querySelector('.user-info.client span');
+        if (userSpan) userSpan.textContent = nombre;
+
+        if (typeof onCompletado === 'function') onCompletado(sessionData);
+    };
+
+    setTimeout(() => nombreInput?.focus(), 300);
+}
 async function iniciarCliente() {
     console.log('[iniciarCliente] Inicializando vista cliente...');
 
     // 1. Obtener tenant_id (prioridad: currentTenantId > URL > sesion > primer tenant)
     let tenantId = window.currentTenantId || null;
+    const urlParams = new URLSearchParams(window.location.search);
     if (!tenantId) {
-        const urlParams = new URLSearchParams(window.location.search);
         tenantId = urlParams.get('tenant_id') || urlParams.get('tenant');
     }
     if (!tenantId) {
@@ -8242,10 +8352,48 @@ async function iniciarCliente() {
     configurarFiltroFecha();
     configurarBotonesExportacion();
 
+    // Determinar si es cliente externo (viene del link compartido con ?tenant=)
+    const vieneDeLinkCompartido = urlParams.has('tenant') || urlParams.has('tenant_id');
+
     // Verificar sesión – cargar datos adicionales si el usuario está logueado
     const session = await getSession();
+
+    // Si viene del link compartido (?tenant=XXX): SIEMPRE mostrar formulario de registro
+    // Sin importar si hay sesión Supabase (el admin probando el link también debe ver el form)
+    if (vieneDeLinkCompartido) {
+        console.log('[iniciarCliente] Link compartido detectado. Activando sesión local...');
+
+        // 🔄 Limpiar cualquier sesión anterior para empezar fresco
+        clearClienteSession();
+        window.__clienteSession = null;
+        window.__skipClientRender = true; // Evitar que DOMContentLoaded renderice carrito/reservas
+
+        // 🔒 Limpiar carrito y reservas VISIBLEMENTE
+        const cartContainer = document.querySelector('.cart-items');
+        if (cartContainer) cartContainer.innerHTML = '<div style="padding:10px;text-align:center;color:#666;font-size:0.85rem;">Completa tus datos para ver tus reservas</div>';
+        const reservasContainer = document.getElementById('mis-reservas-list');
+        if (reservasContainer) reservasContainer.innerHTML = '';
+        // Resetear total del carrito a $0
+        const totalElement = document.querySelector('.cart-total strong');
+        if (totalElement) totalElement.textContent = '$0';
+
+        // Ocultar botón de cerrar sesión
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) logoutBtn.style.display = 'none';
+
+        // Mostrar formulario de registro
+        mostrarFormularioCliente((datos) => {
+            console.log('[iniciarCliente] Cliente registrado:', datos.nombre);
+            window.__skipClientRender = false;
+            if (typeof renderMisReservas === 'function') renderMisReservas();
+            if (typeof renderCarrito === 'function') renderCarrito();
+        });
+        return;
+    }
+
+    // Sin sesión y sin ?tenant= — modo anónimo legacy
     if (!session) {
-        console.log('[iniciarCliente] Sin sesión. Funcionando en modo anónimo.');
+        console.log('[iniciarCliente] Sin sesión. Funcionando en modo anónimo legacy.');
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión / Registrarse';
@@ -9016,6 +9164,20 @@ window.validarFormularioReserva = validarFormularioReserva;
 
 async function aplicarSesionAModal(popupRef) {
     try{
+        // PRIORIDAD: sesión local del cliente (link compartido)
+        // Siempre gana sobre la sesión Supabase, así el cliente ve sus datos y no los del admin
+        if (window.__clienteSession && window.__clienteSession.email) {
+            const nombreEl = document.getElementById('cliente-nombre');
+            const telEl = document.getElementById('cliente-tel');
+            const emailEl = document.getElementById('cliente-email');
+
+            if(nombreEl){ nombreEl.value = window.__clienteSession.nombre || ''; nombreEl.readOnly = false; nombreEl.style.opacity = '1'; }
+            if(emailEl){ emailEl.value = window.__clienteSession.email || ''; emailEl.readOnly = false; emailEl.style.opacity = '1'; emailEl.required = true; }
+            if(telEl){ telEl.value = window.__clienteSession.whatsapp || ''; telEl.readOnly = false; telEl.style.opacity = '1'; }
+            if(popupRef) delete popupRef.dataset.userId;
+            return;
+        }
+
         const session = await getSession();
 
         const nombreEl = document.getElementById('cliente-nombre');
@@ -9046,9 +9208,29 @@ async function aplicarSesionAModal(popupRef) {
             if(telEl){ telEl.readOnly = false; telEl.style.opacity = '1'; }
             if(popupRef && session.id) popupRef.dataset.userId = String(session.id);
         } else {
-            if(nombreEl){ const rnd = Math.floor(Math.random()*9000) + 1000; nombreEl.value = `Invitado #${rnd}`; nombreEl.readOnly = false; nombreEl.style.opacity = '1'; }
-            if(emailEl){ emailEl.value = ''; emailEl.readOnly = false; emailEl.style.opacity = '1'; emailEl.required = true; }
-            if(telEl){ telEl.readOnly = false; telEl.style.opacity = '1'; }
+            // Sin sesión Supabase — usar sesión local (cliente del link compartido)
+            if(window.__clienteSession){
+                if(nombreEl){
+                    nombreEl.value = window.__clienteSession.nombre || '';
+                    nombreEl.readOnly = false;
+                    nombreEl.style.opacity = '1';
+                }
+                if(emailEl){
+                    emailEl.value = window.__clienteSession.email || '';
+                    emailEl.readOnly = false;
+                    emailEl.style.opacity = '1';
+                    emailEl.required = true;
+                }
+                if(telEl){
+                    telEl.value = window.__clienteSession.whatsapp || '';
+                    telEl.readOnly = false;
+                    telEl.style.opacity = '1';
+                }
+            } else {
+                if(nombreEl){ const rnd = Math.floor(Math.random()*9000) + 1000; nombreEl.value = `Invitado #${rnd}`; nombreEl.readOnly = false; nombreEl.style.opacity = '1'; }
+                if(emailEl){ emailEl.value = ''; emailEl.readOnly = false; emailEl.style.opacity = '1'; emailEl.required = true; }
+                if(telEl){ telEl.readOnly = false; telEl.style.opacity = '1'; }
+            }
             if(popupRef) delete popupRef.dataset.userId;
         }
 
@@ -9205,9 +9387,9 @@ async function confirmarReserva(e) {
 
     const horaTexto = formatTimeDisplay(modulo.hora || modulo.startTime || '00:00');
 
-    const clienteNombre = document.getElementById('cliente-nombre')?.value?.trim() || '';
-    const clienteTel = document.getElementById('cliente-tel')?.value?.trim() || '';
-    const clienteEmail = document.getElementById('cliente-email')?.value?.trim() || '';
+    const clienteNombre = document.getElementById('cliente-nombre')?.value?.trim() || (window.__clienteSession?.nombre || '');
+    const clienteTel = document.getElementById('cliente-tel')?.value?.trim() || (window.__clienteSession?.whatsapp || '');
+    const clienteEmail = document.getElementById('cliente-email')?.value?.trim() || (window.__clienteSession?.email || '');
     const session = await getSession();
     const userId = session?.id || null;
 
@@ -9794,17 +9976,25 @@ async function renderCarrito() {
             return;
         }
 
+        // Filtrar citas del cliente actual
         const citasUsuario = citas.filter(c => {
-            if (userId && c.contacto?.userId) {
-                return String(c.contacto.userId) === String(userId);
+            // PRIORIDAD 1: Sesión local del cliente (formulario de registro)
+            // Esto funciona incluso si el admin está logueado en Supabase probando el link
+            if (window.__clienteSession && window.__clienteSession.email) {
+                const emailCliente = window.__clienteSession.email.toLowerCase().trim();
+                const cEmail = (c.contacto?.email || '').toLowerCase().trim();
+                return cEmail === emailCliente;
             }
-            if (session?.nombre && c.contacto?.nombre) {
-                return String(c.contacto.nombre).trim().toLowerCase() === String(session.nombre).trim().toLowerCase();
+            // PRIORIDAD 2: Sesión Supabase (admin normal o cliente con Auth)
+            if (session) {
+                if (userId && c.contacto?.userId) {
+                    return String(c.contacto.userId) === String(userId);
+                }
+                if (session.nombre && c.contacto?.nombre) {
+                    return String(c.contacto.nombre).trim().toLowerCase() === String(session.nombre).trim().toLowerCase();
+                }
             }
-            // Si no hay sesión (anónimo), mostrar todas las citas del tenant actual
-            if (!session) {
-                return true;
-            }
+            // Sin ninguna sesión: no mostrar nada
             return false;
         });
 
@@ -10083,8 +10273,11 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (!window._subscriptionExpired && typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
     } else if (esCliente) {
         await iniciarCliente();
-        if (typeof renderMisReservas === 'function') renderMisReservas();
-        if (typeof renderCarrito === 'function') renderCarrito();
+        // Solo renderizar si NO es link compartido (el callback del formulario lo hará)
+        if (!window.__skipClientRender) {
+            if (typeof renderMisReservas === 'function') renderMisReservas();
+            if (typeof renderCarrito === 'function') renderCarrito();
+        }
     } else if (esPlanes) {
         // Página de planes
         await cargarPlanes();

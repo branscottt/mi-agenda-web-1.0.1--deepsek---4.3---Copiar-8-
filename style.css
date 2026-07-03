@@ -8798,3 +8798,106 @@ input:-moz-autofill {
         width: 60px !important;
     }
 }
+
+/* ═══════════════════════════════════════════
+   CLIENTE REGISTRO - Modal de ingreso
+   ═══════════════════════════════════════════ */
+#cliente-registro-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+}
+
+.cliente-registro-modal {
+    max-width: 400px;
+    width: 90%;
+    padding: 32px 28px;
+    text-align: center;
+}
+
+.cliente-registro-icon {
+    font-size: 3rem;
+    color: var(--primary-color, #9d4edd);
+    margin-bottom: 12px;
+}
+
+.cliente-registro-modal h2 {
+    margin: 0 0 6px;
+    font-size: 1.4rem;
+}
+
+.cliente-registro-modal .muted {
+    color: var(--text-muted, #888);
+    font-size: 0.9rem;
+    margin: 0 0 20px;
+}
+
+.cliente-registro-modal .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.input-with-icon {
+    display: flex;
+    align-items: center;
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 0 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: border-color 0.2s;
+}
+
+.input-with-icon:focus-within {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(255,255,255,0.12);
+}
+
+.input-with-icon i {
+    color: var(--text-muted, #888);
+    font-size: 1rem;
+    margin-right: 10px;
+    width: 18px;
+    text-align: center;
+}
+
+.input-with-icon input {
+    background: transparent;
+    border: none;
+    color: var(--text-color, #e0e0e0);
+    padding: 12px 0;
+    outline: none;
+    width: 100%;
+    font-size: 0.95rem;
+}
+
+.input-with-icon input::placeholder {
+    color: rgba(255,255,255,0.3);
+}
+
+.cliente-registro-modal .btn-full {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    margin-top: 4px;
+}
+
+.cliente-registro-modal .small {
+    font-size: 0.75rem;
+    opacity: 0.6;
+}
+
+/* Toast local para el formulario de registro */
+.toast-local {
+    animation: toastSlideUp 0.3s ease;
+}
+
+@keyframes toastSlideUp {
+    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
