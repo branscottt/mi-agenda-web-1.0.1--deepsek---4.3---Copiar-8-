@@ -2358,7 +2358,7 @@ async function cargarPlanes() {
                         if (dbError) throw dbError;
                     } else {
                         // Sin tenant asociado — es un caso borde, crear uno
-                        const nombreNegocio = userEmail.split('@')[0] + "'s negocio";
+                        const nombreNegocio = userEmail.split('@')[0];
                         const { data: newTenant, error: createError } = await supabaseClient
                             .from('tenants')
                             .insert({ nombre_negocio: nombreNegocio, email_contacto: userEmail, whatsapp: whatsapp, plan: null })
@@ -2439,6 +2439,28 @@ async function crearSuscripcionInicial(planKey, tenantId) {
         mostrarToast('El plan Freemium no está disponible para nuevos administradores', 'error');
         return;
     }
+    
+    // ========== VALIDACIÓN ANTIFRAUDE: verificar que no tenga suscripción previa ==========
+    if (planKey === 'free_trial') {
+        try {
+            const { data: existingSubs } = await supabaseClient
+                .from('subscriptions')
+                .select('id, plan, status')
+                .eq('tenant_id', tenantId)
+                .limit(1);
+            if (existingSubs && existingSubs.length > 0) {
+                mostrarToast('Este negocio ya tiene un plan asignado. No puede obtener otro Free Trial.', 'error');
+                return;
+            }
+        } catch (e) {
+            console.warn('[crearSuscripcionInicial] Error verificando suscripciones previas:', e);
+            // Si falla la verificación, bloqueamos por seguridad
+            mostrarToast('Error de verificación. Intenta de nuevo.', 'error');
+            return;
+        }
+    }
+    // ===================================================================================
+    
     const planInfo = planesData[planKey];
     let endDate = null;
     if (planInfo?.duracionDias) {
@@ -3781,7 +3803,7 @@ async function iniciarAdmin() {
     try {
         const result = await supabaseClient
             .from('tenants')
-            .select('id, whatsapp')
+            .select('id, whatsapp, nombre_negocio')
             .eq('email_contacto', session.email)
             .maybeSingle();
         tenantBD = result.data;
@@ -3806,7 +3828,7 @@ async function iniciarAdmin() {
     // --- CASO A: NO EXISTE TENANT → CREAR NUEVO ---
     if (!tenantBD) {
         console.log('[AuthGuard] CASO A: No existe tenant. Creando uno nuevo...');
-        const nombreNegocio = session.nombre || session.email.split('@')[0] + "'s negocio";
+        const nombreNegocio = session.nombre || session.email.split('@')[0];
 
         let newTenant = null;
         try {
@@ -3846,6 +3868,12 @@ async function iniciarAdmin() {
 
     // --- CASO B: EXISTE TENANT → sincronizar JWT con datos reales de BD ---
     console.log('[AuthGuard] CASO B: Tenant existe en BD. whatsapp:', tenantBD.whatsapp ? '✅' : '❌');
+
+    // Mostrar el nombre del negocio en el header
+    const tenantNameEl = document.getElementById('tenant-name-display');
+    if (tenantNameEl && tenantBD.nombre_negocio) {
+        tenantNameEl.textContent = tenantBD.nombre_negocio;
+    }
 
     // Sincronizar JWT con datos reales del tenant (whatsapp desde BD)
     const { error: syncErr } = await supabaseClient.auth.updateUser({

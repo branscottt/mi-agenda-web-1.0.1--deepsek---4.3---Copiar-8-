@@ -173,7 +173,7 @@ export function iniciarLogin() {
                 // ================================================================
                 const { data: tenant, error: tenantError } = await supabase
                     .rpc('crear_tenant_completo', {
-                        p_nombre_negocio: nombre + "'s negocio",
+                        p_nombre_negocio: nombre,
                         p_email_contacto: email,
                         p_whatsapp: whatsappClean
                     });
