@@ -2077,7 +2077,16 @@ const planesData = {
         periodo: 'siempre', 
         features: ['Hasta 10 servicios', 'Hasta 50 citas/mes', 'Soporte email'], 
         color: '#00b894',
-        soloSuperAdmin: true   // ← nuevo flag
+        soloSuperAdmin: true
+    },
+    free_trial: {
+        nombre: 'Free Trial',
+        precio: 'Gratis',
+        periodo: '14 días',
+        features: ['Acceso completo a todas las funciones', 'Sin límite de servicios ni citas', 'Sin necesidad de tarjeta', 'Soporte email prioritario'],
+        color: '#00b894',
+        soloNuevos: true,
+        duracionDias: 14
     },
     pro: { 
         nombre: 'Pro', 
@@ -2151,6 +2160,7 @@ async function cargarPlanes() {
     
     for (const [key, plan] of Object.entries(planesData)) {
         if (plan.soloSuperAdmin && !esSuperAdmin) continue;
+        if (plan.soloNuevos && !isNewAdmin) continue;
         
         const isCurrent = suscripcionActual && suscripcionActual.plan === key;
         html += `
@@ -2429,11 +2439,13 @@ async function crearSuscripcionInicial(planKey, tenantId) {
         mostrarToast('El plan Freemium no está disponible para nuevos administradores', 'error');
         return;
     }
-    const duracionMeses = planesData[planKey]?.duracionMeses;
+    const planInfo = planesData[planKey];
     let endDate = null;
-    if (duracionMeses) {
+    if (planInfo?.duracionDias) {
+        endDate = new Date(Date.now() + planInfo.duracionDias * 24 * 60 * 60 * 1000).toISOString();
+    } else if (planInfo?.duracionMeses) {
         endDate = new Date();
-        endDate.setMonth(endDate.getMonth() + duracionMeses);
+        endDate.setMonth(endDate.getMonth() + planInfo.duracionMeses);
         endDate = endDate.toISOString();
     }
     const newSub = {
@@ -2445,9 +2457,7 @@ async function crearSuscripcionInicial(planKey, tenantId) {
     };
     const result = await SuscripcionManager.create(newSub);
     if (result) {
-        mostrarToast(`Plan ${planesData[planKey].nombre} activado correctamente`, 'success');
-        // Redirección inmediata: usar replace() evita que "atrás" vuelva a planes.html
-        // El parámetro ?subscription_created=true le indica a admin.html que salte la validación
+        mostrarToast(`Plan ${planInfo.nombre} activado correctamente`, 'success');
         window.location.replace('admin.html?subscription_created=true');
     } else {
         mostrarToast('Error al activar el plan. Intenta de nuevo.', 'error');
@@ -2470,6 +2480,12 @@ async function solicitarCambioPlan(planKey) {
     // Restricción: Freemium solo para superadmin
     if (planKey === 'freemium' && rol !== 'super_admin') {
         mostrarToast('El plan Freemium solo puede ser asignado por el Super Administrador', 'error');
+        return;
+    }
+
+    // Restricción: Free Trial solo para negocios nuevos
+    if (planKey === 'free_trial') {
+        mostrarToast('El plan Free Trial solo está disponible para negocios nuevos', 'error');
         return;
     }
 
@@ -4042,6 +4058,7 @@ async function cargarTenants() {
         
         const planDisplayNames = {
             'freemium': 'Freemium',
+            'free_trial': 'Free Trial',
             'pro': 'Pro',
             'premium_anual': 'Premium'
         };
@@ -4104,6 +4121,7 @@ async function abrirModalGestionSuscripcion(tenantId) {
     // === NUEVO: actualizar las opciones del select con los planes correctos ===
     document.getElementById('sub-plan').innerHTML = `
         <option value="freemium">Freemium</option>
+        <option value="free_trial">Free Trial (14 días)</option>
         <option value="pro">Pro ($15.000/mes)</option>
         <option value="premium_anual">Premium ($140.000/año)</option>
     `;
@@ -10235,16 +10253,17 @@ async function cargarMetricasGlobales() {
         const { data: subs } = await supabaseClient.from('subscriptions').select('plan, status');
         const activeSubs = (subs || []).filter(s => s.status === 'active');
         let ingresos = 0;
-        let totalPro = 0, totalPremiumAnual = 0, totalFreemium = 0;
+        let totalPro = 0, totalPremiumAnual = 0, totalFreemium = 0, totalTrial = 0;
         activeSubs.forEach(sub => {
             if (sub.plan === 'pro') { ingresos += 15000; totalPro++; }
             else if (sub.plan === 'premium_anual') { ingresos += 140000; totalPremiumAnual++; }
             else if (sub.plan === 'freemium') { totalFreemium++; }
+            else if (sub.plan === 'free_trial') { totalTrial++; }
         });
         const mrrEl = document.getElementById('mrr-value');
         if (mrrEl) mrrEl.textContent = '$' + ingresos.toLocaleString();
         const planEl = document.getElementById('plan-breakdown');
-        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000/mes) | Premium: ${totalPremiumAnual} (x $140.000/año) | Freemium: ${totalFreemium}`;
+        if (planEl) planEl.innerHTML = `Pro: ${totalPro} (x $15.000/mes) | Premium: ${totalPremiumAnual} (x $140.000/año) | Free Trial: ${totalTrial} | Freemium: ${totalFreemium}`;
 
         // 2. Evolución tenants (mensual)
         const { data: tenants } = await supabaseClient.from('tenants').select('fecha_registro');

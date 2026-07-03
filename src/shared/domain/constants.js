@@ -10,6 +10,15 @@ export const PLANES = {
         color: '#00b894',
         soloSuperAdmin: true
     },
+    free_trial: {
+        nombre: 'Free Trial',
+        precio: 'Gratis',
+        periodo: '14 días',
+        features: ['Acceso completo', 'Sin límites', 'Sin tarjeta', 'Soporte email'],
+        color: '#00b894',
+        soloNuevos: true,
+        duracionDias: 14
+    },
     pro: {
         nombre: 'Pro',
         precio: '$15.000',

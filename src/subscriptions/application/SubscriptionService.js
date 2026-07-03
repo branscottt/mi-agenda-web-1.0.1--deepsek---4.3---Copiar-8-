@@ -112,5 +112,5 @@ export async function tieneAccesoPremium() {
     if (!sub) return false;
     if (sub.estado !== 'active') return false;
     if (sub.fecha_fin && new Date(sub.fecha_fin) < new Date()) return false;
-    return sub.plan === 'pro' || sub.plan === 'premium_anual';
+    return sub.plan === 'pro' || sub.plan === 'premium_anual' || sub.plan === 'free_trial';
 }
