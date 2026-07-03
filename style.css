@@ -8574,3 +8574,227 @@ input:-moz-autofill {
     .form-section-title { font-size: 0.74rem; }
     .temas-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
+
+/* ═══════════════════════════════════════════
+   CLIENTES - Tarjetas de clientes
+   ═══════════════════════════════════════════ */
+#clientes-list-container {
+    padding: 4px 0;
+}
+
+.clientes-header-actions .search-box {
+    display: flex;
+    align-items: center;
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--border-color, #2a2a4a);
+}
+
+.clientes-header-actions .search-box i {
+    color: var(--text-muted, #888);
+    margin-right: 8px;
+    font-size: 0.9rem;
+}
+
+.clientes-header-actions .search-box input {
+    background: transparent;
+    border: none;
+    color: var(--text-color, #e0e0e0);
+    padding: 10px 0;
+    outline: none;
+    width: 100%;
+    font-size: 0.9rem;
+}
+
+.clientes-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cliente-card.glass-panel {
+    padding: 16px;
+    border-radius: var(--border-radius, 12px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.2s;
+}
+
+.cliente-card.glass-panel:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.12);
+}
+
+.cliente-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.cliente-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color, #9d4edd), var(--secondary-color, #ff6d00));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.cliente-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cliente-info strong {
+    font-size: 0.95rem;
+    color: var(--text-color, #e0e0e0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cliente-stats-mini {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 20px;
+    font-size: 0.78rem;
+    color: var(--text-light, #fff);
+    white-space: nowrap;
+}
+
+.stat-chip i {
+    font-size: 0.7rem;
+    color: var(--primary-color, #9d4edd);
+}
+
+.cliente-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cliente-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.82rem;
+    color: var(--text-muted, #888);
+}
+
+.cliente-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.cliente-meta i {
+    width: 14px;
+    color: var(--primary-color, #9d4edd);
+}
+
+.proxima-cita {
+    color: #4ade80 !important;
+    font-weight: 500;
+}
+
+.cliente-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cliente-actions-row .btn-small {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.cliente-actions-row .btn-small:hover {
+    opacity: 0.85;
+}
+
+.cliente-actions-row .btn-small i {
+    font-size: 0.85rem;
+}
+
+.btn-ver-historial {
+    background: rgba(157,78,221,0.15);
+    color: var(--primary-light, #c084fc);
+    border: 1px solid rgba(157,78,221,0.25) !important;
+}
+
+.btn-ver-historial:hover {
+    background: rgba(157,78,221,0.25);
+}
+
+.cliente-historial {
+    margin-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 8px;
+}
+
+.historial-row {
+    transition: background 0.15s;
+}
+
+.historial-row:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.historial-row.past {
+    opacity: 0.6;
+}
+
+.historial-row.future {
+    opacity: 1;
+}
+
+@media (max-width: 600px) {
+    .cliente-card-header {
+        flex-wrap: wrap;
+    }
+    .cliente-stats-mini {
+        width: 100%;
+        justify-content: flex-start;
+        margin-top: 4px;
+    }
+    .cliente-meta {
+        flex-direction: column;
+        gap: 6px;
+    }
+    .historial-header, .historial-row {
+        font-size: 0.75rem !important;
+    }
+    .historial-header span:nth-child(2),
+    .historial-row span:nth-child(2) {
+        width: 80px !important;
+    }
+    .historial-header span:nth-child(3),
+    .historial-row span:nth-child(3) {
+        width: 60px !important;
+    }
+}

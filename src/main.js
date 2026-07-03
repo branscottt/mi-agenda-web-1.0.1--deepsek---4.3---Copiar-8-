@@ -155,6 +155,9 @@ async function syncJwtSession() {
                 const { renderAdminAppointments } = await import('./appointments/ui/AdminAppointmentList.js');
                 renderAdminAppointments('upcoming-appointments');
 
+                const { renderClientListView } = await import('./clients/ui/ClientListView.js');
+                window.renderClientListView = renderClientListView;
+
                 const { renderDashboard } = await import('./dashboard/ui/DashboardView.js');
                 renderDashboard('stats-container');
 
