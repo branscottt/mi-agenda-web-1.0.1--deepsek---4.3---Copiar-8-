@@ -8,6 +8,12 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 
 export function iniciarLogin() {
+    // GUARD: evitar doble inicialización (main.js + script.js llaman esta función)
+    if (window._loginInitialized) {
+        console.log('[LoginPage] ya inicializado, skipping');
+        return;
+    }
+    window._loginInitialized = true;
     console.log('Iniciando login moderno...');
     
     const loginContainer = document.getElementById('login-container');

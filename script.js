@@ -869,6 +869,8 @@ window.UrgenciaManager = UrgenciaManager;
  * @param {Date} fin - Fecha de fin de la suscripción
  */
 function mostrarPantallaExpiracion(suscripcion, fin) {
+    // Flag global para que el DOMContentLoaded sepa que el admin está bloqueado
+    window._subscriptionExpired = true;
     const adminContent = document.querySelector('.admin-screen') || document.querySelector('.glass-panel');
     if (adminContent) {
         const planNombre = suscripcion.plan === 'pro' ? 'Pro'
@@ -1234,11 +1236,16 @@ const SuscripcionManager = {
         }
         // Calcular end_date si no viene explícito y el plan tiene duración
         let endDate = data.end_date;
-        if (!endDate && data.plan && planesData[data.plan]?.duracionMeses) {
-            const duracionMeses = planesData[data.plan].duracionMeses;
-            const calculatedEnd = new Date();
-            calculatedEnd.setMonth(calculatedEnd.getMonth() + duracionMeses);
-            endDate = calculatedEnd.toISOString();
+        if (!endDate && data.plan) {
+            if (planesData[data.plan]?.duracionMeses) {
+                const duracionMeses = planesData[data.plan].duracionMeses;
+                const calculatedEnd = new Date();
+                calculatedEnd.setMonth(calculatedEnd.getMonth() + duracionMeses);
+                endDate = calculatedEnd.toISOString();
+            } else if (planesData[data.plan]?.duracionDias) {
+                const duracionDias = planesData[data.plan].duracionDias;
+                endDate = new Date(Date.now() + duracionDias * 24 * 60 * 60 * 1000).toISOString();
+            }
         }
         const newData = { ...data, end_date: endDate, status };
         // UPSERT: si ya existe una suscripción activa para este tenant, la actualiza
@@ -2182,6 +2189,9 @@ const planesData = {
         duracionMeses: 12
     }
 };
+
+// Exponer globalmente para que constants.js (ES module) pueda usarlo como fuente única
+window.planesData = planesData;
 
 async function cargarPlanes() {
     const container = document.getElementById('planes-container');
@@ -10070,7 +10080,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         // No hacer nada aquí, se inicia desde superadmin.html
     } else if (esAdminNormal) {
         await iniciarAdmin();
-        if (typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
+        if (!window._subscriptionExpired && typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
     } else if (esCliente) {
         await iniciarCliente();
         if (typeof renderMisReservas === 'function') renderMisReservas();

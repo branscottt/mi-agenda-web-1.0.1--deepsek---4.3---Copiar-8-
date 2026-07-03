@@ -1,7 +1,12 @@
 // shared/domain/constants.js
 // Constantes del dominio compartidas entre todos los modulos
+//
+// NOTA: La fuente de verdad es window.planesData (definido en script.js).
+// Si script.js ya cargó, usamos su objeto para evitar duplicación.
+// Si no (raro, porque script.js carga antes que los ES modules),
+// usamos nuestra propia definición como fallback.
 
-export const PLANES = {
+const _PLANES = (typeof window !== 'undefined' && window.planesData) ? window.planesData : {
     freemium: {
         nombre: 'Freemium',
         precio: 'Gratis',
@@ -31,11 +36,13 @@ export const PLANES = {
         nombre: 'Premium',
         precio: '$140.000',
         periodo: '/año',
-        features: ['Todo lo de Pro', 'Personalización de diseño', 'Onboarding dedicado', 'SLA 99.9%'],
+        features: ['Todo lo de Pro', 'Personalización de diseño (admin y cliente)', 'Onboarding dedicado', 'SLA 99.9%'],
         color: '#ffd700',
         duracionMeses: 12
     }
 };
+
+export const PLANES = _PLANES;
 
 export const COLORS = {
     primary: '#9d4edd',
