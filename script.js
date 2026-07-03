@@ -861,6 +861,72 @@ const UrgenciaManager = {
 window.UrgenciaManager = UrgenciaManager;
 
 // ============================================
+// HELPER: Pantalla de expiración de suscripción
+// ============================================
+/**
+ * Muestra la pantalla de bloqueo cuando la suscripción ha expirado.
+ * @param {Object} suscripcion - La suscripción (activa pero vencida o inactive)
+ * @param {Date} fin - Fecha de fin de la suscripción
+ */
+function mostrarPantallaExpiracion(suscripcion, fin) {
+    const adminContent = document.querySelector('.admin-screen') || document.querySelector('.glass-panel');
+    if (adminContent) {
+        const planNombre = suscripcion.plan === 'pro' ? 'Pro'
+            : suscripcion.plan === 'premium_anual' ? 'Premium'
+            : suscripcion.plan === 'free_trial' ? 'Free Trial'
+            : suscripcion.plan || 'contratado';
+        adminContent.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; text-align:center; padding:40px;">
+                <i class="fas fa-exclamation-triangle" style="font-size:5rem; color:#ffc107; margin-bottom:20px;"></i>
+                <h2 style="color:white; margin-bottom:10px;">Tu suscripción ha expirado</h2>
+                <p style="color:#b0b0b0; font-size:1.1rem; max-width:500px; margin-bottom:10px;">
+                    El plan <strong>${planNombre}</strong> finalizó el ${fin.toLocaleDateString()}.
+                </p>
+                <p style="color:#ff6b6b; font-size:1rem; max-width:500px; margin-bottom:25px;">
+                    <i class="fas fa-ban"></i> No podrás crear ni editar servicios hasta que renueves tu plan.
+                </p>
+                <p style="color:#b0b0b0; font-size:0.95rem; max-width:500px; margin-bottom:25px;">
+                    Elige <strong>Pro ($15.000/mes)</strong> o <strong>Premium ($140.000/año)</strong> para reactivar tu negocio.
+                </p>
+                <a href="planes.html" class="btn-grad" style="padding:14px 40px; font-size:1.1rem; text-decoration:none;">
+                    <i class="fas fa-credit-card"></i> Ver planes disponibles
+                </a>
+            </div>
+        `;
+    }
+    // Ocultar navegación del admin
+    const sidebar = document.querySelector('.admin-sidebar, .sidebar');
+    if (sidebar) sidebar.style.display = 'none';
+}
+
+// ============================================
+// HELPER: Verificar suscripción activa antes de crear/editar servicios
+// ============================================
+/**
+ * Verifica que el tenant actual tenga una suscripción activa y no vencida.
+ * @returns {Promise<{valida: boolean, mensaje: string}>}
+ */
+async function verificarSuscripcionActiva() {
+    try {
+        const suscripcion = await SuscripcionManager.getCurrent();
+        if (!suscripcion) {
+            return { valida: false, mensaje: 'Tu suscripción ha expirado. Para crear o editar servicios, debes elegir un plan en la sección de planes.' };
+        }
+        if (suscripcion.end_date) {
+            const ahora = new Date();
+            const fin = new Date(suscripcion.end_date);
+            if (fin < ahora) {
+                return { valida: false, mensaje: 'Tu suscripción expiró el ' + fin.toLocaleDateString() + '. Para seguir usando el sistema, renueva tu plan en la sección de planes.' };
+            }
+        }
+        return { valida: true, mensaje: '' };
+    } catch (e) {
+        console.error('Error verificando suscripción:', e);
+        return { valida: false, mensaje: 'Error al verificar tu suscripción. Intenta recargar la página.' };
+    }
+}
+
+// ============================================
 // GESTIÓN DE SERVICIOS - VERSIÓN CORREGIDA
 // ============================================
 const ServiciosManager = {
@@ -915,6 +981,17 @@ const ServiciosManager = {
     
     async save(servicio) {
         try {
+            // Verificar suscripción activa antes de permitir guardar
+            const subCheck = await verificarSuscripcionActiva();
+            if (!subCheck.valida) {
+                mostrarToast('❌ ' + subCheck.mensaje, 'error');
+                // Redirigir a planes después de 3 segundos
+                setTimeout(() => {
+                    window.location.href = 'planes.html';
+                }, 3000);
+                throw new Error(subCheck.mensaje);
+            }
+
             const tenantId = await getCurrentTenantId(); // <-- NOMBRE CORRECTO
             if (!tenantId) throw new Error('No tenant ID');
             
@@ -3641,27 +3718,27 @@ async function iniciarAdmin() {
         const fin = new Date(suscripcion.end_date);
         if (fin < ahora) {
             console.log('[Admin] Suscripción expirada el', suscripcion.end_date);
-            // Mostrar pantalla de bloqueo
-            const adminContent = document.querySelector('.admin-screen') || document.querySelector('.glass-panel');
-            if (adminContent) {
-                adminContent.innerHTML = `
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; text-align:center; padding:40px;">
-                        <i class="fas fa-exclamation-triangle" style="font-size:5rem; color:#ffc107; margin-bottom:20px;"></i>
-                        <h2 style="color:white; margin-bottom:10px;">Tu suscripción ha expirado</h2>
-                        <p style="color:#b0b0b0; font-size:1.1rem; max-width:500px; margin-bottom:25px;">
-                            El plan <strong>${suscripcion.plan === 'pro' ? 'Pro' : 'Premium'}</strong> finalizó el ${fin.toLocaleDateString()}.
-                            Para seguir usando todas las funciones, debes renovar tu plan.
-                        </p>
-                        <a href="planes.html" class="btn-grad" style="padding:14px 40px; font-size:1.1rem; text-decoration:none;">
-                            <i class="fas fa-credit-card"></i> Ver planes disponibles
-                        </a>
-                    </div>
-                `;
-            }
-            // Ocultar navegación del admin
-            const sidebar = document.querySelector('.admin-sidebar, .sidebar');
-            if (sidebar) sidebar.style.display = 'none';
+            mostrarPantallaExpiracion(suscripcion, fin);
             return; // Detener toda la inicialización del admin
+        }
+    }
+
+    // Caso 2: Sin suscripción activa (el cron ya marcó como 'inactive')
+    // Verificar si había una suscripción que expiró
+    if (!suscripcion) {
+        try {
+            const tenantId = await getCurrentTenantId();
+            if (tenantId) {
+                const historial = await SuscripcionManager.getAllForTenant(tenantId);
+                const ultima = historial?.[0]; // ORDER BY start_date DESC
+                if (ultima && ultima.status === 'inactive' && ultima.end_date && new Date(ultima.end_date) < new Date()) {
+                    console.log('[Admin] Suscripción expirada (ya marcada como inactive):', ultima.end_date);
+                    mostrarPantallaExpiracion(ultima, new Date(ultima.end_date));
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[Admin] Error verificando historial de suscripción:', e);
         }
     }
     // ==========================================================
