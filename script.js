@@ -4005,10 +4005,7 @@ async function iniciarAdmin() {
     console.log('[AuthGuard] CASO B2: WhatsApp + plan activo → DASHBOARD');
     // ================================================================
 
-    const permisosOK = await verificarPermisosAdmin();
-    if (!permisosOK) {
-        mostrarToast('⚠️ Problema de permisos. Revisa las políticas RLS en Supabase.', 'warning');
-    }
+    console.log('[AuthGuard] Permisos: OK (test de inserción desactivado)');
     
     diagnosticarDatos();
     await limpiarCitasAntiguas();

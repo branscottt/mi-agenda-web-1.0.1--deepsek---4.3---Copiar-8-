@@ -8901,3 +8901,258 @@ input:-moz-autofill {
     from { opacity: 0; transform: translateX(-50%) translateY(20px); }
     to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+
+/* ═══════════════════════════════════════════
+   SUPERADMIN — Responsive Móvil (max-width: 768px)
+   ═══════════════════════════════════════════
+   Aislado: todos los selectores comienzan con .superadmin-screen
+   No modifica nada del CSS de Desktop.
+   ═══════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* ── Contenedor global ── */
+    .superadmin-screen > .glass-panel {
+        max-width: 100% !important;
+        margin: 10px 0 !important;
+        border-radius: 0;
+        padding: 12px !important;
+    }
+
+    /* ── Encabezado ── */
+    .superadmin-screen .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 0;
+    }
+    .superadmin-screen .admin-header .header-left {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .superadmin-screen .admin-header .header-left h1 {
+        font-size: 1.1rem;
+        white-space: normal;
+    }
+    .superadmin-screen .admin-header .header-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .superadmin-screen .admin-header .user-info span {
+        font-size: 0.85rem;
+    }
+
+    /* ── Stats globales (inline grid 5 cols) ── */
+    .superadmin-screen #global-stats {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+    .superadmin-screen #global-stats .stat-box {
+        padding: 12px 8px;
+    }
+    .superadmin-screen #global-stats .stat-box h2 {
+        font-size: 1.3rem;
+    }
+    .superadmin-screen #global-stats .stat-box span {
+        font-size: 0.75rem;
+    }
+
+    /* ── Métricas / MRR ── */
+    .superadmin-screen #metricas-globales .mrr-container {
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+    .superadmin-screen #metricas-globales .mrr-container .stat-card {
+        padding: 14px !important;
+    }
+    .superadmin-screen #metricas-globales .stat-value {
+        font-size: 1.4rem !important;
+    }
+    .superadmin-screen #metricas-globales #plan-breakdown {
+        font-size: 0.85rem !important;
+    }
+
+    /* ── Chart ── */
+    .superadmin-screen .chart-container {
+        padding: 0;
+    }
+    .superadmin-screen .chart-container canvas {
+        width: 100% !important;
+        height: 260px !important;
+        max-height: 320px;
+    }
+
+    /* ── Tabs de navegación ── */
+    .superadmin-screen .superadmin-tabs {
+        gap: 6px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+    }
+    .superadmin-screen .superadmin-tabs::-webkit-scrollbar {
+        height: 3px;
+    }
+    .superadmin-screen .superadmin-tabs::-webkit-scrollbar-thumb {
+        background: rgba(179,0,255,0.3);
+        border-radius: 10px;
+    }
+    .superadmin-screen .tab-btn {
+        padding: 8px 14px;
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
+    .superadmin-screen .tab-btn i {
+        font-size: 0.85rem;
+    }
+
+    /* ── Panel headers ── */
+    .superadmin-screen .panel-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .superadmin-screen .panel-header h3 {
+        font-size: 1rem;
+    }
+    .superadmin-screen .panel-header .btn-grad {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* ── Tenants grid ── */
+    .superadmin-screen .tenants-grid {
+        grid-template-columns: 1fr !important;
+        gap: 14px;
+    }
+
+    /* ── Tenant cards ── */
+    .superadmin-screen .tenant-card {
+        padding: 14px;
+    }
+    .superadmin-screen .tenant-card h4 {
+        font-size: 0.95rem;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .superadmin-screen .tenant-card p {
+        font-size: 0.82rem;
+        margin: 6px 0;
+    }
+
+    /* ── Acciones de tenant: touch targets grandes ── */
+    .superadmin-screen .tenant-card .tenant-actions,
+    .superadmin-screen .tenants-table .tenant-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .superadmin-screen .tenant-card .tenant-actions button,
+    .superadmin-screen .tenants-table .tenant-actions button {
+        padding: 10px 16px;
+        font-size: 0.82rem;
+        min-width: 80px;
+        flex: 1;
+        justify-content: center;
+    }
+
+    /* ── Tabla de usuarios ── */
+    .superadmin-screen .users-table-container,
+    .superadmin-screen .appointments-table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .superadmin-screen #users-table,
+    .superadmin-screen .appointments-table {
+        font-size: 0.78rem;
+    }
+    .superadmin-screen #users-table th,
+    .superadmin-screen #users-table td,
+    .superadmin-screen .appointments-table th,
+    .superadmin-screen .appointments-table td {
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+
+    /* ── Tabla de tenants (si existe además de grid) ── */
+    .superadmin-screen .tenants-table {
+        font-size: 0.78rem;
+    }
+    .superadmin-screen .tenants-table th,
+    .superadmin-screen .tenants-table td {
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+
+    /* ── Modales ── */
+    .superadmin-screen .modal .modal-content {
+        max-width: 95% !important;
+        width: 95% !important;
+        padding: 20px 16px;
+    }
+    .superadmin-screen .modal .modal-content h3 {
+        font-size: 1.1rem;
+    }
+    .superadmin-screen .modal .form-group label {
+        font-size: 0.85rem;
+    }
+    .superadmin-screen .modal .form-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .superadmin-screen .modal .form-actions .btn-grad,
+    .superadmin-screen .modal .form-actions .btn-secondary {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* ── Footer ── */
+    .superadmin-screen .admin-footer p {
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    /* ── Solicitudes CSS ── */
+    .superadmin-screen .solicitudes-container {
+        margin-top: 12px !important;
+    }
+
+    /* ── Override de inline styles específicos del HTML ── */
+    .superadmin-screen .dashboard-section {
+        padding: 14px !important;
+        margin-top: 20px !important;
+    }
+    .superadmin-screen .dashboard-section h3 {
+        font-size: 1rem;
+    }
+    .superadmin-screen .dashboard-section h4 {
+        font-size: 0.9rem;
+    }
+}
+
+/* ── Ajuste extra para pantallas muy pequeñas (< 480px) ── */
+@media (max-width: 480px) {
+    .superadmin-screen #global-stats {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+    .superadmin-screen #global-stats .stat-box {
+        padding: 8px 6px;
+    }
+    .superadmin-screen #global-stats .stat-box h2 {
+        font-size: 1.1rem;
+    }
+    .superadmin-screen #global-stats .stat-box span {
+        font-size: 0.7rem;
+    }
+    .superadmin-screen .tab-btn {
+        padding: 6px 10px;
+        font-size: 0.72rem;
+    }
+    .superadmin-screen .tenant-card .tenant-actions button {
+        padding: 8px 12px;
+        font-size: 0.78rem;
+        min-width: 70px;
+    }
+}
