@@ -8206,6 +8206,20 @@ function clearClienteSession() {
  * Muestra formulario de registro para clientes externos (sin Auth).
  */
 function mostrarFormularioCliente(onCompletado) {
+    const tenantId = window.currentTenantId || '';
+    const storageKey = `agenda_cliente_saved_${tenantId}`;
+
+    function cargarDatosGuardados() {
+        try {
+            const raw = localStorage.getItem(storageKey);
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+    }
+
+    function guardarDatosLocalmente(data) {
+        try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch(e) {}
+    }
+
     let overlay = document.getElementById('cliente-registro-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -8231,13 +8245,18 @@ function mostrarFormularioCliente(onCompletado) {
                         <i class="fab fa-whatsapp"></i>
                         <input type="tel" id="cliente-registro-whatsapp" placeholder="Tu WhatsApp (ej: +569****5678)">
                     </div>
+                    <label class="checkbox-label" style="justify-content:center;margin-top:4px;font-size:0.82rem;">
+                        <input type="checkbox" id="cliente-recordar" checked>
+                        <span class="checkmark"></span>
+                        <i class="fas fa-save"></i> Guardar mis datos para próximas visitas
+                    </label>
                     <button type="submit" class="btn-grad btn-full">
                         <i class="fas fa-arrow-right"></i> Ingresar al catálogo
                     </button>
                 </form>
                 <p class="muted small" style="margin-top:12px;font-size:0.75rem;">
                     <i class="fas fa-shield-alt"></i> Tus datos solo se usan para tus reservas.
-                    Al cerrar la pestaña la sesión se elimina.
+                    Si marcaste "Guardar mis datos", la próxima vez se cargarán automáticamente.
                 </p>
             </div>
         `;
@@ -8250,6 +8269,16 @@ function mostrarFormularioCliente(onCompletado) {
     const nombreInput = document.getElementById('cliente-registro-nombre');
     const emailInput = document.getElementById('cliente-registro-email');
     const whatsappInput = document.getElementById('cliente-registro-whatsapp');
+    const recordarCheck = document.getElementById('cliente-recordar');
+
+    // Pre-cargar datos guardados si existen
+    const saved = cargarDatosGuardados();
+    if (saved) {
+        if (nombreInput) nombreInput.value = saved.nombre || '';
+        if (emailInput) emailInput.value = saved.email || '';
+        if (whatsappInput) whatsappInput.value = saved.whatsapp || '';
+        if (recordarCheck) recordarCheck.checked = true;
+    }
 
     form.onsubmit = (e) => {
         e.preventDefault();
@@ -8261,6 +8290,15 @@ function mostrarFormularioCliente(onCompletado) {
         const sessionData = { nombre, email, whatsapp };
         setClienteSession(sessionData);
         window.__clienteSession = sessionData;
+
+        // Guardar en localStorage si el usuario marcó la opción
+        if (recordarCheck && recordarCheck.checked) {
+            guardarDatosLocalmente(sessionData);
+        } else {
+            // Si desmarcó, eliminar datos guardados previos
+            try { localStorage.removeItem(storageKey); } catch(e) {}
+        }
+
         overlay.style.display = 'none';
 
         // Pre-llenar campos del popup de reserva si ya existen
