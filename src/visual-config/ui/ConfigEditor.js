@@ -61,8 +61,8 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             </div>
 
             <div class="config-section">
-                <h4>Logo y favicon</h4>
-                <label>Logo
+                <h4>Logo</h4>
+                <label>Logo del negocio
                     <div class="logo-input-row">
                         <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
                         <div class="file-upload-wrapper logo-file-upload">
@@ -78,24 +78,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                     </div>
                     <div class="logo-preview" id="logo-preview" style="margin-top:8px;display:none;">
                         <img id="logo-preview-img" src="" alt="Vista previa logo" style="max-height:40px;border-radius:6px;">
-                    </div>
-                </label>
-                <label style="margin-top:12px;">Favicon
-                    <div class="logo-input-row">
-                        <input type="url" id="cfg-favicon" class="config-input" value="${escapeAttr(config.favicon_url || '')}" placeholder="https://ejemplo.com/favicon.ico" style="flex:1;">
-                        <div class="file-upload-wrapper logo-file-upload">
-                            <input type="file" id="cfg-favicon-file" accept="image/*">
-                            <label for="cfg-favicon-file" class="file-upload-btn logo-upload-btn">
-                                <i class="fas fa-upload"></i>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="logo-upload-progress" id="favicon-upload-progress" style="display:none;">
-                        <div class="progress-bar"><div class="progress-fill" id="favicon-upload-fill"></div></div>
-                        <span class="progress-text" id="favicon-upload-text">Subiendo...</span>
-                    </div>
-                    <div class="logo-preview" id="favicon-preview" style="margin-top:8px;display:none;">
-                        <img id="favicon-preview-img" src="" alt="Vista previa favicon" style="max-height:32px;border-radius:4px;">
                     </div>
                 </label>
             </div>
@@ -153,9 +135,8 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         </div>
     `;
 
-    // Mostrar preview de logo y favicon si ya hay URLs guardadas
+    // Mostrar preview de logo y cover si ya hay URLs guardadas
     mostrarPreviewGuardado('logo-preview', 'logo-preview-img', config.logo_url);
-    mostrarPreviewGuardado('favicon-preview', 'favicon-preview-img', config.favicon_url);
     mostrarPreviewCover(config.cover_url);
 
     // Event listeners
@@ -194,7 +175,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             text_color: '#e0e0e0',
             font_family: "'Inter', sans-serif",
             logo_url: '',
-            favicon_url: '',
             cover_url: '',
             border_radius: 12,
             animation_speed: 0.3,
@@ -228,15 +208,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         });
     }
 
-    // Preview en vivo para favicon URL
-    const faviconInput = document.getElementById('cfg-favicon');
-    if (faviconInput) {
-        faviconInput.addEventListener('input', () => {
-            const url = faviconInput.value;
-            mostrarPreviewGuardado('favicon-preview', 'favicon-preview-img', url);
-        });
-    }
-
     // Preview en vivo para cover URL
     const coverInput = document.getElementById('cfg-cover');
     if (coverInput) {
@@ -264,24 +235,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         });
     }
 
-    // File upload para favicon
-    const faviconFileInput = document.getElementById('cfg-favicon-file');
-    if (faviconFileInput) {
-        faviconFileInput.addEventListener('change', async function() {
-            const file = this.files[0];
-            if (!file) return;
-            if (!file.type.startsWith('image/')) {
-                mostrarToast('❌ Solo se permiten archivos de imagen.', 'error');
-                return;
-            }
-            if (file.size > 5 * 1024 * 1024) {
-                mostrarToast('❌ La imagen es muy grande. Máximo 5MB.', 'error');
-                return;
-            }
-            await subirImagenStorage(file, 'favicon', 'favicon');
-        });
-    }
-
     // File upload para cover/portada
     const coverFileInput = document.getElementById('cfg-cover-file');
     if (coverFileInput) {
@@ -302,14 +255,14 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
 }
 
 async function subirImagenStorage(file, tipo, inputId) {
-    // tipo: 'logo', 'favicon' o 'cover'
-    const nameMap = { logo: 'Logo', favicon: 'Favicon', cover: 'Portada' };
-    const barId = tipo === 'logo' ? 'logo-upload-progress' : tipo === 'favicon' ? 'favicon-upload-progress' : 'cover-upload-progress';
-    const fillId = tipo === 'logo' ? 'logo-upload-fill' : tipo === 'favicon' ? 'favicon-upload-fill' : 'cover-upload-fill';
-    const textId = tipo === 'logo' ? 'logo-upload-text' : tipo === 'favicon' ? 'favicon-upload-text' : 'cover-upload-text';
-    const previewId = tipo === 'logo' ? 'logo-preview' : tipo === 'favicon' ? 'favicon-preview' : 'cover-preview';
-    const previewImgId = tipo === 'logo' ? 'logo-preview-img' : tipo === 'favicon' ? 'favicon-preview-img' : 'cover-preview-img';
-    const cfgInputId = tipo === 'logo' ? 'cfg-logo' : tipo === 'favicon' ? 'cfg-favicon' : 'cfg-cover';
+    // tipo: 'logo' o 'cover'
+    const nameMap = { logo: 'Logo', cover: 'Portada' };
+    const barId = tipo === 'logo' ? 'logo-upload-progress' : 'cover-upload-progress';
+    const fillId = tipo === 'logo' ? 'logo-upload-fill' : 'cover-upload-fill';
+    const textId = tipo === 'logo' ? 'logo-upload-text' : 'cover-upload-text';
+    const previewId = tipo === 'logo' ? 'logo-preview' : 'cover-preview';
+    const previewImgId = tipo === 'logo' ? 'logo-preview-img' : 'cover-preview-img';
+    const cfgInputId = tipo === 'logo' ? 'cfg-logo' : 'cfg-cover';
 
     const bar = document.getElementById(barId);
     const fill = document.getElementById(fillId);
@@ -431,7 +384,6 @@ function leerConfigForm() {
         text_color: document.getElementById('cfg-text')?.value || '#e0e0e0',
         font_family: document.getElementById('cfg-font')?.value || "'Inter', sans-serif",
         logo_url: document.getElementById('cfg-logo')?.value || '',
-        favicon_url: document.getElementById('cfg-favicon')?.value || '',
         cover_url: document.getElementById('cfg-cover')?.value || '',
         border_radius: parseInt(document.getElementById('cfg-radius')?.value) || 12,
         animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || 0.3,

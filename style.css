@@ -1296,21 +1296,23 @@ body {
 
 /* =============================================
    COVER BANNER / PORTADA DEL NEGOCIO
-   Estilo profesional tipo LinkedIn/Facebook
+   Diseño elegante con bordes redondeados y sombra
    ============================================= */
 .profile-header {
     position: relative;
     width: 100%;
 }
 
-/* Contenedor de la portada */
+/* Contenedor de la portada: bordes redondeados y sombra sutil */
 .cover-banner-container {
     position: relative;
     width: 100%;
     height: 220px;
     overflow: hidden;
     background: var(--bg-color, #0d0d0d);
-    border-radius: 0 0 16px 16px;
+    border-radius: 0 0 20px 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    transition: box-shadow 0.3s ease;
 }
 
 .cover-banner-img {
@@ -1320,6 +1322,17 @@ body {
     display: block;
 }
 
+/* Borde interno sutil tipo "inner glow" */
+.cover-banner-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 0 0 20px 20px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    pointer-events: none;
+    z-index: 2;
+}
+
 /* Degradado oscuro sobre la portada para legibilidad */
 .cover-banner-overlay {
     position: absolute;
@@ -1327,28 +1340,37 @@ body {
     left: 0;
     right: 0;
     height: 60%;
-    background: linear-gradient(transparent, rgba(0,0,0,0.65));
+    background: linear-gradient(transparent 20%, rgba(0,0,0,0.7) 100%);
     pointer-events: none;
     z-index: 1;
 }
 
-/* SÓLO cuando hay portada: el header se superpone sobre ella */
+/* SÓLO cuando hay portada: el header se superpone sobre ella con fondo transparente */
 .profile-header.has-cover .client-header,
 .profile-header.has-cover .admin-header {
     position: relative;
-    z-index: 2;
+    z-index: 3;
     margin-top: -60px;
-    background: transparent;
-    border: none;
-    box-shadow: none;
+    margin-bottom: 0;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
     padding: 10px 24px;
 }
 
+/* Texto del header en blanco sobre la portada */
 .profile-header.has-cover .client-header h1,
 .profile-header.has-cover .client-header .tenant-name-header,
+.profile-header.has-cover .admin-header h1,
+.profile-header.has-cover .admin-header .header-left h1,
+.profile-header.has-cover .admin-header h1 i,
+.profile-header.has-cover .admin-header h1 span,
 .profile-header.has-cover .admin-header .tenant-name-header {
-    color: #ffffff;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    color: #ffffff !important;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
 }
 
 .profile-header.has-cover .admin-header .tenant-name-header {
@@ -1358,26 +1380,28 @@ body {
 /* El logo del tenant se agranda con borde cuando hay portada */
 .profile-header.has-cover .tenant-brand {
     position: relative;
-    z-index: 3;
+    z-index: 4;
 }
 
 .profile-header.has-cover #tenant-logo {
-    border: 3px solid rgba(255,255,255,0.9);
-    border-radius: 12px;
-    background: rgba(0,0,0,0.2);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    border: 3px solid rgba(255,255,255,0.95);
+    border-radius: 14px;
+    background: rgba(0,0,0,0.25);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1);
     height: 64px !important;
     width: auto;
     max-width: 180px;
     object-fit: contain;
+    transition: all 0.3s ease;
 }
 
 /* Ajuste botones del admin header cuando hay portada */
 .profile-header.has-cover .admin-header .btn-back,
 .profile-header.has-cover .admin-header .btn-icon,
-.profile-header.has-cover .admin-header .user-info {
-    color: #ffffff;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+.profile-header.has-cover .admin-header .user-info,
+.profile-header.has-cover .admin-header .user-info span {
+    color: #ffffff !important;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
 .profile-header.has-cover .admin-header .btn-back:hover,
@@ -1391,7 +1415,10 @@ body {
 @media (max-width: 768px) {
     .cover-banner-container {
         height: 140px;
-        border-radius: 0 0 12px 12px;
+        border-radius: 0 0 16px 16px;
+    }
+    .cover-banner-container::after {
+        border-radius: 0 0 16px 16px;
     }
     .profile-header.has-cover .client-header,
     .profile-header.has-cover .admin-header {
@@ -1402,6 +1429,7 @@ body {
         height: 48px !important;
         max-width: 130px;
         border-width: 2px;
+        border-radius: 10px;
     }
     .profile-header.has-cover .tenant-name-header {
         font-size: 0.9rem;
@@ -1411,6 +1439,10 @@ body {
 @media (max-width: 480px) {
     .cover-banner-container {
         height: 110px;
+        border-radius: 0 0 12px 12px;
+    }
+    .cover-banner-container::after {
+        border-radius: 0 0 12px 12px;
     }
     .profile-header.has-cover .client-header,
     .profile-header.has-cover .admin-header {
@@ -1421,6 +1453,7 @@ body {
         height: 40px !important;
         max-width: 100px;
         border-width: 2px;
+        border-radius: 8px;
     }
 }
 
