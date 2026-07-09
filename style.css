@@ -1332,9 +1332,9 @@ body {
     z-index: 1;
 }
 
-/* El header se superpone sobre la portada */
-.profile-header .client-header,
-.profile-header .admin-header {
+/* SÓLO cuando hay portada: el header se superpone sobre ella */
+.profile-header.has-cover .client-header,
+.profile-header.has-cover .admin-header {
     position: relative;
     z-index: 2;
     margin-top: -60px;
@@ -1344,28 +1344,18 @@ body {
     padding: 10px 24px;
 }
 
-/* Cuando hay portada, el header se vuelve transparente y el texto/botones
-   se hacen claros para contrastar con el overlay oscuro */
-.profile-header.has-cover .client-header,
-.profile-header.has-cover .admin-header {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-}
-
 .profile-header.has-cover .client-header h1,
-.profile-header.has-cover .tenant-name-header {
+.profile-header.has-cover .client-header .tenant-name-header,
+.profile-header.has-cover .admin-header .tenant-name-header {
     color: #ffffff;
     text-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 
 .profile-header.has-cover .admin-header .tenant-name-header {
-    color: #ffffff;
     opacity: 0.95;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 
-/* El logo del tenant se posiciona para solaparse con la portada */
+/* El logo del tenant se agranda con borde cuando hay portada */
 .profile-header.has-cover .tenant-brand {
     position: relative;
     z-index: 3;
@@ -1403,8 +1393,8 @@ body {
         height: 140px;
         border-radius: 0 0 12px 12px;
     }
-    .profile-header .client-header,
-    .profile-header .admin-header {
+    .profile-header.has-cover .client-header,
+    .profile-header.has-cover .admin-header {
         margin-top: -40px;
         padding: 8px 16px;
     }
@@ -1422,8 +1412,8 @@ body {
     .cover-banner-container {
         height: 110px;
     }
-    .profile-header .client-header,
-    .profile-header .admin-header {
+    .profile-header.has-cover .client-header,
+    .profile-header.has-cover .admin-header {
         margin-top: -30px;
         padding: 6px 12px;
     }
