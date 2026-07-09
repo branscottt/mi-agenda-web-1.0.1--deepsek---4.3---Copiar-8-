@@ -4,6 +4,7 @@
 
 import { getVisualConfig, saveVisualConfig, aplicarConfigVisual, TEMAS_PREDEFINIDOS } from '../application/VisualConfigService.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 
 export async function initConfigEditor(containerId = 'visual-config-editor') {
     const container = document.getElementById(containerId);
@@ -37,10 +38,10 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                         <input type="color" id="cfg-secondary" value="${config.secondary_color}">
                     </label>
                     <label>Fondo
-                        <input type="color" id="cfg-bg" value="${config.background_color}">
+                        <input type="color" id="cfg-bg" value="${config.bg_color || config.background_color || '#0d0d0d'}">
                     </label>
                     <label>Tarjetas
-                        <input type="color" id="cfg-card" value="${config.card_color}">
+                        <input type="color" id="cfg-card" value="${config.card_bg || config.card_color || '#1a1a2e'}">
                     </label>
                     <label>Texto
                         <input type="color" id="cfg-text" value="${config.text_color}">
@@ -61,11 +62,41 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
 
             <div class="config-section">
                 <h4>Logo y favicon</h4>
-                <label>URL del logo
-                    <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png">
+                <label>Logo
+                    <div class="logo-input-row">
+                        <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
+                        <div class="file-upload-wrapper logo-file-upload">
+                            <input type="file" id="cfg-logo-file" accept="image/*">
+                            <label for="cfg-logo-file" class="file-upload-btn logo-upload-btn">
+                                <i class="fas fa-upload"></i>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="logo-upload-progress" id="logo-upload-progress" style="display:none;">
+                        <div class="progress-bar"><div class="progress-fill" id="logo-upload-fill"></div></div>
+                        <span class="progress-text" id="logo-upload-text">Subiendo...</span>
+                    </div>
+                    <div class="logo-preview" id="logo-preview" style="margin-top:8px;display:none;">
+                        <img id="logo-preview-img" src="" alt="Vista previa logo" style="max-height:40px;border-radius:6px;">
+                    </div>
                 </label>
-                <label>URL del favicon
-                    <input type="url" id="cfg-favicon" class="config-input" value="${escapeAttr(config.favicon_url || '')}" placeholder="https://ejemplo.com/favicon.ico">
+                <label style="margin-top:12px;">Favicon
+                    <div class="logo-input-row">
+                        <input type="url" id="cfg-favicon" class="config-input" value="${escapeAttr(config.favicon_url || '')}" placeholder="https://ejemplo.com/favicon.ico" style="flex:1;">
+                        <div class="file-upload-wrapper logo-file-upload">
+                            <input type="file" id="cfg-favicon-file" accept="image/*">
+                            <label for="cfg-favicon-file" class="file-upload-btn logo-upload-btn">
+                                <i class="fas fa-upload"></i>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="logo-upload-progress" id="favicon-upload-progress" style="display:none;">
+                        <div class="progress-bar"><div class="progress-fill" id="favicon-upload-fill"></div></div>
+                        <span class="progress-text" id="favicon-upload-text">Subiendo...</span>
+                    </div>
+                    <div class="logo-preview" id="favicon-preview" style="margin-top:8px;display:none;">
+                        <img id="favicon-preview-img" src="" alt="Vista previa favicon" style="max-height:32px;border-radius:4px;">
+                    </div>
                 </label>
             </div>
 
@@ -82,19 +113,16 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </label>
                 <label>Velocidad animaciones
                     <select id="cfg-anim-speed" class="config-select">
-                        <option value="rapido" ${config.animation_velocidad === 'rapido' ? 'selected' : ''}>Rapido</option>
-                        <option value="normal" ${config.animation_velocidad === 'normal' ? 'selected' : ''}>Normal</option>
-                        <option value="lento" ${config.animation_velocidad === 'lento' ? 'selected' : ''}>Lento</option>
+                        <option value="0.15" ${config.animation_speed == 0.15 ? 'selected' : ''}>Rapido</option>
+                        <option value="0.3" ${config.animation_speed == 0.3 ? 'selected' : ''}>Normal</option>
+                        <option value="0.5" ${config.animation_speed == 0.5 ? 'selected' : ''}>Lento</option>
                     </select>
                 </label>
             </div>
 
             <div class="config-actions">
-                <button id="cfg-preview-btn" class="btn-secondary">
-                    <i class="fas fa-eye"></i> Previsualizar
-                </button>
-                <button id="cfg-save-btn" class="btn-primary">
-                    <i class="fas fa-save"></i> Guardar cambios
+                <button id="cfg-preview-btn" class="btn-grad">
+                    <i class="fas fa-eye"></i> Vista Previa
                 </button>
                 <button id="cfg-reset-btn" class="btn-text">
                     <i class="fas fa-undo"></i> Restaurar default
@@ -102,6 +130,10 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             </div>
         </div>
     `;
+
+    // Mostrar preview de logo y favicon si ya hay URLs guardadas
+    mostrarPreviewGuardado('logo-preview', 'logo-preview-img', config.logo_url);
+    mostrarPreviewGuardado('favicon-preview', 'favicon-preview-img', config.favicon_url);
 
     // Event listeners
     document.getElementById('temas-grid')?.addEventListener('click', (e) => {
@@ -112,24 +144,20 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         aplicarTema(tema);
     });
 
-    document.getElementById('cfg-preview-btn')?.addEventListener('click', () => {
+    document.getElementById('cfg-preview-btn')?.addEventListener('click', async () => {
         const configActual = leerConfigForm();
-        aplicarConfigVisual(configActual);
-        mostrarToast('Previsualizando cambios', 'info');
-    });
-
-    document.getElementById('cfg-save-btn')?.addEventListener('click', async () => {
-        const configActual = leerConfigForm();
-        const btn = document.getElementById('cfg-save-btn');
+        const btn = document.getElementById('cfg-preview-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...'; }
         try {
             await saveVisualConfig(configActual);
             aplicarConfigVisual(configActual);
-            mostrarToast('Configuracion visual guardada', 'success');
+            mostrarToast('✅ Cambios guardados y aplicados', 'success');
         } catch (err) {
-            mostrarToast('Error: ' + err.message, 'error');
+            // Aunque falle la BD, aplicar visualmente igual
+            aplicarConfigVisual(configActual);
+            mostrarToast('⚠️ Cambios aplicados visualmente, pero hubo error al guardar: ' + err.message, 'error');
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar cambios'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-eye"></i> Vista Previa'; }
         }
     });
 
@@ -138,14 +166,15 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         const defaults = {
             primary_color: '#9d4edd',
             secondary_color: '#ff6d00',
-            background_color: '#0a0a0f',
-            card_color: '#1a1a2e',
-            text_color: '#ffffff',
-            font_family: "'Poppins', sans-serif",
+            bg_color: '#0d0d0d',
+            card_bg: '#1a1a2e',
+            text_color: '#e0e0e0',
+            font_family: "'Inter', sans-serif",
             logo_url: '',
             favicon_url: '',
-            border_radius: '12px',
-            animation_velocidad: 'normal'
+            border_radius: 12,
+            animation_speed: 0.3,
+            custom_css: ''
         };
         try {
             await saveVisualConfig(defaults);
@@ -164,20 +193,177 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             aplicarConfigVisual(configActual);
         });
     });
+
+    // Preview en vivo para logo URL
+    const logoInput = document.getElementById('cfg-logo');
+    if (logoInput) {
+        logoInput.addEventListener('input', () => {
+            const url = logoInput.value;
+            mostrarPreviewGuardado('logo-preview', 'logo-preview-img', url);
+            aplicarConfigVisual(leerConfigForm());
+        });
+    }
+
+    // Preview en vivo para favicon URL
+    const faviconInput = document.getElementById('cfg-favicon');
+    if (faviconInput) {
+        faviconInput.addEventListener('input', () => {
+            const url = faviconInput.value;
+            mostrarPreviewGuardado('favicon-preview', 'favicon-preview-img', url);
+        });
+    }
+
+    // File upload para logo
+    const logoFileInput = document.getElementById('cfg-logo-file');
+    if (logoFileInput) {
+        logoFileInput.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                mostrarToast('❌ Solo se permiten archivos de imagen.', 'error');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                mostrarToast('❌ La imagen es muy grande. Máximo 5MB.', 'error');
+                return;
+            }
+            await subirImagenStorage(file, 'logo', 'logo');
+        });
+    }
+
+    // File upload para favicon
+    const faviconFileInput = document.getElementById('cfg-favicon-file');
+    if (faviconFileInput) {
+        faviconFileInput.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                mostrarToast('❌ Solo se permiten archivos de imagen.', 'error');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                mostrarToast('❌ La imagen es muy grande. Máximo 5MB.', 'error');
+                return;
+            }
+            await subirImagenStorage(file, 'favicon', 'favicon');
+        });
+    }
+}
+
+async function subirImagenStorage(file, tipo, inputId) {
+    // tipo: 'logo' o 'favicon'
+    const barId = tipo === 'logo' ? 'logo-upload-progress' : 'favicon-upload-progress';
+    const fillId = tipo === 'logo' ? 'logo-upload-fill' : 'favicon-upload-fill';
+    const textId = tipo === 'logo' ? 'logo-upload-text' : 'favicon-upload-text';
+    const previewId = tipo === 'logo' ? 'logo-preview' : 'favicon-preview';
+    const previewImgId = tipo === 'logo' ? 'logo-preview-img' : 'favicon-preview-img';
+    const cfgInputId = tipo === 'logo' ? 'cfg-logo' : 'cfg-favicon';
+
+    const bar = document.getElementById(barId);
+    const fill = document.getElementById(fillId);
+    const text = document.getElementById(textId);
+
+    if (bar) bar.style.display = 'flex';
+    if (fill) fill.style.width = '20%';
+    if (text) text.textContent = 'Optimizando...';
+
+    try {
+        const maxWidth = tipo === 'logo' ? 400 : 256;
+        const imagenOptimizada = await optimizarImagen(file, maxWidth, 0.85);
+        if (fill) fill.style.width = '50%';
+        if (text) text.textContent = 'Subiendo...';
+
+        const tenantId = window.currentTenantId || window.__clientTenantId || (await getCurrentTenantId()) || 'public';
+        const fileName = `${tipo}-${Date.now()}.jpg`;
+        const filePath = `logos/${tenantId}/${fileName}`;
+        const supabase = window.supabaseClient;
+        if (!supabase) throw new Error('Cliente no disponible');
+
+        const { data, error } = await supabase.storage
+            .from('service-images')
+            .upload(filePath, imagenOptimizada, { contentType: 'image/jpeg', upsert: true });
+        if (error) throw error;
+
+        if (fill) fill.style.width = '80%';
+        if (text) text.textContent = 'Procesando...';
+
+        const { data: urlData } = supabase.storage
+            .from('service-images')
+            .getPublicUrl(filePath);
+        const publicUrl = urlData?.publicUrl;
+
+        if (publicUrl) {
+            const cfgInput = document.getElementById(cfgInputId);
+            if (cfgInput) cfgInput.value = publicUrl;
+            mostrarPreviewGuardado(previewId, previewImgId, publicUrl);
+            // Aplicar preview visual
+            const config = leerConfigForm();
+            aplicarConfigVisual(config);
+            mostrarToast(`✅ ${tipo === 'logo' ? 'Logo' : 'Favicon'} subido exitosamente`, 'success');
+        }
+        if (bar) bar.style.display = 'none';
+    } catch (e) {
+        console.error(`[${tipo} upload] Error:`, e);
+        mostrarToast(`❌ Error al subir ${tipo}: ${e.message || 'Desconocido'}`, 'error');
+        if (bar) bar.style.display = 'none';
+    }
+}
+
+function optimizarImagen(file, maxWidth, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let w = img.width, h = img.height;
+                if (w > maxWidth) {
+                    h = h * maxWidth / w;
+                    w = maxWidth;
+                }
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob(function(blob) {
+                    if (blob) resolve(blob);
+                    else reject(new Error('Fallo al comprimir imagen'));
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function mostrarPreviewGuardado(previewId, imgId, url) {
+    const preview = document.getElementById(previewId);
+    const previewImg = document.getElementById(imgId);
+    if (preview && previewImg) {
+        if (url && url.trim()) {
+            previewImg.src = url;
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
 }
 
 function leerConfigForm() {
     return {
         primary_color: document.getElementById('cfg-primary')?.value || '#9d4edd',
         secondary_color: document.getElementById('cfg-secondary')?.value || '#ff6d00',
-        background_color: document.getElementById('cfg-bg')?.value || '#0a0a0f',
-        card_color: document.getElementById('cfg-card')?.value || '#1a1a2e',
-        text_color: document.getElementById('cfg-text')?.value || '#ffffff',
-        font_family: document.getElementById('cfg-font')?.value || "'Poppins', sans-serif",
+        bg_color: document.getElementById('cfg-bg')?.value || '#0d0d0d',
+        card_bg: document.getElementById('cfg-card')?.value || '#1a1a2e',
+        text_color: document.getElementById('cfg-text')?.value || '#e0e0e0',
+        font_family: document.getElementById('cfg-font')?.value || "'Inter', sans-serif",
         logo_url: document.getElementById('cfg-logo')?.value || '',
         favicon_url: document.getElementById('cfg-favicon')?.value || '',
-        border_radius: document.getElementById('cfg-radius')?.value || '12px',
-        animation_velocidad: document.getElementById('cfg-anim-speed')?.value || 'normal'
+        border_radius: parseInt(document.getElementById('cfg-radius')?.value) || 12,
+        animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || 0.3,
+        custom_css: ''
     };
 }
 
@@ -185,8 +371,8 @@ function aplicarTema(tema) {
     const inputs = {
         'cfg-primary': tema.primary_color,
         'cfg-secondary': tema.secondary_color,
-        'cfg-bg': tema.background_color,
-        'cfg-card': tema.card_color,
+        'cfg-bg': tema.background_color || tema.bg_color,
+        'cfg-card': tema.card_color || tema.card_bg,
         'cfg-text': tema.text_color
     };
     Object.entries(inputs).forEach(([id, val]) => {
@@ -199,10 +385,10 @@ function aplicarTema(tema) {
 
 function escapeHtml(str) {
     if (!str && str !== 0) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function escapeAttr(str) {
     if (!str) return '';
-    return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return String(str).replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
 }

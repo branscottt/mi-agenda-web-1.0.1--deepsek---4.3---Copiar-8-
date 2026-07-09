@@ -991,6 +991,36 @@ body {
     transition: transform 0.5s ease;
 }
 
+/* Fallback: inicial del nombre cuando no hay imagen */
+.service-image-fallback {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+}
+.service-fallback-inicial {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    user-select: none;
+    line-height: 1;
+}
+.service-card:hover .service-image-fallback,
+.service-card-admin:hover .service-image-fallback {
+    transform: scale(1.05);
+}
+.service-card .service-image .service-image-fallback {
+    border-radius: 12px 12px 0 0;
+    height: 180px;
+}
+.service-card-admin .service-card-header .service-image-fallback {
+    border-radius: 12px 12px 0 0;
+    height: 140px;
+}
+
 .service-card-admin:hover .service-card-image {
     transform: scale(1.05);
 }
@@ -1231,6 +1261,37 @@ body {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+}
+
+/* Marca del tenant en header */
+.client-header .tenant-brand,
+.admin-header .header-left .tenant-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.tenant-logo-header {
+    border-radius: 6px;
+    object-fit: contain;
+}
+.tenant-name-header {
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+.client-header .tenant-name-header {
+    color: var(--text-light);
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+}
+.admin-header .tenant-name-header {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    font-weight: 400;
 }
 
 .client-actions {
@@ -2232,6 +2293,49 @@ body {
 }
 #service-form .form-actions button {
     min-width: 120px;
+}
+
+/* === Upload de logo en Personalizar Estilo === */
+.logo-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.logo-file-upload {
+    flex-shrink: 0;
+}
+.logo-upload-btn {
+    padding: 8px 12px;
+    height: 100%;
+    min-height: 38px;
+    box-sizing: border-box;
+}
+.logo-upload-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 4px 8px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 6px;
+}
+.logo-upload-progress .progress-bar {
+    flex: 1;
+    height: 4px;
+}
+.logo-upload-progress .progress-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.logo-preview {
+    padding: 6px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 8px;
+    display: inline-block;
+}
+.logo-preview img {
+    display: block;
 }
 
 /* ----- CALENDARIO MINI ----- */

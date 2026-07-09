@@ -77,9 +77,11 @@
                     <i class="fas fa-arrow-left"></i> Volver a Login
                 </a>
                 <h1><i class="fas fa-user-shield"></i> Panel Administrador
-                    <span id="tenant-name-display" class="tenant-name-header" style="font-size:0.8rem; opacity:0.7; margin-left:10px; font-weight:400;"></span>
+                    <span class="tenant-brand">
+                        <img id="tenant-logo" src="" alt="Logo" class="tenant-logo-header" style="height: 32px; display: none;">
+                        <span id="tenant-name-display" class="tenant-name-header"></span>
+                    </span>
                 </h1>
-                <img id="tenant-logo" src="" alt="Logo" style="height: 40px; display: none;">
             </div>
 
             <div class="header-right">
@@ -750,12 +752,42 @@
                                 <h4 class="form-section-title"><i class="fas fa-image"></i> Logo y Favicon</h4>
                                 <div class="form-row two-cols">
                                     <div class="input-with-label">
-                                        <label><i class="fas fa-image"></i> URL del Logo</label>
-                                        <input type="url" id="cfg-logo" placeholder="https://ejemplo.com/logo.png">
+                                        <label><i class="fas fa-image"></i> Logo</label>
+                                        <div class="logo-input-row">
+                                            <input type="url" id="cfg-logo" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
+                                            <div class="file-upload-wrapper logo-file-upload">
+                                                <input type="file" id="cfg-logo-file" accept="image/*">
+                                                <label for="cfg-logo-file" class="file-upload-btn logo-upload-btn">
+                                                    <i class="fas fa-upload"></i>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="logo-upload-progress" id="logo-upload-progress" style="display:none;">
+                                            <div class="progress-bar"><div class="progress-fill" id="logo-upload-fill"></div></div>
+                                            <span class="progress-text" id="logo-upload-text">Subiendo...</span>
+                                        </div>
+                                        <div class="logo-preview" id="logo-preview" style="margin-top:8px;display:none;">
+                                            <img id="logo-preview-img" src="" alt="Vista previa logo" style="max-height:40px;border-radius:6px;">
+                                        </div>
                                     </div>
                                     <div class="input-with-label">
-                                        <label><i class="fas fa-globe"></i> URL del Favicon</label>
-                                        <input type="url" id="cfg-favicon" placeholder="https://ejemplo.com/favicon.ico">
+                                        <label><i class="fas fa-globe"></i> Favicon</label>
+                                        <div class="logo-input-row">
+                                            <input type="url" id="cfg-favicon" placeholder="https://ejemplo.com/favicon.ico" style="flex:1;">
+                                            <div class="file-upload-wrapper logo-file-upload">
+                                                <input type="file" id="cfg-favicon-file" accept="image/*">
+                                                <label for="cfg-favicon-file" class="file-upload-btn logo-upload-btn">
+                                                    <i class="fas fa-upload"></i>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="logo-upload-progress" id="favicon-upload-progress" style="display:none;">
+                                            <div class="progress-bar"><div class="progress-fill" id="favicon-upload-fill"></div></div>
+                                            <span class="progress-text" id="favicon-upload-text">Subiendo...</span>
+                                        </div>
+                                        <div class="logo-preview" id="favicon-preview" style="margin-top:8px;display:none;">
+                                            <img id="favicon-preview-img" src="" alt="Vista previa favicon" style="max-height:32px;border-radius:4px;">
+                                        </div>
                                     </div>
                                 </div>
                             </div>

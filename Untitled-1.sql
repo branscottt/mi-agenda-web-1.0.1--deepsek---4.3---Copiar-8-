@@ -402,6 +402,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_config (
     primary_color TEXT DEFAULT '#9d4edd',
     secondary_color TEXT DEFAULT '#ff6d00',
     logo_url TEXT,
+    favicon_url TEXT,
     custom_css TEXT,
     updated_at TIMESTAMPTZ DEFAULT now()
 );

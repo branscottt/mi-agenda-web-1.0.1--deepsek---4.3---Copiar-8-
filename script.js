@@ -1477,7 +1477,7 @@ const VisualConfigManager = {
             // 2. Cargar columnas desde BD
             const { data, error } = await supabaseClient
                 .from('tenant_config')
-                .select('primary_color, secondary_color, logo_url, custom_css')
+                .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
                 .eq('tenant_id', tenantId)
                 .maybeSingle();
             if (error) throw error;
@@ -1494,6 +1494,7 @@ const VisualConfigManager = {
                 config.primary_color = data.primary_color || def.primary_color;
                 config.secondary_color = data.secondary_color || def.secondary_color;
                 config.logo_url = data.logo_url || '';
+                config.favicon_url = data.favicon_url || '';
                 config.custom_css = data.custom_css || '';
             }
 
@@ -1523,15 +1524,27 @@ const VisualConfigManager = {
             const full = this._mergeWithDefaults(config);
 
             // Escribir columnas a BD (solo las que existen en la tabla)
-            const { error } = await supabaseClient
+            const dbPayload = {
+                tenant_id: tenantId,
+                primary_color: full.primary_color,
+                secondary_color: full.secondary_color,
+                logo_url: full.logo_url || null,
+                favicon_url: full.favicon_url || null,
+                custom_css: full.custom_css || null
+            };
+            let { error } = await supabaseClient
                 .from('tenant_config')
-                .upsert({
-                    tenant_id: tenantId,
-                    primary_color: full.primary_color,
-                    secondary_color: full.secondary_color,
-                    logo_url: full.logo_url || null,
-                    custom_css: full.custom_css || null
-                }, { onConflict: 'tenant_id' });
+                .upsert(dbPayload, { onConflict: 'tenant_id' });
+            // Si falla por favicon_url (schema cache desactualizado), reintentar sin ella
+            if (error && error.code === 'PGRST204' && (error.message || '').includes('favicon_url')) {
+                console.warn('[VisualConfig] favicon_url no existe en BD, guardando sin ella');
+                const payloadSinFavicon = { ...dbPayload };
+                delete payloadSinFavicon.favicon_url;
+                const retry = await supabaseClient
+                    .from('tenant_config')
+                    .upsert(payloadSinFavicon, { onConflict: 'tenant_id' });
+                error = retry.error;
+            }
             if (error) throw error;
 
             // Guardar campos extendidos en localStorage
@@ -1919,6 +1932,30 @@ input, select, textarea {
         s('cfg-favicon', c.favicon_url || '');
         s('custom-css', c.custom_css || '');
 
+        // Mostrar preview del logo si hay URL guardada
+        const logoPreview = document.getElementById('logo-preview');
+        const logoPreviewImg = document.getElementById('logo-preview-img');
+        if (logoPreview && logoPreviewImg) {
+            if (c.logo_url && c.logo_url.trim()) {
+                logoPreviewImg.src = c.logo_url;
+                logoPreview.style.display = 'block';
+            } else {
+                logoPreview.style.display = 'none';
+            }
+        }
+
+        // Mostrar preview del favicon si hay URL guardada
+        const favPreview = document.getElementById('favicon-preview');
+        const favPreviewImg = document.getElementById('favicon-preview-img');
+        if (favPreview && favPreviewImg) {
+            if (c.favicon_url && c.favicon_url.trim()) {
+                favPreviewImg.src = c.favicon_url;
+                favPreview.style.display = 'block';
+            } else {
+                favPreview.style.display = 'none';
+            }
+        }
+
         // Marcar tema activo si coincide
         this._highlightMatchingTheme(c);
 
@@ -2013,11 +2050,146 @@ input, select, textarea {
         onInput('cfg-logo', () => {
             const url = document.getElementById('cfg-logo').value;
             this.updateLogo(url);
+            // Mostrar preview del logo
+            const preview = document.getElementById('logo-preview');
+            const previewImg = document.getElementById('logo-preview-img');
+            if (preview && previewImg) {
+                if (url && url.trim()) {
+                    previewImg.src = url;
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            }
         });
+        // File upload para logo
+        const logoFileInput = document.getElementById('cfg-logo-file');
+        if (logoFileInput) {
+            logoFileInput.addEventListener('change', async function() {
+                const file = this.files[0];
+                if (!file) return;
+                // Validar tipo
+                if (!file.type.startsWith('image/')) {
+                    mostrarMensaje('❌ Solo se permiten archivos de imagen.', 'error');
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    mostrarMensaje('❌ La imagen es muy grande. Máximo 5MB.', 'error');
+                    return;
+                }
+                // Mostrar progreso
+                const bar = document.getElementById('logo-upload-progress');
+                const fill = document.getElementById('logo-upload-fill');
+                const text = document.getElementById('logo-upload-text');
+                if (bar) bar.style.display = 'flex';
+                if (fill) fill.style.width = '20%';
+                if (text) text.textContent = 'Optimizando...';
+                try {
+                    const imagenOptimizada = await optimizarImagen(file, 400, 0.85);
+                    if (fill) fill.style.width = '50%';
+                    if (text) text.textContent = 'Subiendo...';
+                    const tenantId = window.currentTenantId || 'public';
+                    const fileName = `logo-${Date.now()}.jpg`;
+                    const filePath = `logos/${tenantId}/${fileName}`;
+                    if (!supabaseClient) throw new Error('Cliente no disponible');
+                    const { data, error } = await supabaseClient.storage
+                        .from('service-images')
+                        .upload(filePath, imagenOptimizada, { contentType: 'image/jpeg', upsert: true });
+                    if (error) throw error;
+                    if (fill) fill.style.width = '80%';
+                    if (text) text.textContent = 'Procesando...';
+                    const { data: urlData } = supabaseClient.storage
+                        .from('service-images')
+                        .getPublicUrl(filePath);
+                    const publicUrl = urlData?.publicUrl;
+                    if (publicUrl) {
+                        document.getElementById('cfg-logo').value = publicUrl;
+                        VisualConfigManager.updateLogo(publicUrl);
+                        // Mostrar preview
+                        const preview = document.getElementById('logo-preview');
+                        const previewImg = document.getElementById('logo-preview-img');
+                        if (preview && previewImg) { previewImg.src = publicUrl; preview.style.display = 'block'; }
+                        mostrarMensaje('✅ Logo subido exitosamente', 'success');
+                    }
+                    if (bar) bar.style.display = 'none';
+                } catch (e) {
+                    console.error('[logo upload] Error:', e);
+                    mostrarMensaje('❌ Error al subir logo: ' + (e.message || 'Desconocido'), 'error');
+                    if (bar) bar.style.display = 'none';
+                }
+            });
+        }
         onInput('cfg-favicon', () => {
             const url = document.getElementById('cfg-favicon').value;
             this.updateFavicon(url);
+            // Mostrar preview del favicon
+            const preview = document.getElementById('favicon-preview');
+            const previewImg = document.getElementById('favicon-preview-img');
+            if (preview && previewImg) {
+                if (url && url.trim()) {
+                    previewImg.src = url;
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            }
         });
+
+        // File upload para favicon
+        const faviconFileInput = document.getElementById('cfg-favicon-file');
+        if (faviconFileInput) {
+            faviconFileInput.addEventListener('change', async function() {
+                const file = this.files[0];
+                if (!file) return;
+                if (!file.type.startsWith('image/')) {
+                    mostrarMensaje('❌ Solo se permiten archivos de imagen.', 'error');
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    mostrarMensaje('❌ La imagen es muy grande. Máximo 5MB.', 'error');
+                    return;
+                }
+                const bar = document.getElementById('favicon-upload-progress');
+                const fill = document.getElementById('favicon-upload-fill');
+                const text = document.getElementById('favicon-upload-text');
+                if (bar) bar.style.display = 'flex';
+                if (fill) fill.style.width = '20%';
+                if (text) text.textContent = 'Optimizando...';
+                try {
+                    const imagenOptimizada = await optimizarImagen(file, 256, 0.85);
+                    if (fill) fill.style.width = '50%';
+                    if (text) text.textContent = 'Subiendo...';
+                    const tenantId = window.currentTenantId || 'public';
+                    const fileName = `favicon-${Date.now()}.jpg`;
+                    const filePath = `logos/${tenantId}/${fileName}`;
+                    if (!supabaseClient) throw new Error('Cliente no disponible');
+                    const { data, error } = await supabaseClient.storage
+                        .from('service-images')
+                        .upload(filePath, imagenOptimizada, { contentType: 'image/jpeg', upsert: true });
+                    if (error) throw error;
+                    if (fill) fill.style.width = '80%';
+                    if (text) text.textContent = 'Procesando...';
+                    const { data: urlData } = supabaseClient.storage
+                        .from('service-images')
+                        .getPublicUrl(filePath);
+                    const publicUrl = urlData?.publicUrl;
+                    if (publicUrl) {
+                        document.getElementById('cfg-favicon').value = publicUrl;
+                        VisualConfigManager.updateFavicon(publicUrl);
+                        // Mostrar preview
+                        const preview = document.getElementById('favicon-preview');
+                        const previewImg = document.getElementById('favicon-preview-img');
+                        if (preview && previewImg) { previewImg.src = publicUrl; preview.style.display = 'block'; }
+                        mostrarMensaje('✅ Favicon subido exitosamente', 'success');
+                    }
+                    if (bar) bar.style.display = 'none';
+                } catch (e) {
+                    console.error('[favicon upload] Error:', e);
+                    mostrarMensaje('❌ Error al subir favicon: ' + (e.message || 'Desconocido'), 'error');
+                    if (bar) bar.style.display = 'none';
+                }
+            });
+        }
 
         // Custom CSS
         const cssEl = document.getElementById('custom-css');
@@ -2050,7 +2222,7 @@ input, select, textarea {
             }
             const { data, error } = await supabaseClient
                 .from('tenant_config')
-                .select('primary_color, secondary_color, logo_url, custom_css')
+                .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
                 .eq('tenant_id', tenantId)
                 .maybeSingle();
             if (error) throw error;
@@ -2064,6 +2236,7 @@ input, select, textarea {
                 config.primary_color = data.primary_color || config.primary_color;
                 config.secondary_color = data.secondary_color || config.secondary_color;
                 config.logo_url = data.logo_url || '';
+                config.favicon_url = data.favicon_url || '';
                 config.custom_css = data.custom_css || '';
             }
             localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(config));
@@ -2078,15 +2251,27 @@ input, select, textarea {
         if (!tenantId) throw new Error('Tenant ID requerido');
         try {
             const full = this._mergeWithDefaults(config);
-            const { error } = await supabaseClient
+            const dbPayload = {
+                tenant_id: tenantId,
+                primary_color: full.primary_color,
+                secondary_color: full.secondary_color,
+                logo_url: full.logo_url || null,
+                favicon_url: full.favicon_url || null,
+                custom_css: full.custom_css || null
+            };
+            let { error } = await supabaseClient
                 .from('tenant_config')
-                .upsert({
-                    tenant_id: tenantId,
-                    primary_color: full.primary_color,
-                    secondary_color: full.secondary_color,
-                    logo_url: full.logo_url || null,
-                    custom_css: full.custom_css || null
-                }, { onConflict: 'tenant_id' });
+                .upsert(dbPayload, { onConflict: 'tenant_id' });
+            // Si falla por favicon_url (schema cache desactualizado), reintentar sin ella
+            if (error && error.code === 'PGRST204' && (error.message || '').includes('favicon_url')) {
+                console.warn('[VisualConfig] favicon_url no existe en BD, guardando sin ella');
+                const payloadSinFavicon = { ...dbPayload };
+                delete payloadSinFavicon.favicon_url;
+                const retry = await supabaseClient
+                    .from('tenant_config')
+                    .upsert(payloadSinFavicon, { onConflict: 'tenant_id' });
+                error = retry.error;
+            }
             if (error) throw error;
             const extras = {
                 bg_color: full.bg_color, text_color: full.text_color,
@@ -4987,7 +5172,7 @@ async function cargarServiciosExistentes() {
              data-fecha-cercana="${fechaMasCercana || ''}"
              data-hora-cercana="${horaMasCercana || ''}">
             <div class="service-card-header">
-                <img src="${servicio.imagen}" alt="${servicio.nombre}" class="service-card-image">
+                ${renderImagenServicio(servicio, 'service-card-image')}
                 
                 ${servicio.destacado ? `
                 <div class="service-card-featured">
@@ -5600,6 +5785,34 @@ function optimizarImagen(file, maxWidth, quality) {
         };
         reader.readAsDataURL(file);
     });
+}
+
+// ============================================================
+// HELPER: Renderizar imagen de servicio con fallback de nombre
+// ============================================================
+function renderImagenServicio(servicio, className) {
+    if (!servicio) return '';
+    const imgClass = className || 'service-card-image';
+    const nombre = servicio.nombre || 'S';
+    const inicial = nombre.trim().charAt(0).toUpperCase();
+    const gradientIndex = (servicio.id ? String(servicio.id).length : 0) % 5;
+    const gradients = [
+        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+    ];
+    const gradient = gradients[gradientIndex];
+
+    if (servicio.imagen && servicio.imagen.trim()) {
+        return `<img src="${servicio.imagen}" alt="${nombre}" class="${imgClass}"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`;
+    } else {
+        return `<div class="${imgClass} service-image-fallback" style="background:${gradient};display:flex;align-items:center;justify-content:center;">
+                    <span class="service-fallback-inicial">${inicial}</span>
+                </div>`;
+    }
 }
 
 function configurarPrevisualizacionImagen() {
@@ -8565,6 +8778,23 @@ async function iniciarCliente() {
         console.warn('[iniciarCliente] Error cargando config visual:', e);
     }
 
+    // Cargar nombre del tenant (para mostrarlo en la esquina)
+    try {
+        const { data: tenantInfo } = await supabaseClient
+            .from('tenants')
+            .select('nombre_negocio')
+            .eq('id', tenantId)
+            .maybeSingle();
+        const tenantNameEl = document.getElementById('tenant-name-display');
+        if (tenantNameEl) {
+            tenantNameEl.textContent = tenantInfo?.nombre_negocio || 'Mi Negocio';
+        }
+    } catch (e) {
+        console.warn('[iniciarCliente] Error cargando nombre del tenant:', e);
+        const tenantNameEl = document.getElementById('tenant-name-display');
+        if (tenantNameEl) tenantNameEl.textContent = 'Mi Negocio';
+    }
+
     // Cargar servicios (funciona con o sin sesión)
     currentFilterTerm = '';
     currentFilterDate = '';
@@ -8785,8 +9015,7 @@ function actualizarGridCliente(servicios) {
         html += `
         <div class="service-card" data-service-id="${servicio.id}">
             <div class="service-image">
-                <img src="${servicio.imagen}" alt="${servicio.nombre}" 
-                     onerror="this.src='https://images.unsplash.com/photo-1544161515-4ab6ce6db874'">
+                ${renderImagenServicio(servicio)}
                 <span class="service-category ${servicio.categoria}">
                     ${getCategoriaNombre(servicio.categoria)}
                 </span>
@@ -10117,6 +10346,10 @@ function crearModalEditarVisualTenant() {
                     <input type="text" id="edit-vis-logo" class="form-control" placeholder="https://...">
                 </div>
                 <div class="form-group">
+                    <label>URL del favicon</label>
+                    <input type="text" id="edit-vis-favicon" class="form-control" placeholder="https://...">
+                </div>
+                <div class="form-group">
                     <label>CSS personalizado</label>
                     <textarea id="edit-vis-css" rows="4" class="form-control" placeholder="/* Estilos adicionales */"></textarea>
                 </div>
@@ -10143,6 +10376,7 @@ async function abrirModalEditarVisualTenant(tenantId) {
     document.getElementById('edit-vis-primary').value = config.primary_color;
     document.getElementById('edit-vis-secondary').value = config.secondary_color;
     document.getElementById('edit-vis-logo').value = config.logo_url || '';
+    document.getElementById('edit-vis-favicon').value = config.favicon_url || '';
     document.getElementById('edit-vis-css').value = config.custom_css || '';
     modal.style.display = 'flex';
     modal.dataset.currentTenant = tenantId;
@@ -10156,6 +10390,7 @@ async function abrirModalEditarVisualTenant(tenantId) {
             primary_color: document.getElementById('edit-vis-primary').value,
             secondary_color: document.getElementById('edit-vis-secondary').value,
             logo_url: document.getElementById('edit-vis-logo').value,
+            favicon_url: document.getElementById('edit-vis-favicon').value,
             custom_css: document.getElementById('edit-vis-css').value
         };
         const success = await VisualConfigManager.saveConfigForTenant(tenantId, updatedConfig);
