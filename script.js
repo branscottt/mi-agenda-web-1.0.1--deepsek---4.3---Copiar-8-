@@ -3675,7 +3675,7 @@ async function getSession() {
             return null;
         }
         
-        const { data: { session } } = JwtManager.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         console.log('Sesión obtenida:', session ? {
             id: session.user.id,
             email: session.user.email,
@@ -11672,102 +11672,3 @@ window.toggleActivoServicio = toggleActivoServicio;
 window.editarServicio = editarServicio;
 window.abrirModalCambioFecha = abrirModalCambioFecha;
 window.confirmarCambioFecha = confirmarCambioFecha;
-
-// ============================================
-// JwtManager - Gestion de JWT en localStorage
-// ============================================
-// Proporciona control explicito sobre los tokens JWT de Supabase.
-// Se integra con getSession(), login() y cerrarSesion() existentes.
-// ============================================
-
-const STORAGE_KEYS = {
-    ACCESS_TOKEN: 'agendapro_access_token',
-    REFRESH_TOKEN: 'agendapro_refresh_token',
-    USER_DATA: 'agendapro_user_data'
-};
-
-function decodeJWTPayload(token) {
-    try {
-        const payload = token.split('.')[1];
-        return JSON.parse(atob(payload));
-    } catch (e) {
-        return null;
-    }
-}
-
-window.JwtManager = {
-    setTokens(accessToken, refreshToken) {
-        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
-        if (refreshToken) {
-            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-        }
-        const payload = decodeJWTPayload(accessToken);
-        if (payload) {
-            const meta = payload.user_metadata || {};
-            localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify({
-                id: payload.sub,
-                nombre: meta.nombre || (payload.email ? payload.email.split('@')[0] : 'Usuario'),
-                email: payload.email,
-                rol: meta.rol || 'cliente',
-                tenant_id: meta.tenant_id
-            }));
-        }
-    },
-
-    getAccessToken() {
-        return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    },
-
-    getRefreshToken() {
-        return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-    },
-
-    getUserData() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEYS.USER_DATA);
-            return raw ? JSON.parse(raw) : null;
-        } catch {
-            return null;
-        }
-    },
-
-    isTokenExpired() {
-        const token = this.getAccessToken();
-        if (!token) return true;
-        const payload = decodeJWTPayload(token);
-        if (!payload || !payload.exp) return true;
-        return (payload.exp * 1000) <= (Date.now() + 60000);
-    },
-
-    async refreshToken(supabaseClient) {
-        const refreshToken = this.getRefreshToken();
-        if (!refreshToken) return false;
-        try {
-            const { data, error } = await supabaseClient.auth.refreshSession();
-            if (error || !data || !data.session) {
-                this.clear();
-                return false;
-            }
-            this.setTokens(data.session.access_token, data.session.refresh_token);
-            return true;
-        } catch (e) {
-            console.error('[JwtManager] Error refreshing token:', e);
-            this.clear();
-            return false;
-        }
-    },
-
-    getSession() {
-        const accessToken = this.getAccessToken();
-        const refreshToken = this.getRefreshToken();
-        const user = this.getUserData();
-        if (!accessToken || !user) return null;
-        return { access_token: accessToken, refresh_token: refreshToken, user: user };
-    },
-
-    clear() {
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-    }
-};
