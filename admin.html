@@ -67,8 +67,15 @@
             </div>
         </nav>
 
-        <!-- Header -->
-        <header class="admin-header">
+        <!-- Profile Header (cubre portada + logo) -->
+        <div class="profile-header">
+            <!-- Cover Banner -->
+            <div id="cover-banner-container" class="cover-banner-container" style="display:none;">
+                <img id="cover-banner-img" class="cover-banner-img" src="" alt="Portada">
+                <div class="cover-banner-overlay"></div>
+            </div>
+            <!-- Header -->
+            <header class="admin-header">
             <div class="header-left">
                 <button id="sidebar-toggle" class="btn-icon sidebar-toggle" onclick="toggleSidebar()" aria-label="Menú">
                     <i class="fas fa-bars"></i>
@@ -122,6 +129,7 @@
                 </button>
             </div>
         </header>
+        </div><!-- /.profile-header -->
 
         <!-- Información de suscripción (SIEMPRE visible) -->
         <div class="subscription-info glass-panel" id="tenant-subscription-info" style="margin-bottom: 20px; padding: 15px;">

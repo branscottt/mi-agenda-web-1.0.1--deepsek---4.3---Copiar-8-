@@ -25,6 +25,7 @@ const CONFIG_DEFAULT = {
     animation_speed: 0.3,
     logo_url: '',
     favicon_url: '',
+    cover_url: '',
     custom_css: ''
 };
 
@@ -131,6 +132,7 @@ export async function getVisualConfig(optionalTenantId) {
             if (dbData.secondary_color) config.secondary_color = dbData.secondary_color;
             config.logo_url = dbData.logo_url || '';
             config.favicon_url = dbData.favicon_url || '';
+            config.cover_url = dbData.cover_url || '';
             config.custom_css = dbData.custom_css || '';
         }
 
@@ -154,26 +156,47 @@ export async function saveVisualConfig(config) {
     const normalized = _normalizeKeys(config);
     const full = _mergeWithDefaults(normalized);
 
-    // 2. SOLO columnas reales a la BD
+    // 2. PRIMERO guardar en localStorage (SIEMPRE funciona)
+    //    Esto asegura que aunque la BD falle, los cambios persisten
+    const extras = {
+        bg_color: full.bg_color,
+        text_color: full.text_color,
+        card_bg: full.card_bg,
+        border_color: full.border_color,
+        theme_mode: full.theme_mode,
+        font_family: full.font_family,
+        border_radius: full.border_radius,
+        animation_speed: full.animation_speed,
+        favicon_url: full.favicon_url,
+        cover_url: full.cover_url
+    };
+    _saveExtrasToLS(tenantId, extras);
+    _saveCacheToLS(tenantId, full);
+
+    // 3. LUEGO intentar guardar a BD (best-effort)
+    let dbSuccess = false;
     const dbPayload = {
         tenant_id: String(tenantId).trim(),
         primary_color: full.primary_color,
         secondary_color: full.secondary_color,
         logo_url: full.logo_url || null,
         favicon_url: full.favicon_url || null,
+        cover_url: full.cover_url || null,
         custom_css: full.custom_css || null
     };
 
     try {
         await upsertConfig(tenantId, dbPayload);
+        dbSuccess = true;
     } catch (e) {
-        // Si falla por columna favicon_url (PGRST204 = schema cache), reintentar sin ella
-        if (e.code === 'PGRST204' && e.message?.includes('favicon_url')) {
-            console.warn('[VisualConfig] favicon_url no existe en BD, guardando sin ella');
-            const payloadSinFavicon = { ...dbPayload };
-            delete payloadSinFavicon.favicon_url;
+        // Si falla por favicon_url o cover_url (schema cache desactualizado), reintentar sin ellos
+        if (e.code === 'PGRST204' && (e.message?.includes('favicon_url') || e.message?.includes('cover_url'))) {
+            console.warn('[VisualConfig] Columna faltante en BD, guardando sin ella');
+            const payloadSin = { ...dbPayload };
+            delete payloadSin[e.message?.includes('favicon_url') ? 'favicon_url' : 'cover_url'];
             try {
-                await upsertConfig(tenantId, payloadSinFavicon);
+                await upsertConfig(tenantId, payloadSin);
+                dbSuccess = true;
             } catch (e2) {
                 console.error('[VisualConfig] Error guardando a BD (sin favicon):', e2);
                 throw new Error('Error al guardar en BD: ' + e2.message);
@@ -184,23 +207,8 @@ export async function saveVisualConfig(config) {
         }
     }
 
-    // 3. Extras a localStorage (mismos keys que script.js legacy)
-    const extras = {
-        bg_color: full.bg_color,
-        text_color: full.text_color,
-        card_bg: full.card_bg,
-        border_color: full.border_color,
-        theme_mode: full.theme_mode,
-        font_family: full.font_family,
-        border_radius: full.border_radius,
-        animation_speed: full.animation_speed,
-        favicon_url: full.favicon_url
-    };
-    _saveExtrasToLS(tenantId, extras);
-
-    // 4. Cache completo
-    _saveCacheToLS(tenantId, full);
-
+    // 4. Log success
+    console.log('[VisualConfig] Config guardada: localStorage ✅ | BD:', dbSuccess ? '✅' : '⚠️ omitida');
     return true;
 }
 
@@ -283,7 +291,6 @@ export function aplicarConfigVisual(config) {
     // --- CUSTOM CSS ---
     const oldStyle = document.getElementById('tenant-custom-styles');
     if (oldStyle) oldStyle.remove();
-
     if (c.custom_css && c.custom_css.trim()) {
         const styleEl = document.createElement('style');
         styleEl.id = 'tenant-custom-styles';
@@ -291,7 +298,30 @@ export function aplicarConfigVisual(config) {
         document.head.appendChild(styleEl);
     }
 
-    console.log('[VisualConfig] Tema aplicado:', c.primary_color, '| Logo:', c.logo_url ? '✅' : '❌');
+    // --- COVER BANNER ---
+    const coverImg = document.getElementById('cover-banner-img');
+    const coverContainer = document.getElementById('cover-banner-container');
+    if (c.cover_url && c.cover_url.trim()) {
+        if (coverImg) {
+            coverImg.src = c.cover_url;
+            coverImg.style.display = 'block';
+        }
+        if (coverContainer) {
+            coverContainer.style.display = 'block';
+            coverContainer.style.backgroundImage = `url('${c.cover_url}')`;
+        }
+        // Clase para ajustar el header cuando hay portada
+        document.querySelectorAll('.profile-header').forEach(el => el.classList.add('has-cover'));
+    } else {
+        if (coverImg) coverImg.style.display = 'none';
+        if (coverContainer) {
+            coverContainer.style.display = 'none';
+            coverContainer.style.backgroundImage = 'none';
+        }
+        document.querySelectorAll('.profile-header').forEach(el => el.classList.remove('has-cover'));
+    }
+
+    console.log('[VisualConfig] Tema aplicado:', c.primary_color, '| Logo:', c.logo_url ? '✅' : '❌', '| Cover:', c.cover_url ? '✅' : '❌');
 }
 
 // ============================================================

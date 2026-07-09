@@ -1441,6 +1441,7 @@ const VisualConfigManager = {
             animation_speed: 0.3,
             logo_url: '',
             favicon_url: '',
+            cover_url: '',
             custom_css: ''
         };
     },
@@ -1475,12 +1476,35 @@ const VisualConfigManager = {
             }
 
             // 2. Cargar columnas desde BD
-            const { data, error } = await supabaseClient
-                .from('tenant_config')
-                .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
-                .eq('tenant_id', tenantId)
-                .maybeSingle();
-            if (error) throw error;
+            let dbData = null;
+            let dbError = null;
+            try {
+                const res = await supabaseClient
+                    .from('tenant_config')
+                    .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, custom_css')
+                    .eq('tenant_id', tenantId)
+                    .maybeSingle();
+                dbData = res.data;
+                dbError = res.error;
+                // Si falla por columna faltante (PGRST204), reintentar sin cover_url
+                if (dbError && dbError.code === 'PGRST204') {
+                    console.warn('[VisualConfig] cover_url no existe en BD, cargando sin ella');
+                    const retry = await supabaseClient
+                        .from('tenant_config')
+                        .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
+                        .eq('tenant_id', tenantId)
+                        .maybeSingle();
+                    dbData = retry.data;
+                    dbError = retry.error;
+                }
+            } catch (e) {
+                dbError = e;
+            }
+            if (dbError && dbError.code !== 'PGRST116') {
+                // PGRST116 = no rows, no es error
+                console.warn('[VisualConfig] Error BD, usando localStorage:', dbError.message);
+                dbData = null;
+            }
 
             // 3. Cargar campos extendidos desde localStorage
             let extras = {};
@@ -1490,12 +1514,13 @@ const VisualConfigManager = {
             } catch (e) {}
 
             let config = { ...def, ...extras };
-            if (data) {
-                config.primary_color = data.primary_color || def.primary_color;
-                config.secondary_color = data.secondary_color || def.secondary_color;
-                config.logo_url = data.logo_url || '';
-                config.favicon_url = data.favicon_url || '';
-                config.custom_css = data.custom_css || '';
+            if (dbData) {
+                config.primary_color = dbData.primary_color || def.primary_color;
+                config.secondary_color = dbData.secondary_color || def.secondary_color;
+                config.logo_url = dbData.logo_url || '';
+                config.favicon_url = dbData.favicon_url || '';
+                config.cover_url = dbData.cover_url || '';
+                config.custom_css = dbData.custom_css || '';
             }
 
             // Guardar en caché completa
@@ -1530,20 +1555,25 @@ const VisualConfigManager = {
                 secondary_color: full.secondary_color,
                 logo_url: full.logo_url || null,
                 favicon_url: full.favicon_url || null,
+                cover_url: full.cover_url || null,
                 custom_css: full.custom_css || null
             };
             let { error } = await supabaseClient
                 .from('tenant_config')
                 .upsert(dbPayload, { onConflict: 'tenant_id' });
-            // Si falla por favicon_url (schema cache desactualizado), reintentar sin ella
-            if (error && error.code === 'PGRST204' && (error.message || '').includes('favicon_url')) {
-                console.warn('[VisualConfig] favicon_url no existe en BD, guardando sin ella');
-                const payloadSinFavicon = { ...dbPayload };
-                delete payloadSinFavicon.favicon_url;
-                const retry = await supabaseClient
-                    .from('tenant_config')
-                    .upsert(payloadSinFavicon, { onConflict: 'tenant_id' });
-                error = retry.error;
+            // Si falla por favicon_url o cover_url, reintentar sin él
+            if (error && error.code === 'PGRST204') {
+                const msg = error.message || '';
+                const colFaltante = msg.includes('favicon_url') ? 'favicon_url' : msg.includes('cover_url') ? 'cover_url' : null;
+                if (colFaltante) {
+                    console.warn('[VisualConfig]', colFaltante, 'no existe en BD, guardando sin ella');
+                    const payloadSin = { ...dbPayload };
+                    delete payloadSin[colFaltante];
+                    const retry = await supabaseClient
+                        .from('tenant_config')
+                        .upsert(payloadSin, { onConflict: 'tenant_id' });
+                    error = retry.error;
+                }
             }
             if (error) throw error;
 
@@ -1557,7 +1587,8 @@ const VisualConfigManager = {
                 font_family: full.font_family,
                 border_radius: full.border_radius,
                 animation_speed: full.animation_speed,
-                favicon_url: full.favicon_url
+                favicon_url: full.favicon_url,
+                cover_url: full.cover_url
             };
             localStorage.setItem(this._extKey(tenantId), JSON.stringify(extras));
 
@@ -1677,9 +1708,10 @@ input, select, textarea {
         styleEl.textContent = css;
         document.head.appendChild(styleEl);
 
-        // Aplicar logo y favicon
+        // Aplicar logo, favicon y cover
         this.updateLogo(c.logo_url);
         this.updateFavicon(c.favicon_url);
+        this.updateCover(c.cover_url);
     },
 
     /** Aplica cambios en tiempo real (preview sin guardar) */
@@ -1736,6 +1768,30 @@ input, select, textarea {
             link.href = faviconUrl;
         } else {
             if (link) link.remove();
+        }
+    },
+
+    /** Actualiza la imagen de portada/cover */
+    updateCover(coverUrl) {
+        const coverImg = document.getElementById('cover-banner-img');
+        const coverContainer = document.getElementById('cover-banner-container');
+        if (coverUrl && coverUrl.trim()) {
+            if (coverImg) {
+                coverImg.src = coverUrl;
+                coverImg.style.display = 'block';
+            }
+            if (coverContainer) {
+                coverContainer.style.display = 'block';
+                coverContainer.style.backgroundImage = `url('${coverUrl}')`;
+            }
+            document.querySelectorAll('.profile-header').forEach(el => el.classList.add('has-cover'));
+        } else {
+            if (coverImg) coverImg.style.display = 'none';
+            if (coverContainer) {
+                coverContainer.style.display = 'none';
+                coverContainer.style.backgroundImage = 'none';
+            }
+            document.querySelectorAll('.profile-header').forEach(el => el.classList.remove('has-cover'));
         }
     },
 
@@ -2220,24 +2276,46 @@ input, select, textarea {
                     if (parsed && parsed.primary_color) return this._mergeWithDefaults(parsed);
                 } catch (e) {}
             }
-            const { data, error } = await supabaseClient
-                .from('tenant_config')
-                .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
-                .eq('tenant_id', tenantId)
-                .maybeSingle();
-            if (error) throw error;
+            let dbData = null;
+            let dbError = null;
+            try {
+                const res = await supabaseClient
+                    .from('tenant_config')
+                    .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, custom_css')
+                    .eq('tenant_id', tenantId)
+                    .maybeSingle();
+                dbData = res.data;
+                dbError = res.error;
+                if (dbError && dbError.code === 'PGRST204') {
+                    console.warn('[VisualConfig] cover_url no existe en BD, cargando sin ella');
+                    const retry = await supabaseClient
+                        .from('tenant_config')
+                        .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
+                        .eq('tenant_id', tenantId)
+                        .maybeSingle();
+                    dbData = retry.data;
+                    dbError = retry.error;
+                }
+            } catch (e) {
+                dbError = e;
+            }
+            if (dbError && dbError.code !== 'PGRST116') {
+                console.warn('[VisualConfig] Error BD loadConfigForTenant:', dbError.message);
+                dbData = null;
+            }
             let extras = {};
             try {
                 const extRaw = localStorage.getItem(this._extKey(tenantId));
                 if (extRaw) extras = JSON.parse(extRaw);
             } catch (e) {}
             let config = { ...this.getDefaultConfig(), ...extras };
-            if (data) {
-                config.primary_color = data.primary_color || config.primary_color;
-                config.secondary_color = data.secondary_color || config.secondary_color;
-                config.logo_url = data.logo_url || '';
-                config.favicon_url = data.favicon_url || '';
-                config.custom_css = data.custom_css || '';
+            if (dbData) {
+                config.primary_color = dbData.primary_color || config.primary_color;
+                config.secondary_color = dbData.secondary_color || config.secondary_color;
+                config.logo_url = dbData.logo_url || '';
+                config.favicon_url = dbData.favicon_url || '';
+                config.cover_url = dbData.cover_url || '';
+                config.custom_css = dbData.custom_css || '';
             }
             localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(config));
             return config;
@@ -2257,20 +2335,25 @@ input, select, textarea {
                 secondary_color: full.secondary_color,
                 logo_url: full.logo_url || null,
                 favicon_url: full.favicon_url || null,
+                cover_url: full.cover_url || null,
                 custom_css: full.custom_css || null
             };
             let { error } = await supabaseClient
                 .from('tenant_config')
                 .upsert(dbPayload, { onConflict: 'tenant_id' });
-            // Si falla por favicon_url (schema cache desactualizado), reintentar sin ella
-            if (error && error.code === 'PGRST204' && (error.message || '').includes('favicon_url')) {
-                console.warn('[VisualConfig] favicon_url no existe en BD, guardando sin ella');
-                const payloadSinFavicon = { ...dbPayload };
-                delete payloadSinFavicon.favicon_url;
-                const retry = await supabaseClient
-                    .from('tenant_config')
-                    .upsert(payloadSinFavicon, { onConflict: 'tenant_id' });
-                error = retry.error;
+            // Si falla por favicon_url o cover_url, reintentar sin él
+            if (error && error.code === 'PGRST204') {
+                const msg = error.message || '';
+                const colFaltante = msg.includes('favicon_url') ? 'favicon_url' : msg.includes('cover_url') ? 'cover_url' : null;
+                if (colFaltante) {
+                    console.warn('[VisualConfig]', colFaltante, 'no existe en BD, guardando sin ella');
+                    const payloadSin = { ...dbPayload };
+                    delete payloadSin[colFaltante];
+                    const retry = await supabaseClient
+                        .from('tenant_config')
+                        .upsert(payloadSin, { onConflict: 'tenant_id' });
+                    error = retry.error;
+                }
             }
             if (error) throw error;
             const extras = {
@@ -2278,7 +2361,8 @@ input, select, textarea {
                 card_bg: full.card_bg, border_color: full.border_color,
                 theme_mode: full.theme_mode, font_family: full.font_family,
                 border_radius: full.border_radius, animation_speed: full.animation_speed,
-                favicon_url: full.favicon_url
+                favicon_url: full.favicon_url,
+                cover_url: full.cover_url
             };
             localStorage.setItem(this._extKey(tenantId), JSON.stringify(extras));
             localStorage.setItem(this._cacheKey(tenantId), JSON.stringify(full));

@@ -120,6 +120,28 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </label>
             </div>
 
+            <div class="config-section">
+                <h4>Imagen de Portada / Banner</h4>
+                <label>Imagen de portada del negocio
+                    <div class="logo-input-row">
+                        <input type="url" id="cfg-cover" class="config-input" value="${escapeAttr(config.cover_url || '')}" placeholder="https://ejemplo.com/portada.jpg" style="flex:1;">
+                        <div class="file-upload-wrapper logo-file-upload">
+                            <input type="file" id="cfg-cover-file" accept="image/*">
+                            <label for="cfg-cover-file" class="file-upload-btn logo-upload-btn">
+                                <i class="fas fa-upload"></i>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="logo-upload-progress" id="cover-upload-progress" style="display:none;">
+                        <div class="progress-bar"><div class="progress-fill" id="cover-upload-fill"></div></div>
+                        <span class="progress-text" id="cover-upload-text">Subiendo...</span>
+                    </div>
+                    <div class="cover-preview" id="cover-preview" style="margin-top:8px;display:none;width:100%;aspect-ratio:3/1;border-radius:12px;overflow:hidden;background:rgba(0,0,0,0.05);">
+                        <img id="cover-preview-img" src="" alt="Vista previa portada" style="width:100%;height:100%;object-fit:cover;display:block;">
+                    </div>
+                </label>
+            </div>
+
             <div class="config-actions">
                 <button id="cfg-preview-btn" class="btn-grad">
                     <i class="fas fa-eye"></i> Vista Previa
@@ -134,6 +156,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
     // Mostrar preview de logo y favicon si ya hay URLs guardadas
     mostrarPreviewGuardado('logo-preview', 'logo-preview-img', config.logo_url);
     mostrarPreviewGuardado('favicon-preview', 'favicon-preview-img', config.favicon_url);
+    mostrarPreviewCover(config.cover_url);
 
     // Event listeners
     document.getElementById('temas-grid')?.addEventListener('click', (e) => {
@@ -172,6 +195,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             font_family: "'Inter', sans-serif",
             logo_url: '',
             favicon_url: '',
+            cover_url: '',
             border_radius: 12,
             animation_speed: 0.3,
             custom_css: ''
@@ -213,6 +237,15 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         });
     }
 
+    // Preview en vivo para cover URL
+    const coverInput = document.getElementById('cfg-cover');
+    if (coverInput) {
+        coverInput.addEventListener('input', () => {
+            mostrarPreviewCover(coverInput.value);
+            aplicarConfigVisual(leerConfigForm());
+        });
+    }
+
     // File upload para logo
     const logoFileInput = document.getElementById('cfg-logo-file');
     if (logoFileInput) {
@@ -248,16 +281,35 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             await subirImagenStorage(file, 'favicon', 'favicon');
         });
     }
+
+    // File upload para cover/portada
+    const coverFileInput = document.getElementById('cfg-cover-file');
+    if (coverFileInput) {
+        coverFileInput.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                mostrarToast('❌ Solo se permiten archivos de imagen.', 'error');
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                mostrarToast('❌ La imagen es muy grande. Máximo 10MB.', 'error');
+                return;
+            }
+            await subirImagenStorage(file, 'cover', 'cover');
+        });
+    }
 }
 
 async function subirImagenStorage(file, tipo, inputId) {
-    // tipo: 'logo' o 'favicon'
-    const barId = tipo === 'logo' ? 'logo-upload-progress' : 'favicon-upload-progress';
-    const fillId = tipo === 'logo' ? 'logo-upload-fill' : 'favicon-upload-fill';
-    const textId = tipo === 'logo' ? 'logo-upload-text' : 'favicon-upload-text';
-    const previewId = tipo === 'logo' ? 'logo-preview' : 'favicon-preview';
-    const previewImgId = tipo === 'logo' ? 'logo-preview-img' : 'favicon-preview-img';
-    const cfgInputId = tipo === 'logo' ? 'cfg-logo' : 'cfg-favicon';
+    // tipo: 'logo', 'favicon' o 'cover'
+    const nameMap = { logo: 'Logo', favicon: 'Favicon', cover: 'Portada' };
+    const barId = tipo === 'logo' ? 'logo-upload-progress' : tipo === 'favicon' ? 'favicon-upload-progress' : 'cover-upload-progress';
+    const fillId = tipo === 'logo' ? 'logo-upload-fill' : tipo === 'favicon' ? 'favicon-upload-fill' : 'cover-upload-fill';
+    const textId = tipo === 'logo' ? 'logo-upload-text' : tipo === 'favicon' ? 'favicon-upload-text' : 'cover-upload-text';
+    const previewId = tipo === 'logo' ? 'logo-preview' : tipo === 'favicon' ? 'favicon-preview' : 'cover-preview';
+    const previewImgId = tipo === 'logo' ? 'logo-preview-img' : tipo === 'favicon' ? 'favicon-preview-img' : 'cover-preview-img';
+    const cfgInputId = tipo === 'logo' ? 'cfg-logo' : tipo === 'favicon' ? 'cfg-favicon' : 'cfg-cover';
 
     const bar = document.getElementById(barId);
     const fill = document.getElementById(fillId);
@@ -268,7 +320,7 @@ async function subirImagenStorage(file, tipo, inputId) {
     if (text) text.textContent = 'Optimizando...';
 
     try {
-        const maxWidth = tipo === 'logo' ? 400 : 256;
+        const maxWidth = tipo === 'cover' ? 1200 : (tipo === 'logo' ? 400 : 256);
         const imagenOptimizada = await optimizarImagen(file, maxWidth, 0.85);
         if (fill) fill.style.width = '50%';
         if (text) text.textContent = 'Subiendo...';
@@ -295,16 +347,22 @@ async function subirImagenStorage(file, tipo, inputId) {
         if (publicUrl) {
             const cfgInput = document.getElementById(cfgInputId);
             if (cfgInput) cfgInput.value = publicUrl;
-            mostrarPreviewGuardado(previewId, previewImgId, publicUrl);
+            if (tipo === 'cover') {
+                mostrarPreviewCover(publicUrl);
+            } else {
+                mostrarPreviewGuardado(previewId, previewImgId, publicUrl);
+            }
             // Aplicar preview visual
             const config = leerConfigForm();
             aplicarConfigVisual(config);
-            mostrarToast(`✅ ${tipo === 'logo' ? 'Logo' : 'Favicon'} subido exitosamente`, 'success');
+            const nombre = nameMap[tipo] || tipo;
+            mostrarToast(`✅ ${nombre} subido exitosamente`, 'success');
         }
         if (bar) bar.style.display = 'none';
     } catch (e) {
+        const nombre = nameMap[tipo] || tipo;
         console.error(`[${tipo} upload] Error:`, e);
-        mostrarToast(`❌ Error al subir ${tipo}: ${e.message || 'Desconocido'}`, 'error');
+        mostrarToast(`❌ Error al subir ${nombre}: ${e.message || 'Desconocido'}`, 'error');
         if (bar) bar.style.display = 'none';
     }
 }
@@ -351,6 +409,19 @@ function mostrarPreviewGuardado(previewId, imgId, url) {
     }
 }
 
+function mostrarPreviewCover(url) {
+    const preview = document.getElementById('cover-preview');
+    const previewImg = document.getElementById('cover-preview-img');
+    if (preview && previewImg) {
+        if (url && url.trim()) {
+            previewImg.src = url;
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+}
+
 function leerConfigForm() {
     return {
         primary_color: document.getElementById('cfg-primary')?.value || '#9d4edd',
@@ -361,6 +432,7 @@ function leerConfigForm() {
         font_family: document.getElementById('cfg-font')?.value || "'Inter', sans-serif",
         logo_url: document.getElementById('cfg-logo')?.value || '',
         favicon_url: document.getElementById('cfg-favicon')?.value || '',
+        cover_url: document.getElementById('cfg-cover')?.value || '',
         border_radius: parseInt(document.getElementById('cfg-radius')?.value) || 12,
         animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || 0.3,
         custom_css: ''
