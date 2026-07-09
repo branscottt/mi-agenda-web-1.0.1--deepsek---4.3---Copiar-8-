@@ -2083,6 +2083,104 @@ body {
     gap: 8px;
 }
 
+/* === File upload y layout de inputs de imagen === */
+.image-input-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.image-input-row > div {
+    flex: 1;
+    min-width: 0;
+}
+.image-sub-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 6px;
+}
+.file-upload-wrapper {
+    position: relative;
+}
+.file-upload-wrapper input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+.file-upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px dashed var(--glass-border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.file-upload-btn:hover {
+    background: rgba(99,102,241,0.1);
+    border-color: var(--primary);
+    color: var(--text-light);
+}
+.file-upload-btn i {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+#file-name-display {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* === Progress bar de upload === */
+.image-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 8px;
+}
+.progress-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+#upload-status-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Responsive: apilar en móvil */
+@media (max-width: 600px) {
+    .image-input-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
 /* Descripción */
 .desc-container textarea {
     min-height: 100px;

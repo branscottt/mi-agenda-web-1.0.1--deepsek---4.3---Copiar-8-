@@ -21,6 +21,10 @@ export function configurarFormularioServicio() {
 
     document.getElementById('clear-image')?.addEventListener('click', function() {
         document.getElementById('srv-image-url').value = '';
+        const fi = document.getElementById('srv-image-file');
+        if (fi) fi.value = '';
+        const fnd = document.getElementById('file-name-display');
+        if (fnd) fnd.textContent = 'Elegir imagen';
     });
 }
 
@@ -32,6 +36,10 @@ export async function editarServicioForm(id, servicio) {
     document.getElementById('srv-price').value = servicio.precio || 0;
     document.getElementById('srv-desc').value = servicio.descripcion || '';
     document.getElementById('srv-image-url').value = servicio.imagen || '';
+    const fi2 = document.getElementById('srv-image-file');
+    if (fi2) fi2.value = '';
+    const fnd2 = document.getElementById('file-name-display');
+    if (fnd2) fnd2.textContent = 'Elegir imagen';
     document.getElementById('srv-featured').checked = servicio.destacado || false;
     document.getElementById('srv-active').checked = servicio.activo !== false;
     // Cargar fechas

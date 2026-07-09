@@ -5140,6 +5140,13 @@ async function editarServicio(id) {
         if(capInput) capInput.value = (typeof servicio.capacidadConfigurada !== 'undefined') ? servicio.capacidadConfigurada : (servicio.capacidad || 10);
     }
     document.getElementById('srv-image-url').value = servicio.imagen;
+    // Resetear file input y display al editar
+    const fileInputEdit = document.getElementById('srv-image-file');
+    if (fileInputEdit) fileInputEdit.value = '';
+    const fileNameDisplayEdit = document.getElementById('file-name-display');
+    if (fileNameDisplayEdit) fileNameDisplayEdit.textContent = 'Elegir imagen';
+    const progressBarEdit = document.getElementById('image-upload-progress');
+    if (progressBarEdit) progressBarEdit.style.display = 'none';
     document.getElementById('srv-desc').value = servicio.descripcion || '';
     document.getElementById('srv-featured').checked = servicio.destacado;
     document.getElementById('srv-active').checked = servicio.activo;
@@ -5467,11 +5474,141 @@ async function aplicarFiltros() {
 }
 window.aplicarFiltros = aplicarFiltros;
 
+// ============================================================
+// SUBIR IMAGEN DEL SERVICIO (archivo local → Supabase Storage)
+// ============================================================
+function mostrarProgresoUpload(mostrar, progreso, texto) {
+    const bar = document.getElementById('image-upload-progress');
+    const fill = document.getElementById('upload-progress-fill');
+    const statusText = document.getElementById('upload-status-text');
+    if (!bar || !fill || !statusText) return;
+    if (!mostrar) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    fill.style.width = progreso + '%';
+    statusText.textContent = texto || 'Subiendo imagen...';
+}
+
+async function subirImagenServicio(file) {
+    if (!file) return null;
+    // Validar tamaño máx 10MB
+    if (file.size > 10 * 1024 * 1024) {
+        mostrarMensaje('❌ La imagen es muy grande. Máximo 10MB.', 'error');
+        return null;
+    }
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+        mostrarMensaje('❌ Solo se permiten archivos de imagen.', 'error');
+        return null;
+    }
+
+    mostrarProgresoUpload(true, 10, 'Optimizando imagen...');
+
+    try {
+        // === 1. Redimensionar y optimizar con Canvas ===
+        const imagenOptimizada = await optimizarImagen(file, 800, 0.8);
+        mostrarProgresoUpload(true, 40, 'Subiendo a la nube...');
+
+        // === 2. Subir a Supabase Storage ===
+        const tenantId = window.currentTenantId || 'public';
+        const fileName = `servicio-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+        const filePath = `${tenantId}/${fileName}`;
+
+        if (!supabaseClient) {
+            mostrarMensaje('❌ Cliente de base de datos no disponible', 'error');
+            mostrarProgresoUpload(false);
+            return null;
+        }
+
+        // Subir a Supabase Storage
+        // NOTA: El bucket 'service-images' debe crearse manualmente desde el SQL Editor.
+        // Ejecuta el archivo supabase-storage-setup.sql en el SQL Editor de Supabase.
+        const { data, error } = await supabaseClient.storage
+            .from('service-images')
+            .upload(filePath, imagenOptimizada, {
+                contentType: 'image/jpeg',
+                upsert: true
+            });
+
+        mostrarProgresoUpload(true, 80, 'Procesando...');
+
+        if (error) {
+            console.error('[subirImagenServicio] Error upload:', error);
+            mostrarMensaje('❌ Error al subir imagen: ' + (error.message || 'Desconocido'), 'error');
+            mostrarProgresoUpload(false);
+            return null;
+        }
+
+        // === 3. Obtener URL pública ===
+        const { data: urlData } = supabaseClient.storage
+            .from('service-images')
+            .getPublicUrl(filePath);
+
+        const publicUrl = urlData?.publicUrl || null;
+        mostrarProgresoUpload(false);
+
+        if (publicUrl) {
+            mostrarMensaje('✅ Imagen subida exitosamente', 'success');
+        }
+        return publicUrl;
+
+    } catch (e) {
+        console.error('[subirImagenServicio] Error:', e);
+        mostrarMensaje('❌ Error al procesar la imagen: ' + (e.message || 'Desconocido'), 'error');
+        mostrarProgresoUpload(false);
+        return null;
+    }
+}
+window.subirImagenServicio = subirImagenServicio;
+
+function optimizarImagen(file, maxWidth, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                // Calcular nuevas dimensiones manteniendo aspect ratio
+                let width = img.width;
+                let height = img.height;
+                if (width > maxWidth) {
+                    height = Math.round(height * maxWidth / width);
+                    width = maxWidth;
+                }
+                // Dibujar en canvas redimensionado
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, width, height);
+                // Convertir a Blob JPEG con calidad 0.8
+                canvas.toBlob(function(blob) {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error('No se pudo convertir la imagen'));
+                    }
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = function() {
+                reject(new Error('No se pudo cargar la imagen'));
+            };
+            img.src = e.target.result;
+        };
+        reader.onerror = function() {
+            reject(new Error('No se pudo leer el archivo'));
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 function configurarPrevisualizacionImagen() {
     const inputImagen = document.getElementById('srv-image-url');
+    const inputFile = document.getElementById('srv-image-file');
     const contenedorPreview = document.getElementById('image-preview');
     const btnLimpiar = document.getElementById('clear-image');
     const btnDefault = document.getElementById('default-image');
+    const fileNameDisplay = document.getElementById('file-name-display');
 
     if (!inputImagen || !contenedorPreview) {
         return;
@@ -5533,6 +5670,42 @@ function configurarPrevisualizacionImagen() {
             const defaultImage = 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
             inputImagen.value = defaultImage;
             actualizarPreview(defaultImage);
+        });
+    }
+
+    // === File input handler ===
+    if (inputFile) {
+        inputFile.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+
+            // Mostrar preview local inmediato
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                actualizarPreview(e.target.result);
+            };
+            reader.readAsDataURL(file);
+
+            // Actualizar nombre del archivo
+            if (fileNameDisplay) {
+                fileNameDisplay.textContent = file.name;
+            }
+
+            // Subir y optimizar
+            const publicUrl = await subirImagenServicio(file);
+            if (publicUrl) {
+                inputImagen.value = publicUrl;
+            } else {
+                // Si falló la subida, limpiar el input file
+                this.value = '';
+                if (fileNameDisplay) {
+                    fileNameDisplay.textContent = 'Elegir imagen';
+                }
+                // Solo limpiar preview si no había URL previa
+                if (!inputImagen.value) {
+                    actualizarPreview('');
+                }
+            }
         });
     }
 }
@@ -6154,6 +6327,13 @@ function limpiarEstadoEdicion() {
         }
         form.reset();
     }
+    // Resetear file input y display
+    const fileInput = document.getElementById('srv-image-file');
+    if (fileInput) fileInput.value = '';
+    const fileNameDisplay = document.getElementById('file-name-display');
+    if (fileNameDisplay) fileNameDisplay.textContent = 'Elegir imagen';
+    const progressBar = document.getElementById('image-upload-progress');
+    if (progressBar) progressBar.style.display = 'none';
     const cancelBtn = document.getElementById('cancel-edit');
     if (cancelBtn) cancelBtn.remove();
     // Restaurar variables globales de módulos a valores iniciales
@@ -7603,6 +7783,13 @@ async function duplicarServicio(id) {
     // categoría: 'general' (asignado por defecto al guardar)
     document.getElementById('srv-price').value = original.precio || '';
     document.getElementById('srv-image-url').value = original.imagen || '';
+    // Resetear file input al duplicar
+    const fileInputDup = document.getElementById('srv-image-file');
+    if (fileInputDup) fileInputDup.value = '';
+    const fileNameDisplayDup = document.getElementById('file-name-display');
+    if (fileNameDisplayDup) fileNameDisplayDup.textContent = 'Elegir imagen';
+    const progressBarDup = document.getElementById('image-upload-progress');
+    if (progressBarDup) progressBarDup.style.display = 'none';
     document.getElementById('srv-desc').value = original.descripcion || '';
     document.getElementById('srv-featured').checked = !!original.destacado;
     document.getElementById('srv-active').checked = !!original.activo;

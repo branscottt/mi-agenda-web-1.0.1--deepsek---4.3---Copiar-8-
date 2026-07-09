@@ -281,14 +281,40 @@
                                         </div>
                                     </div>
                                     <div class="image-section">
-                                        <label for="srv-image-url"><i class="fas fa-image"></i> Imagen del servicio</label>
-                                        <input type="text" id="srv-image-url" placeholder="Pega URL de imagen (opcional)">
+                                        <label><i class="fas fa-image"></i> Imagen del servicio</label>
+
+                                        <!-- Opción 1: URL -->
+                                        <div class="image-input-row">
+                                            <div class="image-url-field" style="flex:1;">
+                                                <label for="srv-image-url" class="image-sub-label"><i class="fas fa-link"></i> Por URL</label>
+                                                <input type="text" id="srv-image-url" placeholder="Pega URL de imagen (opcional)">
+                                            </div>
+                                            <div class="image-upload-field">
+                                                <label for="srv-image-file" class="image-sub-label"><i class="fas fa-upload"></i> Subir archivo</label>
+                                                <div class="file-upload-wrapper">
+                                                    <input type="file" id="srv-image-file" accept="image/*">
+                                                    <label for="srv-image-file" class="file-upload-btn">
+                                                        <i class="fas fa-folder-open"></i>
+                                                        <span id="file-name-display">Elegir imagen</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div class="image-preview-container" id="image-preview">
                                             <div class="image-placeholder">
                                                 <i class="fas fa-image"></i>
                                                 <p>Vista previa aparecerá aquí</p>
                                             </div>
                                         </div>
+
+                                        <div class="image-progress" id="image-upload-progress" style="display:none;">
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" id="upload-progress-fill"></div>
+                                            </div>
+                                            <span id="upload-status-text">Subiendo imagen...</span>
+                                        </div>
+
                                         <div class="image-options">
                                             <button type="button" class="btn-small" id="clear-image"><i class="fas fa-times"></i> Limpiar</button>
                                             <button type="button" class="btn-small" id="default-image"><i class="fas fa-magic"></i> Imagen predeterminada</button>
