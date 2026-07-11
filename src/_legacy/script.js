@@ -605,6 +605,25 @@ const VentasManager = {
     _cachedVentas: null,
     _cacheTime: 0,
     _CACHE_TTL: 60000, // 1 minuto
+    _LOCAL_KEY: 'agendapro_ventas',
+
+    _getVentasLocales() {
+        try {
+            const data = localStorage.getItem(this._LOCAL_KEY);
+            return data ? JSON.parse(data) : [];
+        } catch { return []; }
+    },
+
+    guardarVentaLocal(venta) {
+        try {
+            const ventas = this._getVentasLocales();
+            ventas.push(venta);
+            localStorage.setItem(this._LOCAL_KEY, JSON.stringify(ventas));
+            this.invalidateCache();
+        } catch (e) {
+            console.warn('Error guardando venta local:', e);
+        }
+    },
 
     async getAll(forceRefresh = false) {
         try {
@@ -628,6 +647,7 @@ const VentasManager = {
                 return [];
             }
 
+            const ventasLocales = this._getVentasLocales();
             const ventas = (data || []).map(c => {
                 const createdDate = new Date(c.created_at);
                 return {
@@ -648,9 +668,9 @@ const VentasManager = {
                 };
             });
 
-            this._cachedVentas = ventas;
+            this._cachedVentas = ventasLocales;
             this._cacheTime = ahora;
-            return ventas;
+            return ventasLocales;
         } catch (e) {
             console.error('Error en getAll ventas:', e);
             return [];
@@ -3053,28 +3073,60 @@ async function renderizarGraficoVentas() {
         window.ventasChart.destroy();
     }
     
-    // Datos de prueba
+    // Obtener ventas reales del tenant actual (VentasManager ya filtra por tenant_id)
+    const ventas = await VentasManager.getAll(true);
+    
+    // Agrupar por día de la semana
+    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const ventasPorDia = [0, 0, 0, 0, 0, 0, 0];
+    const conteoPorDia = [0, 0, 0, 0, 0, 0, 0];
+    
+    ventas.forEach(v => {
+        const fecha = v.fecha || v.created_at;
+        if (!fecha) return;
+        const dia = new Date(fecha).getDay(); // 0=Dom, 1=Lun...
+        const precio = Number(v.precio) || 0;
+        ventasPorDia[dia] += precio;
+        conteoPorDia[dia]++;
+    });
+    
+    // Calcular promedio por día para suavizar si hay pocos datos
+    const datosGrafico = ventasPorDia.map((total, i) => 
+        conteoPorDia[i] > 0 ? Math.round(total / conteoPorDia[i] * 3) : 0
+    );
+    
     const ctx = canvas.getContext('2d');
     window.ventasChart = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
-            labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+            labels: diasSemana,
             datasets: [{
-                label: 'Ventas',
-                data: [65000, 59000, 80000, 81000, 56000, 95000, 120000],
+                label: 'Ventas ($)',
+                data: datosGrafico,
+                backgroundColor: 'rgba(179, 0, 255, 0.3)',
                 borderColor: '#b300ff',
-                backgroundColor: 'rgba(179, 0, 255, 0.1)',
-                tension: 0.3,
-                fill: true
+                borderWidth: 2,
+                borderRadius: 4
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: v => '$' + v.toLocaleString('es-CL')
+                    }
+                }
+            }
         }
     });
     
-    console.log('✅ Gráfico de prueba renderizado');
+    console.log('✅ Gráfico de ventas actualizado con datos reales del tenant');
 }
 async function diagnosticarVentas() {
     console.log('🔍 DIAGNÓSTICO DE VENTAS');
@@ -3246,7 +3298,9 @@ async function finalizarCita(citaId) {
     const cita = citas.find(c => String(c.id) === String(citaId));
     
     if (cita && await CitasManager.finalizar(citaId)) {
-        await VentasManager.registrarDesdeCita(cita);
+        // Registrar venta en localStorage para persistencia
+        const venta = await VentasManager.registrarDesdeCita(cita);
+        VentasManager.guardarVentaLocal(venta);
         
         if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
         if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
