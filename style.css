@@ -865,6 +865,92 @@ body {
     padding: 14px;
 }
 
+/* Acciones de personalización */
+.customization-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+/* Botón Guardar cambios principal */
+.btn-save-primary {
+    flex: 1;
+    padding: 16px 28px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary-color), #7c3aed);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 4px 20px rgba(157, 78, 221, 0.35);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-save-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.08) 100%);
+    pointer-events: none;
+}
+
+.btn-save-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(157, 78, 221, 0.5);
+}
+
+.btn-save-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 10px rgba(157, 78, 221, 0.3);
+}
+
+.btn-save-primary i {
+    font-size: 1.1rem;
+}
+
+/* Botón Restablecer estilizado */
+.btn-reset-styled {
+    padding: 12px 22px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+}
+
+.btn-reset-styled:hover {
+    background: rgba(255, 70, 70, 0.08);
+    border-color: rgba(255, 70, 70, 0.25);
+    color: #ff6b6b;
+    box-shadow: 0 4px 15px rgba(255, 70, 70, 0.1);
+}
+
+.btn-reset-styled i {
+    font-size: 0.9rem;
+    transition: transform 0.3s ease;
+}
+
+.btn-reset-styled:hover i {
+    transform: rotate(-15deg);
+}
+
 /* Calendario mini actualizado */
 .calendar-mini {
     margin-top: 30px;

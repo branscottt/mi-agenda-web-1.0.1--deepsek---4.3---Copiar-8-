@@ -2386,12 +2386,19 @@ const planesData = {
         duracionMeses: 1
     },
     premium_anual: { 
-        nombre: 'Premium', 
+        nombre: 'Premium Anual', 
         precio: '$140.000', 
         periodo: '/año', 
-        features: ['Todo lo de Pro', 'Personalización de diseño (admin y cliente)', 'Onboarding dedicado', 'SLA 99.9%'], 
+        features: [
+            'Mismas funciones que Pro',
+            'Personalización de diseño (admin y cliente)',
+            'Onboarding personalizado',
+            'Ahorras $40.000 vs plan mensual ($180.000/año)',
+            'Factura anual en un solo pago'
+        ], 
         color: '#ffd700',
-        duracionMeses: 12
+        duracionMeses: 12,
+        ahorro: true
     }
 };
 
@@ -2448,7 +2455,8 @@ async function cargarPlanes() {
         }
     }
 
-    let html = '<div class="stats-container" style="grid-template-columns: repeat(3,1fr); gap: 25px;">';
+    let html = '<div class="step-guide" style="margin-bottom:20px;"><i class="fas fa-info-circle"></i><span><strong>Compara los planes:</strong> Todos los planes incluyen servicios ilimitados y citas ilimitadas. La diferencia es la <strong>forma de pago</strong>: Pro es mensual ($15.000/mes), Premium Anual es un solo pago por 12 meses con descuento incluido ($140.000/año = ahorras $40.000).</span></div>';
+    html += '<div class="stats-container" style="grid-template-columns: repeat(3,1fr); gap: 25px;">';
     
     for (const [key, plan] of Object.entries(planesData)) {
         if (plan.soloSuperAdmin && !esSuperAdmin) continue;
@@ -2456,7 +2464,8 @@ async function cargarPlanes() {
         
         const isCurrent = suscripcionActual && suscripcionActual.plan === key;
         html += `
-            <div class="stat-box plan-card" data-plan="${key}" style="text-align: center; border-top: 4px solid ${plan.color};">
+            <div class="stat-box plan-card" data-plan="${key}" style="text-align: center; border-top: 4px solid ${plan.color}; position: relative;">
+                ${plan.ahorro ? '<span style="position:absolute;top:-10px;right:-10px;background:#ffd700;color:#1a1a2e;font-size:0.7rem;font-weight:700;padding:4px 10px;border-radius:20px;box-shadow:0 2px 10px rgba(255,215,0,0.4);">AHORRO</span>' : ''}
                 <h3 style="color: ${plan.color};">${plan.nombre}</h3>
                 <div class="plan-price"><span style="font-size: 2rem; font-weight: bold;">${plan.precio}</span> ${plan.periodo}</div>
                 <ul style="list-style: none; padding: 0; margin: 20px 0; text-align: left;">
@@ -4234,11 +4243,14 @@ async function iniciarAdmin() {
         setTimeout(() => actualizarDashboardFinanzas(), 200);
     }
 
-    // ========== BOTÓN CANCELAR SUSCRIPCIÓN ==========
+    // ========== BOTÓN CANCELAR SUSCRIPCIÓN (doble confirmación) ==========
     const cancelBtn = document.getElementById('cancel-subscription-btn');
     if (cancelBtn) {
         cancelBtn.addEventListener('click', async () => {
-            if (!confirm('¿Cancelar tu suscripción activa? Podrás volver a activarla más tarde desde "Cambiar plan".')) return;
+            // Primera confirmación
+            if (!confirm('¿Estás seguro de cancelar tu suscripción activa?')) return;
+            // Segunda confirmación
+            if (!confirm('⚠️ Esta acción desactivará tu plan actual. ¿Confirmas la cancelación?\n\nTus datos se conservarán y podrás reactivar tu suscripción en cualquier momento desde "Cambiar plan".')) return;
             const suscripcion = await SuscripcionManager.getCurrent();
             if (!suscripcion) {
                 mostrarToast('No hay suscripción activa', 'error');
@@ -4289,11 +4301,12 @@ async function iniciarAdmin() {
             });
         }
 
-        // Botón vista previa (abre cliente.html en nueva pestaña)
+        // Botón guardar cambios (dispara el submit del formulario)
         const previewBtn = document.getElementById('cfg-preview-btn');
         if (previewBtn) {
             previewBtn.addEventListener('click', () => {
-                window.open('cliente.html', '_blank');
+                const form = document.getElementById('customization-form');
+                if (form) form.requestSubmit();
             });
         }
     }

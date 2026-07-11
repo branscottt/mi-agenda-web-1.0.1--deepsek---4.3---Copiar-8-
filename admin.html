@@ -653,54 +653,64 @@
                 <section class="admin-panel customization-panel">
                     <div class="glass-panel">
                         <h3><i class="fas fa-palette"></i> Personalización Visual</h3>
+
+                        <!-- GUÍA RÁPIDA -->
+                        <div class="step-guide" style="margin-bottom:18px;">
+                            <i class="fas fa-info-circle"></i>
+                            <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> para cambiar todo al instante, o personaliza colores, tipografía y logo uno por uno. Usa <strong>"Vista Previa"</strong> para ver los cambios sin guardar y <strong>"Guardar cambios"</strong> solo cuando estés conforme.</span>
+                        </div>
+
                         <form id="customization-form">
-                            <!-- TEMAS PREDEFINIDOS -->
+
+                            <!-- PASO 1: TEMAS RÁPIDOS -->
                             <div class="form-section">
-                                <h4 class="form-section-title"><i class="fas fa-paint-roller"></i> Temas Rápidos</h4>
+                                <h4 class="form-section-title"><i class="fas fa-paint-roller"></i> 1. Temas Rápidos</h4>
+                                <p class="field-hint" style="margin-bottom:10px;">Selecciona un tema para previsualizarlo al instante. Todos los colores y estilos se ajustarán automáticamente.</p>
                                 <div id="temas-grid" class="temas-grid"></div>
-                                <span class="field-hint" style="margin-top:10px;display:block;">Selecciona un tema para previsualizarlo al instante. Haz clic en "Guardar cambios" para aplicarlo.</span>
                             </div>
 
-                            <!-- COLORES -->
+                            <!-- PASO 2: COLORES -->
                             <div class="form-section">
-                                <h4 class="form-section-title"><i class="fas fa-fill-drip"></i> Colores</h4>
+                                <h4 class="form-section-title"><i class="fas fa-fill-drip"></i> 2. Colores</h4>
+                                <p class="field-hint" style="margin-bottom:10px;">Ajusta los colores principales de tu negocio. Cada color tiene una función específica, indicada abajo.</p>
                                 <div class="color-grid">
                                     <div class="input-with-label">
                                         <label>Primario</label>
                                         <input type="color" id="cfg-primary" value="#9d4edd">
-                                        <span class="field-hint-swatch">Botones, enlaces, acentos</span>
+                                        <span class="field-hint-swatch">Botones, enlaces, acentos principales</span>
                                     </div>
                                     <div class="input-with-label">
                                         <label>Secundario</label>
                                         <input type="color" id="cfg-secondary" value="#ff6d00">
-                                        <span class="field-hint-swatch">Gradientes, hovers</span>
+                                        <span class="field-hint-swatch">Gradientes, efectos hover, detalles</span>
                                     </div>
                                     <div class="input-with-label">
                                         <label>Fondo</label>
                                         <input type="color" id="cfg-bg" value="#0d0d0d">
-                                        <span class="field-hint-swatch">Fondo general</span>
+                                        <span class="field-hint-swatch">Fondo general de todas las pantallas</span>
                                     </div>
                                     <div class="input-with-label">
                                         <label>Texto</label>
                                         <input type="color" id="cfg-text" value="#e0e0e0">
-                                        <span class="field-hint-swatch">Textos y contenido</span>
+                                        <span class="field-hint-swatch">Color de textos y contenido principal</span>
                                     </div>
                                     <div class="input-with-label">
                                         <label>Tarjetas</label>
                                         <input type="color" id="cfg-card" value="#1a1a2e">
-                                        <span class="field-hint-swatch">Paneles, headers</span>
+                                        <span class="field-hint-swatch">Paneles, tarjetas, encabezados de sección</span>
                                     </div>
                                     <div class="input-with-label">
                                         <label>Bordes</label>
                                         <input type="color" id="cfg-border" value="#2a2a4a">
-                                        <span class="field-hint-swatch">Separadores, contornos</span>
+                                        <span class="field-hint-swatch">Separadores, contornos, bordes de inputs</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- TIPOGRAFÍA Y FORMA -->
+                            <!-- PASO 3: TIPOGRAFÍA Y FORMA -->
                             <div class="form-section">
-                                <h4 class="form-section-title"><i class="fas fa-font"></i> Tipografía y Estilo</h4>
+                                <h4 class="form-section-title"><i class="fas fa-font"></i> 3. Tipografía y Estilo</h4>
+                                <p class="field-hint" style="margin-bottom:10px;">Define la fuente, el modo claro/oscuro, el redondeo de esquinas y la velocidad de las animaciones.</p>
                                 <div class="form-row two-cols">
                                     <div class="input-with-label">
                                         <label><i class="fas fa-text-height"></i> Fuente</label>
@@ -712,7 +722,7 @@
                                             <div class="font-select-dropdown" id="font-select-dropdown"></div>
                                             <select id="cfg-font" class="filter-select" style="display:none;"></select>
                                         </div>
-                                        <span class="field-hint">Afecta a todos los textos del panel y vista cliente</span>
+                                        <span class="field-hint" style="font-size:0.75rem;">Afecta a todos los textos del panel y vista cliente</span>
                                     </div>
                                     <div class="input-with-label">
                                         <label><i class="fas fa-moon"></i> Modo</label>
@@ -720,7 +730,7 @@
                                             <option value="dark">Oscuro</option>
                                             <option value="light">Claro</option>
                                         </select>
-                                        <span class="field-hint">Afecta al fondo general y color de texto</span>
+                                        <span class="field-hint" style="font-size:0.75rem;">Cambia entre fondo oscuro y claro</span>
                                     </div>
                                 </div>
                                 <div class="form-row two-cols">
@@ -730,8 +740,7 @@
                                             <input type="range" id="cfg-radius" min="0" max="24" value="12">
                                             <span id="cfg-radius-value">12px</span>
                                         </div>
-                                        <span class="field-hint">Afecta a botones, tarjetas, paneles e inputs</span>
-                                        <!-- Preview en vivo del border-radius — esquinas cambian -->
+                                        <span class="field-hint" style="font-size:0.75rem;">Afecta a botones, tarjetas, paneles e inputs</span>
                                         <div class="radius-preview" id="radius-preview-demo">
                                             <div class="radius-preview-box" id="radius-demo-box">
                                                 <span class="radius-corner tl"></span>
@@ -751,8 +760,7 @@
                                             <input type="range" id="cfg-anim-speed" min="0.1" max="1.0" step="0.1" value="0.3">
                                             <span id="cfg-anim-speed-value">0.3s</span>
                                         </div>
-                                        <span class="field-hint">Afecta a transiciones, hovers y micro-interacciones</span>
-                                        <!-- Preview en vivo de velocidad — cajita rebota -->
+                                        <span class="field-hint" style="font-size:0.75rem;">Afecta a transiciones, hovers y micro-interacciones</span>
                                         <div class="speed-preview" id="speed-preview-demo">
                                             <div class="speed-track">
                                                 <div class="speed-ball" id="speed-demo-box"></div>
@@ -765,9 +773,10 @@
                                 </div>
                             </div>
 
-                            <!-- LOGO Y FAVICON -->
+                            <!-- PASO 4: LOGO Y FAVICON -->
                             <div class="form-section">
-                                <h4 class="form-section-title"><i class="fas fa-image"></i> Logo y Favicon</h4>
+                                <h4 class="form-section-title"><i class="fas fa-image"></i> 4. Logo</h4>
+                                <p class="field-hint" style="margin-bottom:10px;">Sube el logo de tu negocio. Aparecerá en la parte superior de la vista de tus clientes.</p>
                                 <div class="form-row two-cols">
                                     <div class="input-with-label">
                                         <label><i class="fas fa-image"></i> Logo</label>
@@ -794,17 +803,22 @@
                                 </div>
                             </div>
 
-                            <!-- CSS PERSONALIZADO -->
+                            <!-- PASO 5: CSS PERSONALIZADO -->
                             <div class="form-section">
-                                <h4 class="form-section-title"><i class="fas fa-code"></i> CSS Personalizado</h4>
+                                <h4 class="form-section-title"><i class="fas fa-code"></i> 5. CSS Personalizado <span class="field-hint" style="display:inline;font-weight:400;font-size:0.75rem;">(solo si sabes código)</span></h4>
+                                <p class="field-hint" style="margin-bottom:8px;">Si tienes conocimientos de CSS, puedes escribir estilos avanzados aquí. De lo contrario, usa los temas y colores de arriba.</p>
                                 <textarea id="custom-css" rows="4" placeholder="/* Escribe aquí tus estilos CSS personalizados */" style="width:100%;background:rgba(0,0,0,0.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:var(--border-radius);padding:12px;font-family:monospace;resize:vertical;"></textarea>
                             </div>
 
                             <!-- ACCIONES -->
-                            <div class="form-actions">
-                                <button type="button" class="btn-secondary" id="cfg-preview-btn"><i class="fas fa-eye"></i> Vista Previa</button>
-                                <button type="button" class="btn-secondary" id="cfg-reset-btn"><i class="fas fa-undo"></i> Restablecer</button>
-                                <button type="submit" class="btn-grad" id="cfg-save-btn"><i class="fas fa-save"></i> Guardar cambios</button>
+                            <div class="form-section" style="border:none;padding-bottom:0;">
+                                <h4 class="form-section-title"><i class="fas fa-check-circle"></i> Finalizar</h4>
+                                <p class="field-hint" style="margin-bottom:12px;">Cuando estés listo, presiona <strong>Guardar cambios</strong> para aplicar todo. Si te arrepientes, <strong>Restablecer valores</strong> vuelve a la configuración original.</p>
+                                <div class="form-actions customization-actions">
+                                    <button type="button" class="btn-reset-styled" id="cfg-reset-btn"><i class="fas fa-undo-alt"></i> Restablecer valores</button>
+                                    <button type="button" class="btn-save-primary" id="cfg-preview-btn"><i class="fas fa-save"></i> Guardar cambios</button>
+                                    <button type="submit" class="btn-grad" id="cfg-save-btn" style="display:none;">Guardar</button>
+                                </div>
                             </div>
                             <div id="solicitar-css-container" style="margin-top: 15px; display: none;">
                                 <button type="button" id="btn-solicitar-css" class="btn-secondary" style="width: 100%;">
@@ -840,7 +854,14 @@
             <div id="section-suscripcion" class="section-content" style="display:none;">
                 <div class="glass-panel">
                     <h3><i class="fas fa-crown"></i> Mi Suscripción</h3>
-                    <div id="sub-detail-panel" style="padding:20px;">
+
+                    <!-- GUÍA RÁPIDA -->
+                    <div class="step-guide" style="margin-bottom:16px;">
+                        <i class="fas fa-info-circle"></i>
+                        <span><strong>Tu plan actual:</strong> Aquí ves el plan que tienes contratado, su vigencia y estado. Puedes <strong>cambiar de plan</strong> cuando quieras para acceder a más funciones. Si ya no necesitas el servicio, puedes <strong>cancelar la suscripción</strong> — tus datos se conservan por si vuelves después.</span>
+                    </div>
+
+                    <div id="sub-detail-panel" style="padding:0 20px 20px 20px;">
                         <!-- Detalles de suscripción -->
                         <div class="subscription-info" id="tenant-subscription-info" style="padding: 15px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 20px;">
                             <div class="flex-between" style="flex-wrap: wrap; gap: 10px;">
@@ -857,13 +878,14 @@
                                 </div>
                             </div>
                         </div>
+                        <p class="field-hint" style="margin-top:-10px;margin-bottom:14px;">Al cancelar, tu plan pasará a inactivo pero tus datos se conservan. Puedes reactivar tu suscripción en cualquier momento desde "Cambiar plan".</p>
 
                         <div class="screen-navigation" style="margin-top:20px;">
                             <div class="nav-cards">
                                 <a href="planes.html" class="nav-card">
                                     <div class="nav-number"><i class="fas fa-exchange-alt"></i></div>
                                     <h4>Ver Planes</h4>
-                                    <p>Compara todos los planes disponibles</p>
+                                    <p>Compara todos los planes disponibles y elige el que mejor se adapte a tu negocio</p>
                                 </a>
                             </div>
                         </div>
