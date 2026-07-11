@@ -3508,6 +3508,20 @@ body {
     flex-shrink: 0;
 }
 
+/* Leyenda de botones */
+.btn-legend {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.45);
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
 /* Hint dentro del rango */
 .range-hint {
     font-size: 0.82rem;

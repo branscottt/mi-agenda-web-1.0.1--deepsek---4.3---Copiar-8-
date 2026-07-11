@@ -612,12 +612,24 @@
             <!-- SECCIÓN: Citas Programadas -->
             <div id="section-citas" class="section-content" style="display:none;">
                 <div id="appointments-container" class="glass-panel">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <h3><i class="fas fa-calendar-check"></i> Citas Programadas</h3>
-                        <button id="btn-limpiar-db" class="btn-small danger" onclick="limpiarBaseDatos()" title="Eliminar todas las citas de la base de datos">
-                            <i class="fas fa-trash-alt"></i> Limpiar Base de Datos
-                        </button>
+                    <!-- GUÍA RÁPIDA -->
+                    <div class="step-guide" style="margin-bottom:16px;">
+                        <i class="fas fa-info-circle"></i>
+                        <span><strong>Administración de citas:</strong> Aquí ves todas las citas agendadas por tus clientes. Puedes contactarlos por WhatsApp, editar la fecha/hora, marcar como completada o registrar que no asistieron. Usa el botón "Limpiar Base de Datos" solo si deseas eliminar todas las citas.</span>
                     </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <h3><i class="fas fa-calendar-check"></i> Citas Programadas</h3>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <span class="btn-legend">
+                                <i class="fab fa-whatsapp" style="color:#25D366;"></i> Contactar
+                                <i class="fas fa-pen" style="color:var(--primary-light);margin-left:6px;"></i> Editar
+                                <i class="fas fa-check" style="color:#00b894;margin-left:6px;"></i> Asistió
+                                <i class="fas fa-times" style="color:#ff6b6b;margin-left:6px;"></i> No asistió
+                            </span>
+                        </div>
+                    </div>
+                    <p class="field-hint" style="margin-top:8px;margin-bottom:0;">Pasá el mouse sobre cada icono para ver su función. Las citas se ordenan por fecha cercana.</p>
                     <div id="upcoming-appointments"></div>
                 </div>
             </div>
