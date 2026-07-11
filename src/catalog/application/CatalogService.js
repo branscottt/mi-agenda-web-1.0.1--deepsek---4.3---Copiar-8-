@@ -153,6 +153,7 @@ export async function confirmarReserva(contacto) {
         hora: item.hora,
         precio: item.precio,
         contacto: contacto,
+        trabajador_id: item.trabajadorId || null,
         notificaciones: { emailEnviado: false, whatsappEnviado: false }
     }));
 

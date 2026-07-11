@@ -1236,6 +1236,715 @@ body {
     gap: 6px;
 }
 
+/* ═══════════════════════════════════════════
+   WORKERS — Tarjetas, grilla, compartir
+   ═══════════════════════════════════════════ */
+
+.workers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+.worker-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    transition: all 0.25s ease;
+}
+.worker-card:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+}
+.worker-card.inactive {
+    opacity: 0.4;
+}
+.worker-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+.worker-info {
+    flex: 1;
+    min-width: 0;
+}
+.worker-info h4 {
+    margin: 0 0 4px;
+    font-size: 0.95rem;
+}
+.worker-skills {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.5);
+    margin: 0 0 4px;
+}
+.worker-contact {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.35);
+    margin: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.worker-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.worker-actions .btn-small {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+}
+.inactive-badge {
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.3);
+    padding: 4px 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+}
+
+/* Formulario de trabajador (modal) */
+#worker-form .form-group label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 4px;
+}
+#worker-form .form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    box-sizing: border-box;
+}
+#worker-form .form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+}
+
+/* Grilla de horarios */
+.schedule-week-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.schedule-worker-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+}
+.schedule-worker-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+}
+.worker-avatar-sm {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+.schedule-worker-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.schedule-week-days {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+}
+.schedule-day {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+}
+.schedule-day.today {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(157,78,221,0.06);
+}
+.schedule-day-name {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+}
+.schedule-day-date {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    margin: 2px 0 4px;
+}
+.schedule-day-bar {
+    height: 20px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.03);
+}
+.schedule-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.3);
+}
+.schedule-bar.libre {
+    background: rgba(0,184,148,0.15);
+    color: rgba(0,184,148,0.6);
+}
+.schedule-legend .legend-item {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.4);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Compartir con trabajadores */
+.workers-share-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.worker-share-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+}
+.worker-share-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+.worker-share-info {
+    flex: 1;
+    min-width: 0;
+}
+.worker-share-info h4 {
+    margin: 0 0 2px;
+    font-size: 0.85rem;
+}
+.worker-share-links {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+.worker-share-input {
+    width: 180px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    color: var(--text-color);
+    font-size: 0.72rem;
+    font-family: monospace;
+}
+.btn-sm {
+    padding: 8px 10px;
+    font-size: 0.78rem;
+}
+
+/* Popup cliente — selector de trabajador */
+.trabajadores-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}
+.btn-trabajador {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.06);
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-trabajador:hover {
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.03);
+}
+.btn-trabajador.active {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(157,78,221,0.08);
+}
+.trabajador-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: white;
+}
+.trabajador-nombre {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.trabajador-habilidades {
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+}
+
+/* Checkboxes de trabajadores en formulario de servicio */
+.workers-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+.worker-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+}
+.worker-checkbox-label:hover {
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.03);
+}
+.worker-checkbox-label.checked {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(157,78,221,0.08);
+}
+.worker-checkbox-label input[type="checkbox"] {
+    display: none;
+}
+.worker-check-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+.worker-check-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.worker-check-skills {
+    display: block;
+    width: 100%;
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.4);
+    margin-top: 2px;
+}
+
+/* ─── JORNADA BADGE ─── */
+.jornada-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+.jornada-badge.tipo-full_time {
+    background: rgba(0,184,148,0.15);
+    color: #00b894;
+}
+.jornada-badge.tipo-part_time {
+    background: rgba(253,203,110,0.15);
+    color: #fdcb6e;
+}
+.jornada-badge.tipo-30hrs {
+    background: rgba(157,78,221,0.15);
+    color: #c77dff;
+}
+.jornada-badge.tipo-custom {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.5);
+}
+.horas-texto {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+    margin-left: 6px;
+}
+
+/* ─── SELECTOR DE TIPO DE JORNADA ─── */
+.jornada-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+}
+.jornada-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 10px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.06);
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.jornada-btn:hover {
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.03);
+}
+.jornada-btn.active {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(157,78,221,0.08);
+}
+.jornada-btn strong {
+    font-size: 0.82rem;
+}
+.jornada-desc {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.4);
+}
+.jornada-horas {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--primary-color, #9d4edd);
+    margin-top: 2px;
+}
+
+/* ─── EDITOR DE HORARIO SEMANAL ─── */
+.horario-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.dia-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    transition: all 0.2s;
+}
+.dia-row.activo {
+    border-color: rgba(0,184,148,0.15);
+    background: rgba(0,184,148,0.03);
+}
+.dia-row.inactivo {
+    opacity: 0.5;
+}
+.dia-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    min-width: 100px;
+}
+.dia-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color, #9d4edd);
+    cursor: pointer;
+}
+.dia-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.dia-horarios {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+.time-input-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.time-input-group i {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.3);
+}
+.time-input-group input[type="time"] {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--text-color);
+    font-size: 0.82rem;
+    font-family: inherit;
+    width: 90px;
+}
+.time-input-group input[type="time"]:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+}
+.dia-total {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    min-width: 35px;
+    text-align: right;
+}
+.total-semanal {
+    text-align: center;
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(157,78,221,0.06);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.6);
+}
+.total-semanal strong {
+    color: var(--primary-color, #9d4edd);
+    font-size: 1.1rem;
+}
+
+/* ─── FORMULARIO TRABAJADOR SIMPLIFICADO ─── */
+.wf-dias-grid {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.wf-dia-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 2px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: transparent;
+    user-select: none;
+}
+.wf-dia-label:hover {
+    border-color: rgba(255,255,255,0.15);
+}
+.wf-dia-label.activo {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(157,78,221,0.1);
+    color: #c77dff;
+}
+.wf-dia-label input[type="checkbox"] { display: none; }
+
+.wf-dia-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+}
+.wf-dia-hs {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    min-width: 30px;
+    text-align: right;
+}
+
+/* Time input en editor de horario (modal desde schedule) */
+.se-time {
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    width: 95px;
+    font-family: inherit;
+}
+.se-time:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+}
+
+/* ─── CALENDARIO SEMANAL ─── */
+.schedule-container {
+    overflow-x: auto;
+}
+.schedule-header-row {
+    display: grid;
+    grid-template-columns: 180px repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 4px;
+}
+.schedule-corner {
+    background: transparent;
+}
+.schedule-day-header {
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.04);
+}
+.schedule-day-header.today {
+    border-color: var(--primary-color, #9d4edd);
+    background: rgba(157,78,221,0.08);
+}
+.s-day-name {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+}
+.s-day-num {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-top: 2px;
+}
+.schedule-worker-row {
+    display: grid;
+    grid-template-columns: 180px repeat(7, 1fr);
+    gap: 4px;
+    padding: 8px;
+    margin-bottom: 4px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.2s;
+}
+.schedule-worker-row:hover {
+    background: rgba(255,255,255,0.04);
+}
+.schedule-worker-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.sw-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+.sw-details {
+    min-width: 0;
+}
+.sw-name {
+    display: block;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sw-total {
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.35);
+}
+.schedule-day-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    border-radius: 8px;
+    padding: 4px;
+}
+.schedule-day-cell.on {
+    background: rgba(255,255,255,0.02);
+}
+.schedule-day-cell.off {
+    background: rgba(255,255,255,0.01);
+}
+.schedule-day-cell.today {
+    box-shadow: inset 0 0 0 1px var(--primary-color);
+}
+.s-day-status {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.15);
+}
+.s-day-bar {
+    width: 100%;
+    height: 28px;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
+.s-day-fill {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    transition: width 0.3s;
+}
+.s-day-hours {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
 /* Calendario mini actualizado */
 .calendar-mini {
     margin-top: 30px;

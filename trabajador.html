@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Horario - Agenda Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .worker-portal-body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--bg-color, #0d0d0d);
+        }
+        .worker-portal-card {
+            max-width: 640px;
+            width: 100%;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+        .wp-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .wp-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+        .wp-header-info h2 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+        .wp-header-info p {
+            margin: 4px 0 0;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.5);
+        }
+        .wp-section {
+            margin-bottom: 24px;
+        }
+        .wp-section h3 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: rgba(255,255,255,0.4);
+            margin: 0 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .worker-schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+        }
+        .schedule-day-slot {
+            text-align: center;
+            padding: 10px 6px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .schedule-day-slot.laboral {
+            border-color: rgba(0,184,148,0.2);
+            background: rgba(0,184,148,0.05);
+        }
+        .schedule-day-slot.descanso {
+            opacity: 0.4;
+        }
+        .day-name {
+            display: block;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 4px;
+        }
+        .day-hours {
+            display: block;
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.4);
+        }
+        .worker-citas-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .worker-cita-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 14px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+        }
+        .cita-hora {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--primary-color, #9d4edd);
+            min-width: 60px;
+        }
+        .cita-info {
+            flex: 1;
+        }
+        .cita-info strong {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 2px;
+        }
+        .cita-info span {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.5);
+        }
+        .wp-footer {
+            text-align: center;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .wp-footer p {
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.25);
+        }
+        .loading-spinner {
+            text-align: center;
+            padding: 40px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body class="worker-portal-body">
+    <div class="worker-portal-card">
+        <div class="wp-header">
+            <div class="wp-avatar" id="wp-avatar-inner" style="background:#9d4edd;">
+                <span id="wp-inicial">—</span>
+            </div>
+            <div class="wp-header-info">
+                <h2 id="wp-nombre">Cargando...</h2>
+                <p id="wp-habilidades"></p>
+            </div>
+        </div>
+
+        <div class="wp-section">
+            <h3><i class="fas fa-calendar-week"></i> Mi Horario Semanal</h3>
+            <div id="wp-horario">
+                <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+            </div>
+        </div>
+
+        <div class="wp-section">
+            <h3><i class="fas fa-calendar-check"></i> Reservas de Hoy</h3>
+            <div id="wp-reservas">
+                <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Cargando reservas...</div>
+            </div>
+        </div>
+
+        <div class="wp-footer">
+            <p><i class="fas fa-calendar-alt"></i> Agenda Pro — Portal del Trabajador</p>
+        </div>
+    </div>
+
+    <script src="dist/app.js"></script>
+    <script>
+        // Inicializar portal del trabajador
+        (async function() {
+            try {
+                const { initWorkerPortal } = await import('./src/workers/ui/WorkerPortal.js');
+                initWorkerPortal();
+            } catch(e) {
+                console.warn('[WorkerPortal] Error cargando modulo:', e.message);
+                // Fallback inline
+                document.getElementById('wp-nombre').textContent = 'Error al cargar';
+            }
+        })();
+    </script>
+</body>
+</html>

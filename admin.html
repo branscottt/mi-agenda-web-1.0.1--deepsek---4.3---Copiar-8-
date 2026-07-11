@@ -47,6 +47,18 @@
                     <i class="fas fa-users"></i>
                     <span>Mis Clientes</span>
                 </a>
+                <a href="#" class="sidebar-item" data-section="equipo" onclick="navigateTo('equipo')">
+                    <i class="fas fa-user-friends"></i>
+                    <span>Mi Equipo</span>
+                </a>
+                <a href="#" class="sidebar-item" data-section="horarios" onclick="navigateTo('horarios')">
+                    <i class="fas fa-clock"></i>
+                    <span>Horarios</span>
+                </a>
+                <a href="#" class="sidebar-item" data-section="compartir-trabajadores" onclick="navigateTo('compartir-trabajadores')">
+                    <i class="fas fa-user-share"></i>
+                    <span>Compartir Trabajadores</span>
+                </a>
                 <a href="#" class="sidebar-item" data-section="personalizar" onclick="navigateTo('personalizar')">
                     <i class="fas fa-palette"></i>
                     <span>Personalizar Estilo</span>
@@ -543,6 +555,22 @@
                                     <input type="hidden" id="service-modules" name="service-modules" value="">
                                 </div>
                             </details>
+                            <!-- ===== PASO 4: TRABAJADORES ===== -->
+                            <details class="form-step">
+                                <summary><i class="fas fa-user-friends"></i> 4. Trabajadores <i class="fas fa-question-circle help-icon" data-tooltip="Selecciona qué trabajadores pueden realizar este servicio. Si no seleccionas ninguno, el servicio funcionará sin asignación de trabajador."></i></summary>
+                                <div class="step-content">
+                                    <div class="step-guide">
+                                        <i class="fas fa-info-circle"></i>
+                                        <span><strong>Asigna trabajadores a este servicio:</strong> Marca los trabajadores que pueden realizar este servicio. Si no marcas ninguno, los clientes reservarán sin elegir trabajador (como funciona actualmente).</span>
+                                    </div>
+                                    <div id="service-workers-list" class="workers-checkbox-list">
+                                        <div class="loading-spinner" style="padding:10px;">
+                                            <i class="fas fa-spinner fa-spin"></i> Cargando trabajadores...
+                                        </div>
+                                    </div>
+                                    <p class="field-hint" style="margin-top:8px;">¿No aparecen trabajadores? <a href="#" onclick="navigateTo('equipo');return false;" style="color:var(--primary-color);">Agrega trabajadores en Mi Equipo</a></p>
+                                </div>
+                            </details>
                             <div class="form-actions">
                                 <button type="button" class="btn-secondary" onclick="mostrarVistaPrevia()"><i class="fas fa-eye"></i> Vista previa</button>
                                 <button type="button" class="btn-secondary" id="discard-changes"><i class="fas fa-undo-alt"></i> Descartar cambios</button>
@@ -646,6 +674,24 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- SECCIÓN: Mi Equipo -->
+            <div id="section-equipo" class="section-content" style="display:none;">
+                <section class="admin-panel workers-panel">
+                    <div id="workers-list-container">
+                        <!-- Renderizado por WorkersListView.js -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- SECCIÓN: Horarios -->
+            <div id="section-horarios" class="section-content" style="display:none;">
+                <section class="admin-panel schedule-panel">
+                    <div id="schedule-container">
+                        <!-- Renderizado por WorkerScheduleView.js -->
+                    </div>
+                </section>
             </div>
 
             <!-- SECCIÓN: Personalizar Estilo -->
@@ -850,6 +896,17 @@
                 </section>
             </div>
 
+            <!-- SECCIÓN: Compartir con Trabajadores -->
+            <div id="section-compartir-trabajadores" class="section-content" style="display:none;">
+                <section class="admin-panel share-panel">
+                    <div class="glass-panel">
+                        <div id="workers-share-container">
+                            <!-- Renderizado por WorkerShareView.js -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+
             <!-- SECCIÓN: Mi Suscripción -->
             <div id="section-suscripcion" class="section-content" style="display:none;">
                 <div class="glass-panel">
@@ -1037,6 +1094,25 @@
                 case 'compartir':
                     if (typeof configurarCompartirEnlace === 'function') {
                         setTimeout(() => configurarCompartirEnlace(), 100);
+                    }
+                    // Cargar compartir trabajadores
+                    if (window.__initWorkerShare) {
+                        setTimeout(() => window.__initWorkerShare(), 200);
+                    }
+                    break;
+                case 'equipo':
+                    if (window.__initWorkersList) {
+                        setTimeout(() => window.__initWorkersList(), 100);
+                    }
+                    break;
+                case 'horarios':
+                    if (window.__initWorkerSchedule) {
+                        setTimeout(() => window.__initWorkerSchedule(), 100);
+                    }
+                    break;
+                case 'compartir-trabajadores':
+                    if (window.__initWorkerShare) {
+                        setTimeout(() => window.__initWorkerShare(), 100);
                     }
                     break;
                 case 'suscripcion':

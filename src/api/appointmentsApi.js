@@ -11,7 +11,7 @@ export async function getAllCitas(tenantId) {
     if (!tenantId) return [];
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at')
+        .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color)')
         .eq('tenant_id', String(tenantId).trim())
         .order('created_at', { ascending: false });
     if (error) throw error;

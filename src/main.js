@@ -167,6 +167,21 @@ async function syncJwtSession() {
                 const { initConfigEditor } = await import('./visual-config/ui/ConfigEditor.js');
                 initConfigEditor('customization-form');
 
+                // Módulos de trabajadores
+                const { renderWorkersList, exposeWorkerGlobals } = await import('./workers/ui/WorkersListView.js');
+                window.__initWorkersList = () => renderWorkersList('workers-list-container');
+                exposeWorkerGlobals();
+
+                const { renderWorkerSchedule } = await import('./workers/ui/WorkerScheduleView.js');
+                window.__initWorkerSchedule = () => renderWorkerSchedule('schedule-container');
+
+                const { renderWorkerShare, exposeShareGlobals } = await import('./workers/ui/WorkerShareView.js');
+                window.__initWorkerShare = () => renderWorkerShare('workers-share-container');
+                exposeShareGlobals();
+
+                const { guardarWorkersDelServicio } = await import('./services/ui/ServiceForm.js');
+                window.__guardarWorkersDelServicio = guardarWorkersDelServicio;
+
                 console.log('[main.js] Modulos admin cargados correctamente');
             } catch (e) {
                 console.warn('[main.js] Modulos admin no disponibles (usando fallback legacy)');

@@ -40,7 +40,7 @@ console.log('📂 Copying assets to dist/...');
 fs.copyFileSync('style.css', 'dist/style.css');
 
 // 4. Copiar HTML files a dist/
-const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html'];
+const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html'];
 for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
         let content = fs.readFileSync(f, 'utf-8');

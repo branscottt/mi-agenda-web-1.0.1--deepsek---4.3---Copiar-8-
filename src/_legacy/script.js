@@ -1064,6 +1064,17 @@ const ServiciosManager = {
             if (result.error) throw result.error;
             
             console.log('✅ Servicio guardado:', result.data?.[0]?.id);
+            
+            // Guardar asignación de trabajadores (si existe la función)
+            const savedId = result.data?.[0]?.id;
+            if (savedId && window.__guardarWorkersDelServicio) {
+                try {
+                    await window.__guardarWorkersDelServicio(savedId);
+                } catch (e) {
+                    console.warn('Error guardando trabajadores del servicio:', e);
+                }
+            }
+            
             return result.data?.[0] || null;
         } catch (e) {
             console.error('Error guardando servicio:', e);

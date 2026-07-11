@@ -30,6 +30,7 @@ export async function renderAdminAppointments(containerId = 'upcoming-appointmen
                     <span><i class="fas fa-calendar"></i> ${c.fecha}</span>
                     <span><i class="fas fa-clock"></i> ${formatTimeDisplay(c.hora)}</span>
                     <span><i class="fas fa-user"></i> ${escapeHtml(c.contacto?.nombre || 'Anónimo')}</span>
+                    ${c.trabajador ? `<span><i class="fas fa-user-friends"></i> ${escapeHtml(c.trabajador.nombre)}</span>` : ''}
                     <span class="status-badge ${estado === 'Completada' ? 'completed' : 'pending'}">${estado}</span>
                 </div>
                 <div class="apt-actions">

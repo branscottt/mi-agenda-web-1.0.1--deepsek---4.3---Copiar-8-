@@ -28,7 +28,9 @@ function mapToCamelCase(c) {
         precio: c.precio,
         contacto: c.contacto || {},
         notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
-        creadoEn: c.created_at
+        creadoEn: c.created_at,
+        trabajadorId: c.trabajador_id || null,
+        trabajador: c.trabajadores || null
     };
 }
 
