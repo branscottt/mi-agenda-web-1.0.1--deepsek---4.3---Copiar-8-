@@ -2755,7 +2755,26 @@ body {
 /* ----- TABLA DE HORARIOS (modules-list) ----- */
 .modules-list {
     padding: 0;
+    max-height: 400px;
+    overflow-y: auto;
 }
+
+/* Scrollbar personalizada para modules-list */
+.modules-list::-webkit-scrollbar {
+    width: 6px;
+}
+.modules-list::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+    border-radius: 3px;
+}
+.modules-list::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+}
+.modules-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.2);
+}
+
 /* === (ELIMINADO) .modules-table, .modules-table-row y relacionados === */
 /* Ya no se usan. Reemplazados por cards por fecha en renderModulesList() */
 

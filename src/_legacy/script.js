@@ -7319,9 +7319,12 @@ function renderModulesEditable() {
 
     container.innerHTML = html;
 
-    // Mostrar boton Confirmar
+    // Mostrar u ocultar botón Confirmar según estado
     const confirmBtn = document.getElementById('confirm-modules-btn');
-    if (confirmBtn) confirmBtn.style.display = 'inline-block';
+    if (confirmBtn) {
+        const todosConfirmados = window.serviceModules.every(m => m.editable === false);
+        confirmBtn.style.display = todosConfirmados ? 'none' : 'inline-block';
+    }
 
     // Eventos para selects de hora
     function getTimeValue(group) {
