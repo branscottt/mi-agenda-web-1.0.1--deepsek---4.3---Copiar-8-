@@ -1,0 +1,15 @@
+# Bloquear acceso al directorio .git (historial completo del repositorio)
+RedirectMatch 404 /\.git(/|$)
+
+# Bloquear otros archivos sensibles comunes
+RedirectMatch 404 /\.env
+RedirectMatch 404 /\.env\.*
+RedirectMatch 404 /composer\.json
+RedirectMatch 404 /package\.json
+RedirectMatch 404 /package-lock\.json
+RedirectMatch 404 /node_modules(/|$)
+RedirectMatch 404 /\.DS_Store
+RedirectMatch 404 /Thumbs\.db
+
+# Bloquear acceso a cualquier archivo que empiece con punto (.*)
+RedirectMatch 404 /\..*$
