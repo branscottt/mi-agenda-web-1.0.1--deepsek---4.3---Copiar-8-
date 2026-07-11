@@ -3082,10 +3082,10 @@ async function renderizarGraficoVentas() {
     const conteoPorDia = [0, 0, 0, 0, 0, 0, 0];
     
     ventas.forEach(v => {
-        const fecha = v.fecha || v.created_at;
+        const fecha = v.fecha || v.fechaVenta;
         if (!fecha) return;
         const dia = new Date(fecha).getDay(); // 0=Dom, 1=Lun...
-        const precio = Number(v.precio) || 0;
+        const precio = Number(v.monto || v.precio) || 0;
         ventasPorDia[dia] += precio;
         conteoPorDia[dia]++;
     });
