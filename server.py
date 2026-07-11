@@ -5,9 +5,12 @@ Servidor HTTP endurecido para Agenda Pro.
 - Bloquea rutas sensibles (/scripts, /spec, /Untitled-1.sql, /node_modules)
 - Whitelist de extensiones permitidas
 - Cabeceras de seguridad HTTP (CSP, XFO, XCTO, Referrer-Policy)
+- Rate limiting: 10 solicitudes/minuto por IP y por username (X-Username)
 """
 import os
 import sys
+import time
+import collections
 import http.server
 import urllib.parse
 
@@ -20,15 +23,122 @@ ALLOWED_EXTENSIONS = (
     '.json', '.txt', '.xml'
 )
 
+RATE_LIMIT_MAX = 10          # solicitudes maximo
+RATE_LIMIT_WINDOW = 60       # ventana en segundos
+
+
+class RateLimiter:
+    """Rate limiter con ventana deslizante por key (IP o username).
+
+    Por cada key registra timestamps y poda los que quedan fuera de la
+    ventana en cada consulta.  No requiere hilos porque HTTPServer maneja
+    las peticiones secuencialmente.
+    """
+
+    def __init__(self, max_requests=RATE_LIMIT_MAX, window_seconds=RATE_LIMIT_WINDOW):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._buckets = collections.defaultdict(list)
+
+    def is_allowed(self, key):
+        """Registra una solicitud para la key y devuelve True si esta dentro
+        del limite, False si ya lo excedio."""
+        now = time.time()
+        cutoff = now - self.window_seconds
+        timestamps = self._buckets[key]
+        # Podar entradas fuera de la ventana
+        self._buckets[key] = [t for t in timestamps if t > cutoff]
+        if len(self._buckets[key]) >= self.max_requests:
+            return False
+        self._buckets[key].append(now)
+        return True
+
+    def get_retry_after(self, key):
+        """Devuelve los segundos que faltan para que expire la entrada mas
+        antigua de la ventana (o 0 si no hay limite activo)."""
+        timestamps = self._buckets.get(key)
+        if not timestamps or len(timestamps) < self.max_requests:
+            return 0
+        now = time.time()
+        oldest = timestamps[0]
+        remaining = int(self.window_seconds - (now - oldest))
+        return max(1, remaining)
+
+    def prune_expired(self):
+        """Limpia buckets de claves sin actividad reciente (control de memoria)."""
+        cutoff = time.time() - self.window_seconds
+        stale_keys = [k for k, v in self._buckets.items() if not v or v[-1] < cutoff]
+        for k in stale_keys:
+            del self._buckets[k]
+
+
+_rate_limiter = RateLimiter()
+_request_counter = 0          # contador para prune_expired periodico
+
 
 class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     # Eliminar header Server (evita exposicion de version Python)
     def version_string(self):
         return ''
 
+    def _get_client_ip(self):
+        """Obtiene IP real del cliente respetando X-Forwarded-For."""
+        forwarded = self.headers.get('X-Forwarded-For', '').strip()
+        if forwarded:
+            # Tomar la IP mas a la izquierda (la del cliente real)
+            return forwarded.split(',')[0].strip()
+        return self.client_address[0]
+
+    def _check_rate_limit(self):
+        """Verifica rate limiting por IP y por username (X-Username).
+        Retorna True si la solicitud debe continuar, False si debe ser
+        rechazada con 429."""
+        client_ip = self._get_client_ip()
+        username = self.headers.get('X-Username', '').strip()
+
+        # 1. Verificar por IP
+        if not _rate_limiter.is_allowed(client_ip):
+            retry_after = _rate_limiter.get_retry_after(client_ip)
+            self._send_rate_limit_error(retry_after, client_ip)
+            return False
+
+        # 2. Verificar por username (si el cliente lo envia)
+        if username and not _rate_limiter.is_allowed(username):
+            retry_after = _rate_limiter.get_retry_after(username)
+            self._send_rate_limit_error(retry_after, username)
+            return False
+
+        return True
+
+    def _send_rate_limit_error(self, retry_after, key):
+        """Envia respuesta 429 Too Many Requests con Retry-After."""
+        message = (
+            f"429 Too Many Requests\n"
+            f"Limite de {RATE_LIMIT_MAX} solicitudes por minuto excedido.\n"
+            f"Intente de nuevo en {retry_after} segundo(s).\n"
+        )
+        self.send_response(429)
+        self.send_header('Retry-After', str(retry_after))
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.send_header('Connection', 'close')
+        self.end_headers()
+        self.wfile.write(message.encode('utf-8'))
+
     def do_GET(self):
+        # ============================================================
+        # 0. RATE LIMITING — primero, antes de cualquier procesamiento
+        # ============================================================
+        if not self._check_rate_limit():
+            return
+
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip('/') or '/'
+
+        # Poda periodica del rate limiter (cada 100 requests)
+        global _request_counter
+        _request_counter += 1
+        if _request_counter % 100 == 0:
+            _rate_limiter.prune_expired()
 
         # 1. Bloquear .git (completo)
         if '/.git' in path:
@@ -118,7 +228,8 @@ if __name__ == '__main__':
     server = http.server.HTTPServer((bind, port), SecureHTTPRequestHandler)
     print(f"Servidor endurecido en http://{bind}:{port}")
     print(f"Directorio: {os.path.abspath(directory)}")
-    print("Protegido: directory listing OFF, paths sensibles -> 404, whitelist extensiones, CSP activo")
+    print(f"Rate limit: {RATE_LIMIT_MAX} solicitudes/{RATE_LIMIT_WINDOW}s por IP y por username")
+    print("Protegido: directory listing OFF, paths sensibles -> 404, whitelist extensiones, CSP activo, rate limit ON")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
