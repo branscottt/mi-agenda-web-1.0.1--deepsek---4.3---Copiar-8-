@@ -31,8 +31,8 @@ export async function getSystemStats() {
             .filter(s => s.status !== 'canceled')
             .reduce((sum, s) => sum + (s.monto || 0), 0);
 
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-        const totalUsuarios = authError ? 0 : (authUsers?.users?.length || 0);
+        const { data: authUsers, error: authError } = await supabase.rpc('get_all_users_for_superadmin');
+        const totalUsuarios = authError ? 0 : (authUsers?.length || 0);
 
         return {
             totalTenants: tenants.length,

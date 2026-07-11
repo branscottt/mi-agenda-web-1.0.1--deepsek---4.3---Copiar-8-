@@ -4878,7 +4878,13 @@ function configurarFormulario() {
     });
     const btnLimpiarImg = document.getElementById('clear-image');
     if (btnLimpiarImg) {
-        btnLimpiarImg.addEventListener('click', function() { document.getElementById('srv-image-url').value = ''; });
+        btnLimpiarImg.addEventListener('click', function() {
+            document.getElementById('srv-image-url').value = '';
+            const fi = document.getElementById('srv-image-file');
+            if (fi) fi.value = '';
+            const fnd = document.getElementById('file-name-display');
+            if (fnd) fnd.textContent = 'Elegir imagen';
+        });
     }
     const capInput = document.getElementById('srv-capacity');
     if (capInput) capInput.disabled = false;
@@ -4928,7 +4934,7 @@ async function crearServicio() {
         nombre: nombre,
         precio: parseFloat(precio),
         duracion: duracion,
-        imagen: document.getElementById('srv-image-url').value || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874',
+        imagen: document.getElementById('srv-image-url').value || null,
         descripcion: document.getElementById('srv-desc').value || '',
         destacado: document.getElementById('srv-featured').checked,
         activo: activo,
@@ -5337,7 +5343,10 @@ async function editarServicio(id) {
     } else {
         if(capInput) capInput.value = (typeof servicio.capacidadConfigurada !== 'undefined') ? servicio.capacidadConfigurada : (servicio.capacidad || 10);
     }
-    document.getElementById('srv-image-url').value = servicio.imagen;
+    document.getElementById('srv-image-url').value = servicio.imagen || '';
+    if (typeof window._actualizarPreview === 'function') {
+        window._actualizarPreview(servicio.imagen || '');
+    }
     // Resetear file input y display al editar
     const fileInputEdit = document.getElementById('srv-image-file');
     if (fileInputEdit) fileInputEdit.value = '';
@@ -5503,7 +5512,7 @@ async function actualizarServicio() {
         nombre: nombre,
         precio: parseFloat(precio),
         duracion: duracion,
-        imagen: document.getElementById('srv-image-url').value || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874',
+        imagen: document.getElementById('srv-image-url').value || null,
         descripcion: document.getElementById('srv-desc').value || '',
         destacado: document.getElementById('srv-featured').checked,
         activo: activo,
@@ -5833,73 +5842,44 @@ function configurarPrevisualizacionImagen() {
     const inputFile = document.getElementById('srv-image-file');
     const contenedorPreview = document.getElementById('image-preview');
     const btnLimpiar = document.getElementById('clear-image');
-    const btnDefault = document.getElementById('default-image');
     const fileNameDisplay = document.getElementById('file-name-display');
 
-    if (!inputImagen || !contenedorPreview) {
-        return;
-    }
+    if (!inputImagen || !contenedorPreview) return;
 
     function actualizarPreview(url) {
         contenedorPreview.innerHTML = '';
-
         if (!url) {
-            contenedorPreview.innerHTML = `
-                <div class="image-placeholder">
-                    <i class="fas fa-image"></i>
-                    <p>Vista previa aparecerá aquí</p>
-                </div>
-            `;
+            contenedorPreview.innerHTML = '<div class="image-placeholder"><i class="fas fa-image"></i><p>Vista previa aparecerá aquí</p></div>';
             contenedorPreview.classList.remove('has-image');
             return;
         }
-
         const img = document.createElement('img');
         img.src = url;
         img.alt = 'Previsualización del servicio';
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'cover';
-        img.style.borderRadius = '8px';
-
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:8px;';
         img.onload = function() {
             contenedorPreview.appendChild(img);
             contenedorPreview.classList.add('has-image');
         };
-
         img.onerror = function() {
-            contenedorPreview.innerHTML = `
-                <div class="image-placeholder error">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>No se pudo cargar la imagen</p>
-                    <small>URL inválida o imagen no accesible</small>
-                </div>
-            `;
+            contenedorPreview.innerHTML = '<div class="image-placeholder error"><i class="fas fa-exclamation-triangle"></i><p>No se pudo cargar la imagen</p><small>URL inválida o imagen no accesible</small></div>';
             contenedorPreview.classList.remove('has-image');
         };
     }
 
-    inputImagen.addEventListener('input', function() {
-        const url = this.value.trim();
-        actualizarPreview(url);
-    });
+    // Exponer globalmente para que editarServicio() pueda llamarlo
+    window._actualizarPreview = actualizarPreview;
 
     if (btnLimpiar) {
         btnLimpiar.addEventListener('click', function() {
             inputImagen.value = '';
             actualizarPreview('');
+            if (inputFile) inputFile.value = '';
+            if (fileNameDisplay) fileNameDisplay.textContent = 'Elegir imagen';
         });
     }
 
-    if (btnDefault) {
-        btnDefault.addEventListener('click', function() {
-            const defaultImage = 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-            inputImagen.value = defaultImage;
-            actualizarPreview(defaultImage);
-        });
-    }
-
-    // === File input handler ===
+    // File upload handler
     if (inputFile) {
         inputFile.addEventListener('change', async function() {
             const file = this.files[0];
@@ -8063,7 +8043,7 @@ function mostrarVistaPrevia() {
     const nombre = document.getElementById('srv-name')?.value || 'Nombre del servicio';
     const precio = document.getElementById('srv-price')?.value || '0';
     const descripcion = document.getElementById('srv-desc')?.value || '';
-    const imagen = document.getElementById('srv-image-url')?.value || 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874';
+    const imagen = document.getElementById('srv-image-url')?.value || null;
     const activo = document.getElementById('srv-active')?.checked;
 
     const fechas = Array.from(selectedDates).sort();
