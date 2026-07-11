@@ -131,22 +131,6 @@
         </header>
         </div><!-- /.profile-header -->
 
-        <!-- Información de suscripción (SIEMPRE visible) -->
-        <div class="subscription-info glass-panel" id="tenant-subscription-info" style="margin-bottom: 20px; padding: 15px;">
-            <h2 style="margin: 0 0 10px 0; font-size: 1.1rem;"><i class="fas fa-crown"></i> Mi Suscripción</h2>
-            <div class="flex-between">
-                <span><i class="fas fa-tag"></i> Plan actual: <strong id="sub-plan-display">Cargando...</strong></span>
-                <span><i class="fas fa-calendar-alt"></i> Vigencia: <span id="sub-dates-display">...</span></span>
-                <span class="status-badge" id="sub-status-display"></span>
-                <a href="planes.html" class="btn-small" style="margin-left: auto;">
-                    <i class="fas fa-exchange-alt"></i> Cambiar plan
-                </a>
-                <button id="cancel-subscription-btn" class="btn-small danger" style="margin-left: 15px;">
-                    <i class="fas fa-ban"></i> Cancelar Suscripción
-                </button>
-            </div>
-        </div>
-
         <!-- Estadísticas (SIEMPRE visibles) -->
         <div class="stats-container" id="stats-container">
             <div class="stat-box">
@@ -822,7 +806,23 @@
                 <div class="glass-panel">
                     <h3><i class="fas fa-crown"></i> Mi Suscripción</h3>
                     <div id="sub-detail-panel" style="padding:20px;">
-                        <p class="muted">Los detalles de tu suscripción se muestran arriba en la barra informativa. Puedes cambiar tu plan o cancelarlo desde allí.</p>
+                        <!-- Detalles de suscripción -->
+                        <div class="subscription-info" id="tenant-subscription-info" style="padding: 15px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 20px;">
+                            <div class="flex-between" style="flex-wrap: wrap; gap: 10px;">
+                                <span><i class="fas fa-tag"></i> Plan actual: <strong id="sub-plan-display">Cargando...</strong></span>
+                                <span><i class="fas fa-calendar-alt"></i> Vigencia: <span id="sub-dates-display">...</span></span>
+                                <span class="status-badge" id="sub-status-display"></span>
+                                <div style="display: flex; gap: 10px; margin-left: auto;">
+                                    <a href="planes.html" class="btn-small" style="white-space: nowrap;">
+                                        <i class="fas fa-exchange-alt"></i> Cambiar plan
+                                    </a>
+                                    <button id="cancel-subscription-btn" class="btn-small danger" style="white-space: nowrap;">
+                                        <i class="fas fa-ban"></i> Cancelar Suscripción
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="screen-navigation" style="margin-top:20px;">
                             <div class="nav-cards">
                                 <a href="planes.html" class="nav-card">
