@@ -49,7 +49,7 @@ export async function editarServicioForm(id, servicio) {
     if (typeof renderCalendar === 'function') renderCalendar();
     // Cargar modulos
     const modulos = Object.values(servicio.disponibilidad || {})[0] || [];
-    window.serviceModules = modulos.map((m, i) => ({ ...m, id: crypto.randomUUID() }));
+    window.serviceModules = modulos.map((m, i) => ({ ...m, id: window.generateModuleId() }));
     if (typeof renderModulesList === 'function') renderModulesList();
     // Scrollear al formulario
     form.scrollIntoView({ behavior: 'smooth' });

@@ -311,6 +311,13 @@ function normalizarHora(timeStr) {
     return limpiarHora(timeStr);
 }
 
+// Generador de IDs únicos para módulos (cliente-side, sin crypto API)
+let _moduleIdCounter = 0;
+function generateModuleId() {
+    return 'mod_' + (++_moduleIdCounter) + '_' + Date.now();
+}
+window.generateModuleId = generateModuleId;
+
 function formatTimeDisplay(time24) {
     if (!time24) return '';
     const [hour, minute] = time24.split(':');
@@ -5394,7 +5401,7 @@ async function editarServicio(id) {
                 const h = module.hora || module.startTime || '00:00';
                 if(!horaMap[h]){
                     horaMap[h] = {
-                        id: module.id || crypto.randomUUID(),
+                        id: module.id || generateModuleId(),
                         hora: h,
                         cupos: (typeof module.cupos !== 'undefined') ? Number(module.cupos) : 0,
                         duration: module.duration || 0
@@ -5416,7 +5423,7 @@ async function editarServicio(id) {
     } else if (servicio.modulos && servicio.modulos.length > 0) {
         servicio.modulos.forEach(module => {
             serviceModules.push({
-                id: module.id || crypto.randomUUID(),
+                id: module.id || generateModuleId(),
                 hora: module.hora || module.startTime || '00:00',
                 cupos: (typeof module.cupos !== 'undefined') ? Number(module.cupos) : (typeof module.capacidad !== 'undefined' ? Number(module.capacidad) : 0),
                 duration: module.duration || 0
@@ -6774,7 +6781,7 @@ function generarDisponibilidadFinal() {
         
         if (mods && mods.length > 0) {
             resultado[fecha] = mods.map(m => ({
-                id: m.id || (crypto.randomUUID()),
+                id: m.id || (generateModuleId()),
                 hora: m.hora || m.startTime || '00:00',
                 startTime: m.startTime || m.hora || '00:00',
                 endTime: m.endTime || calcularFinModulo(m.hora || m.startTime || '00:00', m.duration || 60),
@@ -7324,7 +7331,7 @@ function generarModulosAutomaticos() {
         const fin = String(Math.floor(finMinutos / 60) % 24).padStart(2, '0') + ':' + String(finMinutos % 60).padStart(2, '0');
         
         serviceModules.push({
-            id: crypto.randomUUID(),
+            id: generateModuleId(),
             hora: inicio,
             cupos: 1,
             duration: DURACION,
@@ -8014,7 +8021,7 @@ async function duplicarServicio(id) {
             (original.disponibilidad[f] || []).forEach(mod => {
                 const h = mod.hora || mod.startTime || '00:00';
                 if (!horaMap[h]) {
-                    horaMap[h] = { id: crypto.randomUUID(), hora: h, cupos: Number(mod.cupos || 0), duration: mod.duration || 0 };
+                    horaMap[h] = { id: generateModuleId(), hora: h, cupos: Number(mod.cupos || 0), duration: mod.duration || 0 };
                 }
             });
         });
@@ -8153,7 +8160,7 @@ function loadModulesFromHiddenField() {
                 _dateSpecificModules = raw.dateSpecific || {};
                 const generalMods = raw.general || [];
                 window.serviceModules = generalMods.map(m => ({
-                    id: m.id || crypto.randomUUID(),
+                    id: m.id || generateModuleId(),
                     hora: m.hora || m.startTime,
                     startTime: m.startTime || m.hora,
                     endTime: m.endTime,
@@ -8173,14 +8180,14 @@ function loadModulesFromHiddenField() {
                 window.serviceModules = (raw || []).map(m => {
                     if (m.hora || m.cupos) {
                         return {
-                            id: m.id || crypto.randomUUID(),
+                            id: m.id || generateModuleId(),
                             hora: m.hora || m.startTime,
                             cupos: (typeof m.cupos !== 'undefined') ? Number(m.cupos) : (typeof m.capacidad !== 'undefined' ? Number(m.capacidad) : 0),
                             duration: m.duration || 0
                         };
                     }
                     return {
-                        id: m.id || crypto.randomUUID(),
+                        id: m.id || generateModuleId(),
                         hora: m.startTime || m.hora || '00:00',
                         cupos: (typeof m.capacidad !== 'undefined') ? Number(m.capacidad) : 0,
                         duration: m.duration || 0

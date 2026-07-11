@@ -22,6 +22,10 @@ ALLOWED_EXTENSIONS = (
 
 
 class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    # Eliminar header Server (evita exposicion de version Python)
+    def version_string(self):
+        return ''
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip('/') or '/'
@@ -60,9 +64,26 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def end_headers(self):
+        # === OWASP Secure Headers (sin romper logica de negocio) ===
+        # HSTS — solo cuando la conexion es HTTPS
+        self.send_header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
         self.send_header('X-Frame-Options', 'DENY')
         self.send_header('X-Content-Type-Options', 'nosniff')
-        self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
+        self.send_header('X-Permitted-Cross-Domain-Policies', 'none')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+        self.send_header('X-DNS-Prefetch-Control', 'off')
+        self.send_header(
+            'Permissions-Policy',
+            'accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), '
+            'display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), '
+            'gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), '
+            'payment=(), picture-in-picture=(), publickey-credentials-get=(), '
+            'screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), '
+            'xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), '
+            'gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()'
+        )
         self.send_header(
             'Content-Security-Policy',
             "default-src 'self'; "
@@ -71,7 +92,11 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
             "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co; "
-            "frame-ancestors 'none'"
+            "form-action 'self'; "
+            "base-uri 'self'; "
+            "object-src 'none'; "
+            "frame-ancestors 'none'; "
+            "upgrade-insecure-requests"
         )
         super().end_headers()
 

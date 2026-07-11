@@ -1,15 +1,61 @@
-# Bloquear acceso al directorio .git (historial completo del repositorio)
-RedirectMatch 404 /\.git(/|$)
+# ============================================================
+# .htaccess — Seguridad reforzada para Agenda Pro (PRODUCCION)
+# ============================================================
+# Renombrar a .htaccess y ubicar en DocumentRoot.
+# Requiere mod_headers y mod_rewrite habilitados en Apache.
+# ============================================================
 
-# Bloquear otros archivos sensibles comunes
-RedirectMatch 404 /\.env
-RedirectMatch 404 /\.env\.*
-RedirectMatch 404 /composer\.json
-RedirectMatch 404 /package\.json
-RedirectMatch 404 /package-lock\.json
+# --- 1. OCULTAR INFORMACION DEL SERVIDOR ---
+ServerSignature Off
+ServerTokens Prod
+
+# --- 2. BLOQUEAR RUTAS SENSIBLES ---
+RedirectMatch 404 /\\.git(/|$)
+RedirectMatch 404 /\\.env
+RedirectMatch 404 /\\.env\\.*
+RedirectMatch 404 /composer\\.json
+RedirectMatch 404 /package\\.json
+RedirectMatch 404 /package-lock\\.json
 RedirectMatch 404 /node_modules(/|$)
-RedirectMatch 404 /\.DS_Store
-RedirectMatch 404 /Thumbs\.db
+RedirectMatch 404 /\\.DS_Store
+RedirectMatch 404 /Thumbs\\.db
+RedirectMatch 404 /\\..*$
 
-# Bloquear acceso a cualquier archivo que empiece con punto (.*)
-RedirectMatch 404 /\..*$
+# --- 3. CABECERAS DE SEGURIDAD OWASP ---
+<IfModule mod_headers.c>
+    # HSTS — forzar HTTPS (solo cuando el sitio sirve por HTTPS)
+    Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
+
+    # Prevenir clickjacking
+    Header always set X-Frame-Options "DENY"
+
+    # Prevenir MIME sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Prevenir que documentos cruzados sean cargados en navegadores antiguos
+    Header always set X-Permitted-Cross-Domain-Policies "none"
+
+    # Politica de Referer
+    Header always set Referrer-Policy "no-referrer"
+
+    # Aislamiento de origen cruzado (ventanas)
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+
+    # Restringir recursos a mismo origen
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+
+    # Deshabilitar DNS prefetch en navegadores Chromium
+    Header always set X-DNS-Prefetch-Control "off"
+
+    # Permissions Policy — deshabilitar caracteristicas no usadas
+    Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()"
+
+    # Content Security Policy
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+
+    # Eliminar header Server si Apache aun lo envia (redundante con ServerTokens Prod)
+    Header unset Server
+</IfModule>
+
+# --- 4. DENEGAR LISTADO DE DIRECTORIOS ---
+Options -Indexes
