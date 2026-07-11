@@ -3497,7 +3497,310 @@ body {
     line-height: 1.5;
 }
 
-/* Información del servicio */
+/* Hint de campos */
+.field-hint {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin: -4px 0 12px 0;
+    line-height: 1.4;
+}
+
+/* Duración */
+.duration-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.duration-row i {
+    color: var(--primary-light);
+    font-size: 1rem;
+}
+
+.duration-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.duration-input-group input {
+    width: 90px;
+    padding: 8px 10px;
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #f0f0f0;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.duration-unit {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+/* Selector de modo de asignación mejorado */
+.assignment-mode-selector {
+    margin-bottom: 15px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+
+.mode-selector-label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.mode-selector-hint {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 2px 0 12px 0;
+    line-height: 1.4;
+}
+
+.mode-selector-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mode-selector-buttons .mode-btn {
+    flex: 1;
+    min-width: 160px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.mode-selector-buttons .mode-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(157, 78, 221, 0.3);
+}
+
+.mode-selector-buttons .mode-btn:hover:not(.active) {
+    background: rgba(157, 78, 221, 0.1);
+    border-color: rgba(157, 78, 221, 0.3);
+}
+
+.mode-desc {
+    font-size: 0.7rem;
+    font-weight: 400;
+    opacity: 0.7;
+    display: block;
+}
+
+.mode-btn.active .mode-desc {
+    opacity: 0.9;
+}
+
+.mode-panel {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.editing-indicator {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(157, 78, 221, 0.15);
+    border-radius: 6px;
+    border: 1px solid rgba(157, 78, 221, 0.3);
+    font-size: 0.85rem;
+    color: var(--primary-light);
+    font-weight: 600;
+}
+
+/* Generador de módulos */
+.module-form {
+    margin-top: 14px;
+}
+
+.module-generator-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.module-generator-header i {
+    color: var(--primary-light);
+    font-size: 1.1rem;
+}
+
+.module-generator-controls {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.module-generator-controls .input-with-label {
+    flex: 0 0 auto;
+    min-width: 120px;
+}
+
+.module-generator-controls .input-with-label label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.module-generator-controls .input-with-label input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #f0f0f0;
+    font-size: 0.9rem;
+}
+
+.module-generator-controls .time-selector {
+    flex: 0 0 auto;
+    min-width: 140px;
+}
+
+.module-generator-controls .time-selector label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.module-generator-controls .time-selector select {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #f0f0f0;
+    font-size: 0.9rem;
+}
+
+/* Botón Generar grande */
+.btn-generate-modules {
+    padding: 12px 32px;
+    background: linear-gradient(90deg, var(--primary-color), #7c3aed);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3);
+    flex: 0 0 auto;
+    min-width: 180px;
+    justify-content: center;
+}
+
+.btn-generate-modules:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(157, 78, 221, 0.45);
+}
+
+.module-generator-hint {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Botón confirmar módulos */
+.btn-confirm-modules {
+    width: 100%;
+    padding: 14px !important;
+    margin-top: 10px;
+    font-size: 1rem !important;
+    justify-content: center;
+}
+
+/* Botón limpiar pequeño */
+.btn-clear-small {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    background: rgba(255, 70, 70, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 70, 70, 0.3);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-clear-small:hover {
+    background: rgba(255, 70, 70, 0.3);
+}
+
+/* Área de guardado de asignación */
+.assignment-save-area {
+    margin-top: 10px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(157, 78, 221, 0.3);
+}
+
+.assignment-save-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.assignment-info {
+    flex: 1;
+    min-width: 180px;
+}
+
+.assignment-status {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.assignment-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
 .service-dates-info {
     background: rgba(255, 255, 255, 0.03);
     border-radius: 12px;

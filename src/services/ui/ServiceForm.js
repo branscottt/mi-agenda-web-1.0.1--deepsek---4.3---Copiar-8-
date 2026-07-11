@@ -26,6 +26,18 @@ export function configurarFormularioServicio() {
         const fnd = document.getElementById('file-name-display');
         if (fnd) fnd.textContent = 'Elegir imagen';
     });
+
+    // Sincronizar duración con el hint del generador de módulos
+    const durInput = document.getElementById('srv-duration');
+    const genDurDisplay = document.getElementById('gen-duration-display');
+    if (durInput && genDurDisplay) {
+        const actualizarHintDuracion = () => {
+            genDurDisplay.textContent = durInput.value || '60';
+        };
+        durInput.addEventListener('input', actualizarHintDuracion);
+        durInput.addEventListener('change', actualizarHintDuracion);
+        actualizarHintDuracion();
+    }
 }
 
 export async function editarServicioForm(id, servicio) {
