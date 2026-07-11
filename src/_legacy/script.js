@@ -6293,9 +6293,6 @@ function renderCalendar() {
         day.textContent = i;
         calendarDays.appendChild(day);
     }
-
-    updateDatesPreview();
-    updateDatesCount();
 }
 window.renderCalendar = renderCalendar;
 
@@ -6350,8 +6347,6 @@ function toggleDateSelection(dateStr, dayElement = null) {
         if (dayElement) dayElement.classList.add('selected');
     }
 
-    updateDatesPreview();
-    updateDatesCount();
     // Actualizar selector de fechas si está en modo date
     if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
         actualizarSelectorFechas();
@@ -6366,86 +6361,6 @@ function toggleDateSelection(dateStr, dayElement = null) {
     }
 }
 window.toggleDateSelection = toggleDateSelection;
-
-function updateDatesPreview() {
-    const previewContainer = document.getElementById('selected-dates-preview');
-    if (!previewContainer) return;
-
-    previewContainer.innerHTML = '';
-
-    if (selectedDates.size === 0) {
-        previewContainer.className = 'selected-dates-preview empty';
-        previewContainer.innerHTML = '<p class="empty-dates">No hay fechas seleccionadas. Haz clic en el calendario para agregar fechas.</p>';
-        return;
-    }
-
-    previewContainer.className = 'selected-dates-preview';
-
-    const sortedDates = Array.from(selectedDates).sort();
-
-    sortedDates.forEach(dateStr => {
-        const date = parseDate(dateStr);
-        const dateTag = document.createElement('div');
-        dateTag.className = 'date-tag';
-
-        const formattedDate = date.toLocaleDateString('es-ES', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-        });
-
-        const capitalizedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
-
-        dateTag.innerHTML = `
-            <i class="fas fa-calendar-check"></i>
-            <span class="date-text">${capitalizedDate}</span>
-            <button class="remove-tag" data-date="${dateStr}" title="Eliminar esta fecha">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-
-        previewContainer.appendChild(dateTag);
-    });
-
-    sortedDates.forEach(fecha => {
-        window.moduleDateCupos[fecha] = window.moduleDateCupos[fecha] || {};
-        serviceModules.forEach(mod => {
-            if (typeof window.moduleDateCupos[fecha][mod.hora] === 'undefined') {
-                window.moduleDateCupos[fecha][mod.hora] = Number(mod.cupos || 0);
-            }
-        });
-    });
-
-    renderModulesList();
-
-    // Actualizar selector de fechas si está en modo date
-    if (_assignmentMode === 'date' && typeof actualizarSelectorFechas === 'function') {
-        actualizarSelectorFechas();
-    }
-
-    previewContainer.querySelectorAll('.remove-tag').forEach(button => {
-        button.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const dateToRemove = e.target.closest('.remove-tag').dataset.date;
-            toggleDateSelection(dateToRemove);
-
-            const dayElement = document.querySelector(`.calendar-day[data-date="${dateToRemove}"]`);
-            if (dayElement) {
-                dayElement.classList.remove('selected');
-            }
-        });
-    });
-}
-window.updateDatesPreview = updateDatesPreview;
-
-function updateDatesCount() {
-    const countElement = document.getElementById('dates-count');
-    if (countElement) {
-        countElement.textContent = selectedDates.size;
-    }
-}
-window.updateDatesCount = updateDatesCount;
 
 function selectWeekendsOnly() {
     const today = new Date();
@@ -7854,11 +7769,6 @@ function renderModulesList() {
     }
 
     modulesList.innerHTML = html;
-
-    // Actualizar resumen económico
-    if (typeof actualizarResumenEconomico === 'function') {
-        actualizarResumenEconomico();
-    }
 }
 window.renderModulesList = renderModulesList;
 
@@ -7873,7 +7783,6 @@ function actualizarCupo(input) {
     if (!window.moduleDateCupos) window.moduleDateCupos = {};
     if (!window.moduleDateCupos[fecha]) window.moduleDateCupos[fecha] = {};
     window.moduleDateCupos[fecha][hora] = Number(input.value || 0);
-    actualizarResumenEconomico();
 }
 window.actualizarCupo = actualizarCupo;
 
@@ -8219,67 +8128,6 @@ function clearAllModules() {
     updateDurationDisplay();
 }
 window.clearAllModules = clearAllModules;
-
-// ============================================
-// Funciones auxiliares matriz de cupos
-// ============================================
-
-// Actualizar cupo individual al cambiar input
-window.actualizarCupo = function(input) {
-    const date = input.dataset.date;
-    const hora = input.dataset.hora;
-    const value = parseInt(input.value) || 0;
-    if (!window.moduleDateCupos) window.moduleDateCupos = {};
-    if (!window.moduleDateCupos[date]) window.moduleDateCupos[date] = {};
-    window.moduleDateCupos[date][hora] = value;
-    
-    // Reflejar cambio en window.serviceModules
-    const mod = serviceModules.find(m => (m.hora || m.startTime) === hora);
-    if (mod) {
-        if (!mod.cupos) mod.cupos = {};
-        mod.cupos[date] = value;
-    }
-    
-    // Marcar celda como cero si aplica
-    const cell = input.closest('.cupo-cell');
-    if (cell) {
-        cell.classList.toggle('zero-cupo', value <= 0);
-    }
-    
-    actualizarResumenEconomico();
-};
-
-// Colapsar/expandir fechas en matriz
-window.toggleFechasMatriz = function() {
-    const container = document.getElementById('modules-list');
-    if (!container) return;
-    container.dataset.showAll = container.dataset.showAll === 'true' ? 'false' : 'true';
-    renderModulesList();
-};
-
-// Resumen económico dinámico
-function actualizarResumenEconomico() {
-    const totalEl = document.getElementById('eco-total-turnos');
-    const ingresoEl = document.getElementById('eco-ingreso');
-    if (!totalEl || !ingresoEl) return;
-    
-    let totalCupos = 0;
-    if (window.moduleDateCupos && selectedDates && window.serviceModules) {
-        for (const date of selectedDates) {
-            for (const mod of window.serviceModules) {
-                const key = mod.hora || mod.startTime;
-                const cupo = window.moduleDateCupos[date] && typeof window.moduleDateCupos[date][key] !== 'undefined'
-                    ? Number(window.moduleDateCupos[date][key]) : 0;
-                totalCupos += cupo;
-            }
-        }
-    }
-    
-    const precio = parseFloat(document.getElementById('srv-price')?.value) || 0;
-    totalEl.textContent = totalCupos;
-    ingresoEl.textContent = '$' + (totalCupos * precio).toLocaleString('es-CL');
-}
-window.actualizarResumenEconomico = actualizarResumenEconomico;
 
 
 function getServiceDuration() {

@@ -45,7 +45,6 @@ export async function editarServicioForm(id, servicio) {
     // Cargar fechas
     const fechas = servicio.fechas || Object.keys(servicio.disponibilidad || {});
     window.selectedDates = new Set(fechas);
-    if (typeof updateDatesPreview === 'function') updateDatesPreview();
     if (typeof renderCalendar === 'function') renderCalendar();
     // Cargar modulos
     const modulos = Object.values(servicio.disponibilidad || {})[0] || [];
