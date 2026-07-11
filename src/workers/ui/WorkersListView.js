@@ -168,7 +168,17 @@ export function abrirFormTrabajador(workerData = null) {
                 </div>
                 <div style="margin-bottom:12px;">
                     <label style="display:block;font-size:0.78rem;font-weight:600;color:rgba(255,255,255,0.5);margin-bottom:4px;">¿Qué trabajos realiza?</label>
-                    <input type="text" id="wf-habilidades" value="${esEdicion ? escapeAttr(workerData.habilidades||'') : ''}" placeholder="Ej: corte, tintura, manicura" style="width:100%;padding:9px 10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:var(--text-color);font-size:0.85rem;box-sizing:border-box;">
+                    <div class="tags-input-wrapper">
+                        <div class="tags-display" id="wf-tags-display">
+                            ${(() => {
+                                const skills = esEdicion ? (workerData.habilidades||'').split(',').map(s=>s.trim()).filter(Boolean) : [];
+                                return skills.map(s => `<span class="tag-chip">${escapeHtml(s)}<i class="fas fa-times tag-remove" data-tag="${escapeAttr(s)}"></i></span>`).join('');
+                            })()}
+                            <input type="text" id="wf-tags-input" placeholder="${esEdicion ? 'Escribe y presiona Enter' : 'Ej: corte, tintura, manicura'}" class="tags-text-input">
+                        </div>
+                        <input type="hidden" id="wf-habilidades" value="${esEdicion ? escapeAttr(workerData.habilidades||'') : ''}">
+                    </div>
+                    <p class="field-hint" style="margin-top:4px;">Escribe un trabajo y presiona <strong>Enter</strong> o <strong>coma</strong> para agregarlo. Haz clic en <strong>×</strong> para quitarlo.</p>
                 </div>
                 <div style="margin-bottom:16px;">
                     <label style="display:block;font-size:0.78rem;font-weight:600;color:rgba(255,255,255,0.5);margin-bottom:4px;">Color</label>
@@ -256,6 +266,57 @@ export function abrirFormTrabajador(workerData = null) {
         inp.addEventListener('change', () => recalcTotal(overlay));
     });
 
+    // ─── TAGS INPUT: skills multi-valor ───
+    const tagsInput = document.getElementById('wf-tags-input');
+    const tagsDisplay = document.getElementById('wf-tags-display');
+    const hiddenSkills = document.getElementById('wf-habilidades');
+
+    function actualizarHidden() {
+        const tags = [];
+        tagsDisplay.querySelectorAll('.tag-chip').forEach(chip => {
+            const text = chip.childNodes[0]?.textContent?.trim();
+            if (text) tags.push(text);
+        });
+        if (hiddenSkills) hiddenSkills.value = tags.join(', ');
+    }
+
+    if (tagsInput && tagsDisplay) {
+        // Enter o coma → agregar tag
+        tagsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                const val = tagsInput.value.trim().replace(/,/g, '');
+                if (!val) return;
+                // No duplicados
+                const existente = tagsDisplay.querySelector(`.tag-chip`);
+                const yaExiste = Array.from(tagsDisplay.querySelectorAll('.tag-chip')).some(chip => 
+                    chip.childNodes[0]?.textContent?.trim().toLowerCase() === val.toLowerCase()
+                );
+                if (yaExiste) { tagsInput.value = ''; return; }
+                const chip = document.createElement('span');
+                chip.className = 'tag-chip';
+                chip.innerHTML = `${escapeHtml(val)}<i class="fas fa-times tag-remove"></i>`;
+                chip.querySelector('.tag-remove').addEventListener('click', () => { chip.remove(); actualizarHidden(); });
+                tagsInput.parentNode.insertBefore(chip, tagsInput);
+                tagsInput.value = '';
+                actualizarHidden();
+            }
+        });
+        // Click en X para quitar tag (para chips precargados)
+        tagsDisplay.querySelectorAll('.tag-remove').forEach(el => {
+            el.addEventListener('click', () => { el.parentElement.remove(); actualizarHidden(); });
+        });
+        // Click fuera del input → también agrega
+        tagsInput.addEventListener('blur', () => {
+            const val = tagsInput.value.trim();
+            if (val) {
+                // Disparar evento Enter
+                const e = new KeyboardEvent('keydown', { key: 'Enter' });
+                tagsInput.dispatchEvent(e);
+            }
+        });
+    }
+
     recalcTotal(overlay);
 
     // ─── SUBMIT ───
@@ -299,7 +360,7 @@ export function abrirFormTrabajador(workerData = null) {
             nombre: document.getElementById('wf-nombre').value.trim(),
             email: document.getElementById('wf-email').value.trim(),
             telefono: document.getElementById('wf-telefono').value.trim(),
-            habilidades: document.getElementById('wf-habilidades').value.trim(),
+            habilidades: (document.getElementById('wf-habilidades')?.value || '').trim(),
             color: document.getElementById('wf-color').value
         };
         if (!data.nombre) { mostrarToast('El nombre es obligatorio', 'warning'); return; }
