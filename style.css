@@ -3405,28 +3405,96 @@ body {
 
 /* Opciones de fechas */
 .date-options {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     margin-top: 15px;
 }
 
+.date-actions-main {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.date-actions-clear {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .date-options .btn-small {
-    width: 100%;
+    padding: 10px 14px;
     font-size: 0.85rem;
-    padding: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(179, 0, 255, 0.3);
+    border-radius: 7px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.date-actions-main .btn-small {
+    flex: 1;
+    min-width: 140px;
+}
+
+.date-actions-clear .btn-small {
+    width: 100%;
+    border-color: rgba(255, 70, 70, 0.3);
+}
+
+.date-actions-clear .btn-small:hover {
+    background: rgba(255, 70, 70, 0.15);
+    border-color: #ff6b6b;
 }
 
 .date-options .btn-small:hover {
     background: rgba(var(--primary-rgb), 0.2);
     border-color: var(--primary);
     transform: translateY(-2px);
+}
+
+/* Hint de acciones */
+.date-action-hint {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 2px 0 0 0;
+    line-height: 1.4;
+}
+
+/* Paso a paso */
+.step-guide {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: rgba(157, 78, 221, 0.08);
+    border: 1px solid rgba(157, 78, 221, 0.2);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+}
+
+.step-guide i {
+    color: #c084fc;
+    font-size: 1.1rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* Hint dentro del rango */
+.range-hint {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: -4px 0 12px 0;
+    line-height: 1.5;
 }
 
 /* Información del servicio */
