@@ -1816,6 +1816,34 @@ body {
     outline: none;
     border-color: var(--primary-color, #9d4edd);
 }
+.se-time-sm {
+    padding: 5px 6px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    color: var(--text-color);
+    font-size: 0.75rem;
+    width: 72px;
+    font-family: inherit;
+}
+.se-time-sm:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+}
+
+/* Progress bar de horas semanales */
+.se-progress-bar {
+    height: 8px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.se-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease, background 0.3s ease;
+    min-width: 0;
+}
 
 /* ─── TAGS INPUT (skills multi-valor) ─── */
 .tags-input-wrapper {
