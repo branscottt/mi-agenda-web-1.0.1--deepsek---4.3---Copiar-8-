@@ -14,123 +14,161 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
 
     container.innerHTML = `
         <div class="config-editor">
-            <h3><i class="fas fa-palette"></i> Personalizar Apariencia</h3>
 
+            <!-- GUÍA RÁPIDA PASO A PASO -->
+            <div class="step-guide">
+                <i class="fas fa-info-circle"></i>
+                <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores, tipografía y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
+            </div>
+
+            <!-- PASO 1: TEMAS RÁPIDOS -->
             <div class="config-section">
-                <h4>Temas rapidos</h4>
+                <h4 class="config-section-title"><i class="fas fa-paint-roller"></i> 1. Temas Rápidos</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Selecciona un tema para previsualizarlo al instante. Todos los colores se ajustarán automáticamente.</p>
                 <div class="temas-grid" id="temas-grid">
                     ${Object.entries(TEMAS_PREDEFINIDOS).map(([key, t]) => `
                         <button class="tema-btn" data-tema="${key}" title="${escapeAttr(t.nombre)}">
                             <span class="tema-preview" style="background:${t.primary_color}"></span>
-                            <span>${escapeHtml(t.nombre)}</span>
+                            <span class="tema-name">${escapeHtml(t.nombre)}</span>
                         </button>
                     `).join('')}
                 </div>
             </div>
 
+            <!-- PASO 2: COLORES -->
             <div class="config-section">
-                <h4>Colores</h4>
+                <h4 class="config-section-title"><i class="fas fa-fill-drip"></i> 2. Colores</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Ajusta los colores principales de tu negocio. Cada color se aplica en tiempo real.</p>
                 <div class="config-grid">
-                    <label>Color primario
+                    <div class="color-swatch">
+                        <label>Primario</label>
                         <input type="color" id="cfg-primary" value="${config.primary_color}">
-                    </label>
-                    <label>Color secundario
+                        <span class="swatch-hint">Botones, enlaces</span>
+                    </div>
+                    <div class="color-swatch">
+                        <label>Secundario</label>
                         <input type="color" id="cfg-secondary" value="${config.secondary_color}">
-                    </label>
-                    <label>Fondo
+                        <span class="swatch-hint">Gradientes, hover</span>
+                    </div>
+                    <div class="color-swatch">
+                        <label>Fondo</label>
                         <input type="color" id="cfg-bg" value="${config.bg_color || config.background_color || '#0d0d0d'}">
-                    </label>
-                    <label>Tarjetas
+                        <span class="swatch-hint">Fondo general</span>
+                    </div>
+                    <div class="color-swatch">
+                        <label>Tarjetas</label>
                         <input type="color" id="cfg-card" value="${config.card_bg || config.card_color || '#1a1a2e'}">
-                    </label>
-                    <label>Texto
+                        <span class="swatch-hint">Paneles, tarjetas</span>
+                    </div>
+                    <div class="color-swatch">
+                        <label>Texto</label>
                         <input type="color" id="cfg-text" value="${config.text_color}">
-                    </label>
+                        <span class="swatch-hint">Textos principales</span>
+                    </div>
                 </div>
             </div>
 
+            <!-- PASO 3: TIPOGRAFÍA Y ESTILO -->
             <div class="config-section">
-                <h4>Tipografia</h4>
-                <select id="cfg-font" class="config-select">
-                    <option value="'Poppins', sans-serif" ${config.font_family.includes('Poppins') ? 'selected' : ''}>Poppins</option>
-                    <option value="'Inter', sans-serif" ${config.font_family.includes('Inter') ? 'selected' : ''}>Inter</option>
-                    <option value="'Montserrat', sans-serif" ${config.font_family.includes('Montserrat') ? 'selected' : ''}>Montserrat</option>
-                    <option value="'Playfair Display', serif" ${config.font_family.includes('Playfair') ? 'selected' : ''}>Playfair Display</option>
-                    <option value="'Roboto', sans-serif" ${config.font_family.includes('Roboto') ? 'selected' : ''}>Roboto</option>
-                </select>
+                <h4 class="config-section-title"><i class="fas fa-font"></i> 3. Tipografía y Estilo</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Define la fuente, el redondeo de esquinas y la velocidad de animación.</p>
+                <div class="form-row two-cols">
+                    <div class="input-with-label">
+                        <label><i class="fas fa-text-height"></i> Fuente</label>
+                        <select id="cfg-font" class="config-select">
+                            <option value="'Poppins', sans-serif" ${config.font_family.includes('Poppins') ? 'selected' : ''}>Poppins</option>
+                            <option value="'Inter', sans-serif" ${config.font_family.includes('Inter') ? 'selected' : ''}>Inter</option>
+                            <option value="'Montserrat', sans-serif" ${config.font_family.includes('Montserrat') ? 'selected' : ''}>Montserrat</option>
+                            <option value="'Playfair Display', serif" ${config.font_family.includes('Playfair') ? 'selected' : ''}>Playfair Display</option>
+                            <option value="'Roboto', sans-serif" ${config.font_family.includes('Roboto') ? 'selected' : ''}>Roboto</option>
+                        </select>
+                    </div>
+                    <div class="input-with-label">
+                        <label><i class="fas fa-square"></i> Borde redondo</label>
+                        <select id="cfg-radius" class="config-select">
+                            <option value="4px" ${config.border_radius === '4px' || config.border_radius == 4 ? 'selected' : ''}>Cuadrado (4px)</option>
+                            <option value="8px" ${config.border_radius === '8px' || config.border_radius == 8 ? 'selected' : ''}>Suave (8px)</option>
+                            <option value="12px" ${config.border_radius === '12px' || config.border_radius == 12 ? 'selected' : ''}>Redondeado (12px)</option>
+                            <option value="16px" ${config.border_radius === '16px' || config.border_radius == 16 ? 'selected' : ''}>Muy redondeado (16px)</option>
+                            <option value="50%" ${config.border_radius === '50%' ? 'selected' : ''}>Píldora (50%)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row two-cols" style="margin-top:10px;">
+                    <div class="input-with-label">
+                        <label><i class="fas fa-hourglass-half"></i> Velocidad animación</label>
+                        <select id="cfg-anim-speed" class="config-select">
+                            <option value="0.15" ${config.animation_speed == 0.15 ? 'selected' : ''}>Rápido</option>
+                            <option value="0.3" ${config.animation_speed == 0.3 ? 'selected' : ''}>Normal</option>
+                            <option value="0.5" ${config.animation_speed == 0.5 ? 'selected' : ''}>Lento</option>
+                        </select>
+                    </div>
+                    <div class="input-with-label">
+                        <label><i class="fas fa-moon"></i> Modo</label>
+                        <select id="cfg-theme-mode" class="config-select">
+                            <option value="dark" ${config.theme_mode !== 'light' ? 'selected' : ''}>Oscuro</option>
+                            <option value="light" ${config.theme_mode === 'light' ? 'selected' : ''}>Claro</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
+            <!-- PASO 4: LOGO -->
             <div class="config-section">
-                <h4>Logo</h4>
-                <label>Logo del negocio
-                    <div class="logo-input-row">
-                        <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
-                        <div class="file-upload-wrapper logo-file-upload">
-                            <input type="file" id="cfg-logo-file" accept="image/*">
-                            <label for="cfg-logo-file" class="file-upload-btn logo-upload-btn">
-                                <i class="fas fa-upload"></i>
-                            </label>
-                        </div>
+                <h4 class="config-section-title"><i class="fas fa-image"></i> 4. Logo</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Sube el logo de tu negocio. Aparecerá en la vista de tus clientes.</p>
+                <div class="logo-input-row">
+                    <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
+                    <div class="file-upload-wrapper logo-file-upload">
+                        <input type="file" id="cfg-logo-file" accept="image/*">
+                        <label for="cfg-logo-file" class="file-upload-btn logo-upload-btn">
+                            <i class="fas fa-upload"></i>
+                        </label>
                     </div>
-                    <div class="logo-upload-progress" id="logo-upload-progress" style="display:none;">
-                        <div class="progress-bar"><div class="progress-fill" id="logo-upload-fill"></div></div>
-                        <span class="progress-text" id="logo-upload-text">Subiendo...</span>
-                    </div>
-                    <div class="logo-preview" id="logo-preview" style="margin-top:8px;display:none;">
-                        <img id="logo-preview-img" src="" alt="Vista previa logo" style="max-height:40px;border-radius:6px;">
-                    </div>
-                </label>
+                </div>
+                <div class="logo-upload-progress" id="logo-upload-progress" style="display:none;">
+                    <div class="progress-bar"><div class="progress-fill" id="logo-upload-fill"></div></div>
+                    <span class="progress-text" id="logo-upload-text">Subiendo...</span>
+                </div>
+                <div class="logo-preview" id="logo-preview" style="margin-top:8px;display:none;">
+                    <img id="logo-preview-img" src="" alt="Vista previa logo" style="max-height:40px;border-radius:6px;">
+                </div>
             </div>
 
+            <!-- PASO 5: PORTADA / BANNER -->
             <div class="config-section">
-                <h4>Bordes y animaciones</h4>
-                <label>Radio de bordes
-                    <select id="cfg-radius" class="config-select">
-                        <option value="4px" ${config.border_radius === '4px' ? 'selected' : ''}>Cuadrado (4px)</option>
-                        <option value="8px" ${config.border_radius === '8px' ? 'selected' : ''}>Suave (8px)</option>
-                        <option value="12px" ${config.border_radius === '12px' ? 'selected' : ''}>Redondeado (12px)</option>
-                        <option value="16px" ${config.border_radius === '16px' ? 'selected' : ''}>Muy redondeado (16px)</option>
-                        <option value="50%" ${config.border_radius === '50%' ? 'selected' : ''}>Pildora (50%)</option>
-                    </select>
-                </label>
-                <label>Velocidad animaciones
-                    <select id="cfg-anim-speed" class="config-select">
-                        <option value="0.15" ${config.animation_speed == 0.15 ? 'selected' : ''}>Rapido</option>
-                        <option value="0.3" ${config.animation_speed == 0.3 ? 'selected' : ''}>Normal</option>
-                        <option value="0.5" ${config.animation_speed == 0.5 ? 'selected' : ''}>Lento</option>
-                    </select>
-                </label>
+                <h4 class="config-section-title"><i class="fas fa-panorama"></i> 5. Portada / Banner</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Imagen de portada que se muestra en la parte superior de tu perfil.</p>
+                <div class="logo-input-row">
+                    <input type="url" id="cfg-cover" class="config-input" value="${escapeAttr(config.cover_url || '')}" placeholder="https://ejemplo.com/portada.jpg" style="flex:1;">
+                    <div class="file-upload-wrapper logo-file-upload">
+                        <input type="file" id="cfg-cover-file" accept="image/*">
+                        <label for="cfg-cover-file" class="file-upload-btn logo-upload-btn">
+                            <i class="fas fa-upload"></i>
+                        </label>
+                    </div>
+                </div>
+                <div class="logo-upload-progress" id="cover-upload-progress" style="display:none;">
+                    <div class="progress-bar"><div class="progress-fill" id="cover-upload-fill"></div></div>
+                    <span class="progress-text" id="cover-upload-text">Subiendo...</span>
+                </div>
+                <div class="cover-preview" id="cover-preview" style="margin-top:8px;display:none;width:100%;aspect-ratio:3/1;border-radius:12px;overflow:hidden;background:rgba(0,0,0,0.05);">
+                    <img id="cover-preview-img" src="" alt="Vista previa portada" style="width:100%;height:100%;object-fit:cover;display:block;">
+                </div>
             </div>
 
-            <div class="config-section">
-                <h4>Imagen de Portada / Banner</h4>
-                <label>Imagen de portada del negocio
-                    <div class="logo-input-row">
-                        <input type="url" id="cfg-cover" class="config-input" value="${escapeAttr(config.cover_url || '')}" placeholder="https://ejemplo.com/portada.jpg" style="flex:1;">
-                        <div class="file-upload-wrapper logo-file-upload">
-                            <input type="file" id="cfg-cover-file" accept="image/*">
-                            <label for="cfg-cover-file" class="file-upload-btn logo-upload-btn">
-                                <i class="fas fa-upload"></i>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="logo-upload-progress" id="cover-upload-progress" style="display:none;">
-                        <div class="progress-bar"><div class="progress-fill" id="cover-upload-fill"></div></div>
-                        <span class="progress-text" id="cover-upload-text">Subiendo...</span>
-                    </div>
-                    <div class="cover-preview" id="cover-preview" style="margin-top:8px;display:none;width:100%;aspect-ratio:3/1;border-radius:12px;overflow:hidden;background:rgba(0,0,0,0.05);">
-                        <img id="cover-preview-img" src="" alt="Vista previa portada" style="width:100%;height:100%;object-fit:cover;display:block;">
-                    </div>
-                </label>
-            </div>
-
-            <div class="config-actions">
-                <button id="cfg-preview-btn" class="btn-grad">
-                    <i class="fas fa-eye"></i> Vista Previa
-                </button>
-                <button id="cfg-reset-btn" class="btn-text">
-                    <i class="fas fa-undo"></i> Restaurar default
-                </button>
+            <!-- FINALIZAR -->
+            <div class="config-section finalizar">
+                <h4 class="config-section-title"><i class="fas fa-check-circle"></i> Finalizar</h4>
+                <p class="field-hint" style="margin-bottom:12px;">Cuando estés listo, presiona <strong>Guardar Cambios</strong> para aplicar todo. Si te arrepientes, <strong>Restablecer Valores</strong> vuelve a la configuración original.</p>
+                <div class="config-actions">
+                    <button id="cfg-reset-btn" class="btn-reset-styled">
+                        <i class="fas fa-undo-alt"></i> Restablecer Valores
+                    </button>
+                    <button id="cfg-preview-btn" class="btn-save-primary">
+                        <i class="fas fa-save"></i> Guardar Cambios
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -161,7 +199,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             aplicarConfigVisual(configActual);
             mostrarToast('⚠️ Cambios aplicados visualmente, pero hubo error al guardar: ' + err.message, 'error');
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-eye"></i> Vista Previa'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios'; }
         }
     });
 
