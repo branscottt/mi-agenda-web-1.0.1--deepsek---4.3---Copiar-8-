@@ -418,8 +418,8 @@ function recalcTotal(overlay) {
 export async function quitarTrabajadorHandler(id) {
     const worker = _workers.find(w => w.id === id);
     if (!worker) return;
-    if (!confirm(`¿Quitar a ${worker.nombre} del equipo?`)) return;
-    if (!confirm(`⚠️ ${worker.nombre} dejará de aparecer en servicios y reservas nuevas, pero sus citas pasadas se conservan. ¿Confirmas?`)) return;
+    if (!confirm(`¿Eliminar a ${worker.nombre} del equipo?`)) return;
+    if (!confirm(`⚠️ Acción irreversible: ${worker.nombre} se eliminará permanentemente. Sus citas pasadas se conservarán sin trabajador asignado. ¿Confirmas?`)) return;
     try {
         await quitarTrabajador(id);
         mostrarToast(`${worker.nombre} quitado del equipo`, 'success');

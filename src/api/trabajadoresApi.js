@@ -64,12 +64,12 @@ export async function updateTrabajador(id, updates) {
 }
 
 export async function deleteTrabajador(id) {
-    // Baja lógica: marcar como inactivo
+    // Borrado real: ON DELETE SET NULL en citas, CASCADE en servicios_trabajadores
     const supabase = window.supabaseClient;
     if (!supabase) throw new Error('Supabase client not available');
     const { error } = await supabase
         .from('trabajadores')
-        .update({ activo: false })
+        .delete()
         .eq('id', id);
     if (error) throw error;
     return true;
