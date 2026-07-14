@@ -91,6 +91,22 @@ export async function getCitasByDate(fecha, tenantId) {
     return data || [];
 }
 
+/**
+ * Obtiene citas en un rango de fechas con datos del trabajador.
+ * Útil para vista de ocupación semanal/mensual.
+ */
+export async function getCitasByDateRange(fechaInicio, fechaFin, tenantId) {
+    if (!tenantId) return [];
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .select('id, servicio_id, fecha, hora, trabajador_id')
+        .eq('tenant_id', String(tenantId).trim())
+        .gte('fecha', fechaInicio)
+        .lte('fecha', fechaFin);
+    if (error) throw error;
+    return data || [];
+}
+
 export async function limpiarCitasExpiradas(tenantId) {
     if (!tenantId) return 0;
     const hoy = new Date().toISOString().split('T')[0];

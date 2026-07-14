@@ -2,6 +2,7 @@
 // Página pública del trabajador — sin login, solo con ?id=XXX
 
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import { getSemanaISO, getHorarioParaSemana } from '../../workers/domain/horarioValidation.js';
 
 export async function initWorkerPortal() {
     const params = new URLSearchParams(window.location.search);
@@ -46,9 +47,11 @@ export async function initWorkerPortal() {
             skillsEl.textContent = worker.habilidades || 'Sin habilidades registradas';
         }
 
-        // Horario semanal desde datos reales
+        // Horario semanal desde datos reales (resolviendo plantilla vs excepción)
         if (scheduleEl) {
-            const horario = worker.horario_semanal || {};
+            const weekKey = getSemanaISO(new Date());
+            const hrInfo = getHorarioParaSemana(worker, weekKey);
+            const horario = hrInfo.horario;
             const diasNombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
             const tieneHorario = Object.values(horario).some(d => d && d.activo);
 
@@ -56,6 +59,11 @@ export async function initWorkerPortal() {
                 scheduleEl.innerHTML = '<p style="text-align:center;color:rgba(255,255,255,0.3);">Horario no definido — consulta con tu administrador</p>';
             } else {
                 scheduleEl.innerHTML = `
+                    <div style="text-align:center;margin-bottom:8px;">
+                        <span class="week-type-badge ${hrInfo.esExcepcion ? 'week-type-custom' : 'week-type-template'}" style="font-size:0.65rem;">
+                            ${hrInfo.esExcepcion ? '✏️ Horario de esta semana' : '📋 Horario habitual'}
+                        </span>
+                    </div>
                     <div class="worker-schedule-grid">
                         ${diasNombres.map((d, i) => {
                             const diaKey = String(i + 1);

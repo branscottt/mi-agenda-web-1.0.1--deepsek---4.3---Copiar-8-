@@ -6,6 +6,8 @@ import { getCatalogoServicios, getFechasDisponibles, getHorariosDisponibles, agr
 import { formatearDinero, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { getTrabajadoresByServicio } from '../../api/serviciosTrabajadoresApi.js';
+import { getSemanaISO, getHorarioParaSemana } from '../../workers/domain/horarioValidation.js';
+import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 
 let _workersPorServicio = [];
 let _workerCitasCache = {};
@@ -139,12 +141,26 @@ async function abrirPopupReserva(servicio) {
 
     // Event listeners fechas
     fechasContainer.querySelectorAll('.btn-fecha').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             fechasContainer.querySelectorAll('.btn-fecha').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             const fecha = btn.dataset.fecha;
             const wid = document.getElementById('popup-reservar-btn').dataset.trabajadorId;
             cargarHorarios(servicio, fecha, wid);
+            // Actualizar disponibilidad de trabajadores para esta fecha
+            if (workers.length) {
+                await actualizarDisponibilidadTrabajadores(workers, fecha);
+                // Si el trabajador seleccionado ya no está disponible, deseleccionar
+                const widActual = document.getElementById('popup-reservar-btn').dataset.trabajadorId;
+                if (widActual) {
+                    const btnActual = document.querySelector(`.btn-trabajador[data-id="${widActual}"]`);
+                    if (btnActual && btnActual.disabled) {
+                        btnActual.classList.remove('active');
+                        document.getElementById('popup-reservar-btn').dataset.trabajadorId = '';
+                        document.getElementById('popup-horarios').innerHTML = '<p class="empty-state-small">Trabajador no disponible esta fecha, selecciona otro</p>';
+                    }
+                }
+            }
         });
     });
 
@@ -233,6 +249,82 @@ async function getHorasOcupadasTrabajador(trabajadorId, fecha) {
     } catch (e) {
         console.error('Error getHorasOcupadasTrabajador:', e);
         return [];
+    }
+}
+
+/**
+ * Verifica si un trabajador tiene disponibilidad en una fecha específica.
+ * Considera: horario semanal (plantilla o excepción) + citas ya agendadas.
+ * @returns {{ disponible: boolean, slotsLibres: number, slotsTotal: number, mensaje: string }}
+ */
+async function getDisponibilidadTrabajador(worker, fecha) {
+    try {
+        // Resolver horario del trabajador para la semana de la fecha
+        const weekKey = getSemanaISO(new Date(fecha + 'T12:00:00'));
+        const hrInfo = getHorarioParaSemana(worker, weekKey);
+        const hr = hrInfo.horario;
+
+        // Obtener día de la semana (1=Lunes...7=Domingo)
+        const d = new Date(fecha + 'T12:00:00');
+        const dk = String(d.getDay() === 0 ? 7 : d.getDay());
+        const dia = hr[dk];
+
+        // Si no trabaja ese día
+        if (!dia || !dia.activo) {
+            return { disponible: false, slotsLibres: 0, slotsTotal: 0, mensaje: 'No laboral' };
+        }
+
+        // Calcular slots disponibles basados en horas efectivas
+        const [h1, m1] = (dia.inicio || '00:00').split(':').map(Number);
+        const [h2, m2] = (dia.fin || '00:00').split(':').map(Number);
+        let minutos = (h2 * 60 + m2) - (h1 * 60 + m1);
+        const ci = (dia.colacion_inicio || '00:00').split(':').map(Number);
+        const cf = (dia.colacion_fin || '00:00').split(':').map(Number);
+        if (ci[0] + ci[1] > 0 && cf[0] + cf[1] > ci[0] + ci[1]) {
+            minutos -= (cf[0] * 60 + cf[1]) - (ci[0] * 60 + ci[1]);
+        }
+        const horasEfectivas = Math.max(0, minutos / 60);
+        const slotsTotal = Math.max(1, Math.ceil(horasEfectivas * 2));
+
+        // Obtener citas ya agendadas
+        const ocupados = await getHorasOcupadasTrabajador(worker.id, fecha);
+        const slotsLibres = Math.max(0, slotsTotal - ocupados.length);
+
+        return {
+            disponible: slotsLibres > 0,
+            slotsLibres,
+            slotsTotal,
+            mensaje: slotsLibres <= 0 ? 'Completo' : `${slotsLibres} disponible${slotsLibres !== 1 ? 's' : ''}`
+        };
+    } catch (e) {
+        console.warn('[Disponibilidad] Error:', e.message);
+        return { disponible: true, slotsLibres: 1, slotsTotal: 1, mensaje: '' };
+    }
+}
+
+/**
+ * Actualiza los botones de trabajador con información de disponibilidad para una fecha.
+ */
+async function actualizarDisponibilidadTrabajadores(workers, fecha) {
+    for (const w of workers) {
+        const btn = document.querySelector(`.btn-trabajador[data-id="${w.id}"]`);
+        if (!btn) continue;
+        const disp = await getDisponibilidadTrabajador(w, fecha);
+        if (!disp.disponible) {
+            btn.classList.add('completo');
+            btn.disabled = true;
+            btn.title = `${w.nombre} — Sin disponibilidad (${disp.mensaje})`;
+            const statusEl = btn.querySelector('.trabajador-status') || document.createElement('span');
+            statusEl.className = 'trabajador-status completo-status';
+            statusEl.textContent = '🔴 Completo';
+            btn.appendChild(statusEl);
+        } else {
+            btn.classList.remove('completo');
+            btn.disabled = false;
+            btn.title = `${w.nombre} — ${disp.mensaje}`;
+            const oldStatus = btn.querySelector('.trabajador-status');
+            if (oldStatus) oldStatus.remove();
+        }
     }
 }
 

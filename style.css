@@ -1434,6 +1434,179 @@ body {
     display: inline-block;
 }
 
+/* === NAVEGACION DE HORARIOS === */
+.schedule-nav-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.schedule-nav-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.6);
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.schedule-nav-btn:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+}
+.schedule-nav-today {
+    background: rgba(157,78,221,0.1);
+    border-color: rgba(157,78,221,0.3);
+    color: #c77dff;
+    font-weight: 600;
+}
+.schedule-nav-today:hover {
+    background: rgba(157,78,221,0.2);
+}
+.schedule-nav-center {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.schedule-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.schedule-month-label {
+    font-weight: 700;
+    font-size: 1rem;
+    min-width: 120px;
+    text-align: center;
+    color: #fff;
+}
+.schedule-week-label {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+    padding: 0 6px;
+    min-width: 70px;
+    text-align: center;
+}
+
+/* Tarjetas de semana */
+.schedule-week-cards {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+.week-card {
+    flex: 1;
+    min-width: 100px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    position: relative;
+}
+.week-card:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.15);
+    transform: translateY(-2px);
+}
+.week-card-active {
+    background: rgba(157,78,221,0.08);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 12px rgba(157,78,221,0.15);
+}
+.week-card-today {
+    border-color: rgba(253,203,110,0.3);
+}
+.week-card .week-card-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 2px;
+}
+.week-card .week-card-range {
+    display: block;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 4px;
+}
+.week-card .week-card-summary {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.6);
+}
+.week-card .week-card-type {
+    display: block;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.25);
+    margin-top: 3px;
+}
+.week-card-hoy {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fdcb6e;
+    color: #2d3436;
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    line-height: 1;
+}
+
+/* Indicador de semana */
+.schedule-week-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+.week-type-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.week-type-template {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.5);
+}
+.week-type-custom {
+    background: rgba(253,203,110,0.12);
+    color: #fdcb6e;
+}
+.btn-reset-week {
+    background: rgba(255,107,107,0.1);
+    border: 1px solid rgba(255,107,107,0.2);
+    color: #ff6b6b;
+    padding: 3px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    margin-left: 6px;
+    transition: all 0.2s;
+}
+.btn-reset-week:hover {
+    background: rgba(255,107,107,0.2);
+}
+
 /* Compartir con trabajadores */
 .workers-share-list {
     display: flex;
@@ -1515,8 +1688,22 @@ body {
     background: rgba(255,255,255,0.03);
 }
 .btn-trabajador.active {
-    border-color: var(--primary-color, #9d4edd);
+    border-color: var(--primary-color);
     background: rgba(157,78,221,0.08);
+}
+.btn-trabajador.completo {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: rgba(255,107,107,0.15);
+    background: rgba(255,107,107,0.04);
+    pointer-events: none;
+}
+.btn-trabajador .trabajador-status.completo-status {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #ff6b6b;
+    margin-top: 3px;
 }
 .trabajador-avatar {
     width: 40px;
@@ -1991,8 +2178,59 @@ body {
     font-size: 0.65rem;
     color: rgba(255,255,255,0.35);
 }
+.sw-total .sw-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    margin-left: 2px;
+}
+.sw-badge.badge-ok { color: #00b894; }
+.sw-badge.badge-warning { color: #fdcb6e; }
+.sw-badge.badge-error { color: #ff6b6b; }
+
+/* Compliance banner */
+.schedule-compliance-banner .comp-badge {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+.schedule-compliance-banner .comp-ok { background: rgba(0,184,148,0.12); color: #55efc4; }
+.schedule-compliance-banner .comp-warning { background: rgba(253,203,110,0.12); color: #fdcb6e; }
+.schedule-compliance-banner .comp-error { background: rgba(255,107,107,0.12); color: #ff6b6b; }
+
+/* Validation messages in editor */
+.val-msg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    line-height: 1.3;
+}
+.val-msg i { flex-shrink: 0; }
+.val-msg.val-error { background: rgba(255,107,107,0.1); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.15); }
+.val-msg.val-warning { background: rgba(253,203,110,0.1); color: #fdcb6e; border: 1px solid rgba(253,203,110,0.15); }
+.val-msg.val-ok { background: rgba(0,184,148,0.1); color: #55efc4; border: 1px solid rgba(0,184,148,0.15); }
+
+/* Ocupación en celdas de horario */
+.s-day-ocupacion {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 600;
+    margin-top: 2px;
+    white-space: nowrap;
+    text-align: center;
+}
+.s-day-ocupacion.ocup-baja { color: rgba(0,184,148,0.6); }
+.s-day-ocupacion.ocup-media { color: #fdcb6e; }
+.s-day-ocupacion.ocup-llena { color: #ff6b6b; }
+
 .schedule-day-cell {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 50px;
@@ -4677,6 +4915,92 @@ body {
     font-size: 1.1rem;
     margin-top: 2px;
     flex-shrink: 0;
+}
+
+/* Guia de horarios (colapsable) */
+.schedule-help {
+    border: none;
+    outline: none;
+}
+.schedule-help summary::-webkit-details-marker {
+    display: none;
+}
+.schedule-help summary:hover {
+    background: rgba(157,78,221,0.1);
+}
+.help-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.01);
+}
+.help-step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(157,78,221,0.15);
+    color: #c77dff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.help-step-body {
+    flex: 1;
+    min-width: 0;
+}
+.help-step-body strong {
+    display: block;
+    font-size: 0.82rem;
+    color: #fff;
+    margin-bottom: 2px;
+}
+.help-step-body p {
+    margin: 0;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.4;
+}
+.help-step.clickable {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.help-step.clickable:hover {
+    background: rgba(157,78,221,0.08);
+}
+
+/* Highlight animado para guia interactiva */
+.guide-highlight {
+    animation: guidePulse 3s ease-out forwards;
+    border-radius: 10px;
+}
+@keyframes guidePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(157,78,221,0.6); background: rgba(157,78,221,0.08); }
+    30%  { box-shadow: 0 0 20px 4px rgba(157,78,221,0.3); background: rgba(157,78,221,0.12); }
+    70%  { box-shadow: 0 0 10px 2px rgba(157,78,221,0.15); background: rgba(157,78,221,0.06); }
+    100% { box-shadow: 0 0 0 0 rgba(157,78,221,0); background: transparent; }
+}
+
+/* Selector de semanas (copiar a) */
+.ws-weeks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 4px;
+}
+.ws-week-label:hover {
+    background: rgba(157,78,221,0.06);
+    border-color: rgba(157,78,221,0.2);
+}
+.ws-week-label.ws-has-exception {
+    border-color: rgba(253,203,110,0.15);
+    background: rgba(253,203,110,0.03);
+}
+.ws-week-label input[type="checkbox"] {
+    accent-color: var(--primary-color);
 }
 
 /* Leyenda de botones */
