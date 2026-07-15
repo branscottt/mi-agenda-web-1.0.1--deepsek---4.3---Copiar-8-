@@ -2,10 +2,7 @@
 // CONFIGURACIÓN DE SUPABASE - VERSIÓN CORREGIDA
 // ============================================
 const supabaseUrl = 'https://dfcfimipkfhitlsyixqu.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0';
-
-console.log('URL:', supabaseUrl);
-console.log('KEY:', supabaseKey.substring(0, 20) + '...');
+const supabaseKey = 'eyJhbG...Ccw0';
 
 let supabaseClient = null;
 
@@ -8685,12 +8682,14 @@ async function iniciarCliente() {
     }
 
     // Establecer tenant en Supabase (para políticas anónimas RLS)
+    // Usa set_tenant_anon que valida que el tenant exista y esté activo
     try {
-        const { error: rpcError } = await supabaseClient.rpc('set_tenant', { tenant_id: tenantId });
-        if (rpcError) console.warn('[iniciarCliente] set_tenant RPC falló:', rpcError);
-        else console.log('[iniciarCliente] set_tenant RPC exitoso para tenant', tenantId);
+        const { data: tenantValido, error: rpcError } = await supabaseClient.rpc('set_tenant_anon', { p_tenant_id: tenantId });
+        if (rpcError) console.warn('[iniciarCliente] set_tenant_anon falló:', rpcError);
+        else if (tenantValido === true) console.log('[iniciarCliente] Tenant validado y contexto establecido');
+        else console.warn('[iniciarCliente] Tenant no válido o inactivo');
     } catch (e) {
-        console.error('[iniciarCliente] Excepción en set_tenant:', e);
+        console.error('[iniciarCliente] Excepción en set_tenant_anon:', e);
     }
     window.currentTenantId = tenantId;
 

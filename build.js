@@ -19,6 +19,10 @@ esbuild.buildSync({
     minify: true,
     sourcemap: false,
     legalComments: 'none',
+    keepNames: false,
+    drop: ['debugger'],
+    charset: 'utf8',
+    target: ['es2020'],
 });
 console.log('   ✅ dist/app.js created');
 
@@ -32,6 +36,10 @@ esbuild.buildSync({
     minify: true,
     sourcemap: false,
     legalComments: 'none',
+    keepNames: false,
+    drop: ['debugger'],
+    charset: 'utf8',
+    target: ['es2020'],
 });
 console.log('   ✅ dist/legacy.js created');
 
@@ -54,8 +62,11 @@ for (const f of htmlFiles) {
 
 console.log('\n✅ Build complete!');
 console.log('   Files in dist/:');
+let totalSize = 0;
 for (const f of fs.readdirSync('dist')) {
     const stats = fs.statSync(path.join('dist', f));
     const sizeKB = (stats.size / 1024).toFixed(1);
+    totalSize += stats.size;
     console.log(`   - ${f} (${sizeKB} KB)`);
 }
+console.log(`   Total: ${(totalSize / 1024).toFixed(1)} KB`);

@@ -295,6 +295,26 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
 async function subirImagenStorage(file, tipo, inputId) {
     // tipo: 'logo' o 'cover'
     const nameMap = { logo: 'Logo', cover: 'Portada' };
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    const MAX_SIZE_MB = 5;
+    const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+
+    // Validación estricta de tipo MIME (client-side)
+    if (!file || !file.type) {
+        mostrarToast('❌ No se pudo leer el archivo', 'error');
+        return;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        mostrarToast(`❌ Formato no permitido: ${file.type}. Usa JPG, PNG o WebP`, 'error');
+        return;
+    }
+
+    // Validación de tamaño máximo
+    if (file.size > MAX_SIZE_BYTES) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        mostrarToast(`❌ La imagen excede ${MAX_SIZE_MB}MB (tamaño: ${sizeMB}MB)`, 'error');
+        return;
+    }
     const barId = tipo === 'logo' ? 'logo-upload-progress' : 'cover-upload-progress';
     const fillId = tipo === 'logo' ? 'logo-upload-fill' : 'cover-upload-fill';
     const textId = tipo === 'logo' ? 'logo-upload-text' : 'cover-upload-text';
