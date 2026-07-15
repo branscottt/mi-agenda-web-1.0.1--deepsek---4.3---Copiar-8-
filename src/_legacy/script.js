@@ -4403,19 +4403,16 @@ async function iniciarSuperAdmin() {
     }
     
     // Fallback legacy: cargar todo con supabaseClient directo
-    if (typeof window.iniciarSuperAdminFallback === 'function') {
-        await window.iniciarSuperAdminFallback();
-    } else {
-        // Fallback inline si no existe
-        await cargarTenants();
-        await cargarEstadisticasGlobales();
-        await cargarMetricasGlobales();
-        const fnSetup = window.setupSuperAdminTabs || setupSuperAdminTabs;
-        if (typeof fnSetup === 'function') fnSetup();
-        
-        // Configurar botones del modal de tenant
-        configurarModalTenant();
-    }
+    // NOTA: Este código se ejecuta siempre, incluso si el import de ES modulos
+    // tuvo éxito pero no encontró el contenedor adecuado
+    await cargarTenants();
+    await cargarEstadisticasGlobales();
+    await cargarMetricasGlobales();
+    const fnSetup = window.setupSuperAdminTabs || setupSuperAdminTabs;
+    if (typeof fnSetup === 'function') fnSetup();
+    
+    // Configurar botones del modal de tenant
+    configurarModalTenant();
     
     // Configurar botón de logout
     const logoutBtn = document.getElementById('logout-super');
@@ -4776,10 +4773,8 @@ function configurarModalTenant() {
             
             // Validar ID antes de cualquier operación
             console.log('[Guardar Tenant] ID:', id, '| modal.dataset.currentId:', modal.dataset.currentId);
-            if (!id) {
-                mostrarToast('Error: ID del tenant no válido. Intenta recargar la página.', 'error');
-                return;
-            }
+            // Si es nuevo tenant (sin ID), se crea en el bloque else (INSERT) más abajo
+            // No retornar con error — dejar que fluya al INSERT
             
             const data = {
                 nombre_negocio: document.getElementById('tenant-nombre').value,

@@ -231,14 +231,13 @@ async function syncJwtSession() {
             }
         }
 
-        if (esSuperAdmin) {
+        if (esPlanes) {
             try {
-                const { renderSuperAdmin } = await import('./super-admin/ui/SuperAdminView.js');
-                renderSuperAdmin(document.getElementById('superadmin-content'));
-
-                console.log('[main.js] Modulos superadmin cargados correctamente');
+                const { renderPlans } = await import('./subscriptions/ui/PlansView.js');
+                window.renderPlans = renderPlans;
+                renderPlans('planes-container');
             } catch (e) {
-                console.warn('[main.js] Modulos superadmin no disponibles:', e.message);
+                console.warn('[main.js] PlansView no disponible:', e.message);
             }
         }
     }
