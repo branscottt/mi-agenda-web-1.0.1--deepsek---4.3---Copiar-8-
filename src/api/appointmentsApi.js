@@ -16,7 +16,8 @@ export async function getAllCitas(tenantId) {
             .from(TABLE)
             .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color)')
             .eq('tenant_id', String(tid).trim())
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(0, 199);
         if (error) throw error;
         return data || [];
     }, [tenantId], 15_000); // TTL más corto: 15s para citas (cambian frecuentemente)
@@ -95,7 +96,8 @@ export async function getCitasByDate(fecha, tenantId) {
         .from(TABLE)
         .select('id, servicio_id, fecha, hora, precio, contacto')
         .eq('tenant_id', String(tenantId).trim())
-        .eq('fecha', fecha);
+        .eq('fecha', fecha)
+        .range(0, 199);
     if (error) throw error;
     return data || [];
 }
@@ -111,7 +113,8 @@ export async function getCitasByDateRange(fechaInicio, fechaFin, tenantId) {
         .select('id, servicio_id, fecha, hora, trabajador_id')
         .eq('tenant_id', String(tenantId).trim())
         .gte('fecha', fechaInicio)
-        .lte('fecha', fechaFin);
+        .lte('fecha', fechaFin)
+        .range(0, 199);
     if (error) throw error;
     return data || [];
 }

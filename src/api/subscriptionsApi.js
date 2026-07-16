@@ -8,7 +8,8 @@ export async function getAllSubscriptions() {
     const { data, error } = await getSupabase()
         .from(TABLE)
         .select('id, tenant_id, plan, status, start_date, end_date, monto, created_at')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 199);
     if (error) throw error;
     return data || [];
 }
@@ -88,7 +89,7 @@ export async function getSubscriptionsByFilter(filters) {
             query = query.eq(key, val);
         }
     }
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data, error } = await query.order('created_at', { ascending: false }).range(0, 199);
     if (error) throw error;
     return data || [];
 }

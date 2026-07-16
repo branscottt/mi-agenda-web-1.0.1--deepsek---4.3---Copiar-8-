@@ -7,7 +7,8 @@ const VIEW = 'usuarios_con_rol';
 export async function getAllUsuarios() {
     const { data, error } = await getSupabase()
         .from(VIEW)
-        .select('id, email, rol, tenant_id, created_at');
+        .select('id, email, rol, tenant_id, created_at')
+        .range(0, 199);
     if (error) throw error;
     return data || [];
 }

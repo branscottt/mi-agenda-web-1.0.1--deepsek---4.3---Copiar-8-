@@ -8,7 +8,8 @@ export async function getAllTenants() {
     const { data, error } = await getSupabase()
         .from(TABLE)
         .select('id, nombre_negocio, email_contacto, telefono, plan, activo, fecha_registro, created_at')
-        .order('fecha_registro', { ascending: false });
+        .order('fecha_registro', { ascending: false })
+        .range(0, 199);
     if (error) throw error;
     return data || [];
 }

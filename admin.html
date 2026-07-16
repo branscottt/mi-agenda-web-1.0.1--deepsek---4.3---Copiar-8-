@@ -1066,13 +1066,13 @@
                     }
                     break;
                 case 'citas':
-                    if (typeof renderAdminAppointments === 'function') {
-                        setTimeout(() => renderAdminAppointments(), 100);
+                    if (window.__initAdminAppointments) {
+                        setTimeout(() => window.__initAdminAppointments(), 100);
                     }
                     break;
                 case 'clientes':
-                    if (typeof renderClientListView === 'function') {
-                        setTimeout(() => renderClientListView(), 100);
+                    if (window.__initClientListView) {
+                        setTimeout(() => window.__initClientListView(), 100);
                     }
                     break;
                 case 'dashboard':
@@ -1097,7 +1097,9 @@
                     }
                     break;
                 case 'personalizar':
-                    if (typeof VisualConfigManager !== 'undefined') {
+                    if (window.__initConfigEditor) {
+                        setTimeout(() => window.__initConfigEditor(), 100);
+                    } else if (typeof VisualConfigManager !== 'undefined') {
                         setTimeout(async () => {
                             const cfg = await VisualConfigManager.loadConfig();
                             VisualConfigManager.applyConfigToForm(cfg);

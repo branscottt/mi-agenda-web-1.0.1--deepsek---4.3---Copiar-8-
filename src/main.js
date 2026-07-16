@@ -149,40 +149,87 @@ async function syncJwtSession() {
 
         if (esAdmin) {
             try {
-                const { configurarFormularioServicio } = await import('./services/ui/ServiceForm.js');
-                configurarFormularioServicio();
-
-                const { renderAdminAppointments } = await import('./appointments/ui/AdminAppointmentList.js');
-                renderAdminAppointments('upcoming-appointments');
-
-                const { renderClientListView } = await import('./clients/ui/ClientListView.js');
-                window.renderClientListView = renderClientListView;
-
+                // Módulos esenciales (Dashboard y notificaciones se ven siempre)
                 const { renderDashboard } = await import('./dashboard/ui/DashboardView.js');
                 renderDashboard('stats-container');
 
                 const { initNotificationPanel } = await import('./notifications/ui/NotificationPanel.js');
                 initNotificationPanel('notif-list');
 
-                const { initConfigEditor } = await import('./visual-config/ui/ConfigEditor.js');
-                initConfigEditor('customization-form');
+                const { configurarFormularioServicio } = await import('./services/ui/ServiceForm.js');
+                configurarFormularioServicio();
 
-                // Módulos de trabajadores
-                const { renderWorkersList, exposeWorkerGlobals } = await import('./workers/ui/WorkersListView.js');
-                window.__initWorkersList = () => renderWorkersList('workers-list-container');
-                exposeWorkerGlobals();
+                // Módulos lazy: se importan solo al navegar a su sección
+                // usando la función `__init*` desde el inline script de admin.html
 
-                const { renderWorkerSchedule } = await import('./workers/ui/WorkerScheduleView.js');
-                window.__initWorkerSchedule = () => renderWorkerSchedule('schedule-container');
-
-                const { renderWorkerShare, exposeShareGlobals } = await import('./workers/ui/WorkerShareView.js');
-                window.__initWorkerShare = () => renderWorkerShare('workers-share-container');
-                exposeShareGlobals();
-
+                // ServiceForm: expuesto como función lazy
                 const { guardarWorkersDelServicio } = await import('./services/ui/ServiceForm.js');
                 window.__guardarWorkersDelServicio = guardarWorkersDelServicio;
 
-                console.log('[main.js] Modulos admin cargados correctamente');
+                // AdminAppointmentList: lazy
+                window.__initAdminAppointments = async () => {
+                    try {
+                        const { renderAdminAppointments } = await import('./appointments/ui/AdminAppointmentList.js');
+                        renderAdminAppointments('upcoming-appointments');
+                    } catch (e) {
+                        console.warn('[lazy] AdminAppointmentList no disponible:', e.message);
+                    }
+                };
+
+                // ClientListView: lazy
+                window.__initClientListView = async () => {
+                    try {
+                        const { renderClientListView } = await import('./clients/ui/ClientListView.js');
+                        window.renderClientListView = renderClientListView;
+                        renderClientListView();
+                    } catch (e) {
+                        console.warn('[lazy] ClientListView no disponible:', e.message);
+                    }
+                };
+
+                // ConfigEditor: lazy
+                window.__initConfigEditor = async () => {
+                    try {
+                        const { initConfigEditor } = await import('./visual-config/ui/ConfigEditor.js');
+                        initConfigEditor('customization-form');
+                    } catch (e) {
+                        console.warn('[lazy] ConfigEditor no disponible:', e.message);
+                    }
+                };
+
+                // WorkersListView: lazy
+                window.__initWorkersList = async () => {
+                    try {
+                        const { renderWorkersList, exposeWorkerGlobals } = await import('./workers/ui/WorkersListView.js');
+                        renderWorkersList('workers-list-container');
+                        exposeWorkerGlobals();
+                    } catch (e) {
+                        console.warn('[lazy] WorkersListView no disponible:', e.message);
+                    }
+                };
+
+                // WorkerScheduleView: lazy
+                window.__initWorkerSchedule = async () => {
+                    try {
+                        const { renderWorkerSchedule } = await import('./workers/ui/WorkerScheduleView.js');
+                        renderWorkerSchedule('schedule-container');
+                    } catch (e) {
+                        console.warn('[lazy] WorkerScheduleView no disponible:', e.message);
+                    }
+                };
+
+                // WorkerShareView: lazy
+                window.__initWorkerShare = async () => {
+                    try {
+                        const { renderWorkerShare, exposeShareGlobals } = await import('./workers/ui/WorkerShareView.js');
+                        renderWorkerShare('workers-share-container');
+                        exposeShareGlobals();
+                    } catch (e) {
+                        console.warn('[lazy] WorkerShareView no disponible:', e.message);
+                    }
+                };
+
+                console.log('[main.js] Modulos admin esenciales cargados, resto lazy');
             } catch (e) {
                 console.warn('[main.js] Modulos admin no disponibles (usando fallback legacy)');
             }

@@ -12,7 +12,8 @@ export async function getAllServicios(tenantId) {
         const { data, error } = await getSupabase()
             .from(TABLE)
             .select('id, tenant_id, nombre, descripcion, precio, duracion, imagen, activo, destacado, categoria, disponibilidad, fechas, created_at')
-            .eq('tenant_id', String(tid).trim());
+            .eq('tenant_id', String(tid).trim())
+            .range(0, 199);
         if (error) throw error;
         return data || [];
     }, [tenantId]);
