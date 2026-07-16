@@ -8,7 +8,7 @@ export async function getAllServicios(tenantId) {
     if (!tenantId) return [];
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('*')
+        .select('id, tenant_id, nombre, descripcion, precio, duracion, imagen, activo, destacado, categoria, disponibilidad, fechas, created_at')
         .eq('tenant_id', String(tenantId).trim());
     if (error) throw error;
     return data || [];

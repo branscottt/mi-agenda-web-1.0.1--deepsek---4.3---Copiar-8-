@@ -141,12 +141,16 @@ function renderLista(container) {
     html += '</div>';
     container.innerHTML = html;
 
-    // ── Search handler ──
+    // ── Search handler (con debounce 300ms) ──
     const searchInput = document.getElementById('clientes-search-input');
     if (searchInput) {
+        let debounceTimer;
         searchInput.addEventListener('input', (e) => {
-            filtroActual = e.target.value;
-            renderLista(container);
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                filtroActual = e.target.value;
+                renderLista(container);
+            }, 300);
         });
     }
 

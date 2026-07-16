@@ -213,6 +213,33 @@ export async function saveVisualConfig(config) {
 }
 
 // ============================================================
+// TRANSFORMAR URL DE IMAGEN (Supabase Storage -> Render optimizado)
+// Si la URL pertenece a nuestro Storage, aplica transformacion
+// con parámetros de redimensionamiento. Si es externa, la deja igual.
+// ============================================================
+const SUPABASE_STORAGE_BASE = 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/service-images/';
+
+function transformImageUrl(url, options = {}) {
+    if (!url || typeof url !== 'string') return url;
+    const { width, height, resize = 'contain', quality = 80, format = 'auto' } = options;
+    // Detectar si es URL de nuestro Storage
+    if (url.startsWith(SUPABASE_STORAGE_BASE)) {
+        const filePath = url.substring(SUPABASE_STORAGE_BASE.length);
+        let transformedUrl = `https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/render/image/public/service-images/${filePath}`;
+        const params = [];
+        if (width) params.push(`width=${width}`);
+        if (height) params.push(`height=${height}`);
+        if (resize) params.push(`resize=${resize}`);
+        if (quality) params.push(`quality=${quality}`);
+        if (format) params.push(`format=${format}`);
+        if (params.length) transformedUrl += '?' + params.join('&');
+        return transformedUrl;
+    }
+    // URL externa o de otro origen: devolver tal cual
+    return url;
+}
+
+// ============================================================
 // APLICAR config al DOM
 // ============================================================
 export function aplicarConfigVisual(config) {
@@ -238,30 +265,31 @@ export function aplicarConfigVisual(config) {
     root.style.setProperty('--anim-speed', c.animation_speed + 's');
 
     // --- LOGO ---
+    const logoUrl = transformImageUrl(c.logo_url, { width: 400, resize: 'contain', format: 'auto' });
     if (c.logo_url && c.logo_url.trim()) {
         // Header admin/cliente: #tenant-logo
         const headerLogo = document.getElementById('tenant-logo');
         if (headerLogo) {
-            headerLogo.src = c.logo_url;
+            headerLogo.src = logoUrl;
             headerLogo.style.display = 'inline-block';
         }
         // .tenant-logo (generic)
         document.querySelectorAll('.tenant-logo img, img.tenant-logo').forEach(img => {
-            img.src = c.logo_url;
+            img.src = logoUrl;
             img.style.display = 'inline-block';
         });
         // .tenant-logo-bg (background-image)
         document.querySelectorAll('.tenant-logo-bg').forEach(el => {
-            el.style.backgroundImage = `url('${c.logo_url}')`;
+            el.style.backgroundImage = `url('${logoUrl}')`;
             el.style.backgroundSize = 'contain';
             el.style.backgroundRepeat = 'no-repeat';
             el.style.backgroundPosition = 'center';
         });
         // .logo-img (modular fallback)
         const logoImg = document.querySelector('.logo-img');
-        if (logoImg) logoImg.src = c.logo_url;
+        if (logoImg) logoImg.src = logoUrl;
         const logoImgMobile = document.querySelector('.logo-img-mobile');
-        if (logoImgMobile) logoImgMobile.src = c.logo_url;
+        if (logoImgMobile) logoImgMobile.src = logoUrl;
     } else {
         // Ocultar logos si no hay URL
         const headerLogo = document.getElementById('tenant-logo');
@@ -299,16 +327,17 @@ export function aplicarConfigVisual(config) {
     }
 
     // --- COVER BANNER ---
+    const coverUrl = transformImageUrl(c.cover_url, { width: 1200, height: 400, resize: 'cover', format: 'auto' });
     const coverImg = document.getElementById('cover-banner-img');
     const coverContainer = document.getElementById('cover-banner-container');
     if (c.cover_url && c.cover_url.trim()) {
         if (coverImg) {
-            coverImg.src = c.cover_url;
+            coverImg.src = coverUrl;
             coverImg.style.display = 'block';
         }
         if (coverContainer) {
             coverContainer.style.display = 'block';
-            coverContainer.style.backgroundImage = `url('${c.cover_url}')`;
+            coverContainer.style.backgroundImage = `url('${coverUrl}')`;
         }
         // Clase para ajustar el header cuando hay portada
         document.querySelectorAll('.profile-header').forEach(el => el.classList.add('has-cover'));

@@ -6,7 +6,7 @@ export async function getTrabajadores(tenantId) {
     if (!supabase) throw new Error('Supabase client not available');
     const { data, error } = await supabase
         .from('trabajadores')
-        .select('*')
+        .select('id, tenant_id, nombre, email, telefono, color, activo, tipo_jornada, horario_semanal, horario_excepciones, horario_max_semanal, habilidades, created_at')
         .eq('tenant_id', String(tenantId).trim())
         .order('nombre');
     if (error) throw error;
@@ -18,7 +18,7 @@ export async function getTrabajadoresActivos(tenantId) {
     if (!supabase) throw new Error('Supabase client not available');
     const { data, error } = await supabase
         .from('trabajadores')
-        .select('*')
+        .select('id, tenant_id, nombre, email, telefono, color, activo, tipo_jornada, horario_semanal, horario_excepciones, horario_max_semanal, habilidades, created_at')
         .eq('tenant_id', String(tenantId).trim())
         .eq('activo', true)
         .order('nombre');

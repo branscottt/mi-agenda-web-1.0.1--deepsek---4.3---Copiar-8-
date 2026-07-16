@@ -7,7 +7,7 @@ const TABLE = 'subscriptions';
 export async function getAllSubscriptions() {
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('*')
+        .select('id, tenant_id, plan, status, start_date, end_date, monto, created_at')
         .order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
@@ -27,7 +27,7 @@ export async function getActiveSubscriptionByTenantId(tenantId) {
     if (!tenantId) return null;
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('*')
+        .select('id, tenant_id, plan, status, start_date, end_date, monto')
         .eq('tenant_id', String(tenantId).trim())
         .eq('status', 'active')
         .order('start_date', { ascending: false })
@@ -82,7 +82,7 @@ export async function deleteSubscription(id) {
  * Ej: getSubscriptionsByFilter({ tenant_id: 'xxx', status: 'active' })
  */
 export async function getSubscriptionsByFilter(filters) {
-    let query = getSupabase().from(TABLE).select('*');
+    let query = getSupabase().from(TABLE).select('id, tenant_id, plan, status, start_date, end_date, monto, created_at');
     for (const [key, val] of Object.entries(filters)) {
         if (val !== undefined && val !== null) {
             query = query.eq(key, val);

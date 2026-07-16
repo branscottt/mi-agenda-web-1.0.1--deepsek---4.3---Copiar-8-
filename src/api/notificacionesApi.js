@@ -8,7 +8,7 @@ export async function getAllNotificaciones(tenantId) {
     if (!tenantId) return [];
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('*')
+        .select('id, tenant_id, tipo, titulo, mensaje, leida, creado_en')
         .eq('tenant_id', String(tenantId).trim())
         .order('creado_en', { ascending: false });
     if (error) throw error;

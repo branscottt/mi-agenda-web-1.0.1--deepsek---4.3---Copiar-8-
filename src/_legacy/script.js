@@ -2,7 +2,7 @@
 // CONFIGURACIÓN DE SUPABASE - VERSIÓN CORREGIDA
 // ============================================
 const supabaseUrl = 'https://dfcfimipkfhitlsyixqu.supabase.co';
-const supabaseKey = 'eyJhbG...Ccw0';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0';
 
 let supabaseClient = null;
 
@@ -8818,10 +8818,19 @@ function configurarBuscadorCliente() {
         return;
     }
 
-    searchInput.addEventListener('input', function(e) {
+    searchInput.addEventListener('input', debounce(function(e) {
         currentFilterTerm = e.target.value.toLowerCase().trim();
         aplicarFiltrosCombinados();
-    });
+    }, 300));
+
+    // Helper debounce para inputs de búsqueda en el scope global
+    function debounce(fn, delay) {
+        let timer;
+        return function(...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
 
     const filterBtns = document.querySelectorAll('.filter-btn');
     filterBtns.forEach(btn => {
