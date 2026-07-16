@@ -1,17 +1,21 @@
 // src/api/serviciosApi.js
 // API unica para la tabla servicios (catalogo de servicios del negocio)
 import { getSupabase } from '../shared/infrastructure/supabase.js';
+import { cacheWrapper, cacheClearPrefix } from '../shared/infrastructure/cache.js';
 
 const TABLE = 'servicios';
+const CACHE_PREFIX = 'serviciosApi';
 
 export async function getAllServicios(tenantId) {
     if (!tenantId) return [];
-    const { data, error } = await getSupabase()
-        .from(TABLE)
-        .select('id, tenant_id, nombre, descripcion, precio, duracion, imagen, activo, destacado, categoria, disponibilidad, fechas, created_at')
-        .eq('tenant_id', String(tenantId).trim());
-    if (error) throw error;
-    return data || [];
+    return cacheWrapper(CACHE_PREFIX, async (tid) => {
+        const { data, error } = await getSupabase()
+            .from(TABLE)
+            .select('id, tenant_id, nombre, descripcion, precio, duracion, imagen, activo, destacado, categoria, disponibilidad, fechas, created_at')
+            .eq('tenant_id', String(tid).trim());
+        if (error) throw error;
+        return data || [];
+    }, [tenantId]);
 }
 
 export async function getServicioById(id) {
@@ -31,6 +35,7 @@ export async function createServicio(data) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return result;
 }
 
@@ -42,6 +47,7 @@ export async function updateServicio(id, updates) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return data;
 }
 
@@ -51,6 +57,7 @@ export async function deleteServicio(id) {
         .delete()
         .eq('id', id);
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return true;
 }
 
@@ -61,5 +68,6 @@ export async function upsertServicio(data) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return result;
 }

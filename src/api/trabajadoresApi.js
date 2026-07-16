@@ -1,29 +1,36 @@
 // src/api/trabajadoresApi.js
 // API de trabajadores — CRUD contra Supabase
+import { cacheWrapper, cacheClearPrefix } from '../shared/infrastructure/cache.js';
+
+const CACHE_PREFIX = 'trabajadoresApi';
 
 export async function getTrabajadores(tenantId) {
     const supabase = window.supabaseClient;
     if (!supabase) throw new Error('Supabase client not available');
-    const { data, error } = await supabase
-        .from('trabajadores')
-        .select('id, tenant_id, nombre, email, telefono, color, activo, tipo_jornada, horario_semanal, horario_excepciones, horario_max_semanal, habilidades, created_at')
-        .eq('tenant_id', String(tenantId).trim())
-        .order('nombre');
-    if (error) throw error;
-    return data || [];
+    return cacheWrapper(CACHE_PREFIX, async (tid) => {
+        const { data, error } = await supabase
+            .from('trabajadores')
+            .select('id, tenant_id, nombre, email, telefono, color, activo, tipo_jornada, horario_semanal, horario_excepciones, horario_max_semanal, habilidades, created_at')
+            .eq('tenant_id', String(tid).trim())
+            .order('nombre');
+        if (error) throw error;
+        return data || [];
+    }, [tenantId]);
 }
 
 export async function getTrabajadoresActivos(tenantId) {
     const supabase = window.supabaseClient;
     if (!supabase) throw new Error('Supabase client not available');
-    const { data, error } = await supabase
-        .from('trabajadores')
-        .select('id, tenant_id, nombre, email, telefono, color, activo, tipo_jornada, horario_semanal, horario_excepciones, horario_max_semanal, habilidades, created_at')
-        .eq('tenant_id', String(tenantId).trim())
-        .eq('activo', true)
-        .order('nombre');
-    if (error) throw error;
-    return data || [];
+    return cacheWrapper(CACHE_PREFIX + '_activos', async (tid) => {
+        const { data, error } = await supabase
+            .from('trabajadores')
+            .select('id, tenant_id, nombre, email, telefono, color, activo, tipo_jornada, horario_semanal, horario_excepciones, horario_max_semanal, habilidades, created_at')
+            .eq('tenant_id', String(tid).trim())
+            .eq('activo', true)
+            .order('nombre');
+        if (error) throw error;
+        return data || [];
+    }, [tenantId]);
 }
 
 export async function getTrabajadorById(id) {
@@ -47,6 +54,7 @@ export async function createTrabajador(trabajador) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return data;
 }
 
@@ -60,6 +68,7 @@ export async function updateTrabajador(id, updates) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return data;
 }
 
@@ -72,5 +81,6 @@ export async function deleteTrabajador(id) {
         .delete()
         .eq('id', id);
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return true;
 }

@@ -254,6 +254,15 @@ async function syncJwtSession() {
     }
 
     // ============================================
+    // Registrar Service Worker (silencioso, no bloquea)
+    // ============================================
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+            // Silencioso — no crítico si falla
+        });
+    }
+
+    // ============================================
     // Exponer APIs unicas para script.js legacy
     // ============================================
     async function exposeApi() {

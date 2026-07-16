@@ -4,18 +4,22 @@
 // Evita duplicación: todos los consumidores deben importar desde aquí.
 
 import { getSupabase } from '../shared/infrastructure/supabase.js';
+import { cacheWrapper, cacheClearPrefix } from '../shared/infrastructure/cache.js';
 
 const TABLE = 'citas';
+const CACHE_PREFIX = 'appointmentsApi';
 
 export async function getAllCitas(tenantId) {
     if (!tenantId) return [];
-    const { data, error } = await getSupabase()
-        .from(TABLE)
-        .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color)')
-        .eq('tenant_id', String(tenantId).trim())
-        .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    return cacheWrapper(CACHE_PREFIX, async (tid) => {
+        const { data, error } = await getSupabase()
+            .from(TABLE)
+            .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color)')
+            .eq('tenant_id', String(tid).trim())
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    }, [tenantId], 15_000); // TTL más corto: 15s para citas (cambian frecuentemente)
 }
 
 export async function getCitaById(id) {
@@ -35,6 +39,7 @@ export async function createCita(data) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return result;
 }
 
@@ -47,6 +52,7 @@ export async function createCitasBulk(citas) {
         .insert(citas)
         .select();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return data || [];
 }
 
@@ -58,6 +64,7 @@ export async function updateCita(id, updates) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return data;
 }
 
@@ -67,6 +74,7 @@ export async function deleteCita(id) {
         .delete()
         .eq('id', id);
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return true;
 }
 
@@ -77,6 +85,7 @@ export async function upsertCita(data) {
         .select()
         .single();
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return result;
 }
 
@@ -117,5 +126,6 @@ export async function limpiarCitasExpiradas(tenantId) {
         .lt('fecha', hoy)
         .select('id');
     if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
     return data?.length || 0;
 }

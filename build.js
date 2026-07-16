@@ -47,7 +47,13 @@ console.log('   ✅ dist/legacy.js created');
 console.log('📂 Copying assets to dist/...');
 fs.copyFileSync('style.css', 'dist/style.css');
 
-// 4. Copiar HTML files a dist/
+// 4. Copiar Service Worker a dist/
+if (fs.existsSync('sw.js')) {
+    fs.copyFileSync('sw.js', 'dist/sw.js');
+    console.log('   ✅ dist/sw.js copied');
+}
+
+// 5. Copiar HTML files a dist/
 const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html'];
 for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
