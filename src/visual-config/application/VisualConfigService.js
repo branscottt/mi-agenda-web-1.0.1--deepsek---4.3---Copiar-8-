@@ -6,6 +6,7 @@
 
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getConfigByTenantId, upsertConfig } from '../../api/tenantConfigApi.js';
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
 
 // ============================================================
 // CONFIG DEFAULT (completo)
@@ -147,10 +148,46 @@ export async function getVisualConfig(optionalTenantId) {
 
 // ============================================================
 // GUARDAR config: columnas reales a BD, extras a localStorage
+// SOLO para planes Pro y Premium Anual
 // ============================================================
+
+/**
+ * Verifica que el tenant tenga un plan de pago activo (pro o premium_anual)
+ * @throws {Error} si no cumple el plan
+ */
+async function _verificarPlan() {
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (!tenantId) throw new Error('No tenant ID');
+
+        const { data, error } = await getSupabase()
+            .from('subscriptions')
+            .select('plan, status')
+            .eq('tenant_id', String(tenantId).trim())
+            .eq('status', 'active')
+            .order('start_date', { ascending: false })
+            .limit(1);
+
+        if (error) throw error;
+
+        const suscripcion = data?.[0];
+        if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual')) {
+            throw new Error('Personalización visual solo disponible en planes Pro y Premium Anual. <a href="planes.html" style="color:#ffc107;">Ver planes</a>');
+        }
+    } catch (e) {
+        // Si el error ya es nuestro mensaje personalizado, relanzarlo
+        if (e.message.includes('Personalización visual')) throw e;
+        // Error de red/BD: no bloquear, permitir guardado en localStorage al menos
+        console.warn('[VisualConfig] No se pudo verificar plan, permitiendo guardado:', e.message);
+    }
+}
+
 export async function saveVisualConfig(config) {
     const tenantId = await getCurrentTenantId();
     if (!tenantId) throw new Error('No tenant ID');
+
+    // Verificar plan de pago antes de guardar
+    await _verificarPlan();
 
     // 1. Normalizar nombres modulares -> legacy
     const normalized = _normalizeKeys(config);
@@ -175,30 +212,40 @@ export async function saveVisualConfig(config) {
 
     // 3. LUEGO intentar guardar a BD (best-effort)
     let dbSuccess = false;
-    const dbPayload = {
-        tenant_id: String(tenantId).trim(),
-        primary_color: full.primary_color,
-        secondary_color: full.secondary_color,
-        logo_url: full.logo_url || null,
-        favicon_url: full.favicon_url || null,
-        cover_url: full.cover_url || null,
-        custom_css: full.custom_css || null
+
+    // Columnas base (siempre existen en tenant_config) y opcionales (pueden faltar según migraciones)
+    const CORE_COLUMNS = ['primary_color', 'secondary_color', 'logo_url', 'custom_css'];
+    const OPTIONAL_COLUMNS = ['favicon_url', 'cover_url'];
+
+    // Construir payload empezando solo con columnas core
+    const buildPayload = (includeOptionals) => {
+        const p = {
+            tenant_id: String(tenantId).trim(),
+            primary_color: full.primary_color,
+            secondary_color: full.secondary_color,
+            logo_url: full.logo_url || null,
+            custom_css: full.custom_css || null
+        };
+        if (includeOptionals) {
+            p.favicon_url = full.favicon_url || null;
+            p.cover_url = full.cover_url || null;
+        }
+        return p;
     };
 
     try {
-        await upsertConfig(tenantId, dbPayload);
+        // Primer intento con todas las columnas
+        await upsertConfig(tenantId, buildPayload(true));
         dbSuccess = true;
     } catch (e) {
-        // Si falla por favicon_url o cover_url (schema cache desactualizado), reintentar sin ellos
-        if (e.code === 'PGRST204' && (e.message?.includes('favicon_url') || e.message?.includes('cover_url'))) {
-            console.warn('[VisualConfig] Columna faltante en BD, guardando sin ella');
-            const payloadSin = { ...dbPayload };
-            delete payloadSin[e.message?.includes('favicon_url') ? 'favicon_url' : 'cover_url'];
+        if (e.code === 'PGRST204') {
+            // Reintentar solo con columnas core (sin favicon_url ni cover_url)
+            console.warn('[VisualConfig] Columnas opcionales no existen en BD, guardando solo columnas base');
             try {
-                await upsertConfig(tenantId, payloadSin);
+                await upsertConfig(tenantId, buildPayload(false));
                 dbSuccess = true;
             } catch (e2) {
-                console.error('[VisualConfig] Error guardando a BD (sin favicon):', e2);
+                console.error('[VisualConfig] Error guardando a BD (solo columnas base):', e2);
                 throw new Error('Error al guardar en BD: ' + e2.message);
             }
         } else {

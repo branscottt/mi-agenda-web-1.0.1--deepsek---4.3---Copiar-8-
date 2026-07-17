@@ -65,6 +65,11 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                         <input type="color" id="cfg-text" value="${config.text_color}">
                         <span class="swatch-hint">Textos principales</span>
                     </div>
+                    <div class="color-swatch">
+                        <label>Bordes</label>
+                        <input type="color" id="cfg-border" value="${config.border_color || '#2a2a4a'}">
+                        <span class="swatch-hint">Separadores, contornos</span>
+                    </div>
                 </div>
             </div>
 
@@ -157,6 +162,13 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
+            <!-- PASO 6: CSS PERSONALIZADO -->
+            <div class="config-section">
+                <h4 class="config-section-title"><i class="fas fa-code"></i> 6. CSS Personalizado <span class="field-hint" style="display:inline;font-weight:400;font-size:0.75rem;">(solo si sabes código)</span></h4>
+                <p class="field-hint" style="margin-bottom:8px;">Si tienes conocimientos de CSS, puedes escribir estilos avanzados aquí. De lo contrario, usa los temas y colores de arriba.</p>
+                <textarea id="custom-css" rows="4" placeholder="/* Escribe aquí tus estilos CSS personalizados */" style="width:100%;background:rgba(0,0,0,0.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:var(--border-radius);padding:12px;font-family:monospace;resize:vertical;">${escapeHtml(config.custom_css || '')}</textarea>
+            </div>
+
             <!-- FINALIZAR -->
             <div class="config-section finalizar">
                 <h4 class="config-section-title"><i class="fas fa-check-circle"></i> Finalizar</h4>
@@ -211,6 +223,8 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             bg_color: '#0d0d0d',
             card_bg: '#1a1a2e',
             text_color: '#e0e0e0',
+            border_color: '#2a2a4a',
+            theme_mode: 'dark',
             font_family: "'Inter', sans-serif",
             logo_url: '',
             cover_url: '',
@@ -440,12 +454,13 @@ function leerConfigForm() {
         bg_color: document.getElementById('cfg-bg')?.value || '#0d0d0d',
         card_bg: document.getElementById('cfg-card')?.value || '#1a1a2e',
         text_color: document.getElementById('cfg-text')?.value || '#e0e0e0',
+        border_color: document.getElementById('cfg-border')?.value || '#2a2a4a',
         font_family: document.getElementById('cfg-font')?.value || "'Inter', sans-serif",
         logo_url: document.getElementById('cfg-logo')?.value || '',
         cover_url: document.getElementById('cfg-cover')?.value || '',
         border_radius: parseInt(document.getElementById('cfg-radius')?.value) || 12,
         animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || 0.3,
-        custom_css: ''
+        custom_css: document.getElementById('custom-css')?.value || ''
     };
 }
 
@@ -455,7 +470,8 @@ function aplicarTema(tema) {
         'cfg-secondary': tema.secondary_color,
         'cfg-bg': tema.background_color || tema.bg_color,
         'cfg-card': tema.card_color || tema.card_bg,
-        'cfg-text': tema.text_color
+        'cfg-text': tema.text_color,
+        'cfg-border': tema.border_color
     };
     Object.entries(inputs).forEach(([id, val]) => {
         const el = document.getElementById(id);

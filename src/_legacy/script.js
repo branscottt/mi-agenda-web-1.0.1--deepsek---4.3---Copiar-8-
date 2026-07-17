@@ -1583,32 +1583,31 @@ const VisualConfigManager = {
 
             const full = this._mergeWithDefaults(config);
 
-            // Escribir columnas a BD (solo las que existen en la tabla)
-            const dbPayload = {
+            // Columnas que siempre existen en tenant_config
+            const CORE = {
                 tenant_id: tenantId,
                 primary_color: full.primary_color,
                 secondary_color: full.secondary_color,
                 logo_url: full.logo_url || null,
-                favicon_url: full.favicon_url || null,
-                cover_url: full.cover_url || null,
                 custom_css: full.custom_css || null
             };
+            const OPTIONAL = {
+                favicon_url: full.favicon_url || null,
+                cover_url: full.cover_url || null
+            };
+
+            // Intentar con todas las columnas
+            const dbPayload = { ...CORE, ...OPTIONAL };
             let { error } = await supabaseClient
                 .from('tenant_config')
                 .upsert(dbPayload, { onConflict: 'tenant_id' });
-            // Si falla por favicon_url o cover_url, reintentar sin él
+            // Si falla por columnas opcionales, reintentar solo con core
             if (error && error.code === 'PGRST204') {
-                const msg = error.message || '';
-                const colFaltante = msg.includes('favicon_url') ? 'favicon_url' : msg.includes('cover_url') ? 'cover_url' : null;
-                if (colFaltante) {
-                    console.warn('[VisualConfig]', colFaltante, 'no existe en BD, guardando sin ella');
-                    const payloadSin = { ...dbPayload };
-                    delete payloadSin[colFaltante];
-                    const retry = await supabaseClient
-                        .from('tenant_config')
-                        .upsert(payloadSin, { onConflict: 'tenant_id' });
-                    error = retry.error;
-                }
+                console.warn('[VisualConfig] Columnas opcionales no existen en BD, guardando solo columnas base (saveConfig)');
+                const retry = await supabaseClient
+                    .from('tenant_config')
+                    .upsert(CORE, { onConflict: 'tenant_id' });
+                error = retry.error;
             }
             if (error) throw error;
 
@@ -2293,31 +2292,33 @@ input, select, textarea {
         if (!tenantId) throw new Error('Tenant ID requerido');
         try {
             const full = this._mergeWithDefaults(config);
-            const dbPayload = {
+
+            // Columnas que siempre existen en tenant_config
+            const CORE = {
                 tenant_id: tenantId,
                 primary_color: full.primary_color,
                 secondary_color: full.secondary_color,
                 logo_url: full.logo_url || null,
-                favicon_url: full.favicon_url || null,
-                cover_url: full.cover_url || null,
                 custom_css: full.custom_css || null
             };
+            const OPTIONAL = {
+                favicon_url: full.favicon_url || null,
+                cover_url: full.cover_url || null
+            };
+
+            // Intentar con todas las columnas
+            const dbPayload = { ...CORE, ...OPTIONAL };
             let { error } = await supabaseClient
                 .from('tenant_config')
                 .upsert(dbPayload, { onConflict: 'tenant_id' });
-            // Si falla por favicon_url o cover_url, reintentar sin él
+
+            // Si falla por columnas opcionales, reintentar solo con core
             if (error && error.code === 'PGRST204') {
-                const msg = error.message || '';
-                const colFaltante = msg.includes('favicon_url') ? 'favicon_url' : msg.includes('cover_url') ? 'cover_url' : null;
-                if (colFaltante) {
-                    console.warn('[VisualConfig]', colFaltante, 'no existe en BD, guardando sin ella');
-                    const payloadSin = { ...dbPayload };
-                    delete payloadSin[colFaltante];
-                    const retry = await supabaseClient
-                        .from('tenant_config')
-                        .upsert(payloadSin, { onConflict: 'tenant_id' });
-                    error = retry.error;
-                }
+                console.warn('[VisualConfig] Columnas opcionales no existen en BD, guardando solo columnas base (saveConfigForTenant)');
+                const retry = await supabaseClient
+                    .from('tenant_config')
+                    .upsert(CORE, { onConflict: 'tenant_id' });
+                error = retry.error;
             }
             if (error) throw error;
             const extras = {
@@ -4032,7 +4033,7 @@ async function iniciarAdmin() {
     const allCustomFields = [
         'cfg-primary', 'cfg-secondary', 'cfg-bg', 'cfg-text', 'cfg-card', 'cfg-border',
         'cfg-theme-mode', 'cfg-font', 'cfg-radius', 'cfg-anim-speed',
-        'cfg-logo', 'cfg-favicon', 'custom-css'
+        'cfg-logo', 'cfg-favicon', 'cfg-cover', 'custom-css'
     ];
 
     if (!esPlanPago) {
@@ -4048,7 +4049,7 @@ async function iniciarAdmin() {
         if (resetBtn) resetBtn.disabled = true;
         if (previewBtn) previewBtn.disabled = true;
         // Temas también deshabilitados visualmente
-        document.querySelectorAll('.tema-card').forEach(c => {
+        document.querySelectorAll('.tema-card, .tema-btn').forEach(c => {
             c.style.opacity = '0.4';
             c.style.pointerEvents = 'none';
         });
@@ -4074,7 +4075,7 @@ async function iniciarAdmin() {
         if (saveBtn) saveBtn.disabled = false;
         if (resetBtn) resetBtn.disabled = false;
         if (previewBtn) previewBtn.disabled = false;
-        document.querySelectorAll('.tema-card').forEach(c => {
+        document.querySelectorAll('.tema-card, .tema-btn').forEach(c => {
             c.style.opacity = '1';
             c.style.pointerEvents = 'auto';
         });
@@ -4329,49 +4330,11 @@ async function iniciarAdmin() {
         });
     }
     
-    // ========== CONFIGURAR EVENTOS DEL FORMULARIO DE PERSONALIZACIÓN (NUEVO) ==========
-    const customForm = document.getElementById('customization-form');
-    if (customForm) {
-        customForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newConfig = VisualConfigManager.gatherFormConfig();
-            const success = await VisualConfigManager.saveConfig(newConfig);
-            const feedback = document.getElementById('customization-feedback');
-            if (success) {
-                feedback.innerHTML = '✅ Configuración guardada <strong>y aplicada</strong> — visible en panel admin y vista cliente.';
-                feedback.className = 'success';
-                setTimeout(() => feedback.innerHTML = '', 4000);
-                // Refrescar el formulario con los valores guardados
-                VisualConfigManager.applyConfigToForm(newConfig);
-            } else {
-                feedback.innerHTML = '❌ Error al guardar. Verifica que tengas un plan Pro o Premium activo. <a href="planes.html" style="color:#ffc107;">Ver planes</a>';
-                feedback.className = 'error';
-            }
-        });
-
-        // Botón restablecer
-        const resetBtnForm = document.getElementById('cfg-reset-btn');
-        if (resetBtnForm) {
-            resetBtnForm.addEventListener('click', async () => {
-                const defaultConfig = VisualConfigManager.getDefaultConfig();
-                VisualConfigManager.applyConfigToForm(defaultConfig);
-                VisualConfigManager.applyPreview(defaultConfig);
-                const feedback = document.getElementById('customization-feedback');
-                feedback.textContent = '↺ Valores restablecidos a por defecto (sin guardar). Haz clic en "Guardar cambios" para persistir.';
-                feedback.className = 'success';
-                setTimeout(() => feedback.textContent = '', 4000);
-            });
-        }
-
-        // Botón guardar cambios (dispara el submit del formulario)
-        const previewBtn = document.getElementById('cfg-preview-btn');
-        if (previewBtn) {
-            previewBtn.addEventListener('click', () => {
-                const form = document.getElementById('customization-form');
-                if (form) form.requestSubmit();
-            });
-        }
-    }
+    // ========== PERSONALIZACIÓN VISUAL → delegada al sistema modular (ConfigEditor en main.js) ==========
+    // El sistema legacy ya no gestiona eventos del formulario de personalización.
+    // ConfigEditor (src/visual-config/ui/ConfigEditor.js) reemplaza el innerHTML
+    // de #customization-form y maneja: guardar, restablecer, preview en vivo y check de plan.
+    // Ver VisualConfigService.saveVisualConfig() para la validación de plan (Pro/Premium).
 
     // Inicializar sección de compartir enlace
     configurarCompartirEnlace();
