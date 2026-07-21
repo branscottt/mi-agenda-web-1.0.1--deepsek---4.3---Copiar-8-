@@ -134,6 +134,14 @@ export function iniciarLogin() {
             const btn = e.target.querySelector('button[type="submit"]');
             if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
 
+            // Obtener captcha token si Turnstile está activo
+            let captchaToken = null;
+            try {
+                if (typeof turnstile !== 'undefined') {
+                    captchaToken = turnstile.getResponse();
+                }
+            } catch (_) {}
+
             const supabase = getSupabase();
             if (!supabase) {
                 if (registerErrorDiv) { registerErrorDiv.textContent = 'Error de conexión. Recarga la página.'; registerErrorDiv.style.display = 'block'; }
@@ -146,16 +154,20 @@ export function iniciarLogin() {
                 // PASO 1: signUp — crear usuario en Supabase Auth
                 // rol: 'admin' desde el primer momento (no temporal)
                 // ================================================================
+                const signUpOptions = {
+                    data: {
+                        nombre: nombre,
+                        rol: 'admin',
+                        whatsapp: whatsappClean
+                    }
+                };
+                if (captchaToken) {
+                    signUpOptions.captchaToken = captchaToken;
+                }
                 const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                     email: email,
                     password: password,
-                    options: {
-                        data: {
-                            nombre: nombre,
-                            rol: 'admin',
-                            whatsapp: whatsappClean
-                        }
-                    }
+                    options: signUpOptions
                 });
                 if (signUpError) throw signUpError;
                 if (!signUpData || !signUpData.user) throw new Error('Error al crear la cuenta. Intenta nuevamente.');
@@ -170,10 +182,14 @@ export function iniciarLogin() {
                 // tradicional. Esto garantiza retrocompatibilidad total.
                 // ================================================================
                 if (!signUpData.session) {
-                    const { error: signInError } = await supabase.auth.signInWithPassword({
+                    const signInOpts = {
                         email: email,
                         password: password
-                    });
+                    };
+                    if (captchaToken) {
+                        signInOpts.options = { captchaToken };
+                    }
+                    const { error: signInError } = await supabase.auth.signInWithPassword(signInOpts);
                     if (signInError) throw signInError;
                 } else {
                     console.log('[LoginPage] Sesión auto-activada por signUp (confirmación OFF)');
