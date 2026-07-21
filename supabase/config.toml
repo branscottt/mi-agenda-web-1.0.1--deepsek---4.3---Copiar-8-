@@ -211,8 +211,7 @@ web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
 [auth.captcha]
-# DESACTIVADO temporalmente hasta probar el flujo completo
-# Vuelve a activar cuando Turnstile esté configurado en todos los dominios
+# DESACTIVADO hasta que probemos login manualmente
 enabled = false
 provider = "turnstile"
 secret = "0x4AAAAAAD6qpZG_jT_p_gzb4Rcm7Or4ErE"

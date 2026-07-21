@@ -10606,7 +10606,15 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
     
     if (typeof NotificacionesAdminManager !== 'undefined') {
-        await NotificacionesAdminManager.eliminarViejos(7);
+        // Solo limpiar notificaciones viejas si hay sesión activa (evita error 42501 de anon)
+        try {
+            const accessToken = localStorage.getItem('agendapro_access_token');
+            if (accessToken) {
+                await NotificacionesAdminManager.eliminarViejos(7);
+            }
+        } catch (_e) {
+            // Silencioso — no crítico
+        }
     }
 
     await verificarProteccionRutas();

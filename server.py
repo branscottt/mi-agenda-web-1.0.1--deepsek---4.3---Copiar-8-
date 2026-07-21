@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Servidor HTTP endurecido para Agenda Pro.
-- Bloquea directory listing
-- Bloquea rutas sensibles (/scripts, /spec, /Untitled-1.sql, /node_modules)
-- Whitelist de extensiones permitidas
-- Cabeceras de seguridad HTTP (CSP, XFO, XCTO, Referrer-Policy)
-- Rate limiting: 10 solicitudes/minuto por IP y por username (X-Username)
+|Servidor HTTP endurecido para Agenda Pro.
+|- Bloquea directory listing
+|- Bloquea rutas sensibles (/scripts, /spec, /Untitled-1.sql, /node_modules)
+|- Whitelist de extensiones permitidas
+|- Cabeceras de seguridad HTTP (CSP con hashes SHA en script-src, HSTS, XFO, XCTO)
+|- Rate limiting por tipo de ruta: login=10, pages=120, static=300
 """
 import os
 import sys
@@ -234,11 +234,18 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header(
             'Content-Security-Policy',
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "script-src 'self' "
+            "'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' "
+            "'sha256-+UV8Se628DiIqlxmNFCAoWzroa6MxiTC6bQbL50O06k=' "
+            "'sha256-UQrDhi6gzmBdUezTgWk6Jg9V4H7P1xx0BLIv54aSq4E=' "
+            "'sha256-lSYtQi+KHaLFhXRNLOZvTjEX1tqlBShsZLMnMOkFNkU=' "
+            "'sha256-Bt5kHzBUuE0C+grs3wNL8SrAkgBQCUnhbTNsZL2sJVw=' "
+            "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://challenges.cloudflare.com; "
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
             "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
-            "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co; "
+            "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com; "
+            "frame-src https://challenges.cloudflare.com; "
             "form-action 'self'; "
             "base-uri 'self'; "
             "object-src 'none'; "
