@@ -1,8 +1,13 @@
 // ============================================
 // CONFIGURACIÓN DE SUPABASE - VERSIÓN CORREGIDA
 // ============================================
-const supabaseUrl = 'https://dfcfimipkfhitlsyixqu.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0';
+// Prioridad: window.__APP_CONFIG (server.py lo inyecta) > hardcoded dev defaults
+const _cfg = window.__APP_CONFIG || {
+    supabaseUrl: 'https://dfcfimipkfhitlsyixqu.supabase.co',
+    supabaseKey: 'eyJhbG...Ccw0',
+};
+const supabaseUrl = _cfg.supabaseUrl;
+const supabaseKey = _cfg.supabaseKey;
 
 let supabaseClient = null;
 

@@ -25,13 +25,15 @@
     // CREAR CLIENTE SUPABASE DE FORMA SINCRONA (sin import)
     // ============================================
     try {
-        const SUPABASE_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0';
+        const cfg = window.__APP_CONFIG || {
+            supabaseUrl: 'https://dfcfimipkfhitlsyixqu.supabase.co',
+            supabaseKey: 'eyJhbG...Ccw0',
+        };
         
         if (!window.supabase) {
             console.warn('[main] Supabase SDK no disponible, se usara script.js legacy');
         } else {
-            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            window.supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
             console.log('[main] window.supabaseClient asignado (sin import)');
         }
     } catch (e) {

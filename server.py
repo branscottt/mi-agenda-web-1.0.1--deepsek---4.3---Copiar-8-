@@ -207,8 +207,50 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, 'Not Found')
             return
 
-        # 6. Servir archivo (end_headers agrega cabeceras de seguridad)
-        return super().do_GET()
+        # 6. Servir archivo (con inyección de config para HTML)
+        if ext.lower() == '.html':
+            self._serve_html_with_config(full_path)
+        else:
+            return super().do_GET()
+
+    def _serve_html_with_config(self, filepath):
+        """Sirve HTML inyectando window.__APP_CONFIG desde variables de entorno.
+        Usa nonce CSP para permitir el script inline sin unsafe-inline.
+        No modifica archivos en disco — solo en memoria durante el response."""
+        try:
+            with open(filepath, 'rb') as f:
+                content = f.read()
+        except Exception:
+            self.send_error(404, 'Not Found')
+            return
+
+        config_payload = {}
+        supabase_url = os.environ.get('SUPABASE_URL', '')
+        supabase_key = os.environ.get('SUPABASE_KEY', '')
+        if supabase_url and supabase_key:
+            config_payload['supabaseUrl'] = supabase_url
+            config_payload['supabaseKey'] = supabase_key
+
+        if config_payload:
+            import json
+            import base64
+            # Generar nonce CSP para el script inline
+            nonce = base64.b64encode(os.urandom(16)).decode('ascii')
+            self._csp_nonce = nonce
+            script = (
+                b'<script nonce="' + nonce.encode('ascii') + b'">'
+                + b'window.__APP_CONFIG = '
+                + json.dumps(config_payload).encode('utf-8')
+                + b';</script>\n'
+            )
+            # Inyectar después de <head>
+            content = content.replace(b'<head>', b'<head>\n' + script, 1)
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
 
     def end_headers(self):
         # === CORS — permitir origen actual para assets estáticos ===
@@ -240,11 +282,12 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             'xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), '
             'gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()'
         )
-        self.send_header(
-            'Content-Security-Policy',
+        # Build CSP dinámicamente: si hay nonce (inyección de config), agregarlo
+        csp_script = (
             "default-src 'self'; "
             "script-src 'self' "
-            "'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' "
+            + (("'nonce-" + self._csp_nonce + "' ") if getattr(self, '_csp_nonce', None) else "")
+            + "'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' "
             "'sha256-+UV8Se628DiIqlxmNFCAoWzroa6MxiTC6bQbL50O06k=' "
             "'sha256-UQrDhi6gzmBdUezTgWk6Jg9V4H7P1xx0BLIv54aSq4E=' "
             "'sha256-lSYtQi+KHaLFhXRNLOZvTjEX1tqlBShsZLMnMOkFNkU=' "
@@ -261,6 +304,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "frame-ancestors 'none'; "
             "upgrade-insecure-requests"
         )
+        self.send_header('Content-Security-Policy', csp_script)
         super().end_headers()
 
     def list_directory(self, path):
