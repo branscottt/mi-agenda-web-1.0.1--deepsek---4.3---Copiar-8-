@@ -22,6 +22,17 @@
     });
 
     // ============================================
+    // SENTRY — Inicializar monitoreo de errores
+    // Solo si el DSN está configurado (ver sentry.js)
+    // ============================================
+    try {
+        const { initSentry } = await import('./shared/infrastructure/sentry.js');
+        initSentry();
+    } catch (e) {
+        // Silencioso — Sentry es opcional
+    }
+
+    // ============================================
     // CREAR CLIENTE SUPABASE DE FORMA SINCRONA (sin import)
     // ============================================
     try {

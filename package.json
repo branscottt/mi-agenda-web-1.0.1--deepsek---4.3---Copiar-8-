@@ -3,6 +3,7 @@
     "build": "node build.js"
   },
   "dependencies": {
+    "@sentry/browser": "^10.67.0",
     "pg": "^8.20.0"
   },
   "devDependencies": {

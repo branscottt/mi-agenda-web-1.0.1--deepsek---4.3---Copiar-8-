@@ -292,7 +292,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "'sha256-UQrDhi6gzmBdUezTgWk6Jg9V4H7P1xx0BLIv54aSq4E=' "
             "'sha256-lSYtQi+KHaLFhXRNLOZvTjEX1tqlBShsZLMnMOkFNkU=' "
             "'sha256-Bt5kHzBUuE0C+grs3wNL8SrAkgBQCUnhbTNsZL2sJVw=' "
-            "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://challenges.cloudflare.com; "
+            "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://challenges.cloudflare.com https://js.sentry-cdn.com; "
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
             "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https: https://http2.mlstatic.com; "

@@ -211,9 +211,10 @@ web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
 [auth.captcha]
-enabled = true
+# DESACTIVADO temporalmente mientras conseguimos claves reales de Turnstile
+# Para activar: cambiar a true y poner site key real en login.html
+enabled = false
 provider = "turnstile"
-secret = "0x4AAAAAAD6qpZG_jT_p_gzb4Rcm7Or4ErE"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.

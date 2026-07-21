@@ -11585,6 +11585,25 @@ function _initCSPEventBridge() {
     if (window.__cspBridgeDone) return;
     window.__cspBridgeDone = true;
 
+    // ---- Callbacks de Turnstile Captcha (definidos en login.html como data-callback) ----
+    // Son referenciados por el widget de Turnstile pero no estaban definidos en JS.
+    // Se necesita la función global para que Turnstile no muestre warnings.
+    if (typeof window.onCaptchaReady !== 'function') {
+        window.onCaptchaReady = function() {
+            console.log('[Captcha] Turnstile resuelto (login)');
+        };
+    }
+    if (typeof window.onRegisterCaptchaReady !== 'function') {
+        window.onRegisterCaptchaReady = function() {
+            console.log('[Captcha] Turnstile resuelto (registro)');
+        };
+    }
+    if (typeof window.onCaptchaExpired !== 'function') {
+        window.onCaptchaExpired = function() {
+            console.log('[Captcha] Token expirado, re-resolviendo...');
+        };
+    }
+
     // ---- Handlers directos (sin argumentos) ----
     var directMap = {};
 

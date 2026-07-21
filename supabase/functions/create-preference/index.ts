@@ -75,8 +75,9 @@ serve(async (req) => {
     }
 
     // Construir URLs de retorno
-    const origin = req.headers.get('origin') || 'http://localhost:5500';
-    const baseUrl = origin.endsWith('/') ? origin.slice(0, -1) : origin;
+    const origin = req.headers.get('origin') || '';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://dfcfimipkfhitlsyixqu.supabase.co';
+    const baseUrl = origin || supabaseUrl.replace(/\/$/, '');
 
     // Crear preferencia en Mercado Pago
     const prefBody = {
@@ -100,7 +101,7 @@ serve(async (req) => {
         pending: `${baseUrl}/planes.html?status=pending`,
       },
       auto_return: 'approved',
-      notification_url: `${baseUrl}/functions/v1/mercadopago-webhook`,
+      notification_url: `${supabaseUrl}/functions/v1/mercadopago-webhook`,
       external_reference: JSON.stringify({ tenant_id, plan, email }),
       purpose: 'subscription',
     };
