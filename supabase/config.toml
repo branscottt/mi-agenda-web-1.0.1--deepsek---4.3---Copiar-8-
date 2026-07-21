@@ -211,9 +211,11 @@ web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
 [auth.captcha]
-# DESACTIVADO temporalmente mientras conseguimos claves reales de Turnstile
-# Para activar: cambiar a true y poner site key real en login.html
-enabled = false
+# ACTIVADO: Turnstile Cloudflare
+# Site key ya está en login.html (0x4AAAAAAD6qpbuQ0sDmClXU)
+# Para producción: configurar SECRET key en Supabase Dashboard:
+#   Authentication > Settings > Captcha > Turnstile > Secret Key
+enabled = true
 provider = "turnstile"
 
 [auth.email]
