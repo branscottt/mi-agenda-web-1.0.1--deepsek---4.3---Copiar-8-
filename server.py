@@ -211,6 +211,15 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def end_headers(self):
+        # === CORS — permitir origen actual para assets estáticos ===
+        origin = self.headers.get('Origin', '')
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Username')
+            self.send_header('Access-Control-Allow-Credentials', 'true')
+            self.send_header('Access-Control-Max-Age', '86400')
+
         # === OWASP Secure Headers (sin romper logica de negocio) ===
         # HSTS — solo cuando la conexion es HTTPS
         self.send_header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
@@ -261,6 +270,11 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_HEAD(self):
         self.do_GET()
+
+    def do_OPTIONS(self):
+        """CORS preflight: responder sin body, solo headers."""
+        self.send_response(204)
+        self.end_headers()
 
 
 if __name__ == '__main__':

@@ -10589,6 +10589,10 @@ function iniciarSistemaUrgencias() {
 // INICIALIZACIÓN PRINCIPAL
 // ============================================
 document.addEventListener('DOMContentLoaded', async function () {
+    // CSP Event Bridge: convertir onclick/onchange/onsubmit inline a addEventListener
+    // (evita que CSP los bloquee sin necesidad de 'unsafe-inline')
+    _initCSPEventBridge();
+
     // Esperar a que supabaseClient esté disponible (espera hasta 2s)
     const supabaseListo = await initSupabase();
     if (!supabaseListo) {
@@ -11562,3 +11566,125 @@ window.toggleActivoServicio = toggleActivoServicio;
 window.editarServicio = editarServicio;
 window.abrirModalCambioFecha = abrirModalCambioFecha;
 window.confirmarCambioFecha = confirmarCambioFecha;
+
+// ============================================
+// CSP EVENT BRIDGE: convierte onclick/onchange inline a addEventListener
+// ============================================
+// CSP bloquea los event handlers inline (onclick="fn()") cuando script-src
+// no tiene 'unsafe-inline'. Este bridge lee los atributos onclick/onchange
+// del DOM en tiempo de ejecución, los convierte a addEventListener, y remueve
+// el atributo inline para que CSP no lo bloquee.
+// No requiere cambios en HTML ni CSS.
+// ============================================
+function _initCSPEventBridge() {
+    if (window.__cspBridgeDone) return;
+    window.__cspBridgeDone = true;
+
+    // ---- Handlers directos (sin argumentos) ----
+    var directMap = {};
+
+    // Registrar función en el mapa: onclickValue → functionReference
+    function reg(fn) {
+        var name = fn.name;
+        if (!name) return;
+        directMap[name + '()'] = fn;
+    }
+    // Las funciones disponibles globalmente desde inline scripts o legacy.js
+    if (typeof closeSidebar === 'function') reg(closeSidebar);
+    if (typeof toggleSidebar === 'function') reg(toggleSidebar);
+    if (typeof closeNotifPopover === 'function') reg(closeNotifPopover);
+    if (typeof toggleNotifPopover === 'function') {
+        directMap['toggleNotifPopover(event)'] = function(e) { toggleNotifPopover(e); };
+    }
+    if (typeof generarFechasPorRango === 'function') reg(generarFechasPorRango);
+    if (typeof guardarAsignacionActual === 'function') reg(guardarAsignacionActual);
+    if (typeof mostrarVistaPrevia === 'function') reg(mostrarVistaPrevia);
+    if (typeof cerrarPopupReserva === 'function') reg(cerrarPopupReserva);
+    if (typeof cerrarSesion === 'function') reg(cerrarSesion);
+    if (typeof onDateSelectorChange === 'function') {
+        directMap['onDateSelectorChange(this)'] = function(e) { onDateSelectorChange(e.target); };
+    }
+
+    // ---- Procesar todos los elementos con onclick ----
+    var els = document.querySelectorAll('[onclick]');
+    for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var attr = (el.getAttribute('onclick') || '').trim();
+        if (!attr) continue;
+        el.removeAttribute('onclick');
+
+        // Pattern: navigateTo('section')
+        var navMatch = attr.match(/^navigateTo\('([^']+)'\)(?:;return false;)?$/);
+        if (navMatch && typeof navigateTo === 'function') {
+            (function(section) { el.addEventListener('click', function() { navigateTo(section); }); })(navMatch[1]);
+            continue;
+        }
+
+        // Pattern: window.location.href = 'url'
+        var urlMatch = attr.match(/^(?:window\.)?location(?:\.href)?\s*=\s*'([^']+)'/);
+        if (urlMatch) {
+            (function(url) { el.addEventListener('click', function() { window.location.href = url; }); })(urlMatch[1]);
+            continue;
+        }
+
+        // Pattern: filtrarNotifPopover(this, 'tipo')
+        var filterMatch = attr.match(/^filtrarNotifPopover\(this,\s*'(\w+)'\)$/);
+        if (filterMatch && typeof filtrarNotifPopover === 'function') {
+            (function(tipo) { el.addEventListener('click', function() { filtrarNotifPopover(el, tipo); }); })(filterMatch[1]);
+            continue;
+        }
+
+        // Pattern: setAssignmentMode('tipo')
+        var assignMatch = attr.match(/^setAssignmentMode\('(\w+)'\)$/);
+        if (assignMatch && typeof setAssignmentMode === 'function') {
+            (function(mode) { el.addEventListener('click', function() { setAssignmentMode(mode); }); })(assignMatch[1]);
+            continue;
+        }
+
+        // Pattern: return false;
+        if (attr === 'return false;') {
+            el.addEventListener('click', function(e) { e.preventDefault(); });
+            continue;
+        }
+
+        // Fallback: lookup directo
+        if (directMap[attr]) {
+            el.addEventListener('click', directMap[attr]);
+            continue;
+        }
+
+        console.warn('[CSP-Bridge] onclick sin mapear:', attr);
+    }
+
+    // ---- Procesar onchange ----
+    var changeEls = document.querySelectorAll('[onchange]');
+    for (var j = 0; j < changeEls.length; j++) {
+        var cel = changeEls[j];
+        var changeAttr = (cel.getAttribute('onchange') || '').trim();
+        if (!changeAttr) continue;
+        cel.removeAttribute('onchange');
+
+        if (changeAttr === 'onDateSelectorChange(this)' && typeof onDateSelectorChange === 'function') {
+            (function(c) { cel.addEventListener('change', function() { onDateSelectorChange(c); }); })(cel);
+            continue;
+        }
+
+        console.warn('[CSP-Bridge] onchange sin mapear:', changeAttr);
+    }
+
+    // ---- Procesar onsubmit ----
+    var submitEls = document.querySelectorAll('[onsubmit]');
+    for (var k = 0; k < submitEls.length; k++) {
+        var sel = submitEls[k];
+        var subAttr = (sel.getAttribute('onsubmit') || '').trim();
+        if (!subAttr) continue;
+        sel.removeAttribute('onsubmit');
+
+        if (subAttr === 'return false;') {
+            sel.addEventListener('submit', function(e) { e.preventDefault(); });
+            continue;
+        }
+
+        console.warn('[CSP-Bridge] onsubmit sin mapear:', subAttr);
+    }
+}
