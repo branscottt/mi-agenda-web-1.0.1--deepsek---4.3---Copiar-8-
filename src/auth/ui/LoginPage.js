@@ -67,7 +67,15 @@ export function iniciarLogin() {
             const btn = e.target.querySelector('button[type="submit"]');
             if (btn) { btn.disabled = true; btn.textContent = '...'; }
             
-            const result = await login(email, password);
+            // Obtener captcha token si Turnstile está activo (try/catch por si no está configurado)
+            let captchaToken = null;
+            try {
+                if (typeof turnstile !== 'undefined') {
+                    captchaToken = turnstile.getResponse();
+                }
+            } catch (_) {}
+            
+            const result = await login(email, password, captchaToken);
             
             if (btn) { btn.disabled = false; btn.textContent = 'Iniciar Sesión'; }
             

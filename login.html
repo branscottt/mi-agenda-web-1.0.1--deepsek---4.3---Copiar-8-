@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- reCAPTCHA: descomentar y agregar site-key cuando actives captcha en Supabase Dashboard
+         https://supabase.com/dashboard/project/_/auth/captcha
+         Usa hCaptcha (gratis) o Cloudflare Turnstile (gratis, sin checkbox)
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    -->
 </head>
 <body>
     <div class="login-screen">
@@ -45,6 +50,9 @@
                     <button type="button" id="google-login-btn" class="btn-google">
                         <i class="fab fa-google"></i> Continuar con Google
                     </button>
+                    <!-- Turnstile captcha: descomentar cuando actives captcha en Supabase
+                    <div class="cf-turnstile" data-sitekey="TU_SITE_KEY_AQUI" data-callback="onCaptchaReady" style="margin-top:12px; display:flex; justify-content:center;"></div>
+                    -->
                 </form>
                 <div id="login-error-message" class="error-message" style="display:none;"></div>
             </div>

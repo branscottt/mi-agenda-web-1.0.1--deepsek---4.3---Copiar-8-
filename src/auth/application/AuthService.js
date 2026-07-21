@@ -6,14 +6,20 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { redirectByRole } from '../../shared/infrastructure/router.js';
 import { JwtManager } from '../infrastructure/JwtManager.js';
 
-export async function login(email, password) {
+export async function login(email, password, captchaToken = null) {
     const supabase = getSupabase();
     if (!supabase) return { success: false, error: 'Supabase no inicializado' };
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const loginOptions = {
             email: email.toLowerCase().trim(),
             password
-        });
+        };
+        // Si hay captcha token (Turnstile/hCaptcha) y Supabase lo tiene activado,
+        // se pasa en options. Si no está activado, se ignora silenciosamente.
+        if (captchaToken) {
+            loginOptions.options = { captchaToken };
+        }
+        const { data, error } = await supabase.auth.signInWithPassword(loginOptions);
         if (error) return { success: false, error: error.message };
 
         // Guardar JWT explicitamente en localStorage

@@ -23,19 +23,25 @@ ALLOWED_EXTENSIONS = (
     '.json', '.txt', '.xml'
 )
 
-RATE_LIMIT_MAX = 10          # solicitudes maximo
-RATE_LIMIT_WINDOW = 60       # ventana en segundos
+# Rate limits por tipo de ruta (ventana de 60 segundos por defecto)
+# Login: estricto, evita escaneo automatizado de la página de login
+# Páginas: moderado, suficiente para recargas normales de 50-100 pymes
+# Estáticos: alto, necesarios para que el code-splitting funcione sin bloquearse
+RATE_LIMIT_CONFIG = {
+    'static':  {'max': 300, 'window': 60},    # /dist/*, .js, .css, .woff2, .png, svg, .ico
+    'pages':   {'max': 120, 'window': 60},    # *.html excepto login
+    'login':   {'max': 10,  'window': 60},    # /login.html
+    # Las llamadas a la API de Supabase (login real, citas, etc.)
+    # NO pasan por server.py — van directo a supabase.co
+    # y ya tienen su propio rate limit interno.
+}
+RATE_LIMIT_DEFAULT = 120  # fallback si no se puede clasificar
 
 
 class RateLimiter:
-    """Rate limiter con ventana deslizante por key (IP o username).
+    """Rate limiter con ventana deslizante por key (IP o username)."""
 
-    Por cada key registra timestamps y poda los que quedan fuera de la
-    ventana en cada consulta.  No requiere hilos porque HTTPServer maneja
-    las peticiones secuencialmente.
-    """
-
-    def __init__(self, max_requests=RATE_LIMIT_MAX, window_seconds=RATE_LIMIT_WINDOW):
+    def __init__(self, max_requests=RATE_LIMIT_DEFAULT, window_seconds=60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._buckets = collections.defaultdict(list)
@@ -72,8 +78,7 @@ class RateLimiter:
             del self._buckets[k]
 
 
-_rate_limiter = RateLimiter()
-_request_counter = 0          # contador para prune_expired periodico
+_rate_limiters_cache = {}   # cache de RateLimiter por tipo de ruta
 
 
 class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -89,32 +94,70 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return forwarded.split(',')[0].strip()
         return self.client_address[0]
 
+    def _get_route_type(self, path):
+        """Clasifica la ruta en 'static', 'pages', 'login' o 'static' por defecto."""
+        parsed = urllib.parse.urlparse(path)
+        clean_path = parsed.path.rstrip('/') or '/'
+        
+        # Login: estricto
+        if clean_path == '/login.html':
+            return 'login'
+        
+        # Páginas HTML (excluyendo login que ya se clasificó arriba)
+        if clean_path.endswith('.html'):
+            return 'pages'
+        
+        # Archivos estáticos
+        _, ext = os.path.splitext(clean_path)
+        if ext.lower() in ('.js', '.css', '.woff', '.woff2', '.ttf', '.eot',
+                           '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
+                           '.webp', '.txt', '.xml', '.json'):
+            return 'static'
+        
+        # Todo lo demás tratado como estático (no limitar agresivamente)
+        return 'static'
+
     def _check_rate_limit(self):
-        """Verifica rate limiting por IP y por username (X-Username).
+        """Verifica rate limiting por IP y por username, usando el límite
+        correspondiente al tipo de ruta.
         Retorna True si la solicitud debe continuar, False si debe ser
         rechazada con 429."""
+        global _rate_limiters_cache
         client_ip = self._get_client_ip()
         username = self.headers.get('X-Username', '').strip()
 
+        # Determinar límite según la ruta
+        route_type = self._get_route_type(self.path)
+        config = RATE_LIMIT_CONFIG.get(route_type, {})
+        max_req = config.get('max', RATE_LIMIT_DEFAULT)
+        window = config.get('window', 60)
+
+        # Usar rate limiter cacheado (misma ventana y max para cada tipo de ruta)
+        cache_key = (route_type, max_req, window)
+        if cache_key not in _rate_limiters_cache:
+            _rate_limiters_cache[cache_key] = RateLimiter(max_requests=max_req, window_seconds=window)
+        limiter = _rate_limiters_cache[cache_key]
+
         # 1. Verificar por IP
-        if not _rate_limiter.is_allowed(client_ip):
-            retry_after = _rate_limiter.get_retry_after(client_ip)
-            self._send_rate_limit_error(retry_after, client_ip)
+        if not limiter.is_allowed(client_ip):
+            retry_after = limiter.get_retry_after(client_ip)
+            self._send_rate_limit_error(retry_after, max_req, route_type)
             return False
 
         # 2. Verificar por username (si el cliente lo envia)
-        if username and not _rate_limiter.is_allowed(username):
-            retry_after = _rate_limiter.get_retry_after(username)
-            self._send_rate_limit_error(retry_after, username)
+        if username and not limiter.is_allowed(username):
+            retry_after = limiter.get_retry_after(username)
+            self._send_rate_limit_error(retry_after, max_req, route_type)
             return False
 
         return True
 
-    def _send_rate_limit_error(self, retry_after, key):
+    def _send_rate_limit_error(self, retry_after, max_req, route_type='desconocido'):
         """Envia respuesta 429 Too Many Requests con Retry-After."""
         message = (
             f"429 Too Many Requests\n"
-            f"Limite de {RATE_LIMIT_MAX} solicitudes por minuto excedido.\n"
+            f"Límite de {max_req} solicitudes por minuto excedido "
+            f"(tipo: {route_type}).\n"
             f"Intente de nuevo en {retry_after} segundo(s).\n"
         )
         self.send_response(429)
@@ -133,12 +176,6 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip('/') or '/'
-
-        # Poda periodica del rate limiter (cada 100 requests)
-        global _request_counter
-        _request_counter += 1
-        if _request_counter % 100 == 0:
-            _rate_limiter.prune_expired()
 
         # 1. Bloquear .git (completo)
         if '/.git' in path:
@@ -228,7 +265,9 @@ if __name__ == '__main__':
     server = http.server.HTTPServer((bind, port), SecureHTTPRequestHandler)
     print(f"Servidor endurecido en http://{bind}:{port}")
     print(f"Directorio: {os.path.abspath(directory)}")
-    print(f"Rate limit: {RATE_LIMIT_MAX} solicitudes/{RATE_LIMIT_WINDOW}s por IP y por username")
+    print("Rate limits por tipo de ruta:")
+    for rtype, cfg in RATE_LIMIT_CONFIG.items():
+        print(f"  [{rtype}] {cfg['max']} solicitudes/{cfg['window']}s por IP")
     print("Protegido: directory listing OFF, paths sensibles -> 404, whitelist extensiones, CSP activo, rate limit ON")
     try:
         server.serve_forever()
