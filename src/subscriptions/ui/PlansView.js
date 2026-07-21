@@ -1,11 +1,13 @@
 // src/subscriptions/ui/PlansView.js
 // Vista de selección y cambio de planes de suscripción
-// Extraida de script.js (funciones: cargarPlanes, crearSuscripcionInicial, solicitarCambioPlan, crearNotificacionCambioPlan)
+// Incluye integración con Mercado Pago para pagos
+
+import { createMercadoPagoPreference, redirectToMercadoPago, checkPaymentStatusFromUrl } from '../infrastructure/mercadopago.js';
 
 const PLANS = [
-    { key: 'freemium', name: 'Freemium', price: 'Gratis', color: '#6c757d', icon: 'fa-star' },
-    { key: 'pro', name: 'Pro', price: 'Próximamente', color: '#007bff', icon: 'fa-gem' },
-    { key: 'premium_anual', name: 'Premium Anual', price: 'Próximamente', color: '#ffc107', icon: 'fa-crown' }
+    { key: 'freemium', name: 'Freemium', price: 'Gratis', color: '#6c757d', icon: 'fa-star', priceValue: 0 },
+    { key: 'pro', name: 'Pro', price: '$15.000/mes', color: '#007bff', icon: 'fa-gem', priceValue: 15000 },
+    { key: 'premium_anual', name: 'Premium Anual', price: '$140.000/año', color: '#ffc107', icon: 'fa-crown', priceValue: 140000 }
 ];
 
 /**
@@ -16,40 +18,101 @@ const PLANS = [
 export async function renderPlans(container, apis) {
     if (!container) return;
 
+    // Mostrar estado de pago si venimos de MP
+    const paymentStatus = checkPaymentStatusFromUrl();
+    const paymentMessage = getPaymentStatusMessage(paymentStatus);
+
     const tenantId = await obtenerTenantId();
     const currentPlan = await obtenerPlanActual(tenantId, apis);
+    const userEmail = obtenerUserEmail();
 
     container.innerHTML = `
         <div class="plans-container">
             <h2><i class="fas fa-tags"></i> Planes de suscripción</h2>
             <p class="text-muted">Selecciona el plan que mejor se adapte a tu negocio.</p>
+            ${paymentMessage}
             <div class="plans-grid" style="display:flex; gap:20px; flex-wrap:wrap; justify-content:center;">
-                ${PLANS.map(p => `
-                    <div class="plan-card" style="border:2px solid ${currentPlan === p.key ? p.color : '#dee2e6'}; border-radius:12px; padding:24px; width:280px; text-align:center; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                ${PLANS.map(p => {
+                    const isCurrent = currentPlan === p.key;
+                    const canPay = p.key !== 'freemium' && !isCurrent;
+                    return `
+                    <div class="plan-card" data-plan="${p.key}" style="border:2px solid ${isCurrent ? p.color : '#dee2e6'}; border-radius:12px; padding:24px; width:280px; text-align:center; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
                         <i class="fas ${p.icon}" style="font-size:48px; color:${p.color};"></i>
                         <h3 style="margin:12px 0 4px;">${p.name}</h3>
                         <p style="font-size:24px; font-weight:bold; color:${p.color};">${p.price}</p>
                         <ul style="list-style:none; padding:0; margin:16px 0; text-align:left;">
                             <li><i class="fas fa-check text-success"></i> Catálogo de servicios</li>
                             <li><i class="fas fa-check text-success"></i> Gestión de citas</li>
+                            <li><i class="fas fa-check text-success"></i> Notificaciones</li>
                             ${p.key !== 'freemium' ? '<li><i class="fas fa-check text-success"></i> Estadísticas avanzadas</li><li><i class="fas fa-check text-success"></i> Soporte prioritario</li>' : ''}
+                            ${p.key === 'premium_anual' ? '<li><i class="fas fa-check text-success"></i> <strong>Ahorras $40.000 al año</strong></li>' : ''}
                         </ul>
-                        ${currentPlan === p.key
+                        ${isCurrent
                             ? `<button class="btn btn-secondary" disabled><i class="fas fa-check-circle"></i> Plan actual</button>`
-                            : `<button class="btn btn-primary" onclick="event.preventDefault(); window.crearNotificacionCambioPlan('${tenantId}', '${currentPlan}', '${p.key}')">
-                                <i class="fas fa-exchange-alt"></i> Solicitar cambio
-                              </button>`
+                            : p.key === 'freemium'
+                                ? `<button class="btn btn-outline-secondary" disabled><i class="fas fa-star"></i> Gratuito</button>`
+                                : `<button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-price="${p.priceValue}">
+                                    <i class="fas fa-credit-card"></i> Pagar con Mercado Pago
+                                  </button>`
                         }
-                    </div>
-                `).join('')}
+                    </div>`;
+                }).join('')}
             </div>
         </div>
     `;
+
+    // Bindeo de eventos para botones de pago
+    container.querySelectorAll('.btn-pagar-mp').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const plan = e.currentTarget.dataset.plan;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+
+            try {
+                const pref = await createMercadoPagoPreference({
+                    plan: plan,
+                    tenantId: tenantId,
+                    email: userEmail,
+                    nombre: userEmail,
+                });
+                redirectToMercadoPago(pref.init_point || pref.sandbox_init_point);
+            } catch (err) {
+                console.error('[MP] Error:', err);
+                mostrarToast('Error al iniciar pago: ' + err.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagar con Mercado Pago';
+            }
+        });
+    });
+}
+
+function getPaymentStatusMessage(status) {
+    if (!status || !status.status) return '';
+
+    const messages = {
+        success: '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ¡Pago exitoso! Tu suscripción se activará en unos segundos.</div>',
+        failure: '<div class="alert alert-danger"><i class="fas fa-times-circle"></i> El pago fue rechazado. Intenta con otro método de pago.</div>',
+        pending: '<div class="alert alert-warning"><i class="fas fa-clock"></i> El pago está pendiente. Te notificaremos cuando se confirme.</div>',
+    };
+
+    return messages[status.status] || '';
 }
 
 async function obtenerTenantId() {
     const jwt = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
-    return jwt?.currentSession?.user?.user_metadata?.tenant_id || null;
+    const fromSession = jwt?.currentSession?.user?.user_metadata?.tenant_id;
+    if (fromSession) return fromSession;
+    // Fallback: obtener de la función global de sesión
+    try {
+        if (typeof getCurrentTenantId === 'function') return await getCurrentTenantId();
+        if (window.__session?.tenant_id) return window.__session.tenant_id;
+    } catch {}
+    return null;
+}
+
+function obtenerUserEmail() {
+    const jwt = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
+    return jwt?.currentSession?.user?.email || jwt?.currentSession?.user?.user_metadata?.email || '';
 }
 
 async function obtenerPlanActual(tenantId, apis) {
@@ -59,29 +122,6 @@ async function obtenerPlanActual(tenantId, apis) {
         return sub?.plan || 'freemium';
     } catch {
         return 'freemium';
-    }
-}
-
-/**
- * Crea una notificación de solicitud de cambio de plan
- */
-export async function solicitarCambioPlan(tenantId, planAnterior, planNuevo) {
-    if (!tenantId || !window.__apis?.notificaciones?.create) {
-        mostrarToast('Error: APIs no disponibles', 'error');
-        return;
-    }
-    try {
-        await window.__apis.notificaciones.create({
-            title: 'Solicitud de cambio de plan',
-            message: `El tenant ${tenantId} solicita cambiar de ${planAnterior} a ${planNuevo}`,
-            tenant_id: tenantId,
-            tipo: 'cambio_plan',
-            leida: false,
-            created_at: new Date().toISOString()
-        });
-        mostrarToast('Solicitud enviada. Un administrador la revisará.', 'success');
-    } catch (e) {
-        mostrarToast('Error al enviar solicitud: ' + e.message, 'error');
     }
 }
 
