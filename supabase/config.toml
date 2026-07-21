@@ -211,8 +211,7 @@ web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
 [auth.captcha]
-# DESACTIVADO hasta que probemos login manualmente
-enabled = false
+enabled = true
 provider = "turnstile"
 secret = "0x4AAAAAAD6qpZG_jT_p_gzb4Rcm7Or4ErE"
 
@@ -303,8 +302,8 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
