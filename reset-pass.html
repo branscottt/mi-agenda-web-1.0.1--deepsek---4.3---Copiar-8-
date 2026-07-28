@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html><head><title>Reset Passwords</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body style="background:#111;color:#eee;font-family:monospace;padding:40px">
+<h1>🛠️ Reset Passwords</h1>
+<div id="output" style="background:#222;padding:20px;border-radius:8px;margin-top:20px;white-space:pre-wrap"></div>
+<script>
+const out = document.getElementById('output');
+function log(msg) { out.textContent += msg + '\n'; }
+
+const supabase = window.supabase.createClient(
+  'https://dfcfimipkfhitlsyixqu.supabase.co',
+  'eyJhbG...Wbr0',
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
+async function resetPassword(userId, email) {
+  try {
+    const { error } = await supabase.auth.admin.updateUserById(userId, { password: 'Demo1234!' });
+    if (error) {
+      log(`❌ ${email}: ${error.message}`);
+    } else {
+      log(`✅ ${email}: password = Demo1234!`);
+    }
+  } catch(e) {
+    log(`❌ ${email}: ${e.message}`);
+  }
+}
+
+(async () => {
+  // List users first  
+  log('🔍 Listando usuarios...');
+  const { data, error } = await supabase.auth.admin.listUsers();
+  if (error) {
+    log(`❌ Error listing users: ${error.message}`);
+    log('Intentando reset directo por ID...');
+    // Try direct IDs from the DB
+    await resetPassword('a8b7f7aa-008d-453c-9f28-23788f0d11b0', 'admin@demo.com');
+    await resetPassword('c51ede25-701a-43d5-89ed-edb21d2a8498', 'super@demo.com');
+    await resetPassword('3500a2b2-bd23-4f56-9f98-031e7e501a2b', 'super@admin.com');
+  } else {
+    log(`✅ ${data.users.length} usuarios encontrados`);
+    for (const u of data.users) {
+      log(`  ${u.email}`);
+    }
+    // Reset specific users
+    for (const email of ['admin@demo.com', 'super@demo.com', 'super@admin.com']) {
+      const user = data.users.find(u => u.email === email);
+      if (user) await resetPassword(user.id, email);
+    }
+  }
+})();
+</script>
+</body></html>
