@@ -2,10 +2,8 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v2';
+const CACHE_NAME = 'agendapro-v3';
 const STATIC_ASSETS = [
-    '/dist/app.js',
-    '/dist/legacy.js',
     '/dist/style.css',
     '/admin.html',
     '/cliente.html',
@@ -63,12 +61,24 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 2. Assets locales (dist/) → Cache First
-    if (url.includes('/dist/') || url.endsWith('.css') || url.endsWith('.js')) {
+    // 2. Assets locales en /dist/ (CSS, fuentes, imagenes) → Cache First
+    //    Los JS (app.js, legacy.js, chunks/) NO se cachean — cambian con cada build
+    if (url.includes('/dist/') && (url.endsWith('.css') || url.endsWith('.woff') || url.endsWith('.woff2') || url.endsWith('.ttf') || url.endsWith('.eot') || url.endsWith('.png') || url.endsWith('.svg') || url.endsWith('.ico'))) {
         event.respondWith(
             caches.match(event.request).then((cached) => {
                 return cached || fetchAndCache(event.request);
             })
+        );
+        return;
+    }
+
+    // 3. JS files (app.js, legacy.js, chunks/) → Network First, nunca cachear
+    //    Los chunks de code-splitting cambian de nombre con cada build
+    if (url.includes('/dist/') && url.endsWith('.js')) {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => response)
+                .catch(() => caches.match(event.request))
         );
         return;
     }

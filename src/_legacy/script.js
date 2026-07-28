@@ -10555,9 +10555,24 @@ async function cerrarSesion() {
     if (window.JwtManager) {
         window.JwtManager.clear();
     }
-    // 2. Limpiar sesion en Supabase
+    // 2. Limpiar claves de sesion de Supabase SDK (sb-*-auth-token)
+    //    como fallback por si signOut() falla (CSP bloquea o cliente no listo)
     try {
-        await supabaseClient.auth.signOut();
+        var _keysToRemove = [];
+        for (var _i = 0; _i < localStorage.length; _i++) {
+            var _key = localStorage.key(_i);
+            if (_key && _key.indexOf('sb-') === 0 && _key.indexOf('-auth-token') > 0) {
+                _keysToRemove.push(_key);
+            }
+        }
+        _keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
+    } catch (_e) { /* silencioso */ }
+    // 3. Limpiar sesion en Supabase (usar cualquier cliente disponible)
+    try {
+        var client = supabaseClient || window.supabaseClient;
+        if (client && client.auth) {
+            await client.auth.signOut();
+        }
     } catch (e) { }
     window.location.href = 'login.html';
 }
@@ -10593,6 +10608,194 @@ function iniciarSistemaUrgencias() {
 // ============================================
 // INICIALIZACIÓN PRINCIPAL
 // ============================================
+
+// ============================================
+// ADMIN SPA FUNCTIONS - Movidas desde admin.html inline script
+// para evitar bloqueo CSP (los scripts inline no tienen hash en CSP).
+// Estas funciones DEBEN estar en el scope del IIFE para que el
+// CSP bridge (en _initCSPEventBridge) las detecte via typeof.
+// ============================================
+// Declarar variables locales para CSP bridge
+// IMPORTANTE: los nombres DEBEN coincidir con los usados en onclick="funcion()" en admin.html
+// para que el CSP bridge (en _initCSPEventBridge) las registre via typeof + reg()
+var cerrarPopupReserva, toggleSidebar, closeSidebar, navigateTo,
+    toggleNotifPopover, closeNotifPopover, filtrarNotifPopover, actualizarBadgeNotif;
+
+(function() {
+    if (typeof document === 'undefined') return;
+    if (!document.querySelector('.admin-screen')) return;
+    if (document.querySelector('.superadmin-screen')) return;
+
+    cerrarPopupReserva = window.cerrarPopupReserva = function() {
+        var el = document.getElementById('popup-reserva');
+        if (el) el.style.display = 'none';
+    };
+
+    toggleSidebar = window.toggleSidebar = function() {
+        var s = document.getElementById('sidebar');
+        var o = document.getElementById('sidebar-overlay');
+        if (s) s.classList.toggle('open');
+        if (o) o.classList.toggle('show');
+    };
+
+    closeSidebar = window.closeSidebar = function() {
+        var s = document.getElementById('sidebar');
+        var o = document.getElementById('sidebar-overlay');
+        if (s) s.classList.remove('open');
+        if (o) o.classList.remove('show');
+    };
+
+    navigateTo = window.navigateTo = function(sectionId) {
+        document.querySelectorAll('.section-content').forEach(function(el) {
+            el.style.display = 'none';
+        });
+        var target = document.getElementById('section-' + sectionId);
+        if (target) target.style.display = 'block';
+        document.querySelectorAll('.sidebar-item').forEach(function(item) {
+            item.classList.remove('active');
+            if (item.dataset.section === sectionId) item.classList.add('active');
+        });
+        if (typeof window.closeSidebar === 'function') window.closeSidebar();
+        var main = document.getElementById('dynamic-content');
+        if (main) main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        setTimeout(function() {
+            switch (sectionId) {
+                case 'mis-servicios':
+                    if (typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
+                    break;
+                case 'citas':
+                    if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
+                    break;
+                case 'clientes':
+                    if (typeof renderClientListView === 'function') renderClientListView();
+                    break;
+                case 'dashboard':
+                    if (typeof actualizarDashboardFinanzas === 'function') actualizarDashboardFinanzas();
+                    break;
+                case 'personalizar':
+                    if (typeof VisualConfigManager !== 'undefined') {
+                        VisualConfigManager.loadConfig().then(function(cfg) {
+                            VisualConfigManager.applyConfigToForm(cfg);
+                            VisualConfigManager.applyStyles(cfg);
+                        });
+                    }
+                    break;
+                case 'compartir':
+                    if (typeof configurarCompartirEnlace === 'function') configurarCompartirEnlace();
+                    if (window.__initWorkerShare) window.__initWorkerShare();
+                    break;
+                case 'compartir-trabajadores':
+                    if (window.__initWorkerShare) window.__initWorkerShare();
+                    break;
+                case 'equipo':
+                    if (window.__initWorkersList) window.__initWorkersList();
+                    break;
+                case 'horarios':
+                    if (window.__initWorkerSchedule) window.__initWorkerSchedule();
+                    break;
+                case 'suscripcion':
+                    if (typeof cargarSuscripcionTenant === 'function') cargarSuscripcionTenant();
+                    break;
+            }
+        }, 100);
+    };
+
+    toggleNotifPopover = window.toggleNotifPopover = function(event) {
+        if (event) event.stopPropagation();
+        var popover = document.getElementById('notif-popover');
+        if (!popover) return;
+        if (popover.style.display === 'none' || popover.style.display === '') {
+            if (typeof generarNotificaciones === 'function') generarNotificaciones();
+            popover.style.display = 'block';
+            if (typeof window.actualizarBadgeNotif === 'function') window.actualizarBadgeNotif();
+        } else {
+            popover.style.display = 'none';
+        }
+    };
+
+    closeNotifPopover = window.closeNotifPopover = function() {
+        var el = document.getElementById('notif-popover');
+        if (el) el.style.display = 'none';
+    };
+
+    filtrarNotifPopover = window.filtrarNotifPopover = function(btn, tipo) {
+        document.querySelectorAll('.notif-popover-tabs .tab-btn').forEach(function(t) {
+            t.classList.remove('active');
+            t.style.color = '#aaa';
+            t.style.borderBottom = 'none';
+        });
+        btn.classList.add('active');
+        btn.style.color = '#fff';
+        btn.style.borderBottom = '3px solid #b300ff';
+        var list = document.getElementById('notif-popover-list');
+        if (!list) return;
+        list.querySelectorAll('.notification-item').forEach(function(item) {
+            if (tipo === 'todas' || item.dataset.origen === tipo) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    };
+
+    actualizarBadgeNotif = window.actualizarBadgeNotif = function() {
+        var badge = document.getElementById('notif-badge-count');
+        if (!badge) return;
+        var list = document.getElementById('notif-popover-list');
+        if (!list) return;
+        var cambios = list.querySelectorAll('.notification-item[data-origen="cambio"]').length;
+        var total = list.querySelectorAll('.notification-item').length;
+        var count = cambios || total;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    };
+
+    // Cerrar popover al hacer clic fuera
+    document.addEventListener('click', function _adminClick(event) {
+        var popover = document.getElementById('notif-popover');
+        var bellBtn = document.getElementById('notif-bell-btn');
+        if (popover && popover.style.display === 'block') {
+            if (!popover.contains(event.target) && bellBtn && !bellBtn.contains(event.target)) {
+                popover.style.display = 'none';
+            }
+        }
+    });
+
+    // MutationObserver para sincronizar notificaciones
+    if (typeof MutationObserver !== 'undefined') {
+        (function() {
+            var src = document.getElementById('notifications-list');
+            if (!src) return;
+            var obs = new MutationObserver(function() {
+                var tgt = document.getElementById('notif-popover-list');
+                if (!tgt) return;
+                var items = src.querySelectorAll('.notification-item');
+                if (items.length > 0) {
+                    tgt.innerHTML = '';
+                    items.forEach(function(it) { tgt.appendChild(it.cloneNode(true)); });
+                    if (typeof window.actualizarBadgeNotif === 'function') window.actualizarBadgeNotif();
+                }
+            });
+            obs.observe(src, { childList: true, subtree: true });
+        })();
+    }
+
+    // Inicializar admin UI: mostrar dashboard por defecto
+    var _init = function() {
+        if (typeof window.navigateTo === 'function') window.navigateTo('dashboard');
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _init);
+    } else {
+        _init();
+    }
+})();
+
 document.addEventListener('DOMContentLoaded', async function () {
     // CSP Event Bridge: convertir onclick/onchange/onsubmit inline a addEventListener
     // (evita que CSP los bloquee sin necesidad de 'unsafe-inline')
@@ -10636,7 +10839,13 @@ document.addEventListener('DOMContentLoaded', async function () {
     const esPlanes = document.getElementById('planes-container'); // <-- NUEVO
 
     if (esSuperAdmin) {
-        // No hacer nada aquí, se inicia desde superadmin.html
+        // Inicializar superadmin desde legacy.js (antes se hacia desde inline script en superadmin.html
+        // que quedaba bloqueado por CSP). Ahora corre directamente desde el bundle legacy.js.
+        if (typeof window.iniciarSuperAdmin === 'function') {
+            await window.iniciarSuperAdmin();
+        } else {
+            console.error('[DOMContentLoaded] window.iniciarSuperAdmin no definida');
+        }
     } else if (esAdminNormal) {
         await iniciarAdmin();
         if (!window._subscriptionExpired && typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
@@ -11614,17 +11823,36 @@ function _initCSPEventBridge() {
         directMap[name + '()'] = fn;
     }
     // Las funciones disponibles globalmente desde inline scripts o legacy.js
-    if (typeof closeSidebar === 'function') reg(closeSidebar);
-    if (typeof toggleSidebar === 'function') reg(toggleSidebar);
-    if (typeof closeNotifPopover === 'function') reg(closeNotifPopover);
+    // NOTA: Usamos strings hardcodeadas como clave, NO fn.name, porque esbuild
+    // minifica los nombres de las funciones (closeSidebar → a) y fn.name quedaria
+    // incorrecto ("a" en vez de "closeSidebar").
+    if (typeof closeSidebar === 'function') {
+        directMap['closeSidebar()'] = closeSidebar;
+    }
+    if (typeof toggleSidebar === 'function') {
+        directMap['toggleSidebar()'] = toggleSidebar;
+    }
+    if (typeof closeNotifPopover === 'function') {
+        directMap['closeNotifPopover()'] = closeNotifPopover;
+    }
     if (typeof toggleNotifPopover === 'function') {
         directMap['toggleNotifPopover(event)'] = function(e) { toggleNotifPopover(e); };
     }
-    if (typeof generarFechasPorRango === 'function') reg(generarFechasPorRango);
-    if (typeof guardarAsignacionActual === 'function') reg(guardarAsignacionActual);
-    if (typeof mostrarVistaPrevia === 'function') reg(mostrarVistaPrevia);
-    if (typeof cerrarPopupReserva === 'function') reg(cerrarPopupReserva);
-    if (typeof cerrarSesion === 'function') reg(cerrarSesion);
+    if (typeof generarFechasPorRango === 'function') {
+        directMap['generarFechasPorRango()'] = generarFechasPorRango;
+    }
+    if (typeof guardarAsignacionActual === 'function') {
+        directMap['guardarAsignacionActual()'] = guardarAsignacionActual;
+    }
+    if (typeof mostrarVistaPrevia === 'function') {
+        directMap['mostrarVistaPrevia()'] = mostrarVistaPrevia;
+    }
+    if (typeof cerrarPopupReserva === 'function') {
+        directMap['cerrarPopupReserva()'] = cerrarPopupReserva;
+    }
+    if (typeof cerrarSesion === 'function') {
+        directMap['cerrarSesion()'] = cerrarSesion;
+    }
     if (typeof onDateSelectorChange === 'function') {
         directMap['onDateSelectorChange(this)'] = function(e) { onDateSelectorChange(e.target); };
     }
