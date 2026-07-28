@@ -99,10 +99,20 @@ function getPaymentStatusMessage(status) {
 }
 
 async function obtenerTenantId() {
-    const jwt = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
-    const fromSession = jwt?.currentSession?.user?.user_metadata?.tenant_id;
-    if (fromSession) return fromSession;
-    // Fallback: obtener de la función global de sesión
+    // 1. Usar JwtManager (vía window — expuesto por main.js) si está disponible
+    if (window.JwtManager) {
+        const userData = window.JwtManager.getUserData();
+        if (userData?.tenant_id) return userData.tenant_id;
+    }
+    // 2. Fallback: JwtManager no cargado, leer de localStorage
+    try {
+        const stored = localStorage.getItem('agendapro_user_data');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed.tenant_id) return parsed.tenant_id;
+        }
+    } catch (_) {}
+    // 3. Fallback: función global de sesión (script.js legacy)
     try {
         if (typeof getCurrentTenantId === 'function') return await getCurrentTenantId();
         if (window.__session?.tenant_id) return window.__session.tenant_id;
@@ -111,8 +121,26 @@ async function obtenerTenantId() {
 }
 
 function obtenerUserEmail() {
-    const jwt = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
-    return jwt?.currentSession?.user?.email || jwt?.currentSession?.user?.user_metadata?.email || '';
+    // 1. Usar JwtManager si está disponible
+    if (window.JwtManager) {
+        const userData = window.JwtManager.getUserData();
+        if (userData?.email) return userData.email;
+    }
+    // 2. Fallback: leer de localStorage
+    try {
+        const stored = localStorage.getItem('agendapro_user_data');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed.email) return parsed.email;
+        }
+    } catch (_) {}
+    // 3. Fallback: formato antiguo (compatibilidad)
+    try {
+        const jwt = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}');
+        return jwt?.currentSession?.user?.email || jwt?.currentSession?.user?.user_metadata?.email || '';
+    } catch {
+        return '';
+    }
 }
 
 async function obtenerPlanActual(tenantId, apis) {

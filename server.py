@@ -30,7 +30,7 @@ ALLOWED_EXTENSIONS = (
 RATE_LIMIT_CONFIG = {
     'static':  {'max': 300, 'window': 60},    # /dist/*, .js, .css, .woff2, .png, svg, .ico
     'pages':   {'max': 120, 'window': 60},    # *.html excepto login
-    'login':   {'max': 10,  'window': 60},    # /login.html
+    'login':   {'max': 50, 'window': 60},    # /login.html
     # Las llamadas a la API de Supabase (login real, citas, etc.)
     # NO pasan por server.py — van directo a supabase.co
     # y ya tienen su propio rate limit interno.
@@ -169,6 +169,13 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # ============================================================
+        # 0a. HEALTH CHECK — sin rate limiting para monitoreo
+        # ============================================================
+        if self.path == '/-/health':
+            self._serve_health_check()
+            return
+
+        # ============================================================
         # 0. RATE LIMITING — primero, antes de cualquier procesamiento
         # ============================================================
         if not self._check_rate_limit():
@@ -212,6 +219,46 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._serve_html_with_config(full_path)
         else:
             return super().do_GET()
+
+    def _serve_health_check(self):
+        """Endpoint /-/health para monitoreo (sin rate limiting).
+        Retorna 200 con estado básico del servidor y conectividad a Supabase."""
+        import json
+        import socket
+
+        health = {
+            'status': 'ok',
+            'timestamp': time.time(),
+            'server': 'Agenda Pro',
+            'version': '1.0',
+            'uptime': None,
+            'checks': {}
+        }
+
+        # Verificar que el servidor corre
+        health['checks']['server'] = 'ok'
+
+        # Verificar conectividad a Supabase (timeout 5s)
+        supabase_host = 'dfcfimipkfhitlsyixqu.supabase.co'
+        try:
+            socket.setdefaulttimeout(5)
+            socket.gethostbyname(supabase_host)
+            health['checks']['dns'] = 'ok'
+        except Exception:
+            health['checks']['dns'] = 'error'
+
+        # Verificar rate limiter
+        health['checks']['rate_limiter'] = {
+            'buckets': sum(len(rl._buckets) for rl in _rate_limiters_cache.values()) if _rate_limiters_cache else 0,
+        }
+
+        payload = json.dumps(health, indent=2).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _serve_html_with_config(self, filepath):
         """Sirve HTML inyectando window.__APP_CONFIG desde variables de entorno.
@@ -283,6 +330,11 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             'gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()'
         )
         # Build CSP dinámicamente: si hay nonce (inyección de config), agregarlo
+        # ⚠️ IMPORTANTE: Los hashes SHA256 están calculados sobre los archivos
+        # compilados en dist/. Si modificas un <script> inline en cualquier HTML,
+        # debes rebuildear con `node build.js` y recalcular los hashes.
+        # De lo contrario, el CSP bloqueará ese script en producción
+        # silenciosamente (sin errores visibles).
         csp_script = (
             "default-src 'self'; "
             "script-src 'self' "

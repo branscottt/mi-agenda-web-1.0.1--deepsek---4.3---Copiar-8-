@@ -195,6 +195,10 @@ async function syncJwtSession() {
                 const { guardarWorkersDelServicio } = await import('./services/ui/ServiceForm.js');
                 window.__guardarWorkersDelServicio = guardarWorkersDelServicio;
 
+                // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
+                const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');
+                initMfaSetup();
+
                 console.log('[main.js] Modulos admin cargados correctamente');
             } catch (e) {
                 console.warn('[main.js] Modulos admin no disponibles (usando fallback legacy)');
@@ -251,6 +255,15 @@ async function syncJwtSession() {
                 renderPlans('planes-container');
             } catch (e) {
                 console.warn('[main.js] PlansView no disponible:', e.message);
+            }
+        }
+
+        if (esSuperAdmin) {
+            try {
+                const { initAuditDashboard } = await import('./superadmin/ui/AuditDashboard.js');
+                initAuditDashboard();
+            } catch (e) {
+                console.warn('[main.js] AuditDashboard no disponible:', e.message);
             }
         }
     }

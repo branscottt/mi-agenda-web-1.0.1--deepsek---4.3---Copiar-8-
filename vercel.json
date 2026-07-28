@@ -5,17 +5,18 @@
     { "source": "/", "destination": "/login.html" }
   ],
   "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "no-referrer" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "X-DNS-Prefetch-Control", "value": "off" }
-      ]
-    },
+  {
+    "source": "/(.*)",
+    "headers": [
+      { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
+      { "key": "X-Frame-Options", "value": "DENY" },
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy", "value": "no-referrer" },
+      { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+      { "key": "X-DNS-Prefetch-Control", "value": "off" },
+      { "key": "Permissions-Policy", "value": "accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()" }
+    ]
+  },
     {
       "source": "/(.*\\.html)",
       "headers": [

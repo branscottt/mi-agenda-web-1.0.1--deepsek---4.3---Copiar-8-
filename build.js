@@ -1,5 +1,12 @@
 // build.js — Bundle + minificación segura con esbuild
 // Reduce exposición de código fuente manteniendo compatibilidad total
+//
+// ⚠️ ATENCIÓN CSP: Los hashes SHA256 en Content-Security-Policy (server.py y vercel.json)
+// están calculados sobre los archivos GENERADOS por este build (dist/).
+// Si modificas un <script> inline en cualquier archivo HTML fuente, debes REBUILD
+// con `node build.js` y luego recalcular los hashes SHA256 para que coincidan.
+// De lo contrario, el CSP bloqueará ese script en producción SILENCIOSAMENTE
+// (sin errores en consola, sin warnings — el script simplemente no se ejecuta).
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
