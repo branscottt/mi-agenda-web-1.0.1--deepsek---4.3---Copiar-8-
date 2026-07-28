@@ -387,6 +387,16 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# Configuración de Edge Functions
+[functions]
+# create-preference: pública (sin JWT) porque la llama el frontend
+[functions.create-preference]
+verify_jwt = false
+
+# mercadopago-webhook: pública (sin JWT) porque la llama Mercado Pago
+[functions.mercadopago-webhook]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

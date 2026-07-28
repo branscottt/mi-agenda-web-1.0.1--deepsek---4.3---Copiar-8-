@@ -11,18 +11,24 @@ const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 
-// Asegurar que dist/ existe
+// Asegurar que dist/ existe y limpiar chunks viejos
 if (!fs.existsSync('dist')) fs.mkdirSync('dist', { recursive: true });
+const chunksDir = path.join('dist', 'chunks');
+if (fs.existsSync(chunksDir)) fs.rmSync(chunksDir, { recursive: true });
 
-console.log('📦 Building dist/app.js (modular bundle + minified)...');
+console.log('📦 Building dist/app.js (ESM bundle + code splitting)...');
 
-// 1. Bundle main.js + todos sus imports dinámicos → dist/app.js
-//    esbuild resuelve e inlinea los import() en tiempo de build
+// 1. Bundle main.js con code splitting real
+//    Con format: 'esm' + splitting, los import() dinámicos se convierten
+//    en chunks separados que se cargan bajo demanda.
 esbuild.buildSync({
     entryPoints: ['src/main.js'],
     bundle: true,
-    format: 'iife',
-    outfile: 'dist/app.js',
+    format: 'esm',
+    splitting: true,
+    outdir: 'dist',
+    entryNames: 'app',
+    chunkNames: 'chunks/[name]-[hash]',
     minify: true,
     sourcemap: false,
     legalComments: 'none',
@@ -31,7 +37,7 @@ esbuild.buildSync({
     charset: 'utf8',
     target: ['es2020'],
 });
-console.log('   ✅ dist/app.js created');
+console.log('   ✅ dist/app.js + chunks/ created');
 
 // 2. Minificar script.js legacy → dist/legacy.js
 console.log('📦 Building dist/legacy.js (legacy minified)...');
@@ -66,8 +72,9 @@ for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
         let content = fs.readFileSync(f, 'utf-8');
         // Reemplazar rutas de scripts en HTML
-        content = content.replace(/src="src\/main\.js"/g, 'src="dist/app.js"');
-        content = content.replace(/src="script\.js"/g, 'src="dist/legacy.js"');
+        // Si están en formato module/defer (moderno) o simple (legacy)
+        content = content.replace(/src="src\/main\.js"/g, 'type="module" src="dist/app.js"');
+        content = content.replace(/src="script\.js"/g, 'defer src="dist/legacy.js"');
         fs.writeFileSync(path.join('dist', f), content);
         console.log(`   ✅ dist/${f} (paths updated)`);
     }
