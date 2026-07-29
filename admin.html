@@ -70,6 +70,10 @@
                     <i class="fas fa-crown"></i>
                     <span>Mi Suscripción</span>
                 </a>
+                <a href="#" class="sidebar-item sidebar-item-promo" id="sidebar-promo-video" data-section="promo-video" onclick="navigateTo('promo-video')" style="display:none;">
+                    <i class="fas fa-video"></i>
+                    <span>Promoción Video</span>
+                </a>
             </div>
             <div class="sidebar-footer">
                 <button class="btn-small danger" onclick="cerrarSesion()" style="width:100%;">
@@ -947,6 +951,29 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- SECCIÓN: Promoción Video 50% descuento -->
+            <div id="section-promo-video" class="section-content" style="display:none;">
+                <section class="admin-panel promo-video-panel">
+                    <div class="glass-panel">
+                        <h3><i class="fas fa-video"></i> Promoción Video — 50% de descuento</h3>
+                        <div id="promo-video-status"></div>
+                        <div id="promo-video-form-container"></div>
+                        <div id="promo-video-conditions" style="margin-top:18px;padding:16px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid var(--border-color,#2a2a4a);">
+                            <h4 style="font-size:0.9rem;margin-bottom:10px;"><i class="fas fa-info-circle"></i> Condiciones del video promocional</h4>
+                            <ul style="font-size:0.82rem;line-height:1.7;padding-left:18px;color:var(--text-color,#ccc);">
+                                <li>Graba un video corto presentando tu negocio: <strong>¿qué haces?, ¿cómo te ayudó Agenda Pro?</strong></li>
+                                <li>Recomienda la plataforma y menciona los beneficios que te ha dado.</li>
+                                <li><strong>Etiqueta la web:</strong> @agendapro (o el enlace de tu espacio de clientes).</li>
+                                <li>Publica el video en <strong>Instagram</strong> o <strong>TikTok</strong> (cuenta pública o con el enlace).</li>
+                                <li>Copia el enlace del video y pégalo abajo junto con una descripción de tu negocio.</li>
+                                <li>El cupón es válido <strong>una vez cada 2 meses</strong> solo para el plan <strong>Pro mensual</strong>.</li>
+                                <li>Si cumple, recibirás <strong>50% de descuento en tu próximo pago</strong> ($7.500 en lugar de $15.000).</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
             </div>
 
         </div>  <!-- fin main-container -->

@@ -24,6 +24,7 @@ interface PrefRequest {
   plan: string;
   email: string;
   nombre: string;
+  monto?: number; // Opcional: si se pasa, sobreescribe el precio del plan
 }
 
 serve(async (req) => {
@@ -47,7 +48,7 @@ serve(async (req) => {
 
   try {
     const body: PrefRequest = await req.json();
-    const { tenant_id, plan, email, nombre } = body;
+    const { tenant_id, plan, email, nombre, monto } = body;
 
     // Validar plan
     const planInfo = PRICES[plan];
@@ -57,6 +58,10 @@ serve(async (req) => {
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    // Usar monto personalizado si se proporcionó (ej: descuento 50%)
+    const unitPrice = monto !== undefined ? monto : planInfo.price;
+    const titleSuffix = monto !== undefined && monto < planInfo.price ? ' (50% desc.)' : '';
 
     if (!tenant_id || !email) {
       return new Response(JSON.stringify({ error: 'tenant_id y email son requeridos' }), {
@@ -84,11 +89,11 @@ serve(async (req) => {
       items: [
         {
           id: `plan_${plan}`,
-          title: `${planInfo.title} - Agenda Pro`,
-          description: `Suscripción ${plan === 'premium_anual' ? 'anual' : 'mensual'} a Agenda Pro`,
+          title: `${planInfo.title}${titleSuffix} - Agenda Pro`,
+          description: `Suscripción ${plan === 'premium_anual' ? 'anual' : 'mensual'} a Agenda Pro${monto !== undefined ? ' (con descuento)' : ''}`,
           quantity: 1,
           currency_id: 'CLP',
-          unit_price: planInfo.price,
+          unit_price: unitPrice,
         },
       ],
       payer: {

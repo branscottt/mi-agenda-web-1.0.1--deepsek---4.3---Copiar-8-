@@ -11575,3 +11575,137 @@ input:-moz-autofill {
         justify-content: center;
     }
 }
+
+/* ===== PROMOCIÓN VIDEO - Cupón 50% descuento en admin ===== */
+/* ── Glow pulsante en sidebar ── */
+.sidebar-item-promo.promo-glow {
+    position: relative;
+    animation: promoGlow 2s ease-in-out infinite;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 107, 0, 0.15)) !important;
+    border-left: 3px solid #ffc107;
+}
+
+.sidebar-item-promo.promo-glow i {
+    color: #ffc107 !important;
+}
+
+@keyframes promoGlow {
+    0%, 100% { box-shadow: inset 0 0 8px rgba(255, 215, 0, 0.2); }
+    50% { box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.5), 0 0 12px rgba(255, 215, 0, 0.3); }
+}
+
+/* ── Banners de estado ── */
+.promo-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.promo-banner.available {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.1));
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: var(--text-color, #e0e0e0);
+}
+
+.promo-banner.available i {
+    color: #ffc107;
+    font-size: 1.4rem;
+}
+
+.promo-banner.approved {
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(39, 174, 96, 0.1));
+    border: 1px solid rgba(46, 204, 113, 0.3);
+    color: var(--text-color, #e0e0e0);
+}
+
+.promo-banner.approved i {
+    color: #2ecc71;
+    font-size: 1.4rem;
+}
+
+.promo-banner.pending {
+    background: linear-gradient(135deg, rgba(243, 156, 18, 0.12), rgba(241, 196, 15, 0.08));
+    border: 1px solid rgba(243, 156, 18, 0.25);
+    color: var(--text-color, #e0e0e0);
+}
+
+.promo-banner.pending i {
+    color: #f39c12;
+    font-size: 1.4rem;
+    animation: fa-spin 2s infinite linear;
+}
+
+.promo-banner.rejected {
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.12), rgba(192, 57, 43, 0.08));
+    border: 1px solid rgba(231, 76, 60, 0.25);
+    color: var(--text-color, #e0e0e0);
+}
+
+.promo-banner.rejected i {
+    color: #e74c3c;
+    font-size: 1.4rem;
+}
+
+.promo-banner.used {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.12), rgba(41, 128, 185, 0.08));
+    border: 1px solid rgba(52, 152, 219, 0.25);
+    color: var(--text-color, #e0e0e0);
+}
+
+.promo-banner.used i {
+    color: #3498db;
+    font-size: 1.4rem;
+}
+
+/* ── Formulario promo ── */
+.promo-form .form-group label {
+    display: block;
+    font-size: 0.82rem;
+    margin-bottom: 4px;
+    color: var(--text-color, #ccc);
+}
+
+.promo-form .config-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-color, #e0e0e0);
+    border: 1px solid var(--border-color, #2a2a4a);
+    border-radius: var(--border-radius, 8px);
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.promo-form .config-input:focus {
+    border-color: var(--primary-color, #9d4edd);
+}
+
+/* ── Superadmin review card ── */
+.promo-review-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.promo-review-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.promo-btn-approve,
+.promo-btn-reject {
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.promo-btn-approve:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+}
+
+.promo-btn-reject:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+}

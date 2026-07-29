@@ -3,6 +3,7 @@
 // Incluye integración con Mercado Pago para pagos
 
 import { createMercadoPagoPreference, redirectToMercadoPago, checkPaymentStatusFromUrl } from '../infrastructure/mercadopago.js';
+import { checkPromoCouponStatus, markPromoCouponUsed } from '../../api/subscriptionsApi.js';
 
 const PLANS = [
     { key: 'freemium', name: 'Freemium', price: 'Gratis', color: '#6c757d', icon: 'fa-star', priceValue: 0 },
@@ -60,6 +61,17 @@ export async function renderPlans(container, apis) {
 
     // Auto-redirect después de pago exitoso
     if (paymentStatus?.status === 'success') {
+        // Marcar cupón promocional como usado si corresponde
+        const couponId = sessionStorage.getItem('promo_coupon_used');
+        if (couponId) {
+            try {
+                await markPromoCouponUsed(couponId);
+                sessionStorage.removeItem('promo_coupon_used');
+                console.log('[PlansView] Cupón promocional marcado como usado:', couponId);
+            } catch (e) {
+                console.warn('[PlansView] Error marcando cupón como usado:', e);
+            }
+        }
         setTimeout(() => { window.location.href = 'admin.html'; }, 3000);
     }
 
@@ -109,12 +121,36 @@ export async function renderPlans(container, apis) {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
 
             try {
+                // Verificar si hay cupón de descuento aprobado (solo para Pro mensual)
+                let monto = undefined;
+                let cuponId = null;
+                if (plan === 'pro') {
+                    try {
+                        const promoStatus = await checkPromoCouponStatus(tenantId);
+                        const data = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
+                        if (data && data.discount_available) {
+                            monto = 7500; // 50% de $15.000
+                            cuponId = data.existing_id;
+                            console.log('[PlansView] Cupón descuento 50% aplicado. Monto: $7.500');
+                        }
+                    } catch (e) {
+                        console.warn('[PlansView] Error verificando cupón promocional:', e);
+                    }
+                }
+
                 const pref = await createMercadoPagoPreference({
                     plan: plan,
                     tenantId: tenantId,
                     email: userEmail,
                     nombre: userEmail,
+                    monto: monto,
                 });
+
+                // Guardar cuponId en sessionStorage para marcarlo como usado cuando vuelva
+                if (cuponId) {
+                    sessionStorage.setItem('promo_coupon_used', cuponId);
+                }
+
                 redirectToMercadoPago(pref.init_point || pref.sandbox_init_point);
             } catch (err) {
                 console.error('[MP] Error:', err);

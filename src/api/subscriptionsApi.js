@@ -92,3 +92,85 @@ export async function getSubscriptionsByFilter(filters) {
     if (error) throw error;
     return data || [];
 }
+
+// ============================================================
+// PROMO VIDEO COUPONS — Cupón 50% descuento por video promocional
+// ============================================================
+
+const PROMO_TABLE = 'promo_video_coupons';
+
+/**
+ * Verifica si el tenant puede usar un cupón promocional.
+ * Llama a la RPC can_use_promo_coupon en Supabase.
+ */
+export async function checkPromoCouponStatus(tenantId) {
+    if (!tenantId) return { can_use: false, current_period: null };
+    const { data, error } = await getSupabase()
+        .rpc('can_use_promo_coupon', { p_tenant_id: tenantId });
+    if (error) {
+        console.warn('[PromoCoupon] Error checking status:', error);
+        return { can_use: false, current_period: null, error: error.message };
+    }
+    return data || { can_use: false, current_period: null };
+}
+
+/**
+ * Crea una nueva solicitud de cupón promocional
+ */
+export async function createPromoCoupon({ tenantId, videoUrl, businessDescription, couponPeriod }) {
+    const { data, error } = await getSupabase()
+        .from(PROMO_TABLE)
+        .insert({
+            tenant_id: tenantId,
+            video_url: videoUrl,
+            business_description: businessDescription,
+            coupon_period: couponPeriod,
+            status: 'pending'
+        })
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Obtiene todas las solicitudes de cupón (para superadmin)
+ */
+export async function getAllPromoCoupons() {
+    const { data, error } = await getSupabase()
+        .from(PROMO_TABLE)
+        .select('*, tenants!inner(nombre_negocio, email_contacto, plan)')
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Actualiza el estado de un cupón (superadmin: approve/reject)
+ */
+export async function updatePromoCouponStatus(id, { status, adminComment }) {
+    const updates = { status };
+    if (adminComment !== undefined) updates.admin_comment = adminComment;
+    const { data, error } = await getSupabase()
+        .from(PROMO_TABLE)
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Marca un cupón como usado (descuento aplicado al siguiente pago)
+ */
+export async function markPromoCouponUsed(id) {
+    const { data, error } = await getSupabase()
+        .from(PROMO_TABLE)
+        .update({ discount_applied: true, used_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+}

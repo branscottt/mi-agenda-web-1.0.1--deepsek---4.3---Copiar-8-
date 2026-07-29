@@ -4379,9 +4379,230 @@ async function iniciarAdmin() {
     // Inicializar sección de compartir enlace
     configurarCompartirEnlace();
 
+    // Inicializar sección de Promoción Video (cupón 50% descuento)
+    initPromoVideoSection();
+
     console.log('Admin/SuperAdmin iniciado correctamente');
 }
 window.iniciarAdmin = iniciarAdmin;
+
+// ============================================
+// PROMO VIDEO — Cupón 50% descuento por video promocional
+// ============================================
+
+/**
+ * Inicializa la sección de Promoción Video en el panel admin.
+ * Verifica el estado del cupón cada 2 meses y muestra el formulario.
+ */
+async function initPromoVideoSection() {
+    const sidebarItem = document.getElementById('sidebar-promo-video');
+    const statusContainer = document.getElementById('promo-video-status');
+    const formContainer = document.getElementById('promo-video-form-container');
+    if (!statusContainer || !formContainer) return;
+
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return;
+
+    // Verificar que sea plan Pro mensual
+    let esProMensual = false;
+    try {
+        const suscripcion = await SuscripcionManager.getCurrent();
+        esProMensual = suscripcion && suscripcion.plan === 'pro';
+    } catch (e) {
+        console.warn('[PromoVideo] Error verificando plan:', e);
+    }
+
+    if (!esProMensual) {
+        // Ocultar sidebar item
+        if (sidebarItem) sidebarItem.style.display = 'none';
+        return;
+    }
+
+    // Mostrar sidebar item
+    if (sidebarItem) sidebarItem.style.display = '';
+
+    // Verificar estado del cupón via RPC
+    try {
+        const { checkPromoCouponStatus } = await import('./api/subscriptionsApi.js');
+        const status = await checkPromoCouponStatus(tenantId);
+
+        if (!status || status.error) {
+            renderPromoError(statusContainer, 'No se pudo verificar el estado del cupón.');
+            return;
+        }
+
+        const data = Array.isArray(status) ? status[0] : status;
+
+        // Si es demasiado pronto (menos de 2 meses desde la suscripción)
+        // o no tiene suscripción activa: ocultar sidebar y mostrar mensaje
+        if (data.current_period === 'too-early') {
+            if (sidebarItem) sidebarItem.style.display = 'none';
+            statusContainer.innerHTML = `
+                <div class="promo-banner used" style="border-color:rgba(52,152,219,0.3);">
+                    <i class="fas fa-clock"></i>
+                    <span><strong>Próximamente disponible</strong> — El cupón de 50% estará disponible después de 2 meses desde tu suscripción Pro.</span>
+                </div>
+            `;
+            formContainer.innerHTML = '';
+            return;
+        }
+
+        if (data.current_period === 'no-subscription' || data.current_period === 'no-tenant') {
+            if (sidebarItem) sidebarItem.style.display = 'none';
+            statusContainer.innerHTML = `
+                <div class="promo-banner used" style="border-color:rgba(52,152,219,0.3);">
+                    <i class="fas fa-info-circle"></i>
+                    <span><strong>Solo para plan Pro mensual</strong> — Activa una suscripción Pro para acceder a los cupones de descuento.</span>
+                </div>
+            `;
+            formContainer.innerHTML = '';
+            return;
+        }
+
+        if (data.can_use) {
+            // Cupón disponible: mostrar formulario
+            if (sidebarItem) sidebarItem.classList.add('promo-glow');
+            renderPromoForm(statusContainer, formContainer, tenantId, data.current_period);
+        } else if (data.discount_available) {
+            // Cupón aprobado no usado: mostrar botón para ir a planes
+            if (sidebarItem) sidebarItem.classList.add('promo-glow');
+            renderPromoApproved(statusContainer, formContainer, data);
+        } else if (data.existing_status === 'pending') {
+            // En revisión
+            if (sidebarItem) sidebarItem.classList.remove('promo-glow');
+            renderPromoPending(statusContainer, formContainer);
+        } else if (data.existing_status === 'rejected') {
+            // Rechazado: puede re-enviar
+            if (sidebarItem) sidebarItem.classList.add('promo-glow');
+            renderPromoRejected(statusContainer, formContainer, tenantId, data.current_period, data.existing_admin_comment);
+        } else if (data.existing_status === 'approved' && data.discount_applied) {
+            // Ya usado este período
+            if (sidebarItem) sidebarItem.classList.remove('promo-glow');
+            renderPromoUsed(statusContainer, formContainer);
+        } else {
+            // Sin cupón en este período (can_use false sin existing)
+            if (sidebarItem) sidebarItem.classList.add('promo-glow');
+            renderPromoForm(statusContainer, formContainer, tenantId, data.current_period);
+        }
+    } catch (e) {
+        console.warn('[PromoVideo] Error:', e);
+        renderPromoError(statusContainer, 'Error al cargar: ' + e.message);
+    }
+}
+
+function renderPromoForm(statusContainer, formContainer, tenantId, period) {
+    statusContainer.innerHTML = `
+        <div class="promo-banner available">
+            <i class="fas fa-gift"></i>
+            <span><strong>¡Cupón disponible!</strong> Período ${period}. Graba tu video y obtén 50% de descuento.</span>
+        </div>
+    `;
+    formContainer.innerHTML = `
+        <div class="promo-form" style="margin-top:16px;">
+            <h4 style="font-size:0.9rem;margin-bottom:12px;"><i class="fas fa-upload"></i> Enviar video promocional</h4>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="display:block;font-size:0.82rem;margin-bottom:4px;color:var(--text-color,#ccc);">
+                    <i class="fab fa-instagram"></i> / <i class="fab fa-tiktok"></i> Link del video
+                </label>
+                <input type="url" id="promo-video-url" class="config-input" placeholder="https://instagram.com/p/... o https://tiktok.com/@..." style="width:100%;">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="display:block;font-size:0.82rem;margin-bottom:4px;color:var(--text-color,#ccc);">
+                    <i class="fas fa-store"></i> Descripción de tu negocio
+                </label>
+                <textarea id="promo-business-desc" class="config-input" rows="4" placeholder="Cuéntanos de qué trata tu negocio, qué servicios ofreces, cómo te ayudó Agenda Pro..." style="width:100%;resize:vertical;"></textarea>
+            </div>
+            <button id="promo-submit-btn" class="btn-save-primary" style="width:100%;">
+                <i class="fas fa-paper-plane"></i> Enviar para revisión
+            </button>
+            <div id="promo-submit-feedback" style="margin-top:10px;"></div>
+        </div>
+    `;
+
+    document.getElementById('promo-submit-btn')?.addEventListener('click', async () => {
+        const videoUrl = document.getElementById('promo-video-url')?.value?.trim();
+        const desc = document.getElementById('promo-business-desc')?.value?.trim();
+        const feedback = document.getElementById('promo-submit-feedback');
+        if (!feedback) return;
+
+        if (!videoUrl) { feedback.innerHTML = '<p style="color:#e74c3c;font-size:0.82rem;">❌ Ingresa el link del video.</p>'; return; }
+        if (!desc || desc.length < 20) { feedback.innerHTML = '<p style="color:#e74c3c;font-size:0.82rem;">❌ Describe tu negocio (mínimo 20 caracteres).</p>'; return; }
+
+        const btn = document.getElementById('promo-submit-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+
+        try {
+            const { createPromoCoupon } = await import('./api/subscriptionsApi.js');
+            await createPromoCoupon({
+                tenantId,
+                videoUrl,
+                businessDescription: desc,
+                couponPeriod: period
+            });
+            feedback.innerHTML = '<p style="color:#2ecc71;font-size:0.82rem;">✅ ¡Enviado! El equipo revisará tu video y te notificaremos.</p>';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-check"></i> Enviado'; }
+            // Recargar estado después de 2s
+            setTimeout(() => initPromoVideoSection(), 2000);
+        } catch (e) {
+            feedback.innerHTML = `<p style="color:#e74c3c;font-size:0.82rem;">❌ Error: ${e.message}</p>`;
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar para revisión'; }
+        }
+    });
+}
+
+function renderPromoApproved(statusContainer, formContainer, data) {
+    statusContainer.innerHTML = `
+        <div class="promo-banner approved">
+            <i class="fas fa-check-circle"></i>
+            <span><strong>¡Video aprobado!</strong> Tu cupón de 50% descuento está listo. 
+            <a href="planes.html" style="color:#ffc107;font-weight:600;text-decoration:underline;">Ir a pagar con descuento →</a></span>
+        </div>
+    `;
+    formContainer.innerHTML = `
+        <div class="promo-detail" style="margin-top:12px;padding:14px;background:rgba(46,204,113,0.08);border-radius:10px;border:1px solid rgba(46,204,113,0.2);">
+            <p style="font-size:0.82rem;margin-bottom:6px;"><strong>Video:</strong> <a href="${escapeHtml(data.existing_video_url)}" target="_blank" rel="noopener">${escapeHtml(data.existing_video_url)}</a></p>
+            <p style="font-size:0.82rem;margin-bottom:0;"><strong>Tu negocio:</strong> ${escapeHtml(data.existing_description)}</p>
+            <p style="font-size:0.82rem;margin-top:10px;color:#2ecc71;"><i class="fas fa-tag"></i> Descuento del 50% en tu próximo pago Pro mensual.</p>
+        </div>
+    `;
+}
+
+function renderPromoPending(statusContainer, formContainer) {
+    statusContainer.innerHTML = `
+        <div class="promo-banner pending">
+            <i class="fas fa-clock"></i>
+            <span><strong>Video en revisión</strong> — El equipo está revisando tu video. Te notificaremos cuando esté aprobado.</span>
+        </div>
+    `;
+    formContainer.innerHTML = '';
+}
+
+function renderPromoRejected(statusContainer, formContainer, tenantId, period, comment) {
+    const commentHtml = comment ? `<p style="color:#e74c3c;font-size:0.82rem;margin-top:8px;padding:10px;background:rgba(231,76,60,0.1);border-radius:8px;"><strong>Comentario:</strong> ${escapeHtml(comment)}</p>` : '';
+    statusContainer.innerHTML = `
+        <div class="promo-banner rejected">
+            <i class="fas fa-times-circle"></i>
+            <span><strong>Video no aprobado</strong> — Puedes enviar uno nuevo siguiendo las condiciones.</span>
+            ${commentHtml}
+        </div>
+    `;
+    // Mostrar formulario para re-enviar
+    renderPromoForm(statusContainer, formContainer, tenantId, period);
+}
+
+function renderPromoUsed(statusContainer, formContainer) {
+    statusContainer.innerHTML = `
+        <div class="promo-banner used">
+            <i class="fas fa-check-double"></i>
+            <span><strong>Cupón usado</strong> — Ya utilizaste tu descuento en este período. Vuelve en el próximo bimestre.</span>
+        </div>
+    `;
+    formContainer.innerHTML = '';
+}
+
+function renderPromoError(statusContainer, msg) {
+    statusContainer.innerHTML = `<p style="color:#e74c3c;font-size:0.85rem;"><i class="fas fa-exclamation-triangle"></i> ${msg}</p>`;
+}
 
 // Alias para superadmin.html (evita modificar el HTML)
 // ============================================

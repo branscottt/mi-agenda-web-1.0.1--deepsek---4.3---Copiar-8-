@@ -19,7 +19,7 @@ const EDGE_FUNCTION_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co/functions/v1
  * @param {string} params.nombre
  * @returns {Promise<{preference_id: string, init_point: string}>}
  */
-export async function createMercadoPagoPreference({ plan, tenantId, email, nombre }) {
+export async function createMercadoPagoPreference({ plan, tenantId, email, nombre, monto }) {
     if (!plan || !tenantId || !email) {
         throw new Error('plan, tenantId y email son requeridos');
     }
@@ -34,6 +34,7 @@ export async function createMercadoPagoPreference({ plan, tenantId, email, nombr
             plan: plan,
             email: email,
             nombre: nombre || email,
+            ...(monto !== undefined ? { monto } : {}),
         }),
     });
 
