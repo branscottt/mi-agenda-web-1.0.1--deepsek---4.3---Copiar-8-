@@ -4532,7 +4532,7 @@ function renderPromoForm(statusContainer, formContainer, tenantId, period) {
             // Recargar estado después de 2s
             setTimeout(() => initPromoVideoSection(), 2000);
         } catch (e) {
-            feedback.innerHTML = `<p style="color:#e74c3c;font-size:0.82rem;">❌ Error: ${e.message}</p>`;
+            feedback.innerHTML = `<p style="color:#e74c3c;font-size:0.82rem;">❌ Error: ${escapeHtml(e.message)}</p>`;
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar para revisión'; }
         }
     });
@@ -4589,7 +4589,7 @@ function renderPromoUsed(statusContainer, formContainer) {
 }
 
 function renderPromoError(statusContainer, msg) {
-    statusContainer.innerHTML = `<p style="color:#e74c3c;font-size:0.85rem;"><i class="fas fa-exclamation-triangle"></i> ${msg}</p>`;
+    statusContainer.innerHTML = `<p style="color:#e74c3c;font-size:0.85rem;"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(msg)}</p>`;
 }
 
 // Alias para superadmin.html (evita modificar el HTML)
@@ -5290,7 +5290,7 @@ async function superAdminEliminarInactivo(tenantId) {
             
             const body = document.createElement('p');
             body.style.cssText = 'margin:0 0 8px;font-size:0.95rem;line-height:1.6;';
-            body.innerHTML = `<strong>Negocio:</strong> ${tenant?.nombre_negocio || 'Sin nombre'}<br><br>Se borrarán todos sus servicios, citas, suscripciones y datos.<br><br><strong style="color:#e74c3c;">Esta acción NO SE PUEDE DESHACER.</strong>`;
+            body.innerHTML = `<strong>Negocio:</strong> ${escapeHtml(tenant?.nombre_negocio || 'Sin nombre')}<br><br>Se borrarán todos sus servicios, citas, suscripciones y datos.<br><br><strong style="color:#e74c3c;">Esta acción NO SE PUEDE DESHACER.</strong>`;
             
             const question = document.createElement('p');
             question.style.cssText = 'margin:16px 0 24px;font-size:1.05rem;font-weight:600;';
@@ -5978,7 +5978,7 @@ async function editarServicio(id) {
     // === UX: cambiar título de la sección ===
     const titleEl = document.getElementById('section-title-servicio');
     if (titleEl) {
-        titleEl.innerHTML = `<i class="fas fa-edit"></i> ✏️ Editando Servicio: <span style="color:var(--primary-light);">${servicio.nombre}</span>`;
+        titleEl.innerHTML = `<i class="fas fa-edit"></i> ✏️ Editando Servicio: <span style="color:var(--primary-light);">${escapeHtml(servicio.nombre)}</span>`;
     }
 
     const form = document.getElementById('service-form');
@@ -9902,7 +9902,7 @@ async function abrirModalReserva(serviceId) {
         }
         if(resumenEl){
             if(selF && selH){
-                resumenEl.innerHTML = `<div class="popup-summary">Reservarás para el <strong>${selF}</strong> a las <strong>${horaTextoLocal}</strong>. Recuerda: No hay reembolsos y cambios solo con 24h de antelación.</div>`;
+                resumenEl.innerHTML = `<div class="popup-summary">Reservarás para el <strong>${escapeHtml(selF)}</strong> a las <strong>${escapeHtml(horaTextoLocal)}</strong>. Recuerda: No hay reembolsos y cambios solo con 24h de antelación.</div>`;
             } else {
                 resumenEl.innerHTML = `<div class="popup-summary">Selecciona fecha y hora para ver el resumen de la reserva.</div>`;
             }

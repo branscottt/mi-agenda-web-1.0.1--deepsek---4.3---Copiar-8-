@@ -28,11 +28,20 @@ interface PrefRequest {
 }
 
 serve(async (req) => {
-  // CORS
+  // CORS — permitir solo orígenes configurados o el mismo de la solicitud
+  const requestOrigin = req.headers.get('origin') || '';
+  const allowedOriginsEnv = Deno.env.get('ALLOWED_ORIGINS') || '';
+  const allowedOrigins = allowedOriginsEnv
+    ? allowedOriginsEnv.split(',').map(o => o.trim())
+    : [];
+  const corsOrigin = allowedOrigins.length > 0 && allowedOrigins.includes(requestOrigin)
+    ? requestOrigin
+    : allowedOrigins.length > 0 ? allowedOrigins[0] : requestOrigin || '*';
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
@@ -128,8 +137,7 @@ serve(async (req) => {
     if (!mpResp.ok) {
       console.error('Error MP:', JSON.stringify(mpData));
       return new Response(JSON.stringify({
-        error: 'Error al crear preferencia de pago',
-        detail: mpData.message || mpData.error || 'Error desconocido',
+        error: 'Error al procesar el pago. Intenta de nuevo más tarde.',
       }), {
         status: 502,
         headers: { 'Content-Type': 'application/json' },
@@ -146,7 +154,7 @@ serve(async (req) => {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin,
       },
     });
   } catch (e) {
