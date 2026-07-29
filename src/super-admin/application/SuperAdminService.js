@@ -74,7 +74,7 @@ export async function actualizarPlanTenant(tenantId, nuevoPlan) {
 }
 
 export async function suspenderTenant(tenantId) {
-    await updateTenant(tenantId, { activo: false });
+    await updateTenant(tenantId, { estado: 'inactivo' });
 
     const subs = await getAllSubscriptions({ tenant_id: tenantId, status: 'active' });
     for (const s of subs) {
@@ -84,7 +84,7 @@ export async function suspenderTenant(tenantId) {
 }
 
 export async function reactivarTenant(tenantId) {
-    await updateTenant(tenantId, { activo: true });
+    await updateTenant(tenantId, { estado: 'activo' });
 
     const subs = await getAllSubscriptions({ tenant_id: tenantId, status: 'suspended' });
     for (const s of subs) {

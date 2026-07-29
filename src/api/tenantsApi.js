@@ -7,7 +7,7 @@ const TABLE = 'tenants';
 export async function getAllTenants() {
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('id, nombre_negocio, email_contacto, telefono, plan, activo, fecha_registro, created_at')
+        .select('id, nombre_negocio, email_contacto, telefono, plan, estado, fecha_registro, created_at')
         .order('fecha_registro', { ascending: false });
     if (error) throw error;
     return data || [];
@@ -26,7 +26,7 @@ export async function getTenantById(id) {
 export async function getTenantByEmail(email) {
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('id, nombre_negocio, email_contacto, plan, activo')
+        .select('id, nombre_negocio, email_contacto, plan, estado')
         .eq('email_contacto', email)
         .limit(1)
         .single();

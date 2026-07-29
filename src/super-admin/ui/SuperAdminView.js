@@ -101,28 +101,52 @@ async function cargarEstadisticasGlobales(content, apis) {
 async function cargarTenants(content, apis) {
     content.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Cargando tenants...</p>';
     try {
-        const tenants = await apis.tenants.getAll();
+        const [tenants, subscriptions] = await Promise.all([
+            apis.tenants.getAll(),
+            apis.subscriptions.getAll().catch(() => [])
+        ]);
+
+        const subMap = {};
+        (subscriptions || []).forEach(s => {
+            if (!subMap[s.tenant_id] || s.status === 'active') {
+                subMap[s.tenant_id] = s;
+            }
+        });
+
         content.innerHTML = `
             <h3>Gestión de Tenants</h3>
             <button class="btn btn-primary mb-3" onclick="abrirModalNuevoTenant()"><i class="fas fa-plus"></i> Nuevo Tenant</button>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Acciones</th></tr></thead>
-                    <tbody>
-                        ${tenants.map(t => `
-                            <tr>
-                                <td>${t.id?.substring(0,8) || 'N/A'}</td>
-                                <td>${t.nombre_negocio || 'Sin nombre'}</td>
-                                <td>${t.email_contacto || 'Sin email'}</td>
-                                <td>${t.telefono || 'Sin teléfono'}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="editarTenant('${t.id}')"><i class="fas fa-edit"></i></button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarTenant('${t.id}')"><i class="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+            <div class="tenants-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+                ${tenants.map(t => {
+                    const sub = subMap[t.id];
+                    const activo = t.estado !== 'inactivo';
+                    const subActiva = sub && sub.status === 'active';
+                    const subExpirada = sub && sub.end_date && new Date(sub.end_date) < new Date();
+                    const subDisplay = subExpirada ? 'expirada' : (subActiva ? 'activa' : (sub ? sub.status : 'sin suscripción'));
+                    const endDateStr = sub?.end_date ? new Date(sub.end_date).toLocaleDateString() : '—';
+
+                    return `
+                        <div class="tenant-card glass-panel" style="padding:20px;position:relative;${!activo ? 'opacity:0.7;border-color:#e74c3c;' : ''}">
+                            ${!activo ? '<div style="position:absolute;top:8px;right:8px;background:#e74c3c;color:#fff;padding:2px 10px;border-radius:4px;font-size:0.75rem;font-weight:600;">DESACTIVADO</div>' : ''}
+                            <div class="tenant-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                <h4 style="margin:0;">${t.nombre_negocio || 'Sin nombre'}</h4>
+                                <span class="badge ${t.plan || 'freemium'}" style="font-size:0.75rem;padding:3px 10px;border-radius:20px;background:${t.plan === 'premium_anual' ? '#ffd700' : t.plan === 'pro' ? '#b300ff' : '#666'};color:${t.plan === 'premium_anual' ? '#000' : '#fff'};">${t.plan || 'freemium'}</span>
+                            </div>
+                            <p style="margin:4px 0;font-size:0.85rem;"><i class="fas fa-envelope"></i> ${t.email_contacto || 'Sin email'}</p>
+                            <p style="margin:4px 0;font-size:0.85rem;"><i class="fas fa-phone"></i> ${t.telefono || 'Sin teléfono'}</p>
+                            <p style="margin:4px 0;font-size:0.85rem;"><i class="fas fa-calendar"></i> Registro: ${t.fecha_registro ? new Date(t.fecha_registro).toLocaleDateString() : '—'}</p>
+                            <p style="margin:4px 0;font-size:0.85rem;"><i class="fas fa-ticket-alt"></i> Suscripción: <strong style="color:${subExpirada ? '#e74c3c' : subActiva ? '#2ecc71' : '#f39c12'}">${subDisplay}</strong> ${sub?.end_date ? `(hasta ${endDateStr})` : ''}</p>
+                            <div class="tenant-actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="btn btn-sm btn-outline-primary" onclick="editarTenant('${t.id}')"><i class="fas fa-edit"></i> Editar</button>
+                                ${activo
+                                    ? `<button class="btn btn-sm btn-outline-warning" onclick="superAdminToggleActivo('${t.id}', false)"><i class="fas fa-pause-circle"></i> Desactivar</button>`
+                                    : `<button class="btn btn-sm btn-outline-success" onclick="superAdminToggleActivo('${t.id}', true)"><i class="fas fa-play-circle"></i> Reactivar</button>`
+                                }
+                                <button class="btn btn-sm btn-outline-danger" onclick="superAdminEliminarInactivo('${t.id}')"><i class="fas fa-trash"></i> Eliminar</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
             </div>
         `;
     } catch (e) {

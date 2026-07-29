@@ -4269,6 +4269,13 @@ async function iniciarAdmin() {
         return;
     }
 
+    // --- SUBCASO B0: TENANT DESACTIVADO por superadmin ---
+    if (tenantBD.estado === 'inactivo') {
+        console.log('[AuthGuard] CASO B0: Tenant desactivado → planes.html');
+        window.location.href = `planes.html?tenant_id=${tenantBD.id}&suspended=true`;
+        return;
+    }
+
     // --- SUBCASO B2: CON WHATSAPP → verificar suscripción activa ---
     let suscripcionActiva = null;
     try {
@@ -4280,6 +4287,26 @@ async function iniciarAdmin() {
     if (!suscripcionActiva || suscripcionActiva.status !== 'active') {
         console.log('[AuthGuard] CASO B2: Sin plan activo → planes.html');
         window.location.href = `planes.html?tenant_id=${tenantBD.id}`;
+        return;
+    }
+
+    // Verificar fecha de expiración
+    if (suscripcionActiva.end_date && new Date(suscripcionActiva.end_date) < new Date()) {
+        console.log('[AuthGuard] CASO B2: Suscripción expirada → planes.html');
+        // Marcar como inactiva
+        try {
+            await supabaseClient
+                .from('subscriptions')
+                .update({ status: 'inactive' })
+                .eq('id', suscripcionActiva.id);
+            await supabaseClient
+                .from('tenants')
+                .update({ estado: 'inactivo' })
+                .eq('id', tenantBD.id);
+        } catch (e) {
+            console.warn('[AuthGuard] Error desactivando suscripción expirada:', e);
+        }
+        window.location.href = `planes.html?tenant_id=${tenantBD.id}&expired=true`;
         return;
     }
 
@@ -4425,22 +4452,32 @@ async function cargarTenants() {
             let activeSub = t.subscriptions?.find(sub => sub.status === 'active') || t.subscriptions?.[0];
             const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
             const planDisplay = planDisplayNames[planKey] || planKey;
-            const statusSub = activeSub ? activeSub.status : 'active';
+            const statusSub = activeSub ? activeSub.status : 'inactive';
             const endDate = activeSub?.end_date ? new Date(activeSub.end_date).toLocaleDateString() : 'N/A';
-            
+            const subExpirada = activeSub?.end_date && new Date(activeSub.end_date) < new Date();
+            const activo = t.estado !== 'inactivo';
+
+            const subStatusColor = subExpirada ? '#e74c3c' : (statusSub === 'active' ? '#2ecc71' : '#f39c12');
+            const subStatusLabel = subExpirada ? 'expirada' : statusSub;
+
             html += `
-                <div class="tenant-card glass-panel" style="padding:20px;">
+                <div class="tenant-card glass-panel" style="padding:20px;position:relative;${!activo ? 'opacity:0.6;border-color:#e74c3c;' : ''}">
+                    ${!activo ? '<div style="position:absolute;top:8px;right:8px;background:#e74c3c;color:#fff;padding:2px 10px;border-radius:4px;font-size:0.75rem;font-weight:600;">DESACTIVADO</div>' : ''}
                     <div class="tenant-header">
                         <h4>${escapeHtml(t.nombre_negocio)}</h4>
                         <span class="badge ${planKey}">${planDisplay}</span>
                     </div>
                     <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
                     <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
-                    <p><i class="fas fa-ticket-alt"></i> Suscripción: ${statusSub} ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
+                    <p><i class="fas fa-ticket-alt"></i> Suscripción: <strong style="color:${subStatusColor}">${subStatusLabel}</strong> ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
                     <div class="tenant-actions" style="margin-top:15px;">
-                        <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;"></i>
-                        <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c;"></i>
-                        <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff; margin-left:10px;"></i>
+                        <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;" title="Editar"></i>
+                        ${activo
+                            ? `<i class="fas fa-pause-circle toggle-tenant" data-id="${t.id}" data-activo="false" style="cursor:pointer; color:#f39c12; margin-right:10px;" title="Desactivar"></i>`
+                            : `<i class="fas fa-play-circle toggle-tenant" data-id="${t.id}" data-activo="true" style="cursor:pointer; color:#2ecc71; margin-right:10px;" title="Reactivar"></i>`
+                        }
+                        <i class="fas fa-trash delete-tenant" data-id="${t.id}" style="cursor:pointer; color:#e74c3c; margin-right:10px;" title="Eliminar (solo si está desactivado)"></i>
+                        <i class="fas fa-credit-card manage-sub" data-id="${t.id}" style="cursor:pointer; color:#b300ff;" title="Gestionar suscripción"></i>
                     </div>
                 </div>
             `;
@@ -4452,8 +4489,11 @@ async function cargarTenants() {
         document.querySelectorAll('.edit-tenant').forEach(icon => {
             icon.addEventListener('click', () => abrirModalEditarTenant(icon.dataset.id));
         });
+        document.querySelectorAll('.toggle-tenant').forEach(icon => {
+            icon.addEventListener('click', () => superAdminToggleActivo(icon.dataset.id, icon.dataset.activo === 'true'));
+        });
         document.querySelectorAll('.delete-tenant').forEach(icon => {
-            icon.addEventListener('click', () => eliminarTenant(icon.dataset.id));
+            icon.addEventListener('click', () => superAdminEliminarInactivo(icon.dataset.id));
         });
         document.querySelectorAll('.manage-sub').forEach(icon => {
             icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
@@ -4896,6 +4936,239 @@ async function eliminarTenant(id) {
         if (typeof cargarUsuarios === 'function') await cargarUsuarios();
     }
 }
+
+// ============================================
+// SUPER ADMIN: TOGGLE ACTIVO/INACTIVO (doble confirmacion)
+// ============================================
+async function superAdminToggleActivo(tenantId, activar) {
+    if (!tenantId) return;
+    const accion = activar ? 'REACTIVAR' : 'DESACTIVAR';
+    const mensaje = activar
+        ? `¿Reactivar este tenant?
+
+El negocio volverá a tener acceso al panel de administración.`
+        : `⚠️ ¿DESACTIVAR este tenant?
+
+El negocio NO podrá acceder al panel de administración ni al portal de clientes.
+
+Sus datos se conservarán intactos y podrá reactivarse después.
+
+¿Estás seguro?`;
+
+    // Primera confirmacion
+    if (!confirm(mensaje)) return;
+
+    // Segunda confirmacion (solo para desactivar)
+    if (!activar) {
+        if (!confirm('⚠️ CONFIRMACIÓN FINAL\n\nEste tenant perderá el acceso inmediatamente.\n¿Confirmas la desactivación?')) return;
+    }
+
+    try {
+        if (window.__tenantsApi?.update) {
+            await window.__tenantsApi.update(tenantId, { estado: activar ? 'activo' : 'inactivo' });
+        } else {
+            const { error } = await supabaseClient
+                .from('tenants')
+                .update({ estado: activar ? 'activo' : 'inactivo' })
+                .eq('id', tenantId);
+            if (error) throw error;
+        }
+
+        // Si se desactiva, suspender suscripciones activas
+        if (!activar) {
+            try {
+                const { data: subs } = await supabaseClient
+                    .from('subscriptions')
+                    .select('id, status')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'active');
+                for (const sub of subs || []) {
+                    await supabaseClient
+                        .from('subscriptions')
+                        .update({ status: 'suspended', end_date: new Date().toISOString() })
+                        .eq('id', sub.id);
+                }
+            } catch (subError) {
+                console.warn('[superAdminToggleActivo] Error suspendiendo suscripciones:', subError);
+            }
+        } else {
+            // Si se reactiva, restaurar suscripciones suspendidas
+            try {
+                const { data: subs } = await supabaseClient
+                    .from('subscriptions')
+                    .select('id, plan')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'suspended');
+                for (const sub of subs || []) {
+                    await supabaseClient
+                        .from('subscriptions')
+                        .update({
+                            status: 'active',
+                            end_date: sub.plan === 'pro'
+                                ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                                : sub.plan === 'premium_anual'
+                                    ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+                                    : undefined
+                        })
+                        .eq('id', sub.id);
+                }
+            } catch (subError) {
+                console.warn('[superAdminToggleActivo] Error restaurando suscripciones:', subError);
+            }
+        }
+
+        mostrarToast(activar ? 'Tenant reactivado correctamente' : 'Tenant desactivado correctamente', 'success');
+        await cargarTenants();
+        await cargarEstadisticasGlobales();
+        await cargarMetricasGlobales();
+    } catch (e) {
+        console.error('[superAdminToggleActivo] Error:', e);
+        mostrarToast('Error: ' + (e.message || 'Error de red'), 'error');
+    }
+}
+window.superAdminToggleActivo = superAdminToggleActivo;
+
+// ============================================
+// SUPER ADMIN: ELIMINAR SOLO SI ESTA DESACTIVADO
+// ============================================
+async function superAdminEliminarInactivo(tenantId) {
+    console.log('[superAdminEliminarInactivo] Click en eliminar, tenantId:', tenantId);
+    if (!tenantId) {
+        console.warn('[superAdminEliminarInactivo] tenantId vacío');
+        return;
+    }
+
+    try {
+        // Verificar que el tenant este desactivado
+        let tenant = null;
+        if (window.__tenantsApi?.getById) {
+            tenant = await window.__tenantsApi.getById(tenantId);
+        } else {
+            const { data, error } = await supabaseClient
+                .from('tenants')
+                .select('estado, nombre_negocio')
+                .eq('id', tenantId)
+                .single();
+            if (error) throw error;
+            tenant = data;
+        }
+        console.log('[superAdminEliminarInactivo] Tenant:', tenant);
+
+        if (tenant && tenant.estado !== 'inactivo') {
+            mostrarToast('❌ No se puede eliminar un tenant activo. Debes desactivarlo primero.', 'error');
+            return;
+        }
+
+        // Confirmación única mediante modal HTML (evita bloqueo de Firefox)
+        const confirmResult = await new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;';
+            
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background:#1a1a2e;color:#fff;padding:32px;border-radius:16px;max-width:500px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center;';
+            
+            const title = document.createElement('h3');
+            title.style.cssText = 'margin:0 0 16px;font-size:1.3rem;color:#e74c3c;';
+            title.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ELIMINAR PERMANENTEMENTE';
+            
+            const body = document.createElement('p');
+            body.style.cssText = 'margin:0 0 8px;font-size:0.95rem;line-height:1.6;';
+            body.innerHTML = `<strong>Negocio:</strong> ${tenant?.nombre_negocio || 'Sin nombre'}<br><br>Se borrarán todos sus servicios, citas, suscripciones y datos.<br><br><strong style="color:#e74c3c;">Esta acción NO SE PUEDE DESHACER.</strong>`;
+            
+            const question = document.createElement('p');
+            question.style.cssText = 'margin:16px 0 24px;font-size:1.05rem;font-weight:600;';
+            question.textContent = '¿Estás seguro?';
+            
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+            
+            const btnCancel = document.createElement('button');
+            btnCancel.textContent = 'Cancelar';
+            btnCancel.style.cssText = 'padding:10px 24px;border:none;border-radius:8px;background:#555;color:#fff;cursor:pointer;font-size:0.95rem;';
+            
+            const btnConfirm = document.createElement('button');
+            btnConfirm.textContent = 'Sí, eliminar';
+            btnConfirm.style.cssText = 'padding:10px 24px;border:none;border-radius:8px;background:#e74c3c;color:#fff;cursor:pointer;font-size:0.95rem;font-weight:600;';
+            
+            btnRow.appendChild(btnCancel);
+            btnRow.appendChild(btnConfirm);
+            modal.appendChild(title);
+            modal.appendChild(body);
+            modal.appendChild(question);
+            modal.appendChild(btnRow);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            const cleanup = () => {
+                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            };
+            
+            btnCancel.addEventListener('click', () => { cleanup(); resolve(false); });
+            btnConfirm.addEventListener('click', () => { cleanup(); resolve(true); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(false); } });
+        });
+        
+        if (!confirmResult) {
+            console.log('[superAdminEliminarInactivo] Usuario canceló');
+            return;
+        }
+        console.log('[superAdminEliminarInactivo] Usuario confirmó, procediendo a eliminar...');
+
+    } catch (e) {
+        console.error('[superAdminEliminarInactivo] Error verificando tenant:', e);
+        mostrarToast('Error: ' + (e.message || 'Error de red'), 'error');
+        return;
+    }
+
+    // Proceder con la eliminación
+    let error = null;
+    try {
+        // Primero eliminar datos relacionados para evitar FK constraints
+        const tablesToClean = [
+            { table: 'appointments', col: 'tenant_id' },
+            { table: 'services', col: 'tenant_id' },
+            { table: 'subscriptions', col: 'tenant_id' },
+            { table: 'tenant_config', col: 'tenant_id' },
+            { table: 'notificaciones', col: 'tenant_id' },
+            { table: 'trabajadores', col: 'tenant_id' },
+            { table: 'servicios_trabajadores', col: 'tenant_id' }
+        ];
+        for (const { table, col } of tablesToClean) {
+            try {
+                await supabaseClient.from(table).delete().eq(col, tenantId);
+            } catch (_) {
+                // La tabla puede no existir, ignorar
+            }
+        }
+
+        if (window.__tenantsApi?.delete) {
+            const result = await window.__tenantsApi.delete(tenantId);
+            error = result?.error || null;
+        } else {
+            const { error: err } = await supabaseClient
+                .from('tenants')
+                .delete()
+                .eq('id', tenantId);
+            error = err || null;
+        }
+    } catch (e) {
+        console.error('[superAdminEliminarInactivo] Excepción:', e);
+        mostrarToast('Error al eliminar: ' + (e.message || 'Error de red'), 'error');
+        return;
+    }
+
+    if (error) {
+        console.error('[superAdminEliminarInactivo] Error de BD:', error);
+        mostrarToast('Error: ' + (error.message || 'Permiso denegado por RLS'), 'error');
+    } else {
+        mostrarToast('Tenant eliminado permanentemente', 'success');
+        await cargarTenants();
+        await cargarEstadisticasGlobales();
+        await cargarMetricasGlobales();
+        if (typeof cargarUsuarios === 'function') await cargarUsuarios();
+    }
+}
+window.superAdminEliminarInactivo = superAdminEliminarInactivo;
 
 function probarEventosBasicos() {
     const btnVolver = document.querySelector('.btn-back');

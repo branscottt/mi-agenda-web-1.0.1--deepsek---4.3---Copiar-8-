@@ -22,15 +22,55 @@ export async function renderPlans(container, apis) {
     const paymentStatus = checkPaymentStatusFromUrl();
     const paymentMessage = getPaymentStatusMessage(paymentStatus);
 
+    // Mostrar banner según motivo de llegada a planes
+    const urlParams = new URLSearchParams(window.location.search);
+    const expiredBanner = urlParams.get('expired') === 'true' ? `
+        <div class="alert alert-warning" style="background:#f39c12;color:#fff;padding:16px 24px;border-radius:12px;margin-bottom:24px;display:flex;align-items:center;gap:12px;">
+            <i class="fas fa-exclamation-triangle" style="font-size:24px;"></i>
+            <div>
+                <strong style="font-size:1.1rem;">Tu suscripción ha expirado</strong>
+                <p style="margin:4px 0 0;opacity:0.9;">Para usar el panel de administración, elige un plan y reactiva tu suscripción. Tus datos están a salvo.</p>
+            </div>
+        </div>
+    ` : '';
+
+    const pendingWhatsapp = urlParams.get('pending_whatsapp') === 'true' ? `
+        <div class="alert alert-info" style="background:#3498db;color:#fff;padding:16px 24px;border-radius:12px;margin-bottom:24px;display:flex;align-items:center;gap:12px;">
+            <i class="fas fa-info-circle" style="font-size:24px;"></i>
+            <div>
+                <strong style="font-size:1.1rem;">Completa tu registro</strong>
+                <p style="margin:4px 0 0;opacity:0.9;">Antes de usar el panel, ingresa tu número de WhatsApp para que tus clientes puedan contactarte.</p>
+            </div>
+        </div>
+    ` : '';
+
+    const suspendedBanner = urlParams.get('suspended') === 'true' ? `
+        <div class="alert alert-danger" style="background:#e74c3c;color:#fff;padding:16px 24px;border-radius:12px;margin-bottom:24px;display:flex;align-items:center;gap:12px;">
+            <i class="fas fa-ban" style="font-size:24px;"></i>
+            <div>
+                <strong style="font-size:1.1rem;">Cuenta desactivada</strong>
+                <p style="margin:4px 0 0;opacity:0.9;">Tu cuenta ha sido desactivada por el administrador. Todos tus datos están a salvo. Si crees que es un error, contacta al soporte.</p>
+            </div>
+        </div>
+    ` : '';
+
     const tenantId = await obtenerTenantId();
     const currentPlan = await obtenerPlanActual(tenantId, apis);
     const userEmail = obtenerUserEmail();
+
+    // Auto-redirect después de pago exitoso
+    if (paymentStatus?.status === 'success') {
+        setTimeout(() => { window.location.href = 'admin.html'; }, 3000);
+    }
 
     container.innerHTML = `
         <div class="plans-container">
             <h2><i class="fas fa-tags"></i> Planes de suscripción</h2>
             <p class="text-muted">Selecciona el plan que mejor se adapte a tu negocio.</p>
             ${paymentMessage}
+            ${expiredBanner}
+            ${pendingWhatsapp}
+            ${suspendedBanner}
             <div class="plans-grid" style="display:flex; gap:20px; flex-wrap:wrap; justify-content:center;">
                 ${PLANS.map(p => {
                     const isCurrent = currentPlan === p.key;
@@ -90,7 +130,7 @@ function getPaymentStatusMessage(status) {
     if (!status || !status.status) return '';
 
     const messages = {
-        success: '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ¡Pago exitoso! Tu suscripción se activará en unos segundos.</div>',
+        success: '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ¡Pago exitoso! Tu suscripción se activará en segundos. Serás redirigido al panel de administración...</div>',
         failure: '<div class="alert alert-danger"><i class="fas fa-times-circle"></i> El pago fue rechazado. Intenta con otro método de pago.</div>',
         pending: '<div class="alert alert-warning"><i class="fas fa-clock"></i> El pago está pendiente. Te notificaremos cuando se confirme.</div>',
     };

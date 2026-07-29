@@ -113,10 +113,43 @@ export async function verificarProteccionRutas() {
         return;
     }
 
-    // Admin
+    // Admin — verificar suscripción activa
     if (pathname === 'admin.html') {
         if (session.tenant_id && session.rol !== ROLES.ADMIN) {
             window.location.href = 'cliente.html';
+            return;
+        }
+        // Verificar suscripción activa y estado del tenant
+        try {
+            const { getActiveSubscriptionByTenantId } = await import('../../api/subscriptionsApi.js');
+            const { getTenantById } = await import('../../api/tenantsApi.js');
+            const [sub, tenant] = await Promise.all([
+                getActiveSubscriptionByTenantId(session.tenant_id),
+                getTenantById(session.tenant_id).catch(() => null)
+            ]);
+
+            // Verificar si el tenant fue desactivado por superadmin
+            if (tenant && tenant.estado === 'inactivo') {
+                window.location.href = `planes.html?tenant_id=${session.tenant_id}&suspended=true`;
+                return;
+            }
+
+            const subExpirada = sub && sub.end_date && new Date(sub.end_date) < new Date();
+            if (!sub || subExpirada) {
+                // Marcar tenant como inactivo si la suscripción expiró
+                if (subExpirada) {
+                    const { updateTenant } = await import('../../api/tenantsApi.js');
+                    await updateTenant(session.tenant_id, { estado: 'inactivo' }).catch(() => {});
+                    // Desactivar suscripción
+                    const { updateSubscription } = await import('../../api/subscriptionsApi.js');
+                    await updateSubscription(sub.id, { status: 'inactive' }).catch(() => {});
+                }
+                // Redirigir a planes con motivo
+                window.location.href = `planes.html?tenant_id=${session.tenant_id}&expired=true`;
+                return;
+            }
+        } catch (e) {
+            console.warn('[session] Error verificando suscripción:', e);
         }
         return;
     }
