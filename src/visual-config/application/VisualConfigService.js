@@ -27,6 +27,8 @@ const CONFIG_DEFAULT = {
     logo_url: '',
     favicon_url: '',
     cover_url: '',
+    instagram_url: '',
+    tiktok_url: '',
     custom_css: ''
 };
 
@@ -134,6 +136,8 @@ export async function getVisualConfig(optionalTenantId) {
             config.logo_url = dbData.logo_url || '';
             config.favicon_url = dbData.favicon_url || '';
             config.cover_url = dbData.cover_url || '';
+            config.instagram_url = dbData.instagram_url || '';
+            config.tiktok_url = dbData.tiktok_url || '';
             config.custom_css = dbData.custom_css || '';
         }
 
@@ -215,7 +219,7 @@ export async function saveVisualConfig(config) {
 
     // Columnas base (siempre existen en tenant_config) y opcionales (pueden faltar según migraciones)
     const CORE_COLUMNS = ['primary_color', 'secondary_color', 'logo_url', 'custom_css'];
-    const OPTIONAL_COLUMNS = ['favicon_url', 'cover_url'];
+    const OPTIONAL_COLUMNS = ['favicon_url', 'cover_url', 'instagram_url', 'tiktok_url'];
 
     // Construir payload empezando solo con columnas core
     const buildPayload = (includeOptionals) => {
@@ -229,6 +233,8 @@ export async function saveVisualConfig(config) {
         if (includeOptionals) {
             p.favicon_url = full.favicon_url || null;
             p.cover_url = full.cover_url || null;
+            p.instagram_url = full.instagram_url || null;
+            p.tiktok_url = full.tiktok_url || null;
         }
         return p;
     };

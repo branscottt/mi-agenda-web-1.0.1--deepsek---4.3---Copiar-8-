@@ -1482,6 +1482,8 @@ const VisualConfigManager = {
             logo_url: '',
             favicon_url: '',
             cover_url: '',
+            instagram_url: '',
+            tiktok_url: '',
             custom_css: ''
         };
     },
@@ -1521,17 +1523,17 @@ const VisualConfigManager = {
             try {
                 const res = await supabaseClient
                     .from('tenant_config')
-                    .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, custom_css')
+                    .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, instagram_url, tiktok_url, custom_css')
                     .eq('tenant_id', tenantId)
                     .maybeSingle();
                 dbData = res.data;
                 dbError = res.error;
-                // Si falla por columna faltante (PGRST204), reintentar sin cover_url
+                // Si falla por columna faltante (PGRST204), reintentar sin las nuevas
                 if (dbError && dbError.code === 'PGRST204') {
-                    console.warn('[VisualConfig] cover_url no existe en BD, cargando sin ella');
+                    console.warn('[VisualConfig] columnas nuevas no existen en BD, cargando sin ellas');
                     const retry = await supabaseClient
                         .from('tenant_config')
-                        .select('primary_color, secondary_color, logo_url, favicon_url, custom_css')
+                        .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, custom_css')
                         .eq('tenant_id', tenantId)
                         .maybeSingle();
                     dbData = retry.data;
@@ -1560,6 +1562,8 @@ const VisualConfigManager = {
                 config.logo_url = dbData.logo_url || '';
                 config.favicon_url = dbData.favicon_url || '';
                 config.cover_url = dbData.cover_url || '';
+                config.instagram_url = dbData.instagram_url || '';
+                config.tiktok_url = dbData.tiktok_url || '';
                 config.custom_css = dbData.custom_css || '';
             }
 
@@ -1598,7 +1602,9 @@ const VisualConfigManager = {
             };
             const OPTIONAL = {
                 favicon_url: full.favicon_url || null,
-                cover_url: full.cover_url || null
+                cover_url: full.cover_url || null,
+                instagram_url: full.instagram_url || null,
+                tiktok_url: full.tiktok_url || null
             };
 
             // Intentar con todas las columnas
@@ -2308,7 +2314,9 @@ input, select, textarea {
             };
             const OPTIONAL = {
                 favicon_url: full.favicon_url || null,
-                cover_url: full.cover_url || null
+                cover_url: full.cover_url || null,
+                instagram_url: full.instagram_url || null,
+                tiktok_url: full.tiktok_url || null
             };
 
             // Intentar con todas las columnas
@@ -8739,6 +8747,59 @@ async function renderMisReservas() {
 }
 window.renderMisReservas = renderMisReservas;
 
+/**
+ * Renderiza enlaces de redes sociales del negocio
+ * Lee desde la configuracion visual cargada (window.__lastVisualConfig)
+ * o carga la configuracion si es necesario
+ */
+async function renderSocialLinks(containerId) {
+    const container = document.getElementById(containerId || 'social-links-container');
+    if (!container) return;
+
+    let config;
+    // Intentar obtener la config desde cache de VisualConfigManager
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (!tenantId) { container.style.display = 'none'; return; }
+        const cached = localStorage.getItem(`tenant_config_${tenantId}`);
+        if (cached) {
+            config = JSON.parse(cached);
+        } else {
+            config = await VisualConfigManager.loadConfig();
+        }
+    } catch (e) {
+        console.warn('[socialLinks] Error cargando config:', e);
+        container.style.display = 'none';
+        return;
+    }
+
+    const instagram = config.instagram_url || '';
+    const tiktok = config.tiktok_url || '';
+
+    if (!instagram && !tiktok) {
+        container.style.display = 'none';
+        return;
+    }
+
+    let html = '<div class="social-links-section">';
+    html += '<h4 class="social-links-title"><i class="fas fa-share-alt"></i> Síguenos en redes</h4>';
+    html += '<div class="social-links-row">';
+    if (instagram) {
+        html += `<a href="${escapeHtml(instagram)}" target="_blank" rel="noopener noreferrer" class="social-link instagram" title="Instagram">
+            <i class="fab fa-instagram"></i> <span>Instagram</span>
+        </a>`;
+    }
+    if (tiktok) {
+        html += `<a href="${escapeHtml(tiktok)}" target="_blank" rel="noopener noreferrer" class="social-link tiktok" title="TikTok">
+            <i class="fab fa-tiktok"></i> <span>TikTok</span>
+        </a>`;
+    }
+    html += '</div></div>';
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+window.renderSocialLinks = renderSocialLinks;
+
 // ============================================
 // FUNCIONES DE CLIENTE (modificadas para async)
 // ============================================
@@ -8938,6 +8999,7 @@ async function iniciarCliente() {
     try {
         const visualConfig = await VisualConfigManager.loadConfig();
         VisualConfigManager.applyStyles(visualConfig);
+        renderSocialLinks('social-links-container');
     } catch (e) {
         console.warn('[iniciarCliente] Error cargando config visual:', e);
     }
@@ -9003,6 +9065,7 @@ async function iniciarCliente() {
             window.__skipClientRender = false;
             if (typeof renderMisReservas === 'function') renderMisReservas();
             if (typeof renderCarrito === 'function') renderCarrito();
+            if (typeof renderSocialLinks === 'function') renderSocialLinks('social-links-container');
         });
         return;
     }

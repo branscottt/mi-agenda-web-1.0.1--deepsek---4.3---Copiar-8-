@@ -162,9 +162,27 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
-            <!-- PASO 6: CSS PERSONALIZADO -->
+            <!-- PASO 6: REDES SOCIALES -->
             <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-code"></i> 6. CSS Personalizado <span class="field-hint" style="display:inline;font-weight:400;font-size:0.75rem;">(solo si sabes código)</span></h4>
+                <h4 class="config-section-title"><i class="fas fa-share-alt"></i> 6. Redes Sociales</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Agrega los enlaces a tus redes sociales para que tus clientes puedan ver tus trabajos desde la sección "Mis Reservas".</p>
+                <div class="form-row two-cols">
+                    <div class="input-with-label">
+                        <label><i class="fab fa-instagram"></i> Instagram</label>
+                        <input type="url" id="cfg-instagram" class="config-input" value="${escapeAttr(config.instagram_url || '')}" placeholder="https://instagram.com/tu-perfil" style="flex:1;">
+                        <span class="field-hint" style="font-size:0.75rem;">Enlace completo a tu perfil de Instagram</span>
+                    </div>
+                    <div class="input-with-label">
+                        <label><i class="fab fa-tiktok"></i> TikTok</label>
+                        <input type="url" id="cfg-tiktok" class="config-input" value="${escapeAttr(config.tiktok_url || '')}" placeholder="https://tiktok.com/@tu-perfil" style="flex:1;">
+                        <span class="field-hint" style="font-size:0.75rem;">Enlace completo a tu perfil de TikTok</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 7: CSS PERSONALIZADO -->
+            <div class="config-section">
+                <h4 class="config-section-title"><i class="fas fa-code"></i> 7. CSS Personalizado <span class="field-hint" style="display:inline;font-weight:400;font-size:0.75rem;">(solo si sabes código)</span></h4>
                 <p class="field-hint" style="margin-bottom:8px;">Si tienes conocimientos de CSS, puedes escribir estilos avanzados aquí. De lo contrario, usa los temas y colores de arriba.</p>
                 <textarea id="custom-css" rows="4" placeholder="/* Escribe aquí tus estilos CSS personalizados */" style="width:100%;background:rgba(0,0,0,0.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:var(--border-radius);padding:12px;font-family:monospace;resize:vertical;">${escapeHtml(config.custom_css || '')}</textarea>
             </div>
@@ -228,6 +246,8 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             font_family: "'Inter', sans-serif",
             logo_url: '',
             cover_url: '',
+            instagram_url: '',
+            tiktok_url: '',
             border_radius: 12,
             animation_speed: 0.3,
             custom_css: ''
@@ -458,6 +478,8 @@ function leerConfigForm() {
         font_family: document.getElementById('cfg-font')?.value || "'Inter', sans-serif",
         logo_url: document.getElementById('cfg-logo')?.value || '',
         cover_url: document.getElementById('cfg-cover')?.value || '',
+        instagram_url: document.getElementById('cfg-instagram')?.value || '',
+        tiktok_url: document.getElementById('cfg-tiktok')?.value || '',
         border_radius: parseInt(document.getElementById('cfg-radius')?.value) || 12,
         animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || 0.3,
         custom_css: document.getElementById('custom-css')?.value || ''

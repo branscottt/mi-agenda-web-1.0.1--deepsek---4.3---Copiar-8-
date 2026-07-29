@@ -11448,3 +11448,59 @@ input:-moz-autofill {
         min-width: 70px;
     }
 }
+
+/* ===== REDES SOCIALES - Seccion en vista cliente ===== */
+.social-links-section {
+    margin-top: 18px;
+    padding-top: 14px;
+}
+
+.social-links-title {
+    font-size: 0.85rem;
+    color: var(--text-color, #e0e0e0);
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.social-links-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.social-link:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+    color: #fff;
+}
+
+.social-link.instagram {
+    background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+}
+
+.social-link.tiktok {
+    background: #000;
+    border: 1px solid #333;
+}
+
+.social-link i {
+    font-size: 1.1rem;
+}
+
+/* ── En configuracion admin ── */
+#cfg-instagram,
+#cfg-tiktok {
+    flex: 1;
+}
