@@ -5,7 +5,6 @@
 import { getAllCitas, deleteCita } from '../application/AppointmentService.js';
 import { formatearDinero, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { getVisualConfig } from '../../visual-config/application/VisualConfigService.js';
 
 export async function renderMisReservas(containerId = 'mis-reservas-list') {
     const container = document.getElementById(containerId);
@@ -60,32 +59,6 @@ export async function renderMisReservas(containerId = 'mis-reservas-list') {
             renderMisReservas(containerId);
         });
     });
-
-    // Cargar y mostrar enlaces de redes sociales del negocio
-    try {
-        const config = await getVisualConfig();
-        const instagram = config.instagram_url || '';
-        const tiktok = config.tiktok_url || '';
-        if (instagram || tiktok) {
-            let socialHtml = '<div class="social-links-section" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border-color, #2a2a4a);">';
-            socialHtml += '<h4 style="font-size:0.85rem;color:var(--text-color,#e0e0e0);margin-bottom:10px;"><i class="fas fa-share-alt"></i> Síguenos en redes</h4>';
-            socialHtml += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
-            if (instagram) {
-                socialHtml += `<a href="${escapeHtml(instagram)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;text-decoration:none;font-size:0.85rem;">
-                    <i class="fab fa-instagram"></i> Instagram
-                </a>`;
-            }
-            if (tiktok) {
-                socialHtml += `<a href="${escapeHtml(tiktok)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;background:#000;color:#fff;text-decoration:none;font-size:0.85rem;border:1px solid #333;">
-                    <i class="fab fa-tiktok"></i> TikTok
-                </a>`;
-            }
-            socialHtml += '</div></div>';
-            container.insertAdjacentHTML('afterend', socialHtml);
-        }
-    } catch (e) {
-        console.warn('[MisReservas] Error cargando redes sociales:', e);
-    }
 }
 
 function escapeHtml(str) {

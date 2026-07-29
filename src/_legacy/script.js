@@ -8753,11 +8753,10 @@ window.renderMisReservas = renderMisReservas;
  * o carga la configuracion si es necesario
  */
 async function renderSocialLinks(containerId) {
-    const container = document.getElementById(containerId || 'social-links-container');
+    const container = document.getElementById(containerId || 'social-links-banner');
     if (!container) return;
 
     let config;
-    // Intentar obtener la config desde cache de VisualConfigManager
     try {
         const tenantId = await getCurrentTenantId();
         if (!tenantId) { container.style.display = 'none'; return; }
@@ -8781,16 +8780,16 @@ async function renderSocialLinks(containerId) {
         return;
     }
 
-    let html = '<div class="social-links-section">';
-    html += '<h4 class="social-links-title"><i class="fas fa-share-alt"></i> Síguenos en redes</h4>';
-    html += '<div class="social-links-row">';
+    let html = '<div class="social-banner-inner">';
+    html += '<span class="social-banner-label"><i class="fas fa-share-alt"></i> Síguenos</span>';
+    html += '<div class="social-banner-links">';
     if (instagram) {
-        html += `<a href="${escapeHtml(instagram)}" target="_blank" rel="noopener noreferrer" class="social-link instagram" title="Instagram">
+        html += `<a href="${escapeHtml(instagram)}" target="_blank" rel="noopener noreferrer" class="social-btn instagram-btn" title="Instagram">
             <i class="fab fa-instagram"></i> <span>Instagram</span>
         </a>`;
     }
     if (tiktok) {
-        html += `<a href="${escapeHtml(tiktok)}" target="_blank" rel="noopener noreferrer" class="social-link tiktok" title="TikTok">
+        html += `<a href="${escapeHtml(tiktok)}" target="_blank" rel="noopener noreferrer" class="social-btn tiktok-btn" title="TikTok">
             <i class="fab fa-tiktok"></i> <span>TikTok</span>
         </a>`;
     }
@@ -8999,7 +8998,7 @@ async function iniciarCliente() {
     try {
         const visualConfig = await VisualConfigManager.loadConfig();
         VisualConfigManager.applyStyles(visualConfig);
-        renderSocialLinks('social-links-container');
+        renderSocialLinks('social-links-banner');
     } catch (e) {
         console.warn('[iniciarCliente] Error cargando config visual:', e);
     }
@@ -9065,7 +9064,7 @@ async function iniciarCliente() {
             window.__skipClientRender = false;
             if (typeof renderMisReservas === 'function') renderMisReservas();
             if (typeof renderCarrito === 'function') renderCarrito();
-            if (typeof renderSocialLinks === 'function') renderSocialLinks('social-links-container');
+            if (typeof renderSocialLinks === 'function') renderSocialLinks('social-links-banner');
         });
         return;
     }
