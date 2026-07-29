@@ -33,6 +33,17 @@
     }
 
     // ============================================
+    // POSTHOG — Inicializar analytics (gratuito)
+    // Solo se activa en producción con API key
+    // ============================================
+    try {
+        const { initAnalytics } = await import('./shared/infrastructure/analytics.js');
+        initAnalytics();
+    } catch (e) {
+        // Silencioso — Analytics es opcional
+    }
+
+    // ============================================
     // CREAR CLIENTE SUPABASE DE FORMA SINCRONA (sin import)
     // ============================================
     try {

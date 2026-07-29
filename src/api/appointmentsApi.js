@@ -5,6 +5,7 @@
 
 import { getSupabase } from '../shared/infrastructure/supabase.js';
 import { cacheWrapper, cacheClearPrefix } from '../shared/infrastructure/cache.js';
+import { trackEvent } from '../shared/infrastructure/analytics.js';
 
 const TABLE = 'citas';
 const CACHE_PREFIX = 'appointmentsApi';
@@ -38,8 +39,12 @@ export async function createCita(data) {
         .insert(data)
         .select()
         .single();
-    if (error) throw error;
+    if (error) {
+        trackEvent('appointment_created_failed', { reason: error.message });
+        throw error;
+    }
     cacheClearPrefix(CACHE_PREFIX);
+    trackEvent('appointment_created', { tenant_id: data.tenant_id, servicio_id: data.servicio_id });
     return result;
 }
 
@@ -51,8 +56,12 @@ export async function createCitasBulk(citas) {
         .from(TABLE)
         .insert(citas)
         .select();
-    if (error) throw error;
+    if (error) {
+        trackEvent('appointment_bulk_created_failed', { reason: error.message, count: citas.length });
+        throw error;
+    }
     cacheClearPrefix(CACHE_PREFIX);
+    trackEvent('appointment_bulk_created', { count: data?.length || 0 });
     return data || [];
 }
 
@@ -63,8 +72,12 @@ export async function updateCita(id, updates) {
         .eq('id', id)
         .select()
         .single();
-    if (error) throw error;
+    if (error) {
+        trackEvent('appointment_updated_failed', { reason: error.message });
+        throw error;
+    }
     cacheClearPrefix(CACHE_PREFIX);
+    trackEvent('appointment_updated', { id, fields: Object.keys(updates) });
     return data;
 }
 
@@ -73,8 +86,12 @@ export async function deleteCita(id) {
         .from(TABLE)
         .delete()
         .eq('id', id);
-    if (error) throw error;
+    if (error) {
+        trackEvent('appointment_deleted_failed', { reason: error.message });
+        throw error;
+    }
     cacheClearPrefix(CACHE_PREFIX);
+    trackEvent('appointment_deleted', { id });
     return true;
 }
 

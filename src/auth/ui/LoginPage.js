@@ -6,6 +6,7 @@ import { login, register, loginWithGoogle, resetPassword } from '../application/
 import { redirectByRole } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { trackEvent } from '../../shared/infrastructure/analytics.js';
 
 export function iniciarLogin() {
     // GUARD: evitar doble inicialización (main.js + script.js llaman esta función)
@@ -239,6 +240,10 @@ export function iniciarLogin() {
                 // ================================================================
                 // PASO 6: Redirigir a selección de plan
                 // ================================================================
+                trackEvent('registration_complete', {
+                    tenant_id: tenant.id,
+                    has_subscription: true
+                });
                 mostrarToast('¡Cuenta creada exitosamente! Elige tu plan.', 'success');
                 window.location.href = `planes.html?tenant_id=${tenant.id}&new=true`;
 

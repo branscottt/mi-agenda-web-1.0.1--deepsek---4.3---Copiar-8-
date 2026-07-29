@@ -1,4 +1,40 @@
+# Dependencias
 node_modules/
+
+# Build output
 dist/
+
+# Entorno — archivos con claves sensibles
 .env
+.env.local
+.env.production
+.env.development
+.env.test
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
+*.pid
+*.seed
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.vscode/settings.json
+.vscode/launch.json
+*.swp
+*.swo
+*~
+
+# Vercel (despliegue)
 .vercel
+
+# Supabase (local)
+supabase/.temp/

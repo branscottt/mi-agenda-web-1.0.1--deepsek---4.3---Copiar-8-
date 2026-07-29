@@ -278,6 +278,16 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             config_payload['supabaseUrl'] = supabase_url
             config_payload['supabaseKey'] = supabase_key
 
+        # Inyectar configuración de entorno
+        app_env = os.environ.get('APP_ENV', 'development')
+        config_payload['environment'] = app_env
+
+        # Inyectar PostHog (analytics) — solo si hay API key configurada
+        posthog_key = os.environ.get('POSTHOG_API_KEY', '')
+        if posthog_key:
+            config_payload['posthogApiKey'] = posthog_key
+            config_payload['posthogHost'] = os.environ.get('POSTHOG_HOST', 'https://app.posthog.com')
+
         if config_payload:
             import json
             import base64
@@ -348,7 +358,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
             "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https: https://http2.mlstatic.com; "
-            "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com; "
+            "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com; "
             "frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li; "
             "form-action 'self'; "
             "base-uri 'self'; "

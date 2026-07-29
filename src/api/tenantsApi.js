@@ -1,6 +1,7 @@
 // src/api/tenantsApi.js
 // API unica para la tabla tenants (multi-tenant)
 import { getSupabase } from '../shared/infrastructure/supabase.js';
+import { trackEvent } from '../shared/infrastructure/analytics.js';
 
 const TABLE = 'tenants';
 
@@ -40,7 +41,11 @@ export async function createTenant(data) {
         .insert(data)
         .select()
         .single();
-    if (error) throw error;
+    if (error) {
+        trackEvent('tenant_created_failed', { reason: error.message });
+        throw error;
+    }
+    trackEvent('tenant_created', { tenant_id: result?.id });
     return result;
 }
 
@@ -49,7 +54,11 @@ export async function updateTenant(id, updates) {
         .from(TABLE)
         .update(updates)
         .eq('id', id);
-    if (error) throw error;
+    if (error) {
+        trackEvent('tenant_updated_failed', { reason: error.message });
+        throw error;
+    }
+    trackEvent('tenant_updated', { tenant_id: id, fields: Object.keys(updates) });
     return true;
 }
 
@@ -58,6 +67,10 @@ export async function deleteTenant(id) {
         .from(TABLE)
         .delete()
         .eq('id', id);
-    if (error) throw error;
+    if (error) {
+        trackEvent('tenant_deleted_failed', { reason: error.message });
+        throw error;
+    }
+    trackEvent('tenant_deleted', { tenant_id: id });
     return true;
 }
