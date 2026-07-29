@@ -2,27 +2,55 @@
   "buildCommand": "node build.js",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/", "destination": "/login.html" }
+    {
+      "source": "/",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/reset-pass.html",
+      "destination": "/login.html"
+    }
   ],
   "headers": [
-  {
-    "source": "/(.*)",
-    "headers": [
-      { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
-      { "key": "X-Frame-Options", "value": "DENY" },
-      { "key": "X-Content-Type-Options", "value": "nosniff" },
-      { "key": "Referrer-Policy", "value": "no-referrer" },
-      { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-      { "key": "X-DNS-Prefetch-Control", "value": "off" },
-      { "key": "Permissions-Policy", "value": "accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()" }
-    ]
-  },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "X-DNS-Prefetch-Control",
+          "value": "off"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(self), usb=(), web-share=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), unload=()"
+        }
+      ]
+    },
     {
       "source": "/(.*\\.html)",
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' 'sha256-+UV8Se628DiIqlxmNFCAoWzroa6MxiTC6bQbL50O06k=' 'sha256-UQrDhi6gzmBdUezTgWk6Jg9V4H7P1xx0BLIv54aSq4E=' 'sha256-lSYtQi+KHaLFhXRNLOZvTjEX1tqlBShsZLMnMOkFNkU=' 'sha256-Bt5kHzBUuE0C+grs3wNL8SrAkgBQCUnhbTNsZL2sJVw=' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://challenges.cloudflare.com https://js.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https: https://http2.mlstatic.com; connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com; frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' 'sha256-+UV8Se628DiIqlxmNFCAoWzroa6MxiTC6bQbL50O06k=' 'sha256-UQrDhi6gzmBdUezTgWk6Jg9V4H7P1xx0BLIv54aSq4E=' 'sha256-lSYtQi+KHaLFhXRNLOZvTjEX1tqlBShsZLMnMOkFNkU=' 'sha256-Bt5kHzBUuE0C+grs3wNL8SrAkgBQCUnhbTNsZL2sJVw=' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://challenges.cloudflare.com https://js.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; img-src 'self' data: https: https://http2.mlstatic.com; connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com; frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
         }
       ]
     }

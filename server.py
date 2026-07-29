@@ -14,7 +14,7 @@ import collections
 import http.server
 import urllib.parse
 
-BLOCKED_PATHS = ('/scripts', '/spec', '/Untitled-1.sql', '/node_modules', '/src', '/script.js', '/build.js', '/package.json', '/package-lock.json')
+BLOCKED_PATHS = ('/scripts', '/spec', '/Untitled-1.sql', '/node_modules', '/src', '/script.js', '/build.js', '/package.json', '/package-lock.json', '/reset-pass.html')
 
 ALLOWED_EXTENSIONS = (
     '.html', '.css', '.js',
@@ -347,7 +347,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # silenciosamente (sin errores visibles).
         csp_script = (
             "default-src 'self'; "
-            "script-src 'self' "
+            "script-src 'self' 'unsafe-inline' "
             + (("'nonce-" + self._csp_nonce + "' ") if getattr(self, '_csp_nonce', None) else "")
             + "'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' "
             "'sha256-+UV8Se628DiIqlxmNFCAoWzroa6MxiTC6bQbL50O06k=' "
