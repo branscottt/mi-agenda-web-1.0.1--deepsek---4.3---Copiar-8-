@@ -4122,18 +4122,6 @@ async function iniciarAdmin() {
         }
     }
 
-    // ========== DELEGAR VISTA PRINCIPAL A DASHBOARDVIEW MODULAR ==========
-    const mainContainer = document.getElementById('dynamic-content');
-    if (mainContainer) {
-        try {
-            const { renderDashboard } = await import('./src/dashboard/ui/DashboardView.js');
-            // No reemplazar HTML - el dashboard se inyecta dentro del contenedor
-            // manteniendo los elementos pre-existentes como sidebar, header, etc.
-        } catch (e) {
-            console.error('DashboardView no disponible, usando renderizado legacy:', e);
-        }
-    }
-
     // ================================================================
     // PASO 1: OBTENER SESIÓN
     // ================================================================

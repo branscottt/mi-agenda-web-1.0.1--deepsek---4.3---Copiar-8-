@@ -22,24 +22,35 @@ export async function initSentry() {
     }
 
     try {
-        // Cargar SDK desde CDN dinámicamente (el DSN viene embebido en la URL)
-        const Sentry = await import(/* @vite-ignore */ cdnUrl);
-
-        Sentry.init({
-            environment: location.hostname === 'localhost' ? 'development' : 'production',
-            release: 'agenda-pro@1.0.0',
-            tracesSampleRate: 0.1,
-            ignoreErrors: [
-                'ResizeObserver',
-                'NetworkError',
-                'Chrome',
-                'extension',
-                'popup',
-            ],
+        // Cargar SDK desde CDN mediante script tag (el CDN no es ES module,
+        // usa window.Sentry global — NO se puede import() como modulo)
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = cdnUrl;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error('Fallo al cargar Sentry CDN'));
+            document.head.appendChild(script);
         });
 
-        console.log('[Sentry] Inicializado correctamente');
-        return true;
+        if (typeof window.Sentry?.init === 'function') {
+            window.Sentry.init({
+                environment: location.hostname === 'localhost' ? 'development' : 'production',
+                release: 'agenda-pro@1.0.0',
+                tracesSampleRate: 0.1,
+                ignoreErrors: [
+                    'ResizeObserver',
+                    'NetworkError',
+                    'Chrome',
+                    'extension',
+                    'popup',
+                ],
+            });
+            console.log('[Sentry] Inicializado correctamente');
+            return true;
+        } else {
+            console.warn('[Sentry] SDK cargado pero window.Sentry.init no está disponible');
+            return false;
+        }
     } catch (e) {
         console.warn('[Sentry] Error al inicializar:', e);
         return false;
