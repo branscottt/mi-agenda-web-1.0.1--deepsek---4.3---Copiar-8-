@@ -263,7 +263,7 @@ async function syncJwtSession() {
             try {
                 const { renderPlans } = await import('./subscriptions/ui/PlansView.js');
                 window.renderPlans = renderPlans;
-                renderPlans('planes-container');
+                renderPlans(document.getElementById('planes-container'));
             } catch (e) {
                 console.warn('[main.js] PlansView no disponible:', e.message);
             }

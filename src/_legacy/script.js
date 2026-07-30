@@ -2461,6 +2461,12 @@ async function cargarPlanes() {
     const isNewAdmin = urlParams.get('new') === 'true';
     const tenantIdFromUrl = urlParams.get('tenant_id');
 
+    // Ocultar navegación para nuevos registros
+    if (isNewAdmin) {
+        const nav = document.querySelector('.screen-navigation');
+        if (nav) nav.style.display = 'none';
+    }
+
     // Obtener sesión fresca con retry (similar a iniciarAdmin)
     let sessionData = null;
     for (let i = 0; i < 10; i++) {
@@ -2790,6 +2796,8 @@ async function crearSuscripcionInicial(planKey, tenantId) {
                 .from('subscriptions')
                 .select('id, plan, status')
                 .eq('tenant_id', tenantId)
+                .neq('plan', 'freemium')
+                .neq('status', 'inactive')
                 .limit(1);
             if (existingSubs && existingSubs.length > 0) {
                 mostrarToast('Este negocio ya tiene un plan asignado. No puede obtener otro Free Trial.', 'error');

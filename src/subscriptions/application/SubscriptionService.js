@@ -44,8 +44,14 @@ export async function crearSuscripcion(plan, tenantId, periodoMeses = null) {
 
     const infoPlan = PLANES[plan];
     const duracion = periodoMeses || infoPlan.duracionMeses || null;
+    const duracionDias = infoPlan.duracionDias || null;
     const inicio = new Date().toISOString();
-    const fin = duracion ? new Date(Date.now() + duracion * 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+    let fin = null;
+    if (duracion) {
+        fin = new Date(Date.now() + duracion * 30 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (duracionDias) {
+        fin = new Date(Date.now() + duracionDias * 24 * 60 * 60 * 1000).toISOString();
+    }
 
     const data = await createSubscription({
         tenant_id: String(tenantId).trim(),

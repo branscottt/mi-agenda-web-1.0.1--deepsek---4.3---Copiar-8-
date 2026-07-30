@@ -19,12 +19,18 @@ const PLANS = [
 export async function renderPlans(container, apis) {
     if (!container) return;
 
+    // Ocultar navegación para nuevos registros (new=true)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('new') === 'true') {
+        const nav = document.querySelector('.screen-navigation');
+        if (nav) nav.style.display = 'none';
+    }
+
     // Mostrar estado de pago si venimos de MP
     const paymentStatus = checkPaymentStatusFromUrl();
     const paymentMessage = getPaymentStatusMessage(paymentStatus);
 
     // Mostrar banner según motivo de llegada a planes
-    const urlParams = new URLSearchParams(window.location.search);
     const expiredBanner = urlParams.get('expired') === 'true' ? `
         <div class="alert alert-warning" style="background:#f39c12;color:#fff;padding:16px 24px;border-radius:12px;margin-bottom:24px;display:flex;align-items:center;gap:12px;">
             <i class="fas fa-exclamation-triangle" style="font-size:24px;"></i>
