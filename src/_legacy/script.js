@@ -5811,6 +5811,15 @@ async function cargarServiciosExistentes() {
 
     container.innerHTML = html;
 
+    // Click handler: abrir detalle al hacer clic en la card (no en botones)
+    container.querySelectorAll('.service-card-admin').forEach(card => {
+        card.addEventListener('click', function(e) {
+            if (e.target.closest('button') || e.target.closest('.service-card-actions')) return;
+            const id = this.dataset.serviceId;
+            if (id) verDetalleServicio(id);
+        });
+    });
+
     actualizarEstadisticas();
 
     const btnPrimerServicio = document.getElementById('create-first-service');
@@ -5826,6 +5835,229 @@ async function cargarServiciosExistentes() {
     }
 }
 window.cargarServiciosExistentes = cargarServiciosExistentes;
+
+// ── Modal de detalle de servicio ──
+async function verDetalleServicio(id) {
+    let servicios = await ServiciosManager.getAll();
+    const s = servicios.find(sv => String(sv.id) === String(id));
+    if (!s) { mostrarMensaje('Servicio no encontrado', 'error'); return; }
+
+    const overlay = document.getElementById('modal-servicio-detalle');
+    if (!overlay) return;
+
+    // Header — imagen
+    const imgContainer = document.getElementById('detalle-imagen');
+    imgContainer.innerHTML = '';
+    if (s.imagen) {
+        imgContainer.style.background = 'none';
+        const img = document.createElement('img');
+        img.src = s.imagen;
+        img.alt = s.nombre || '';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.onerror = () => { imgContainer.style.background = 'rgba(255,255,255,0.05)'; imgContainer.innerHTML = '<i class=\"fas fa-image\" style=\"font-size:1.5rem;color:var(--text-muted);\"></i>'; };
+        imgContainer.appendChild(img);
+    } else {
+        imgContainer.innerHTML = '<i class=\"fas fa-image\" style=\"font-size:1.5rem;color:var(--text-muted);\"></i>';
+    }
+
+    document.getElementById('detalle-nombre').textContent = s.nombre || 'Sin nombre';
+    document.getElementById('detalle-precio').textContent = window.formatearPeso ? formatearPeso(s.precio) : '$' + (s.precio || 0);
+
+    const estadoEl = document.getElementById('detalle-estado');
+    if (s.activo) {
+        estadoEl.textContent = 'Activo';
+        estadoEl.style.background = 'rgba(0,184,148,0.2)';
+        estadoEl.style.color = '#00b894';
+    } else {
+        estadoEl.textContent = 'Inactivo';
+        estadoEl.style.background = 'rgba(255,70,70,0.2)';
+        estadoEl.style.color = '#ff6b6b';
+    }
+
+    const dur = s.modulos && s.modulos.length > 0 ? s.modulos[0].duration : (s.duracion || 60);
+    document.getElementById('detalle-duracion').innerHTML = '<i class=\"fas fa-hourglass-half\"></i> ' + (typeof window.formatTimeDisplay === 'function' ? '' : '') + dur + ' min por turno';
+
+    if (s.destacado) {
+        const badge = document.createElement('span');
+        badge.style.cssText = 'font-size:0.7rem;padding:2px 10px;border-radius:10px;background:rgba(255,204,0,0.2);color:#ffcc00;';
+        badge.innerHTML = '<i class=\"fas fa-star\"></i> Destacado';
+        document.querySelector('#detalle-header-info > div > div').appendChild(badge);
+    }
+
+    // Descripción
+    const descEl = document.getElementById('detalle-descripcion');
+    descEl.textContent = s.descripcion || 'Sin descripción';
+
+    // Resumen de cupos
+    const cuposResumen = document.getElementById('detalle-cupos-resumen');
+    let totalCupos = 0;
+    let fechasConCupos = 0;
+    let totalTurnos = 0;
+    let totalFechas = 0;
+
+    if (s.disponibilidad && typeof s.disponibilidad === 'object') {
+        const fechasKeys = Object.keys(s.disponibilidad).sort();
+        totalFechas = fechasKeys.length;
+        fechasKeys.forEach(f => {
+            const mods = s.disponibilidad[f] || [];
+            totalTurnos += mods.length;
+            mods.forEach(m => {
+                const cupo = Number(m.cupos || 0);
+                totalCupos += cupo;
+                if (cupo > 0) fechasConCupos++;
+            });
+        });
+    } else if (s.modulos && s.modulos.length > 0) {
+        totalTurnos = s.modulos.length;
+        totalFechas = s.fechas ? s.fechas.length : 0;
+        s.modulos.forEach(m => {
+            const cupo = typeof m.cupos !== 'undefined' ? Number(m.cupos) : (typeof m.capacidad !== 'undefined' ? Number(m.capacidad) : 0);
+            totalCupos += cupo;
+        });
+    } else {
+        totalFechas = s.fechas ? s.fechas.length : 0;
+        totalCupos = Number(s.capacidad || 0);
+    }
+
+    cuposResumen.innerHTML = `
+        <span><i class=\"fas fa-calendar-alt\"></i> <strong>${totalFechas}</strong> fecha(s)</span>
+        <span><i class=\"fas fa-clock\"></i> <strong>${totalTurnos}</strong> turno(s)</span>
+        <span><i class=\"fas fa-users\"></i> <strong>${totalCupos}</strong> cupo(s) totales</span>
+        <span><i class=\"fas fa-calendar-check\"></i> <strong>${fechasConCupos}</strong> fecha(s) con cupo</span>
+    `;
+
+    // Fechas y horarios detallados
+    const fechasContainer = document.getElementById('detalle-fechas');
+    fechasContainer.innerHTML = '';
+
+    if (s.disponibilidad && typeof s.disponibilidad === 'object') {
+        const fechasKeys = Object.keys(s.disponibilidad).sort();
+        if (fechasKeys.length === 0) {
+            fechasContainer.innerHTML = '<div style=\"padding:16px;text-align:center;color:var(--text-muted);\"><i class=\"fas fa-calendar-times\"></i> Sin fechas configuradas</div>';
+        } else {
+            fechasKeys.forEach(f => {
+                const mods = s.disponibilidad[f] || [];
+                const fechaFormateada = typeof window.formatFechaCorta === 'function' ? formatFechaCorta(f) : f;
+                const dayNames2 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                const day = new Date(f + 'T12:00:00').getDay();
+                const diaSemana = dayNames2[day];
+                const cuposFecha = mods.reduce((sum, m) => sum + Number(m.cupos || 0), 0);
+
+                let card = document.createElement('div');
+                card.style.cssText = 'background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 14px;border:1px solid rgba(255,255,255,0.07);';
+
+                let headerHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <strong style="font-size:0.9rem;">${fechaFormateada}</strong>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">${diaSemana}</span>
+                </div>`;
+
+                if (mods.length === 0) {
+                    card.innerHTML = headerHtml + '<div style="font-size:0.8rem;color:#ff6b6b;padding:6px 0;"><i class="fas fa-exclamation-triangle"></i> Sin horarios asignados</div>';
+                } else {
+                    let horariosHtml = '';
+                    mods.forEach(m => {
+                        const hora = typeof window.formatTimeDisplay === 'function' ? formatTimeDisplay(m.hora || m.startTime || '--:--') : (m.hora || m.startTime || '--:--');
+                        const endTime = m.endTime ? ' - ' + (typeof window.formatTimeDisplay === 'function' ? formatTimeDisplay(m.endTime) : m.endTime) : '';
+                        const cupo = Number(m.cupos || 0);
+                        const cupoColor = cupo <= 0 ? '#ff6b6b' : (cupo <= 3 ? '#ffaa00' : '#00b894');
+                        const durMod = m.duration ? m.duration + ' min' : '';
+
+                        horariosHtml += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:3px;${cupo <= 0 ? 'opacity:0.5;' : ''}">
+                            <span style="font-size:0.85rem;font-weight:500;min-width:120px;">${hora}${endTime}</span>
+                            ${durMod ? `<span style="font-size:0.75rem;color:var(--text-muted);">${durMod}</span>` : ''}
+                            <span style="margin-left:auto;font-size:0.8rem;font-weight:600;color:${cupoColor};background:${cupoColor}15;padding:2px 10px;border-radius:10px;">${cupo <= 0 ? 'Agotado' : cupo + ' cupo' + (cupo !== 1 ? 's' : '')}</span>
+                        </div>`;
+                    });
+                    card.innerHTML = headerHtml + horariosHtml;
+                }
+                fechasContainer.appendChild(card);
+            });
+        }
+    } else if (s.modulos && s.modulos.length > 0 && s.fechas && s.fechas.length > 0) {
+        s.fechas.sort().forEach(f => {
+            const fechaFormateada = typeof window.formatFechaCorta === 'function' ? formatFechaCorta(f) : f;
+            const dayNames2 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            const day = new Date(f + 'T12:00:00').getDay();
+            const diaSemana = dayNames2[day];
+
+            let card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 14px;border:1px solid rgba(255,255,255,0.07);';
+            let horariosHtml = '';
+            s.modulos.forEach(m => {
+                const hora = typeof window.formatTimeDisplay === 'function' ? formatTimeDisplay(m.hora || m.startTime || '--:--') : (m.hora || m.startTime || '--:--');
+                const endTime = m.endTime ? ' - ' + (typeof window.formatTimeDisplay === 'function' ? formatTimeDisplay(m.endTime) : m.endTime) : '';
+                const cupo = typeof m.cupos !== 'undefined' ? Number(m.cupos) : (typeof m.capacidad !== 'undefined' ? Number(m.capacidad) : 0);
+                const cupoColor = cupo <= 0 ? '#ff6b6b' : (cupo <= 3 ? '#ffaa00' : '#00b894');
+                const durMod = m.duration ? m.duration + ' min' : '';
+                horariosHtml += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:3px;">
+                    <span style="font-size:0.85rem;font-weight:500;min-width:120px;">${hora}${endTime}</span>
+                    ${durMod ? `<span style="font-size:0.75rem;color:var(--text-muted);">${durMod}</span>` : ''}
+                    <span style="margin-left:auto;font-size:0.8rem;font-weight:600;color:${cupoColor};background:${cupoColor}15;padding:2px 10px;border-radius:10px;">${cupo <= 0 ? 'Agotado' : cupo + ' cupo' + (cupo !== 1 ? 's' : '')}</span>
+                </div>`;
+            });
+            card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <strong style="font-size:0.9rem;">${fechaFormateada}</strong>
+                <span style="font-size:0.75rem;color:var(--text-muted);">${diaSemana}</span>
+            </div>` + horariosHtml;
+            fechasContainer.appendChild(card);
+        });
+    } else if (s.fechas && s.fechas.length > 0) {
+        s.fechas.sort().forEach(f => {
+            const fechaFormateada = typeof window.formatFechaCorta === 'function' ? formatFechaCorta(f) : f;
+            const dayNames2 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            const day = new Date(f + 'T12:00:00').getDay();
+            const diaSemana = dayNames2[day];
+            let card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 14px;border:1px solid rgba(255,255,255,0.07);';
+            card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong style="font-size:0.9rem;">${fechaFormateada}</strong>
+                <span style="font-size:0.75rem;color:var(--text-muted);">${diaSemana} · Cupo: ${s.capacidad || 10}</span>
+            </div>`;
+            fechasContainer.appendChild(card);
+        });
+    } else {
+        fechasContainer.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);"><i class=\"fas fa-calendar-times\"></i> Sin fechas configuradas</div>';
+    }
+
+    // Mostrar modal
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+window.verDetalleServicio = verDetalleServicio;
+
+// Configurar cierre del modal
+function configurarModalDetalleServicio() {
+    const overlay = document.getElementById('modal-servicio-detalle');
+    if (!overlay) return;
+    const closeBtn = document.getElementById('close-servicio-detalle');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+        });
+    }
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && overlay.style.display === 'flex') {
+            overlay.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    });
+}
+
+// Inicializar modal cuando el DOM esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', configurarModalDetalleServicio);
+} else {
+    configurarModalDetalleServicio();
+}
 
 async function eliminarServicio(id) {
     if (!confirm("¿Estás seguro de eliminar este servicio?")) {

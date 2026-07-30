@@ -1028,6 +1028,32 @@
         </div>
     </div>
 
+    <!-- Modal de detalle de servicio -->
+    <div id="modal-servicio-detalle" class="modal-overlay" style="display:none;">
+        <div class="modal-content glass-panel" style="max-width:680px;padding:0;overflow:hidden;">
+            <div id="servicio-detalle-header" style="position:relative;padding:24px 28px 18px;background:linear-gradient(135deg,rgba(157,78,221,0.15),rgba(0,184,148,0.08));border-bottom:1px solid rgba(255,255,255,0.08);">
+                <button class="modal-close" id="close-servicio-detalle" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;line-height:1;opacity:0.7;transition:0.2s;">&times;</button>
+                <div id="detalle-header-info" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                    <div id="detalle-imagen" style="width:60px;height:60px;border-radius:10px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;"></div>
+                    <div style="flex:1;min-width:0;">
+                        <h3 id="detalle-nombre" style="margin:0 0 4px;font-size:1.3rem;color:#fff;font-weight:700;"></h3>
+                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <span id="detalle-precio" style="font-size:1.1rem;font-weight:600;color:var(--primary-light);"></span>
+                            <span id="detalle-estado" style="font-size:0.75rem;padding:2px 10px;border-radius:10px;"></span>
+                            <span id="detalle-duracion" style="font-size:0.8rem;color:var(--text-muted);"><i class="fas fa-hourglass-half"></i> </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="servicio-detalle-body" style="padding:20px 28px 24px;max-height:60vh;overflow-y:auto;">
+                <div id="detalle-descripcion" style="margin-bottom:20px;color:var(--text-muted);font-size:0.9rem;line-height:1.5;"></div>
+                <div id="detalle-cupos-resumen" style="margin-bottom:16px;padding:12px 16px;background:rgba(0,184,148,0.08);border-radius:8px;border:1px solid rgba(0,184,148,0.15);display:flex;gap:16px;flex-wrap:wrap;"></div>
+                <h4 style="margin:0 0 12px;color:var(--text-light);font-size:0.95rem;"><i class="fas fa-calendar-alt"></i> Fechas y horarios</h4>
+                <div id="detalle-fechas" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal para solicitud CSS profesional -->
     <div id="modal-solicitud-css" class="modal" style="display:none;">
         <div class="modal-content glass-panel">

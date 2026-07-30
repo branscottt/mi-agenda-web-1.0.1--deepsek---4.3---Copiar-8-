@@ -4280,6 +4280,7 @@ body {
     margin-bottom: 15px;
     backdrop-filter: blur(10px);
     transition: transform 0.3s ease;
+    cursor: pointer;
 }
 
 .service-card-admin:hover {
@@ -8166,6 +8167,26 @@ body {
     cursor: pointer;
     color: #fff;
     transition: 0.2s;
+}
+
+.modal-close:hover {
+    opacity: 1 !important;
+    transform: rotate(90deg);
+}
+
+/* Scrollbar estilizada para modal de detalle */
+#servicio-detalle-body::-webkit-scrollbar {
+    width: 6px;
+}
+#servicio-detalle-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+#servicio-detalle-body::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+}
+#servicio-detalle-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.25);
 }
 
 .modal-close:hover {
