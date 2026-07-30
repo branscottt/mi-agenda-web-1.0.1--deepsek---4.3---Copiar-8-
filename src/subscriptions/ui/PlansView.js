@@ -56,7 +56,7 @@ export async function renderPlans(container, apis) {
     ` : '';
 
     const tenantId = await obtenerTenantId();
-    const currentPlan = await obtenerPlanActual(tenantId, apis);
+    const currentPlan = await obtenerPlanActual(tenantId);
     const userEmail = obtenerUserEmail();
 
     // Auto-redirect después de pago exitoso
@@ -117,6 +117,15 @@ export async function renderPlans(container, apis) {
     container.querySelectorAll('.btn-pagar-mp').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const plan = e.currentTarget.dataset.plan;
+
+            // Validar: no pagar si ya tiene este plan activo
+            if (plan === currentPlan) {
+                mostrarToast(`Ya tienes el plan ${plan} activo`, 'warning');
+                btn.disabled = false;
+                btn.innerHTML = '<i class=\"fas fa-credit-card\"></i> Pagar con Mercado Pago';
+                return;
+            }
+
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
 
@@ -219,10 +228,12 @@ function obtenerUserEmail() {
     }
 }
 
-async function obtenerPlanActual(tenantId, apis) {
-    if (!tenantId || !apis?.subscriptions?.getActiveByTenant) return 'freemium';
+async function obtenerPlanActual(tenantId) {
+    // Usar API expuesta globalmente por main.js
+    const api = window.__subscriptionsApi;
+    if (!tenantId || !api?.getByTenant) return 'freemium';
     try {
-        const sub = await apis.subscriptions.getActiveByTenant(tenantId);
+        const sub = await api.getByTenant(tenantId);
         return sub?.plan || 'freemium';
     } catch {
         return 'freemium';
