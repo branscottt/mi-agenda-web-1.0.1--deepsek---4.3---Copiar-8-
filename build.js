@@ -72,9 +72,10 @@ for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
         let content = fs.readFileSync(f, 'utf-8');
         // Reemplazar rutas de scripts en HTML
-        // Si están en formato module/defer (moderno) o simple (legacy)
-        content = content.replace(/src="src\/main\.js"/g, 'type="module" src="dist/app.js"');
-        content = content.replace(/src="script\.js"/g, 'defer src="dist/legacy.js"');
+        // Los HTML fuente ya tienen src="dist/...", los reemplazamos sin dist/
+        // porque en Vercel el outputDirectory=dist pone los archivos en la raiz
+        content = content.replace(/src="dist\/app\.js"/g, 'src="app.js"');
+        content = content.replace(/src="dist\/legacy\.js"/g, 'src="legacy.js"');
         fs.writeFileSync(path.join('dist', f), content);
         console.log(`   ✅ dist/${f} (paths updated)`);
     }

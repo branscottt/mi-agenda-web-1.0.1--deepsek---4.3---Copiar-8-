@@ -217,6 +217,7 @@ web3 = 30
 #   Authentication > Settings > Captcha > Turnstile > Secret Key
 enabled = true
 provider = "turnstile"
+secret = "0x4AAAAAAAD6qpbuQ0sDmClXU"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
@@ -389,9 +390,10 @@ deno_version = 2
 
 # Configuración de Edge Functions
 [functions]
-# create-preference: pública (sin JWT) porque la llama el frontend
+# create-preference: protegida con JWT — solo usuarios autenticados
+# pueden crear preferencias de pago para su propio tenant
 [functions.create-preference]
-verify_jwt = false
+verify_jwt = true
 
 # mercadopago-webhook: pública (sin JWT) porque la llama Mercado Pago
 [functions.mercadopago-webhook]

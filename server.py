@@ -282,6 +282,11 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         app_env = os.environ.get('APP_ENV', 'development')
         config_payload['environment'] = app_env
 
+        # Inyectar URL base de Edge Functions (para que no esté hardcodeada)
+        edge_functions_url = os.environ.get('EDGE_FUNCTIONS_URL', '')
+        if edge_functions_url:
+            config_payload['edgeFunctionsUrl'] = edge_functions_url
+
         # Inyectar PostHog (analytics) — solo si hay API key configurada
         posthog_key = os.environ.get('POSTHOG_API_KEY', '')
         if posthog_key:

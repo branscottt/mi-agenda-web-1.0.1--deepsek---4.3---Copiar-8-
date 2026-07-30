@@ -7,8 +7,40 @@
 //   3. Redirige al usuario a MP
 //   4. MP envía IPN al webhook → activa suscripción
 //   5. Usuario vuelve a planes.html?status=success|failure|pending
+//
+// Seguridad:
+//   - Envía JWT en Authorization header para que el Edge Function valide
+//     que el usuario autenticado es dueño del tenant_id
+//   - La URL de la Edge Function se obtiene de window.__APP_CONFIG
+//     o usa el valor por defecto
 
-const EDGE_FUNCTION_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co/functions/v1/create-preference';
+/** Obtiene la URL base de las Edge Functions desde la config o usa default */
+function getEdgeFunctionUrl() {
+    const cfg = window.__APP_CONFIG || {};
+    return cfg.edgeFunctionsUrl || 'https://dfcfimipkfhitlsyixqu.supabase.co/functions/v1';
+}
+
+/** Obtiene el token JWT actual del usuario */
+function getAuthToken() {
+    // 1. JwtManager (moderno)
+    if (window.JwtManager && typeof window.JwtManager.getAccessToken === 'function') {
+        const token = window.JwtManager.getAccessToken();
+        if (token) return token;
+    }
+    // 2. Supabase client session (getSession es async, intentamos obtener sincrónicamente)
+    if (window.__session?.access_token) {
+        return window.__session.access_token;
+    }
+    // 3. Fallback: localStorage (compatibilidad script.js legacy)
+    try {
+        const stored = localStorage.getItem('supabase.auth.token');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            return parsed?.currentSession?.access_token || null;
+        }
+    } catch (e) {}
+    return null;
+}
 
 /**
  * Crea una preferencia de pago en Mercado Pago y redirige al checkout
@@ -24,11 +56,21 @@ export async function createMercadoPagoPreference({ plan, tenantId, email, nombr
         throw new Error('plan, tenantId y email son requeridos');
     }
 
-    const response = await fetch(EDGE_FUNCTION_URL, {
+    const token = getAuthToken();
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    // Enviar JWT si está disponible (el Edge Function requiere autenticación)
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    } else {
+        console.warn('[MP] No JWT disponible — la solicitud podría ser rechazada');
+    }
+
+    const response = await fetch(`${getEdgeFunctionUrl()}/create-preference`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
             tenant_id: tenantId,
             plan: plan,
@@ -67,12 +109,14 @@ export function checkPaymentStatusFromUrl() {
     const paymentId = params.get('payment_id');
     const preferenceId = params.get('preference_id');
 
-    // También soporta los parámetros que MP agrega en el redirect
-    const mpStatus = params.get('collection_status') || params.get('status');
+    // Parámetros que Mercado Pago agrega al redirect de vuelta
+    const mpStatus = params.get('collection_status') || status;
+    const mpPaymentId = params.get('collection_id') || paymentId;
+    const mpPreferenceId = params.get('preference_id') || preferenceId;
 
     return {
         status: status || mpStatus || null,
-        payment_id: paymentId || params.get('payment_id') || null,
-        preference_id: preferenceId || null,
+        payment_id: paymentId || mpPaymentId || null,
+        preference_id: preferenceId || mpPreferenceId || null,
     };
 }

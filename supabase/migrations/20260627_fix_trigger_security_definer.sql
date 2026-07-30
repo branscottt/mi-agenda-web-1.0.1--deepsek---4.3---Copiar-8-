@@ -16,7 +16,8 @@ CREATE OR REPLACE FUNCTION public.create_initial_subscription()
 AS $function$
 BEGIN
     INSERT INTO public.subscriptions (tenant_id, plan, status, start_date)
-    VALUES (NEW.id, COALESCE(NEW.plan, 'freemium'), 'active', now());
+    VALUES (NEW.id, COALESCE(NEW.plan, 'free_trial'), 'active', now());
+    -- Nota: free_trial expira automáticamente a los 14 días vía trigger/auto_expire
     RETURN NEW;
 END;
 $function$;

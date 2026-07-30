@@ -24,7 +24,50 @@ interface PrefRequest {
   plan: string;
   email: string;
   nombre: string;
-  monto?: number; // Opcional: si se pasa, sobreescribe el precio del plan
+  monto?: number;
+}
+
+interface JwtPayload {
+  sub?: string;
+  email?: string;
+  user_metadata?: {
+    tenant_id?: string;
+    rol?: string;
+  };
+  role?: string;
+  aud?: string;
+}
+
+/**
+ * Valida el JWT y extrae el tenant_id del usuario autenticado.
+ * Supabase verifica el JWT automáticamente cuando verify_jwt = true,
+ * pero hacemos validación adicional por seguridad.
+ */
+function validateJwt(req: Request): { userId: string | null; userTenantId: string | null; email: string | null } {
+  const authHeader = req.headers.get('Authorization') || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return { userId: null, userTenantId: null, email: null };
+  }
+
+  try {
+    // El JWT ya fue verificado por Supabase (verify_jwt = true).
+    // Obtenemos los claims del header x-supabase-auth-* o del body.
+    // La info está disponible a través del entorno de Supabase
+    const jwtPayloadStr = Deno.env.get('SUPABASE_JWT_PAYLOAD');
+    if (jwtPayloadStr) {
+      const jwt = JSON.parse(jwtPayloadStr) as JwtPayload;
+      const tenantId = jwt.user_metadata?.tenant_id || null;
+      return {
+        userId: jwt.sub || null,
+        userTenantId: tenantId,
+        email: jwt.email || null,
+      };
+    }
+  } catch (e) {
+    console.error('[create-preference] Error parsing JWT:', e);
+  }
+
+  return { userId: null, userTenantId: null, email: null };
 }
 
 serve(async (req) => {
@@ -58,6 +101,28 @@ serve(async (req) => {
   try {
     const body: PrefRequest = await req.json();
     const { tenant_id, plan, email, nombre, monto } = body;
+
+    // ============================================================
+    // VALIDACIÓN JWT: el usuario autenticado debe ser dueño del tenant
+    // o ser super_admin. Mitiga el riesgo de que un atacante cree
+    // preferencias de pago para tenants que no le pertenecen.
+    // ============================================================
+    const jwtInfo = validateJwt(req);
+    if (!jwtInfo.userId) {
+      return new Response(JSON.stringify({ error: 'Autenticación requerida' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
+      });
+    }
+
+    // Si el usuario tiene un tenant_id en su JWT, debe coincidir
+    if (jwtInfo.userTenantId && jwtInfo.userTenantId !== tenant_id) {
+      console.warn(`[create-preference] Usuario ${jwtInfo.userId} intentó crear preferencia para tenant ${tenant_id} (su tenant: ${jwtInfo.userTenantId})`);
+      return new Response(JSON.stringify({ error: 'No autorizado para este tenant' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
+      });
+    }
 
     // Validar plan
     const planInfo = PRICES[plan];

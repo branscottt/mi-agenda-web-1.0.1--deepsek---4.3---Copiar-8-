@@ -6,7 +6,7 @@ import { createMercadoPagoPreference, redirectToMercadoPago, checkPaymentStatusF
 import { checkPromoCouponStatus, markPromoCouponUsed } from '../../api/subscriptionsApi.js';
 
 const PLANS = [
-    { key: 'freemium', name: 'Freemium', price: 'Gratis', color: '#6c757d', icon: 'fa-star', priceValue: 0 },
+    { key: 'free_trial', name: 'Free Trial', price: 'Gratis', color: '#00b894', icon: 'fa-flask', priceValue: 0, desc: '14 días de prueba sin límites' },
     { key: 'pro', name: 'Pro', price: '$15.000/mes', color: '#007bff', icon: 'fa-gem', priceValue: 15000 },
     { key: 'premium_anual', name: 'Premium Anual', price: '$140.000/año', color: '#ffc107', icon: 'fa-crown', priceValue: 140000 }
 ];
@@ -96,13 +96,18 @@ export async function renderPlans(container, apis) {
                             <li><i class="fas fa-check text-success"></i> Catálogo de servicios</li>
                             <li><i class="fas fa-check text-success"></i> Gestión de citas</li>
                             <li><i class="fas fa-check text-success"></i> Notificaciones</li>
-                            ${p.key !== 'freemium' ? '<li><i class="fas fa-check text-success"></i> Estadísticas avanzadas</li><li><i class="fas fa-check text-success"></i> Soporte prioritario</li>' : ''}
+                            ${p.key === 'free_trial'
+                                ? '<li><i class="fas fa-check text-success"></i> Sin límites por 14 días</li><li><i class="fas fa-check text-success"></i> Sin tarjeta de crédito</li>'
+                                : p.key !== 'pro' && p.key !== 'premium_anual' ? '' : ''}
+                            ${p.key !== 'free_trial' && p.key !== 'freemium' ? '<li><i class="fas fa-check text-success"></i> Estadísticas avanzadas</li><li><i class="fas fa-check text-success"></i> Soporte prioritario</li>' : ''}
                             ${p.key === 'premium_anual' ? '<li><i class="fas fa-check text-success"></i> <strong>Ahorras $40.000 al año</strong></li>' : ''}
                         </ul>
                         ${isCurrent
                             ? `<button class="btn btn-secondary" disabled><i class="fas fa-check-circle"></i> Plan actual</button>`
-                            : p.key === 'freemium'
-                                ? `<button class="btn btn-outline-secondary" disabled><i class="fas fa-star"></i> Gratuito</button>`
+                            : p.key === 'free_trial'
+                                ? `<button class="btn btn-success btn-activar-trial" data-plan="${p.key}">
+                                    <i class="fas fa-flask"></i> Activar prueba gratis
+                                  </button>`
                                 : `<button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-price="${p.priceValue}">
                                     <i class="fas fa-credit-card"></i> Pagar con Mercado Pago
                                   </button>`
@@ -166,6 +171,28 @@ export async function renderPlans(container, apis) {
                 mostrarToast('Error al iniciar pago: ' + err.message, 'error');
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagar con Mercado Pago';
+            }
+        });
+    });
+
+    // Bindeo de eventos para botones de activar trial gratis
+    container.querySelectorAll('.btn-activar-trial').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const plan = 'free_trial';
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Activando...';
+
+            try {
+                // Usar SubscriptionService o crear suscripción directa
+                const { crearSuscripcion } = await import('../application/SubscriptionService.js');
+                await crearSuscripcion(plan, tenantId);
+                mostrarToast('Prueba gratis activada con éxito!', 'success');
+                setTimeout(() => { window.location.href = 'admin.html'; }, 1500);
+            } catch (err) {
+                console.error('[Trial] Error:', err);
+                mostrarToast('Error al activar prueba: ' + err.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-flask"></i> Activar prueba gratis';
             }
         });
     });
