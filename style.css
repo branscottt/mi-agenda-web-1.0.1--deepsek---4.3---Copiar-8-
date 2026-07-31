@@ -12762,3 +12762,79 @@ input:-moz-autofill {
 .admin-header #logout-btn {
     display: none !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v8 — Popover de notificaciones en móvil (estaba colapsado a 18px)
+   Causa: width:100% se calcula sobre el ancestro posicionado (el botón
+   campana, ~28px) en vez de la pantalla. Fix: ancho real de viewport.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    .notif-popover {
+        width: calc(100vw - 20px) !important;
+        max-width: calc(100vw - 20px) !important;
+        left: 10px !important;
+        right: auto !important;
+        top: 56px !important;
+        max-height: min(60vh, 420px) !important;
+        overflow-y: auto !important;
+        border-color: rgba(157, 78, 221, 0.25) !important;
+    }
+
+    .notif-popover-header { padding: 12px 14px !important; }
+    .notif-popover-header h4 { font-size: 0.95rem !important; }
+    .notif-popover-header button,
+    .notif-popover-header .notif-close { min-width: 32px; min-height: 32px; }
+
+    .notif-popover-tabs {
+        padding: 6px 8px;
+        gap: 4px;
+        background: rgba(0, 0, 0, 0.15);
+    }
+    .notif-popover-tabs .tab-btn {
+        flex: 1;
+        justify-content: center;
+        min-height: 34px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+    }
+
+    .notif-popover-list { padding: 8px !important; }
+
+    .notif-popover-list .notification-item {
+        padding: 12px 14px !important;
+        gap: 8px !important;
+        border-radius: 10px !important;
+        margin-bottom: 6px !important;
+    }
+    .notif-popover-list .notification-item strong { font-size: 0.85rem; }
+    .notif-popover-list .notification-item span { font-size: 0.78rem; }
+    .notif-popover-list .notification-actions { gap: 6px; }
+    .notif-popover-list .notification-actions .btn-small {
+        min-height: 32px;
+        padding: 4px 10px;
+        font-size: 0.72rem;
+        margin-right: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .notif-popover {
+        width: calc(100vw - 10px) !important;
+        max-width: calc(100vw - 10px) !important;
+        left: 5px !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v8.1 — Popover anclado al viewport en móvil
+   (position: fixed; el popover vive dentro del header posicionado,
+   así que absolute lo desplaza junto al botón campana)
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .notif-popover {
+        position: fixed !important;
+    }
+}
