@@ -171,8 +171,8 @@
         "cls": "",
         "id": "",
         "left": -218,
-        "right": -113,
-        "width": 105
+        "right": -127,
+        "width": 91
       },
       {
         "tag": "button",
@@ -194,57 +194,57 @@
         "tag": "a",
         "cls": "sidebar-item active",
         "id": "",
-        "left": -272,
-        "right": -29,
-        "width": 243
+        "left": -264,
+        "right": -37,
+        "width": 227
       },
       {
         "tag": "i",
         "cls": "fas fa-chart-line",
         "id": "",
-        "left": -253,
-        "right": -231,
+        "left": -245,
+        "right": -223,
         "width": 22
       },
       {
         "tag": "span",
         "cls": "",
         "id": "",
-        "left": -217,
-        "right": -75,
+        "left": -211,
+        "right": -69,
         "width": 142
       },
       {
         "tag": "a",
         "cls": "sidebar-item",
         "id": "",
-        "left": -272,
-        "right": -29,
-        "width": 243
+        "left": -264,
+        "right": -37,
+        "width": 227
       },
       {
         "tag": "i",
         "cls": "fas fa-plus-circle",
         "id": "",
-        "left": -256,
-        "right": -234,
+        "left": -245,
+        "right": -223,
         "width": 22
       },
       {
         "tag": "span",
         "cls": "",
         "id": "",
-        "left": -220,
-        "right": -129,
+        "left": -211,
+        "right": -120,
         "width": 91
       },
       {
         "tag": "a",
         "cls": "sidebar-item",
         "id": "",
-        "left": -272,
-        "right": -29,
-        "width": 243
+        "left": -264,
+        "right": -37,
+        "width": 227
       }
     ],
     "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/tablet/admin.png"
@@ -300,8 +300,8 @@
         "cls": "",
         "id": "",
         "left": -198,
-        "right": -93,
-        "width": 105
+        "right": -107,
+        "width": 91
       },
       {
         "tag": "button",
@@ -323,57 +323,57 @@
         "tag": "a",
         "cls": "sidebar-item active",
         "id": "",
-        "left": -252,
-        "right": -29,
-        "width": 223
+        "left": -244,
+        "right": -37,
+        "width": 207
       },
       {
         "tag": "i",
         "cls": "fas fa-chart-line",
         "id": "",
-        "left": -235,
-        "right": -213,
+        "left": -227,
+        "right": -205,
         "width": 22
       },
       {
         "tag": "span",
         "cls": "",
         "id": "",
-        "left": -199,
-        "right": -65,
+        "left": -193,
+        "right": -59,
         "width": 134
       },
       {
         "tag": "a",
         "cls": "sidebar-item",
         "id": "",
-        "left": -252,
-        "right": -29,
-        "width": 223
+        "left": -244,
+        "right": -37,
+        "width": 207
       },
       {
         "tag": "i",
         "cls": "fas fa-plus-circle",
         "id": "",
-        "left": -238,
-        "right": -216,
+        "left": -227,
+        "right": -205,
         "width": 22
       },
       {
         "tag": "span",
         "cls": "",
         "id": "",
-        "left": -202,
-        "right": -116,
+        "left": -193,
+        "right": -107,
         "width": 86
       },
       {
         "tag": "a",
         "cls": "sidebar-item",
         "id": "",
-        "left": -252,
-        "right": -29,
-        "width": 223
+        "left": -244,
+        "right": -37,
+        "width": 207
       }
     ],
     "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m393/admin.png"
@@ -438,8 +438,8 @@
         "cls": "",
         "id": "",
         "left": -198,
-        "right": -93,
-        "width": 105
+        "right": -107,
+        "width": 91
       },
       {
         "tag": "button",
@@ -461,57 +461,57 @@
         "tag": "a",
         "cls": "sidebar-item active",
         "id": "",
-        "left": -252,
-        "right": -29,
-        "width": 223
+        "left": -244,
+        "right": -37,
+        "width": 207
       },
       {
         "tag": "i",
         "cls": "fas fa-chart-line",
         "id": "",
-        "left": -235,
-        "right": -213,
+        "left": -227,
+        "right": -205,
         "width": 22
       },
       {
         "tag": "span",
         "cls": "",
         "id": "",
-        "left": -199,
-        "right": -65,
+        "left": -193,
+        "right": -59,
         "width": 134
       },
       {
         "tag": "a",
         "cls": "sidebar-item",
         "id": "",
-        "left": -252,
-        "right": -29,
-        "width": 223
+        "left": -244,
+        "right": -37,
+        "width": 207
       },
       {
         "tag": "i",
         "cls": "fas fa-plus-circle",
         "id": "",
-        "left": -238,
-        "right": -216,
+        "left": -227,
+        "right": -205,
         "width": 22
       },
       {
         "tag": "span",
         "cls": "",
         "id": "",
-        "left": -202,
-        "right": -116,
+        "left": -193,
+        "right": -107,
         "width": 86
       },
       {
         "tag": "a",
         "cls": "sidebar-item",
         "id": "",
-        "left": -252,
-        "right": -29,
-        "width": 223
+        "left": -244,
+        "right": -37,
+        "width": 207
       }
     ],
     "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m375/admin.png"

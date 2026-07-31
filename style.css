@@ -12372,3 +12372,393 @@ input:-moz-autofill {
         margin: 0 !important;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v3 — Vistas del panel admin en móvil (auditoría por sección)
+   - Mis Servicios: acciones de la tarjeta ya no desbordan (wrap)
+   - Personalizar Estilo: botón "Vista Previa" ya no corta su texto
+   - Horarios: botones de navegación con mejor target táctil
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── MIS SERVICIOS: acciones de la tarjeta en 2 filas ── */
+    .service-card-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .service-card-actions .btn-small {
+        margin-right: 0;
+        flex: 1 1 auto;
+        justify-content: center;
+        min-height: 40px;
+        padding: 8px 10px;
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
+    .service-card-actions .btn-small i { margin-right: 5px; }
+
+    /* ── PERSONALIZAR ESTILO: botones de acción full-width ── */
+    .btn-save-primary {
+        width: 100% !important;
+        padding: 14px 16px !important;
+        font-size: 0.9rem !important;
+        white-space: nowrap;
+    }
+
+    /* ── HORARIOS: navegación de mes con target táctil ── */
+    .schedule-nav-btn { min-height: 36px; }
+}
+
+@media (max-width: 480px) {
+
+    /* ── MIS SERVICIOS: acciones en grid 2×2 ── */
+    .service-card-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .service-card-actions .btn-small {
+        width: 100%;
+        min-height: 38px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO VISUAL PRO — móvil (bloque aditivo final)
+   Unifica la paleta: elimina el magenta viejo (#b300ff / rgba(179,0,255))
+   mezclado con el tema púrpura #9d4edd, y uniforma radios/sombras.
+   Scope: .admin-screen / .client-screen / .superadmin-screen —
+   el login NO se toca (ya quedó pulido en v2).
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── BOTONES: gradiente del tema (elimina #b300ff hardcodeado) ── */
+    .admin-screen .btn-grad,
+    .client-screen .btn-grad,
+    .superadmin-screen .btn-grad {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 6px 18px rgba(157, 78, 221, 0.45) !important;
+        font-weight: 600 !important;
+    }
+    .admin-screen .btn-grad:hover,
+    .client-screen .btn-grad:hover {
+        background: linear-gradient(135deg, var(--primary-dark), var(--primary-color)) !important;
+        transform: translateY(-2px);
+    }
+    .admin-screen .btn-secondary,
+    .client-screen .btn-secondary,
+    .admin-screen .btn-small,
+    .client-screen .btn-small {
+        border-radius: 10px !important;
+    }
+    .admin-screen .btn-small.danger { background: var(--danger-color) !important; }
+    .admin-screen .btn-secondary.danger { border-color: rgba(231, 76, 60, 0.6) !important; color: #ff7a6b !important; }
+
+    /* ── PANELES: padding y radio uniformes (scoped, login intacto) ── */
+    .admin-screen .glass-panel,
+    .client-screen .glass-panel,
+    .superadmin-screen .glass-panel {
+        padding: 16px !important;
+        border-radius: 14px !important;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+    }
+    .admin-screen .section-content > .glass-panel,
+    .admin-screen .admin-panel > .glass-panel { padding: 16px !important; }
+
+    /* ── ICONOS DE TÍTULO: acento púrpura consistente ── */
+    .admin-screen .glass-panel h3 i,
+    .client-screen .glass-panel h3 i,
+    .superadmin-screen .glass-panel h3 i {
+        color: var(--primary-light) !important;
+    }
+
+    /* ── INPUTS: altura táctil cómoda (no cambia radio/colores) ── */
+    .admin-screen input,
+    .admin-screen select,
+    .admin-screen textarea,
+    .client-screen input,
+    .client-screen select,
+    .client-screen textarea {
+        min-height: 46px;
+        font-size: 0.95rem;
+    }
+
+    /* ── STATS: tarjetas con acento del tema (elimina magenta viejo) ── */
+    .admin-screen .stat-box {
+        border: 1px solid rgba(157, 78, 221, 0.3) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+    }
+    .admin-screen .stat-icon {
+        background: rgba(157, 78, 221, 0.15) !important;
+        color: var(--primary-light) !important;
+        border: 1px solid rgba(157, 78, 221, 0.35);
+    }
+
+    /* ── TABLAS: contenedores con borde redondeado (mejor que scroll crudo) ── */
+    .appointments-table-container,
+    .services-table-container {
+        border: 1px solid rgba(157, 78, 221, 0.25);
+        border-radius: 12px;
+        background: rgba(20, 20, 30, 0.4);
+    }
+
+    /* ── TARJETAS DE SERVICIO (admin): borde del tema ── */
+    .admin-screen .service-card-admin {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+        border-radius: 14px !important;
+    }
+}
+
+@media (max-width: 480px) {
+
+    /* ── AÚN MÁS COMPACTO EN PANTALLAS PEQUEÑAS ── */
+    .admin-screen .glass-panel,
+    .client-screen .glass-panel {
+        padding: 14px !important;
+        border-radius: 12px !important;
+    }
+    .admin-screen .stat-box { padding: 12px 10px !important; }
+    .admin-screen .stat-icon {
+        width: 34px;
+        height: 34px;
+        font-size: 14px;
+    }
+    .admin-screen .btn-grad,
+    .client-screen .btn-grad { padding: 12px 16px; font-size: 0.88rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v4.1 — ConfigEditor: acciones en columna en móvil
+   (.config-actions es del módulo moderno, distinto de .customization-actions)
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .config-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    .config-actions .btn-save-primary,
+    .config-actions #cfg-preview-btn {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v5 — Header admin simplificado + stats compactas (feedback móvil)
+   - Header móvil: solo [☰][←] título [🔔][👁 Ver como Cliente]
+     (logout y avatar se ocultan: ya están en el menú lateral)
+   - Stats: tarjetas horizontales compactas (icono al lado del valor)
+     = ocupan la mitad del alto y se ven juntas, no "encima de todo"
+   - Secciones: menos aire, títulos compactos → look menos saturado
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── HEADER: solo lo esencial ── */
+    .admin-header .user-info,
+    .admin-header #logout-btn {
+        display: none !important;
+    }
+    /* El título gana espacio: un poco más legible */
+    .admin-header .header-left h1 { font-size: 0.78rem; }
+    .admin-header .tenant-name-header { max-width: 60px; font-size: 0.6rem; }
+
+    /* ── STATS: tarjetas horizontales compactas ── */
+    .admin-screen .stat-box {
+        display: grid !important;
+        grid-template-columns: 36px 1fr;
+        grid-template-areas:
+            "icon value"
+            "icon label";
+        column-gap: 10px;
+        row-gap: 2px;
+        align-items: center;
+        padding: 10px !important;
+    }
+    .admin-screen .stat-icon {
+        grid-area: icon;
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 13px !important;
+        margin: 0 !important;
+        border-radius: 10px;
+    }
+    .admin-screen .stat-box h2 {
+        grid-area: value;
+        font-size: 1.05rem;
+        margin: 0 !important;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .admin-screen .stat-box span {
+        grid-area: label;
+        font-size: 0.62rem;
+        letter-spacing: 0.4px;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ── MENOS SATURACIÓN: secciones con menos aire ── */
+    .admin-main { gap: 12px; }
+    .admin-screen .glass-panel h3 {
+        font-size: 0.95rem !important;
+        margin-bottom: 12px !important;
+        letter-spacing: 0.3px;
+    }
+    .admin-screen .stats-container { margin-bottom: 12px; }
+}
+
+@media (max-width: 480px) {
+    .admin-screen .stat-box {
+        grid-template-columns: 32px 1fr;
+        column-gap: 8px;
+        padding: 9px 8px !important;
+    }
+    .admin-screen .stat-icon {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 12px !important;
+    }
+    .admin-screen .stat-box h2 { font-size: 0.95rem; }
+    .admin-screen .stat-box span { font-size: 0.58rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v6 — Header minimalista + menú + vistas (Horarios/Compartir/Suscripción)
+   Feedback móvil: título y nombre más pequeños/ocultos, botón "Ver como
+   Cliente" con texto visible, paneles anidados sin "caja dentro de caja".
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── HEADER: título mínimo, nombre oculto, botón cliente notorio ── */
+    .admin-header .header-left h1 { font-size: 0.62rem !important; }
+    .admin-header .tenant-brand { display: none !important; }
+    .admin-header .header-right > .btn-grad {
+        font-size: 0.62rem !important;
+        min-width: 0 !important;
+        min-height: 30px !important;
+        padding: 5px 10px !important;
+        gap: 5px !important;
+        border-radius: 14px !important;
+        white-space: nowrap;
+    }
+    .admin-header .header-right > .btn-grad i { font-size: 0.7rem !important; margin: 0 !important; }
+    .admin-header .notif-bell-btn {
+        width: 28px !important;
+        height: 28px !important;
+        border-color: rgba(157, 78, 221, 0.35) !important;
+    }
+
+    /* ── MENÚ LATERAL: items más claros y con acento púrpura ── */
+    .sidebar-item {
+        gap: 12px;
+        margin: 2px 8px;
+        border-radius: 10px;
+        border-left: 3px solid transparent;
+    }
+    .sidebar-item i { width: 22px; text-align: center; font-size: 0.95rem; }
+    .sidebar-item.active {
+        background: rgba(157, 78, 221, 0.18) !important;
+        border-left-color: var(--primary-color);
+        color: #fff !important;
+    }
+    .sidebar-item:hover { background: rgba(157, 78, 221, 0.12); }
+    .sidebar-header h3 { font-size: 0.95rem; }
+
+    /* ── HORARIOS: sin panel anidado, botón restablecer usable ── */
+    .admin-screen .schedule-panel,
+    .admin-screen .schedule-main-panel .schedule-panel {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    .admin-screen .schedule-main-panel { padding: 12px !important; }
+    .admin-screen .schedule-main-panel button { min-height: 36px; }
+
+    /* ── COMPARTIR: sin anidación, enlace full-width ── */
+    .admin-screen .share-panel {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    .admin-screen .share-panel .glass-panel { padding: 16px !important; }
+    .admin-screen .share-link-container {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    .admin-screen .share-link-container .share-input { width: 100% !important; min-height: 46px; }
+    .admin-screen .share-link-container .btn-secondary {
+        width: 100% !important;
+        justify-content: center !important;
+        min-height: 44px;
+    }
+    .admin-screen .qr-container button { min-height: 40px; }
+
+    /* ── SUSCRIPCIÓN: info del plan con mejor respiración ── */
+    .admin-screen .subscription-info {
+        gap: 12px;
+        padding: 4px 0;
+    }
+    .admin-screen .subscription-info .flex-between {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 6px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v6.1 — WorkerShareView: enlace de trabajador full-width en móvil
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .worker-share-links {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .worker-share-links .worker-share-input,
+    .worker-share-links input {
+        width: 100% !important;
+        min-height: 44px;
+    }
+    .worker-share-links button,
+    .worker-share-links .btn-secondary {
+        width: 100% !important;
+        justify-content: center !important;
+        min-height: 44px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v7 — Quitar "Volver a Login" del header admin (móvil y PC)
+   Redundante con Cerrar Sesión (que está en el menú). Solo admin:
+   el .btn-back de superadmin (#logout-super) es su logout y NO se toca.
+   ═══════════════════════════════════════════════════════════════ */
+
+.admin-header .btn-back {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v7.1 — Quitar "Cerrar Sesión" del header admin también en PC
+   (en móvil ya estaba oculto desde v5). El logout del menú lateral
+   sigue siendo el único punto de cierre de sesión en admin.
+   ═══════════════════════════════════════════════════════════════ */
+
+.admin-header #logout-btn {
+    display: none !important;
+}
