@@ -1,0 +1,527 @@
+[
+  {
+    "page": "login",
+    "viewport": 1440,
+    "scrollWidth": 1440,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/desktop/login.png"
+  },
+  {
+    "page": "planes",
+    "viewport": 1440,
+    "scrollWidth": 1440,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/desktop/planes.png"
+  },
+  {
+    "page": "admin",
+    "viewport": 1440,
+    "scrollWidth": 1440,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "sidebar-header",
+        "id": "",
+        "left": -280,
+        "right": -21,
+        "width": 259
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-logo",
+        "id": "",
+        "left": -260,
+        "right": -224,
+        "width": 36
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "left": -214,
+        "right": -109,
+        "width": 105
+      },
+      {
+        "tag": "button",
+        "cls": "sidebar-close",
+        "id": "",
+        "left": -60,
+        "right": -36,
+        "width": 24
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-items",
+        "id": "",
+        "left": -280,
+        "right": -21,
+        "width": 259
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item active",
+        "id": "",
+        "left": -270,
+        "right": -31,
+        "width": 239
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-chart-line",
+        "id": "",
+        "left": -251,
+        "right": -229,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -215,
+        "right": -66,
+        "width": 149
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -270,
+        "right": -31,
+        "width": 239
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-plus-circle",
+        "id": "",
+        "left": -254,
+        "right": -232,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -218,
+        "right": -122,
+        "width": 96
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -270,
+        "right": -31,
+        "width": 239
+      }
+    ],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/desktop/admin.png"
+  },
+  {
+    "page": "cliente",
+    "viewport": 1440,
+    "scrollWidth": 1440,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/desktop/cliente.png"
+  },
+  {
+    "page": "login",
+    "viewport": 768,
+    "scrollWidth": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/tablet/login.png"
+  },
+  {
+    "page": "planes",
+    "viewport": 768,
+    "scrollWidth": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/tablet/planes.png"
+  },
+  {
+    "page": "admin",
+    "viewport": 768,
+    "scrollWidth": 768,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "sidebar-header",
+        "id": "",
+        "left": -280,
+        "right": -21,
+        "width": 259
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-logo",
+        "id": "",
+        "left": -264,
+        "right": -228,
+        "width": 36
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "left": -218,
+        "right": -113,
+        "width": 105
+      },
+      {
+        "tag": "button",
+        "cls": "sidebar-close",
+        "id": "",
+        "left": -72,
+        "right": -36,
+        "width": 36
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-items",
+        "id": "",
+        "left": -280,
+        "right": -21,
+        "width": 259
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item active",
+        "id": "",
+        "left": -272,
+        "right": -29,
+        "width": 243
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-chart-line",
+        "id": "",
+        "left": -253,
+        "right": -231,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -217,
+        "right": -75,
+        "width": 142
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -272,
+        "right": -29,
+        "width": 243
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-plus-circle",
+        "id": "",
+        "left": -256,
+        "right": -234,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -220,
+        "right": -129,
+        "width": 91
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -272,
+        "right": -29,
+        "width": 243
+      }
+    ],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/tablet/admin.png"
+  },
+  {
+    "page": "cliente",
+    "viewport": 768,
+    "scrollWidth": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/tablet/cliente.png"
+  },
+  {
+    "page": "login",
+    "viewport": 393,
+    "scrollWidth": 393,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m393/login.png"
+  },
+  {
+    "page": "planes",
+    "viewport": 393,
+    "scrollWidth": 393,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m393/planes.png"
+  },
+  {
+    "page": "admin",
+    "viewport": 393,
+    "scrollWidth": 393,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "sidebar-header",
+        "id": "",
+        "left": -260,
+        "right": -21,
+        "width": 239
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-logo",
+        "id": "",
+        "left": -244,
+        "right": -208,
+        "width": 36
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "left": -198,
+        "right": -93,
+        "width": 105
+      },
+      {
+        "tag": "button",
+        "cls": "sidebar-close",
+        "id": "",
+        "left": -72,
+        "right": -36,
+        "width": 36
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-items",
+        "id": "",
+        "left": -260,
+        "right": -21,
+        "width": 239
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item active",
+        "id": "",
+        "left": -252,
+        "right": -29,
+        "width": 223
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-chart-line",
+        "id": "",
+        "left": -235,
+        "right": -213,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -199,
+        "right": -65,
+        "width": 134
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -252,
+        "right": -29,
+        "width": 223
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-plus-circle",
+        "id": "",
+        "left": -238,
+        "right": -216,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -202,
+        "right": -116,
+        "width": 86
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -252,
+        "right": -29,
+        "width": 223
+      }
+    ],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m393/admin.png"
+  },
+  {
+    "page": "cliente",
+    "viewport": 393,
+    "scrollWidth": 393,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m393/cliente.png"
+  },
+  {
+    "page": "login",
+    "viewport": 375,
+    "scrollWidth": 375,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "bg-circle circle-1",
+        "id": "",
+        "left": -1,
+        "right": 299,
+        "width": 300
+      }
+    ],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m375/login.png"
+  },
+  {
+    "page": "planes",
+    "viewport": 375,
+    "scrollWidth": 375,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m375/planes.png"
+  },
+  {
+    "page": "admin",
+    "viewport": 375,
+    "scrollWidth": 375,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "sidebar-header",
+        "id": "",
+        "left": -260,
+        "right": -21,
+        "width": 239
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-logo",
+        "id": "",
+        "left": -244,
+        "right": -208,
+        "width": 36
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "left": -198,
+        "right": -93,
+        "width": 105
+      },
+      {
+        "tag": "button",
+        "cls": "sidebar-close",
+        "id": "",
+        "left": -72,
+        "right": -36,
+        "width": 36
+      },
+      {
+        "tag": "div",
+        "cls": "sidebar-items",
+        "id": "",
+        "left": -260,
+        "right": -21,
+        "width": 239
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item active",
+        "id": "",
+        "left": -252,
+        "right": -29,
+        "width": 223
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-chart-line",
+        "id": "",
+        "left": -235,
+        "right": -213,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -199,
+        "right": -65,
+        "width": 134
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -252,
+        "right": -29,
+        "width": 223
+      },
+      {
+        "tag": "i",
+        "cls": "fas fa-plus-circle",
+        "id": "",
+        "left": -238,
+        "right": -216,
+        "width": 22
+      },
+      {
+        "tag": "span",
+        "cls": "",
+        "id": "",
+        "left": -202,
+        "right": -116,
+        "width": 86
+      },
+      {
+        "tag": "a",
+        "cls": "sidebar-item",
+        "id": "",
+        "left": -252,
+        "right": -29,
+        "width": 223
+      }
+    ],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m375/admin.png"
+  },
+  {
+    "page": "cliente",
+    "viewport": 375,
+    "scrollWidth": 375,
+    "overflowX": 0,
+    "offenders": [],
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/responsive-shots/m375/cliente.png"
+  }
+]

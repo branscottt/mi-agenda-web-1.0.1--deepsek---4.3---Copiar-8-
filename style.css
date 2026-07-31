@@ -2712,6 +2712,25 @@ body {
     width: 100%;
 }
 
+/* Full-width banner background que se extiende debajo del header */
+.profile-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100vw;
+    height: 220px;
+    background: linear-gradient(180deg, 
+        rgba(157,78,221,0.18) 0%,
+        rgba(12,12,24,0.96) 15%,
+        rgba(12,12,24,0.8) 35%,
+        rgba(12,12,24,0.3) 55%,
+        transparent 100%);
+    pointer-events: none;
+    z-index: -1;
+}
+
 /* Contenedor de la portada: bordes redondeados y sombra sutil */
 .cover-banner-container {
     position: relative;
@@ -2848,9 +2867,6 @@ body {
 @media (max-width: 480px) {
     .cover-banner-container {
         height: 110px;
-        border-radius: 0 0 12px 12px;
-    }
-    .cover-banner-container::after {
         border-radius: 0 0 12px 12px;
     }
     .profile-header.has-cover .client-header,
@@ -11729,4 +11745,630 @@ input:-moz-autofill {
 .promo-btn-reject:hover {
     transform: scale(1.05);
     opacity: 0.9;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE MÓVIL — BLOQUE GLOBAL
+   Mejora la experiencia en celular SIN modificar estilos desktop.
+   Organizado por breakpoint (768px → 480px), aislado por prefijo.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── BREAKPOINT: Tablets / Móviles grandes (≤ 768px) ── */
+@media (max-width: 768px) {
+
+    /* ── LOGIN ── */
+    .login-panel { max-width: 100%; }
+    .logo-header h1 { font-size: 2rem; }
+    .logo-header i { font-size: 36px; margin-bottom: 12px; }
+    .role-card { min-width: 100%; padding: 20px; }
+    .mode-toggle { max-width: 100%; }
+    .mode-toggle .mode-btn { padding: 10px 8px; font-size: 0.9rem; }
+    .form-actions { flex-direction: column; gap: 10px; }
+    .form-actions .btn-grad,
+    .form-actions .btn-secondary { width: 100%; justify-content: center; }
+    .admin-login { padding: 16px; }
+    .demo-info { padding: 16px; }
+
+    /* ── ADMIN HEADER (una sola fila, compacto) ── */
+    .admin-screen { padding: 10px !important; }
+    .admin-header {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 0;
+        margin-bottom: 10px;
+        text-align: left !important;
+    }
+    .admin-header .header-left {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex: 1;
+        min-width: 0;
+        width: auto !important;
+        flex-wrap: nowrap !important;
+        justify-content: flex-start !important;
+    }
+    .admin-header .header-left .sidebar-toggle {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+        margin-right: 0;
+    }
+    .admin-header .btn-back {
+        flex-shrink: 0;
+        padding: 3px;
+        min-width: 28px;
+        min-height: 28px;
+        justify-content: center;
+    }
+    .admin-header .btn-back span,
+    .admin-header .btn-back .btn-back-text { display: none; }
+    .admin-header .btn-back i { font-size: 0.75rem; margin: 0; }
+    .admin-header .header-left h1 {
+        font-size: 0.7rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: auto !important;
+        flex: 1;
+        min-width: 0;
+        margin-top: 0 !important;
+        gap: 2px;
+        text-align: left;
+    }
+    .admin-header .header-left h1 i { font-size: 0.65rem; }
+    .admin-header .tenant-brand { gap: 2px !important; }
+    .admin-header .tenant-name-header {
+        max-width: 40px;
+        font-size: 0.55rem;
+        text-align: left;
+    }
+    .admin-header .tenant-logo-header { height: 12px !important; }
+    .admin-header .header-right {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+        width: auto !important;
+        flex-wrap: nowrap !important;
+        justify-content: flex-start !important;
+    }
+    .admin-header .user-info { gap: 0; width: auto !important; justify-content: flex-start !important; }
+    .admin-header .user-info span { display: none; }
+    .admin-header .user-avatar {
+        width: 22px;
+        height: 22px;
+        font-size: 10px;
+        flex-shrink: 0;
+    }
+    .notif-bell-wrapper { flex-shrink: 0; }
+    .notif-bell-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+    }
+    .admin-header .header-right > .btn-grad {
+        padding: 3px;
+        font-size: 0;
+        gap: 0;
+        min-height: 28px;
+        min-width: 28px;
+        width: auto !important;
+    }
+    .admin-header .header-right > .btn-grad i { font-size: 0.75rem; margin: 0; }
+    .admin-header #logout-btn {
+        padding: 3px;
+        font-size: 0;
+        gap: 0;
+        min-height: 28px;
+        min-width: 28px;
+        margin-left: 0 !important;
+        width: auto !important;
+    }
+    .admin-header #logout-btn i { font-size: 0.75rem; margin: 0; }
+
+    /* ── PROFILE HEADER (cover + tenant brand) ── */
+    .cover-banner-container { height: 120px; border-radius: 0 0 12px 12px; }
+    .profile-header.has-cover .client-header,
+    .profile-header.has-cover .admin-header { margin-top: -35px; padding: 6px 12px; }
+
+    /* ── ADMIN MAIN ── */
+    .admin-main { grid-template-columns: 1fr; gap: 16px; }
+
+    /* ── STATS ── */
+    .stats-container { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .stat-box { padding: 16px; }
+    .stat-box h2 { font-size: 1.5rem; }
+    .stat-box span { font-size: 0.75rem; letter-spacing: 0.5px; }
+    .stat-icon { width: 44px; height: 44px; font-size: 18px; margin-bottom: 10px; }
+    .triple-stats { flex-direction: column; gap: 12px; }
+    .stat-card { padding: 16px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+    /* ── CLIENT HEADER (una sola fila, compacto) ── */
+    .client-screen { padding: 10px !important; }
+    .client-header {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center;
+        gap: 3px;
+        padding: 6px 0;
+        margin-bottom: 10px;
+        text-align: left !important;
+    }
+    .client-header .header-left { flex: 1; min-width: 0; width: auto !important; justify-content: flex-start !important; }
+    .client-header .header-left h1 { font-size: 0.7rem; gap: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+    .client-header .header-left h1 i { font-size: 0.65rem; }
+    .client-header .header-right {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+        flex-wrap: nowrap !important;
+        width: auto !important;
+        justify-content: flex-start !important;
+    }
+    .client-header .user-info { display: flex; align-items: center; gap: 0; width: auto !important; }
+    .client-header .user-avatar { width: 22px; height: 22px; font-size: 10px; flex-shrink: 0; }
+    .client-header .user-info span { display: none; }
+    .client-header #logout-btn {
+        padding: 3px;
+        font-size: 0;
+        gap: 0;
+        min-height: 28px;
+        min-width: 28px;
+        margin-left: 0 !important;
+        width: auto !important;
+    }
+    .client-header #logout-btn i { font-size: 0.75rem; margin: 0; }
+
+    /* ── CLIENT MAIN ── */
+    .client-main { grid-template-columns: 1fr; gap: 16px; }
+    .services-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+    .service-card .service-image { height: 140px; }
+    .cart-sidebar .glass-panel { padding: 16px; }
+    .cart-panel { padding: 16px; }
+
+    /* ── FILTERS ── */
+    .filters-bar { flex-direction: column; gap: 12px; }
+    .search-box { padding: 12px; }
+    .search-box input { font-size: 0.9rem; }
+    .filter-options { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+
+    /* ── DATE FILTER ── */
+    .date-filter { flex-direction: column; align-items: stretch; margin: 10px; }
+    .date-filter label { margin-bottom: 4px; }
+    .date-filter .date-input { width: 100%; }
+    .date-filter #export-filtered-csv,
+    .date-filter #clear-date-filter { width: 100%; justify-content: center; }
+
+    /* ── FORM LAYOUTS (compartido admin/login) ── */
+    .form-row { flex-direction: column; gap: 10px; }
+    .form-row.duration-row { flex-wrap: wrap; }
+    .form-actions { flex-direction: column; gap: 10px; }
+    .form-actions .btn-grad,
+    .form-actions .btn-secondary { width: 100%; justify-content: center; padding: 14px; }
+    .input-with-label { width: 100%; }
+    .image-options { flex-direction: column; }
+    .service-options { padding: 12px; }
+
+    /* ── CALENDAR / FECHAS ── */
+    .range-inputs { flex-direction: column; gap: 8px; }
+    .range-inputs input { width: 100%; }
+    .range-days { flex-wrap: wrap; gap: 6px; }
+    .range-days label { padding: 6px 10px; font-size: 0.82rem; }
+    .mode-selector-buttons { flex-direction: column; gap: 8px; }
+    .mode-selector-buttons .mode-btn { width: 100%; padding: 14px; }
+    .mode-selector-buttons .mode-desc { font-size: 0.75rem; }
+    .calendar-mini { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .calendar-weekdays,
+    .calendar-days { min-width: 280px; }
+    .date-actions-main { flex-direction: column; }
+    .date-actions-main .btn-small { width: 100%; justify-content: center; }
+    .date-actions-clear .btn-small { justify-content: center; }
+    .ws-weeks-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+
+    /* ── PLANES ── */
+    .planes-container { grid-template-columns: 1fr; gap: 16px; }
+    .planes-container .plan-card { width: 100% !important; }
+    .plan-card { padding: 20px; }
+
+    /* ── CHARTS / DASHBOARD ── */
+    .chart-container { height: 240px; }
+    .dashboard-section .date-range-filter { flex-direction: column; align-items: stretch; gap: 10px; }
+    .dashboard-section .date-range-filter .filter-group { width: 100%; }
+    .dashboard-section .date-range-filter input { width: 100%; }
+    .dashboard-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .dashboard-actions { width: 100%; flex-wrap: wrap; gap: 8px; }
+    .dashboard-actions .btn-small { flex: 1; justify-content: center; min-height: 44px; }
+    .top-services-list .top-service-item { flex-wrap: wrap; gap: 8px; }
+
+    /* ── SERVICE CARDS (ADMIN) ── */
+    .service-card-admin .service-card-image { height: 140px; }
+    .service-card-admin { padding: 14px; }
+    .services-cards-container { grid-template-columns: 1fr; gap: 14px; }
+
+    /* ── BOTONES GENERALES (touch targets) ── */
+    .btn-grad,
+    .btn-secondary,
+    .btn-small { min-height: 44px; display: inline-flex; align-items: center; }
+    .btn-token { min-height: 48px; }
+
+    /* ── TABLAS (scroll horizontal) ── */
+    .appointments-table-container,
+    .services-table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .appointments-table,
+    .services-table { font-size: 0.78rem; min-width: 600px; }
+    .appointments-table th,
+    .appointments-table td,
+    .services-table th,
+    .services-table td { padding: 8px 10px; white-space: nowrap; }
+    #users-table,
+    #citas-global-table { font-size: 0.75rem; min-width: 500px; }
+    #users-table th,
+    #users-table td,
+    #citas-global-table th,
+    #citas-global-table td { padding: 6px 8px; white-space: nowrap; }
+
+    /* ── MODALES ── */
+    .modal .modal-content { width: 95% !important; max-width: 95% !important; padding: 20px 16px; }
+    .modal .modal-content h3 { font-size: 1.1rem; }
+    .modal .form-actions { flex-direction: column; gap: 8px; }
+    .modal .form-actions .btn-grad,
+    .modal .form-actions .btn-secondary { width: 100%; justify-content: center; }
+
+    /* ── NOTIFICACIONES POPOVER ── */
+    .notif-popover { width: 100%; max-width: calc(100% - 20px); left: 10px; right: 10px; top: 56px; }
+    .notif-popover-tabs .tab-btn { padding: 8px 10px; font-size: 0.78rem; }
+    .notif-popover-list .notificacion-item { padding: 10px; }
+
+    /* ── SIDEBAR ── */
+    .sidebar-nav { width: 260px; left: -280px; }
+    .sidebar-item { padding: 14px 16px; font-size: 0.9rem; min-height: 48px; }
+    .sidebar-items { padding: 6px 8px; }
+    .sidebar-header { padding: 0 16px 16px; }
+    .sidebar-footer { padding: 12px 16px 0; }
+
+    /* ── TOAST ── */
+    .toast-container { width: 90%; left: 5%; right: 5%; }
+
+    /* ── SHARE PANEL ── */
+    .share-panel .glass-panel { padding: 16px; }
+    .share-link-container { flex-direction: column; align-items: stretch; }
+    .share-input { width: 100%; }
+    #copy-link-btn { width: 100%; justify-content: center; min-height: 44px; }
+
+    /* ── SOCIAL BANNER ── */
+    .social-links-banner { padding: 8px 14px 12px; }
+    .social-banner-inner { flex-direction: column; gap: 8px; }
+    .social-btn { width: 100%; justify-content: center; padding: 10px 16px; }
+
+    /* ── CONFIG EDITOR ── */
+    .config-editor .config-section { padding: 14px; }
+    .config-section-title { font-size: 0.75rem; }
+    .customization-actions { flex-direction: column; gap: 8px; }
+    .btn-save-primary { width: 100%; justify-content: center; }
+    .btn-reset-styled { width: 100%; justify-content: center; }
+
+    /* ── APPOINTMENTS CARDS ── */
+    #appointments-container .appointment-card { padding: 14px; }
+    #appointments-container .apt-header { flex-wrap: wrap; gap: 6px; }
+    #appointments-container .apt-details { flex-direction: column; gap: 6px; font-size: 0.82rem; }
+    #appointments-container .apt-actions { gap: 6px; }
+
+    /* ── SUBSCRIPTION ── */
+    .subscription-info .flex-between { flex-direction: column; align-items: flex-start; }
+    #subscription-modal .modal-content { max-width: 95% !important; }
+
+    /* ── ADMIN PANEL (left sidebar in admin page) ── */
+    .admin-panel .glass-panel { padding: 16px; }
+    .admin-panel h3 { font-size: 1rem; }
+
+    /* ── SECTION CONTENT ── */
+    .section-content .glass-panel { padding: 16px; }
+
+    /* ── NOTIFICATIONS PANEL ── */
+    .content-panel .notifications-panel { padding: 0.8rem; }
+    .content-panel .notifications-panel h2 { font-size: 1rem; }
+
+    /* ── WORKER SCHEDULE ── */
+    .worker-schedule-grid { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 6px; }
+
+    /* ── CLIENTE LIST ── */
+    .clientes-grid { grid-template-columns: 1fr; gap: 12px; }
+    .cliente-card-header { flex-wrap: wrap; }
+    .cliente-actions-row { flex-wrap: wrap; }
+
+    /* ── EDITOR HORARIOS ── */
+    .editor-grid { grid-template-columns: 1fr; gap: 12px; }
+}
+
+/* ── BREAKPOINT PEQUEÑO: Móviles (< 480px) ── */
+@media (max-width: 480px) {
+
+    /* ── LOGIN ── */
+    .logo-header h1 { font-size: 1.5rem; }
+    .logo-header i { font-size: 24px; margin-bottom: 8px; }
+    .tagline { font-size: 0.85rem; }
+    .login-panel .glass-panel { padding: 20px 14px; }
+    .role-card { padding: 14px; }
+    .role-icon { width: 44px; height: 44px; }
+    .role-icon i { font-size: 20px; }
+    .input-group { padding: 12px; }
+    .input-group i { font-size: 1rem; width: 20px; }
+    .input-group input { font-size: 0.9rem; }
+    .mode-toggle .mode-btn { font-size: 0.82rem; padding: 8px 6px; }
+    .form-options { flex-direction: column; gap: 10px; align-items: flex-start; }
+    .reset-modal .modal-content { padding: 20px 14px; }
+
+    /* ── STATS ── */
+    .stats-container { gap: 8px; }
+    .stat-box { padding: 10px 8px; }
+    .stat-box h2 { font-size: 1.1rem; }
+    .stat-box span { font-size: 0.65rem; letter-spacing: 0.3px; }
+    .stat-icon { width: 32px; height: 32px; font-size: 13px; margin-bottom: 6px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .kpi-item { padding: 8px; }
+    .kpi-item .kpi-label { font-size: 0.7rem; }
+    .kpi-item .kpi-value { font-size: 0.85rem; }
+
+    /* ── ADMIN ── */
+    .admin-screen { padding: 6px; }
+    .admin-header { gap: 2px; padding: 4px 0; }
+    .admin-header .header-left { gap: 2px; }
+    .admin-header .header-left .sidebar-toggle { width: 28px; height: 28px; font-size: 11px; }
+    .admin-header .btn-back { padding: 3px; min-width: 28px; min-height: 28px; }
+    .admin-header .btn-back i { font-size: 0.7rem; }
+    .admin-header .header-left h1 { font-size: 0.65rem; gap: 1px; }
+    .admin-header .header-left h1 i { font-size: 0.6rem; }
+    .admin-header .tenant-name-header { max-width: 30px; font-size: 0.55rem; }
+    .admin-header .tenant-logo-header { height: 12px !important; }
+    .admin-header .header-right { gap: 1px; }
+    .admin-header .user-avatar { width: 20px; height: 20px; font-size: 9px; }
+    .notif-bell-btn { width: 24px; height: 24px; font-size: 10px; }
+    .admin-header .header-right > .btn-grad { padding: 3px; min-width: 28px; min-height: 28px; }
+    .admin-header .header-right > .btn-grad i { font-size: 0.7rem; }
+    .admin-header #logout-btn { padding: 3px; min-width: 28px; min-height: 28px; }
+    .admin-header #logout-btn i { font-size: 0.7rem; }
+    .admin-main { gap: 8px; }
+
+    /* ── CLIENT ── */
+    .client-screen { padding: 6px; }
+    .client-header .header-left h1 { font-size: 0.65rem; gap: 2px; }
+    .client-header .header-left h1 i { font-size: 0.6rem; }
+    .client-header .user-avatar { width: 20px; height: 20px; font-size: 9px; }
+    .client-header #logout-btn { padding: 3px; min-width: 28px; min-height: 28px; }
+    .client-header #logout-btn i { font-size: 0.7rem; }
+    .services-grid { grid-template-columns: 1fr; gap: 10px; }
+    .service-card .service-image { height: 160px; }
+    .client-main { gap: 10px; }
+    .service-card { border-radius: 12px; }
+    .service-card .service-info { padding: 14px; }
+
+    /* ── GLASS PANEL GENÉRICO ── */
+    .glass-panel { padding: 14px; border-radius: 12px; }
+
+    /* ── FORM STEPS ── */
+    .form-step summary { font-size: 0.85rem; padding: 10px; }
+    .step-content { padding: 8px 0; }
+    .step-guide { font-size: 0.75rem; padding: 8px 10px; flex-direction: column; gap: 6px; }
+    .step-guide i { font-size: 1rem; }
+    .field-hint { font-size: 0.75rem; }
+
+    /* ── BOTONES ── */
+    .btn-grad,
+    .btn-secondary { padding: 10px 14px; font-size: 0.82rem; }
+    .btn-small { padding: 8px 10px; font-size: 0.75rem; }
+    .form-actions .btn-grad,
+    .form-actions .btn-secondary { padding: 12px; font-size: 0.85rem; }
+
+    /* ── NAV CARDS ── */
+    .nav-card { min-width: 100%; padding: 14px; }
+
+    /* ── SERVICE CARDS (ADMIN) ── */
+    .service-card-admin .service-card-image { height: 100px; }
+    .service-card-admin { padding: 10px; }
+
+    /* ── CALENDAR ── */
+    .calendar-mini { margin: 0 -8px; }
+    .calendar-controls .cal-btn { width: 36px; height: 36px; }
+    #current-month { font-size: 0.9rem; }
+    .calendar-day { min-height: 36px; font-size: 0.78rem; }
+
+    /* ── DATE FILTER ── */
+    .date-filter { margin: 6px; padding: 10px; }
+    .date-filter label { font-size: 0.82rem; }
+    #export-filtered-csv,
+    #export-filtered-csv.btn-grad { font-size: 0; gap: 0; padding: 10px; }
+    #export-filtered-csv i { font-size: 1.1rem; margin: 0; }
+
+    /* ── NOTIF POPOVER ── */
+    .notif-popover { left: 5px; right: 5px; max-width: calc(100% - 10px); }
+    .notif-popover-list .notification-item { padding: 8px 10px; }
+    .notif-popover-header { padding: 10px 14px; }
+    .notif-popover-header h4 { font-size: 0.9rem; }
+    .notif-popover-tabs .tab-btn { padding: 6px 8px; font-size: 0.72rem; }
+
+    /* ── MODAL ── */
+    .modal .modal-content { padding: 14px 10px; }
+    .modal .modal-content h3 { font-size: 1rem; }
+
+    /* ── TENANT CARD ── */
+    .tenant-card { padding: 12px; }
+    .tenant-card h4 { font-size: 0.9rem; }
+
+    /* ── APPOINTMENT CARD ── */
+    #appointments-container .appointment-card { padding: 10px 12px; }
+    #appointments-container .apt-header strong { font-size: 0.9rem; }
+    #appointments-container .apt-price { font-size: 0.9rem; padding: 2px 8px; }
+    #appointments-container .apt-actions .btn-small { width: 32px; height: 32px; font-size: 0.85rem; }
+
+    /* ── TRIPLE STATS ── */
+    .triple-stats { gap: 8px; }
+    .stat-card { padding: 12px; }
+    .stat-card .stat-value { font-size: 1.2rem; }
+    .stat-card .stat-label { font-size: 0.75rem; }
+
+    /* ── DASHBOARD ── */
+    .dashboard-section { padding: 12px !important; }
+    .dashboard-section h3 { font-size: 0.95rem; }
+    .dashboard-section h4 { font-size: 0.85rem; }
+    .dashboard-actions .btn-small { padding: 8px 12px; font-size: 0.72rem; }
+    .top-services h4 { font-size: 0.85rem; }
+
+    /* ── PLANES ── */
+    .planes-container { gap: 12px; }
+    .plan-card { padding: 14px; }
+    .plan-card h3 { font-size: 1.1rem; }
+    .plan-price { font-size: 1rem; }
+    .plan-card ul li { font-size: 0.82rem; }
+
+    /* ── CLIENTE LIST ── */
+    .cliente-card { padding: 12px; }
+    .cliente-card-body { gap: 6px; }
+    .cliente-meta { gap: 6px; font-size: 0.75rem; flex-direction: column; }
+
+    /* ── COVER BANNER ── */
+    .cover-banner-container { height: 110px; border-radius: 0 0 10px 10px; }
+    .profile-header.has-cover .client-header,
+    .profile-header.has-cover .admin-header { margin-top: -30px; padding: 6px 12px; }
+
+    /* ── USER AVATAR ── */
+    .user-avatar { width: 36px; height: 36px; font-size: 16px; }
+
+    /* ── TABLE OVERRIDES ── */
+    #users-table,
+    #citas-global-table { font-size: 0.7rem; min-width: 450px; }
+    #users-table th,
+    #users-table td,
+    #citas-global-table th,
+    #citas-global-table td { padding: 4px 6px; }
+
+    /* ── SIDEBAR ── */
+    .sidebar-nav { width: 240px; left: -260px; }
+    .sidebar-item { padding: 12px 14px; font-size: 0.85rem; }
+
+    /* ── SCHEDULE ── */
+    .worker-schedule-grid { grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 4px; }
+    .schedule-day-slot { padding: 6px 4px; }
+    .day-name { font-size: 0.6rem; }
+    .day-hours { font-size: 0.65rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE MÓVIL — PULIDO v2 (añadido al final, NO modifica nada anterior)
+   Correcciones estéticas de mobile-first verificadas con screenshots:
+   - Login: padding consistente con admin/cliente + menos aire vertical
+   - Header cliente: truncado real del nombre del negocio (antes desbordaba)
+   - Badges de notificación/carrito ya no empujan scroll horizontal
+   - Red de seguridad anti overflow-x en móvil
+   - Stats: texto con ellipsis (no desborda tarjetas de 2 columnas)
+   - Touch targets del toggle login/registro ≥ 44px
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── Red de seguridad: nunca scroll horizontal en móvil ── */
+    html, body { overflow-x: clip; }
+
+    /* ── LOGIN: padding consistente con el resto de la app ── */
+    /* .login-screen comparte regla con .admin-screen/.client-screen (0,3,0) → !important */
+    .login-screen { padding: 10px !important; }
+    .login-panel { padding: 20px 16px; }
+    .logo-header { margin-bottom: 24px; }
+    .mode-toggle { margin-bottom: 20px; }
+    .mode-toggle .mode-btn { min-height: 44px; }
+
+    /* ── BADGES: no empujan el scroll horizontal (right -5/-6px) ── */
+    .notif-badge, .cart-badge { right: -2px; }
+
+    /* ── HEADER CLIENTE: truncado real del nombre del negocio ── */
+    .client-header .tenant-brand {
+        min-width: 0;
+        flex: 1 1 auto;
+        gap: 4px;
+    }
+    .client-header .tenant-name-header {
+        max-width: 100% !important;
+        font-size: 0.7rem;
+    }
+
+    /* ── STATS 2 columnas: el texto nunca desborda la tarjeta ── */
+    .stat-box h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stat-box span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── SIDEBAR CLOSE: target táctil más grande ── */
+    .sidebar-close { min-width: 36px; min-height: 36px; }
+}
+
+@media (max-width: 480px) {
+
+    /* ── LOGIN: menos aire vertical, el formulario entra en 667px ── */
+    .login-screen { padding: 6px !important; }
+    .login-panel { padding: 16px 12px; }
+    .logo-header { margin-bottom: 16px; }
+    .logo-header i { margin-bottom: 10px; }
+    .mode-toggle { margin-bottom: 14px; }
+
+    /* ── CAPTCHA TURNSTILE: escala en pantallas ≤480px para que no desborde en 360px ── */
+    .cf-turnstile { transform: scale(0.92); transform-origin: center; }
+
+    /* ── STATS: cifra compacta en 2 columnas estrechas ── */
+    .stat-box h2 { font-size: 1rem; }
+    .stat-box span { font-size: 0.6rem; letter-spacing: 0.2px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v2.1 — Header compacto (causa raíz)
+   La regla base .btn-grad (línea ~7131) usa padding/font-size con
+   !important, que gana sobre el bloque móvil sin !important.
+   Estos overrides restauran el header de UNA fila en móvil.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    .admin-header .header-right > .btn-grad {
+        padding: 3px !important;
+        font-size: 0 !important;
+        gap: 0 !important;
+        min-height: 28px !important;
+        min-width: 28px !important;
+        width: auto !important;
+        justify-content: center !important;
+    }
+    .admin-header .header-right > .btn-grad i {
+        font-size: 0.75rem !important;
+        margin: 0 !important;
+    }
+    .admin-header #logout-btn {
+        padding: 3px !important;
+        font-size: 0 !important;
+        gap: 0 !important;
+        min-height: 28px !important;
+        min-width: 28px !important;
+        width: auto !important;
+        justify-content: center !important;
+    }
+    .admin-header #logout-btn i {
+        font-size: 0.75rem !important;
+        margin: 0 !important;
+    }
+
+    /* Mismo arreglo para el header del CLIENTE */
+    .client-header #logout-btn {
+        padding: 3px !important;
+        font-size: 0 !important;
+        gap: 0 !important;
+        min-height: 28px !important;
+        min-width: 28px !important;
+        width: auto !important;
+        justify-content: center !important;
+    }
+    .client-header #logout-btn i {
+        font-size: 0.75rem !important;
+        margin: 0 !important;
+    }
 }
