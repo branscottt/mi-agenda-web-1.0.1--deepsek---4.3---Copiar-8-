@@ -12838,3 +12838,196 @@ input:-moz-autofill {
         position: fixed !important;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v9 — Mis Servicios: tarjetas compactas en móvil
+   Antes: tarjeta de 631px de alto apilada a ancho completo (una tapa
+   la pantalla). Ahora: tarjeta horizontal ~170px (imagen 72px a la
+   izquierda + info esencial), se ven varias a la vez. El detalle
+   completo sigue disponible al tocar la tarjeta.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    .services-cards-container { gap: 10px; }
+
+    .service-card-admin {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start;
+        gap: 12px !important;
+        padding: 10px !important;
+        margin-bottom: 0 !important;
+        border-left: 4px solid rgba(157, 78, 221, 0.25);
+        overflow: hidden;
+    }
+    /* Estado visible como borde de color (sin texto que sature) */
+    .service-card-admin:has(.service-status.active) { border-left-color: var(--success-color); }
+    .service-card-admin:has(.service-status.inactive) { border-left-color: var(--danger-color); }
+    .service-card-admin:has(.service-urgent-badge.urgent-now) { border-left-color: var(--warning-color); }
+    .service-card-admin:has(.service-urgent-badge.urgent-soon) { border-left-color: #f39c12; }
+
+    /* Imagen compacta a la izquierda */
+    .service-card-admin .service-card-header {
+        width: 72px !important;
+        height: 72px !important;
+        flex-shrink: 0;
+        border-radius: 10px;
+    }
+    .service-card-admin .service-card-image { height: 100% !important; }
+
+    /* Badges: solo los de urgencia, mini; estado oculto (va en el borde) */
+    .service-card-admin .service-status,
+    .service-card-admin .service-card-featured { display: none !important; }
+    .service-card-admin .service-urgent-badge {
+        font-size: 0.55rem;
+        padding: 2px 6px;
+        top: 4px;
+        left: 4px;
+        border-radius: 6px;
+        right: auto;
+    }
+
+    /* Body compacto */
+    .service-card-admin .service-card-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding-top: 2px;
+    }
+    .service-card-admin .service-card-title {
+        margin-bottom: 0;
+        gap: 8px;
+        align-items: baseline;
+    }
+    .service-card-admin .service-card-title h4 {
+        font-size: 0.85rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin: 0;
+    }
+    .service-card-admin .service-card-price {
+        font-size: 0.78rem !important;
+        white-space: nowrap;
+    }
+    /* Detalle largo solo en el modal (tocar la tarjeta) */
+    .service-card-admin .service-card-desc,
+    .service-card-admin .service-dates-info-card,
+    .service-card-admin .service-hours-info-card { display: none !important; }
+
+    /* Meta en una línea compacta */
+    .service-card-admin .service-card-meta {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        gap: 6px !important;
+        flex-wrap: wrap;
+    }
+    .service-card-admin .service-card-meta span { font-size: 0.68rem !important; }
+
+    /* Acciones: fila compacta bajo la info */
+    .service-card-admin .service-card-actions {
+        display: flex !important;
+        gap: 6px !important;
+        margin-top: 6px;
+    }
+    .service-card-admin .service-card-actions .btn-small {
+        flex: 1;
+        min-height: 32px;
+        padding: 4px 6px;
+        font-size: 0.66rem;
+        margin-right: 0;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v9.1 — Acciones de tarjeta icon-only en móvil (una sola fila)
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .service-card-admin .service-card-actions .btn-small {
+        font-size: 0 !important;
+        gap: 0 !important;
+        padding: 4px !important;
+    }
+    .service-card-admin .service-card-actions .btn-small i {
+        font-size: 0.8rem !important;
+        margin: 0 !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   v10 — Mis Clientes: tarjetas compactas en móvil (mismo patrón v9)
+   Tarjeta más baja (~150px), se ven varios clientes a la vez,
+   acciones icon-only en una fila, detalle al tocar (Historial).
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    .clientes-grid { gap: 10px; }
+
+    .cliente-card.glass-panel {
+        padding: 12px !important;
+        margin-bottom: 0 !important;
+        border-left: 4px solid rgba(157, 78, 221, 0.25);
+    }
+
+    .cliente-card-header {
+        margin-bottom: 8px;
+        gap: 10px;
+    }
+    .cliente-avatar {
+        width: 38px !important;
+        height: 38px !important;
+        font-size: 1.1rem;
+    }
+    .cliente-info strong { font-size: 0.85rem; }
+    .cliente-info span { font-size: 0.72rem; }
+    .cliente-stats-mini .stat-chip {
+        padding: 2px 8px;
+        font-size: 0.68rem;
+    }
+
+    .cliente-card-body { gap: 8px; }
+    .cliente-meta {
+        gap: 8px;
+        font-size: 0.74rem;
+    }
+    .cliente-meta i { width: 12px; font-size: 0.72rem; }
+
+    /* Acciones: icon-only en una fila */
+    .cliente-actions-row { gap: 6px; }
+    .cliente-actions-row .btn-small {
+        width: 34px !important;
+        height: 32px !important;
+        min-height: 32px;
+        padding: 4px !important;
+        justify-content: center;
+        font-size: 0.8rem;
+        margin-right: 0;
+    }
+    .cliente-actions-row .btn-ver-historial {
+        width: auto !important;
+        font-size: 0.7rem;
+        padding: 4px 10px !important;
+        margin-left: auto;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIX v10.1 — Clientes: aún más compacto (chips ocultos, meta 1 línea)
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .cliente-stats-mini { display: none !important; }
+    .cliente-meta {
+        flex-wrap: nowrap;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .cliente-meta span { white-space: nowrap; }
+    .cliente-meta span:nth-child(3) { flex-shrink: 0; }
+}

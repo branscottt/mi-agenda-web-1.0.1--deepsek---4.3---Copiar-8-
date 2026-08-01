@@ -2,7 +2,7 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v4';
+const CACHE_NAME = 'agendapro-v5';
 const STATIC_ASSETS = [
     '/dist/style.css',
     '/admin.html',
