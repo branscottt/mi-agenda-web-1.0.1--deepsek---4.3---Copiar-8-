@@ -649,14 +649,27 @@ const VentasManager = {
                 return [];
             }
 
-            const ventasLocales = this._getVentasLocales();
+            // Obtener nombres reales de servicios (para Top Servicios legible)
+            let nombresServicios = {};
+            try {
+                const { data: serviciosData, error: serviciosError } = await supabaseClient
+                    .from('servicios')
+                    .select('id, nombre')
+                    .eq('tenant_id', String(tenantId).trim());
+                if (!serviciosError) {
+                    (serviciosData || []).forEach(s => { nombresServicios[s.id] = s.nombre; });
+                }
+            } catch (e) {
+                console.warn('No se pudieron obtener nombres de servicios:', e);
+            }
+
             const ventas = (data || []).map(c => {
                 const createdDate = new Date(c.created_at);
                 return {
                     id: `VENTA-${c.id}`,
                     citaId: c.id,
                     servicioId: c.servicio_id,
-                    servicioNombre: 'Servicio',
+                    servicioNombre: nombresServicios[c.servicio_id] || 'Servicio',
                     clienteNombre: c.contacto?.nombre || 'Cliente',
                     clienteEmail: c.contacto?.email || '',
                     clienteTelefono: c.contacto?.telefono || '',
@@ -670,9 +683,9 @@ const VentasManager = {
                 };
             });
 
-            this._cachedVentas = ventasLocales;
+            this._cachedVentas = ventas;
             this._cacheTime = ahora;
-            return ventasLocales;
+            return ventas;
         } catch (e) {
             console.error('Error en getAll ventas:', e);
             return [];
@@ -2988,6 +3001,10 @@ async function crearNotificacionCambioAdmin(citaOriginal, citaNueva) {
 
 async function actualizarDashboardFinanzas() {
     try {
+        // Asegurar que supabaseClient esté listo antes de consultar (evita carrera con main.js)
+        if (!supabaseClient) {
+            await initSupabase();
+        }
         console.log('🔄 Actualizando dashboard...');
         await actualizarEstadisticasTriples();
         await actualizarTopServicios();
@@ -3091,10 +3108,33 @@ async function actualizarKPIs() {
 // ============================================
 let ventasChart = null;
 
+// Cargar Chart.js bajo demanda (lazy) — el HTML solo deja el comentario
+let _chartJsPromise = null;
+function cargarChartJS() {
+    if (window.Chart) return Promise.resolve();
+    if (_chartJsPromise) return _chartJsPromise;
+    _chartJsPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        s.onload = () => resolve();
+        s.onerror = () => { _chartJsPromise = null; reject(new Error('No se pudo cargar Chart.js')); };
+        document.head.appendChild(s);
+    });
+    return _chartJsPromise;
+}
+
 async function renderizarGraficoVentas() {
     const canvas = document.getElementById('ventas-chart');
     if (!canvas) {
         console.error('Canvas no encontrado');
+        return;
+    }
+
+    // Asegurar que Chart.js esté disponible antes de dibujar
+    try {
+        await cargarChartJS();
+    } catch (e) {
+        console.error('[renderizarGraficoVentas] Error cargando Chart.js:', e);
         return;
     }
     
@@ -3245,6 +3285,17 @@ function configurarDashboardEventos() {
     const btnLimpiar = document.getElementById('btn-limpiar-filtro');
     const btnExportar = document.getElementById('btn-exportar-csv');
     const btnRefresh = document.getElementById('btn-refresh-dashboard');
+    const btnGuia = document.getElementById('btn-guia-dashboard');
+
+    if (btnGuia) {
+        btnGuia.addEventListener('click', () => {
+            const guia = document.getElementById('guia-dashboard');
+            if (!guia) return;
+            const visible = guia.style.display !== 'none';
+            guia.style.display = visible ? 'none' : 'block';
+            btnGuia.classList.toggle('active', !visible);
+        });
+    }
     
     if (btnAplicar) {
         btnAplicar.addEventListener('click', aplicarFiltroFechas);
@@ -3286,18 +3337,9 @@ function inicializarFechasDashboard() {
     }
 }
 
-// Sobrescribir iniciarAdmin
-
-// Sobrescribir iniciarAdmin solo en admin.html (no en superadmin)
-if (document.querySelector('.admin-screen') && !document.querySelector('.superadmin-screen')) {
-    const originalIniciarAdmin = window.iniciarAdmin;
-    window.iniciarAdmin = async function() {
-        if (originalIniciarAdmin) await originalIniciarAdmin();
-        inicializarFechasDashboard();
-        await actualizarDashboardFinanzas();
-        configurarDashboardEventos();
-    };
-}
+// La inicialización del dashboard financiero ahora se hace en el
+// handler DOMContentLoaded (bloque esAdminNormal), donde iniciarAdmin()
+// ya está definido y la sesión está disponible.
 
 window.actualizarDashboardFinanzas = actualizarDashboardFinanzas;
 window.exportarVentasCSV = exportarVentasCSV;
@@ -4419,7 +4461,7 @@ async function initPromoVideoSection() {
 
     // Verificar estado del cupón via RPC
     try {
-        const { checkPromoCouponStatus } = await import('./api/subscriptionsApi.js');
+        const { checkPromoCouponStatus } = await import('../api/subscriptionsApi.js');
         const status = await checkPromoCouponStatus(tenantId);
 
         if (!status || status.error) {
@@ -4528,7 +4570,7 @@ function renderPromoForm(statusContainer, formContainer, tenantId, period) {
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
 
         try {
-            const { createPromoCoupon } = await import('./api/subscriptionsApi.js');
+            const { createPromoCoupon } = await import('../api/subscriptionsApi.js');
             await createPromoCoupon({
                 tenantId,
                 videoUrl,
@@ -11633,6 +11675,13 @@ document.addEventListener('DOMContentLoaded', async function () {
     } else if (esAdminNormal) {
         await iniciarAdmin();
         if (!window._subscriptionExpired && typeof cargarServiciosExistentes === 'function') cargarServiciosExistentes();
+        // Dashboard financiero: inicializar fechas, cargar datos y conectar botones
+        // (antes esto vivía en un override de window.iniciarAdmin que nunca se ejecutaba)
+        if (!window._subscriptionExpired) {
+            inicializarFechasDashboard();
+            await actualizarDashboardFinanzas();
+            configurarDashboardEventos();
+        }
     } else if (esCliente) {
         await iniciarCliente();
         // Solo renderizar si NO es link compartido (el callback del formulario lo hará)

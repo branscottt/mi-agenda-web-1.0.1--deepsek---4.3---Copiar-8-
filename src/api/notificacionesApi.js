@@ -8,7 +8,7 @@ export async function getAllNotificaciones(tenantId) {
     if (!tenantId) return [];
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('id, tenant_id, tipo, titulo, mensaje, leida, creado_en')
+        .select('id, tenant_id, tipo, cita_id, fecha_original, hora_original, fecha_nueva, hora_nueva, cliente, leido, creado_en, metadata')
         .eq('tenant_id', String(tenantId).trim())
         .order('creado_en', { ascending: false });
     if (error) throw error;
@@ -16,9 +16,17 @@ export async function getAllNotificaciones(tenantId) {
 }
 
 export async function createNotificacion(data) {
+    // El esquema real no tiene titulo/mensaje/leida: se guardan en cliente/metadata/leido
     const { data: result, error } = await getSupabase()
         .from(TABLE)
-        .insert(data)
+        .insert({
+            tenant_id: data.tenant_id,
+            tipo: data.tipo || 'info',
+            cliente: data.cliente || { nombre: data.titulo || 'Notificación' },
+            leido: data.leido === true || data.leida === true,
+            creado_en: new Date().toISOString(),
+            metadata: data.metadata || { mensaje: data.mensaje || '', accion: data.accion || null }
+        })
         .select()
         .single();
     if (error) throw error;
@@ -28,7 +36,7 @@ export async function createNotificacion(data) {
 export async function marcarComoLeida(id) {
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .update({ leida: true })
+        .update({ leido: true })
         .eq('id', id)
         .select()
         .single();
@@ -51,7 +59,7 @@ export async function getUnreadCount(tenantId) {
         .from(TABLE)
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', String(tenantId).trim())
-        .eq('leida', false);
+        .eq('leido', false);
     if (error) throw error;
     return count || 0;
 }

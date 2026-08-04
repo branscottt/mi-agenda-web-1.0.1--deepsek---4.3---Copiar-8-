@@ -166,7 +166,10 @@ function iconoTipo(tipo) {
         error: 'times-circle',
         info: 'info-circle',
         recordatorio: 'clock',
-        nueva_cita: 'calendar-plus'
+        nueva_cita: 'calendar-plus',
+        nueva_reserva: 'calendar-plus',
+        cambio_plan: 'exchange-alt',
+        cambio_horario: 'clock'
     };
     return mapa[tipo] || 'bell';
 }

@@ -26,6 +26,37 @@ function emitirNotificaciones(notificaciones) {
     });
 }
 
+const TITULOS_POR_TIPO = {
+    nueva_reserva: 'Nueva reserva',
+    nueva_cita: 'Nueva cita',
+    cambio_plan: 'Cambio de plan',
+    cambio_horario: 'Cambio de horario',
+    cancelacion: 'Reserva cancelada',
+    recordatorio: 'Recordatorio',
+    success: 'Notificación',
+    warning: 'Atención',
+    error: 'Alerta',
+    info: 'Notificación'
+};
+
+function derivarTitulo(n, cliente, meta) {
+    if (n.titulo) return n.titulo;
+    if (TITULOS_POR_TIPO[n.tipo]) return TITULOS_POR_TIPO[n.tipo];
+    if (cliente.nombre) return `Notificación de ${cliente.nombre}`;
+    return 'Notificación';
+}
+
+function derivarMensaje(n, cliente, meta) {
+    if (n.mensaje) return n.mensaje;
+    const partes = [];
+    if (cliente.nombre) partes.push(cliente.nombre);
+    if (meta.servicio) partes.push(meta.servicio);
+    if (meta.fecha) partes.push(meta.fecha);
+    if (meta.hora) partes.push(meta.hora);
+    if (n.fecha_nueva) partes.push(`${n.fecha_nueva}${n.hora_nueva ? ' ' + n.hora_nueva : ''}`);
+    return partes.join(' — ') || 'Tienes una nueva notificación';
+}
+
 export async function getNotificaciones(optionalTenantId) {
     const tenantId = optionalTenantId || await getCurrentTenantId();
     if (!tenantId) return [];
@@ -40,16 +71,21 @@ export async function getNotificaciones(optionalTenantId) {
             _ultimaNotificacionId = notis[0].id;
         }
         // Mapear snake_case a camelCase
-        return (data || []).map(n => ({
-            id: n.id,
-            tipo: n.tipo || 'info',
-            titulo: n.titulo || n.message || '',
-            mensaje: n.mensaje || n.message || '',
-            leida: n.leida === true || n.leido === true,
-            leido: n.leido === true || n.leida === true,
-            accion: n.accion || null,
-            creadoEn: n.creado_en
-        }));
+        // El esquema real usa: tipo, cliente (jsonb), metadata (jsonb), leido
+        return (data || []).map(n => {
+            const cliente = n.cliente || {};
+            const meta = n.metadata || {};
+            return {
+                id: n.id,
+                tipo: n.tipo || 'info',
+                titulo: derivarTitulo(n, cliente, meta),
+                mensaje: derivarMensaje(n, cliente, meta),
+                leida: n.leido === true,
+                leido: n.leido === true,
+                accion: meta.accion || (n.tipo === 'nueva_reserva' ? 'ver_cita' : null),
+                creadoEn: n.creado_en
+            };
+        });
     } catch (e) {
         console.error('Error getNotificaciones:', e);
         return [];

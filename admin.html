@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agenda Pro - Panel Admin</title>
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
@@ -188,6 +188,9 @@
                     <div class="dashboard-header">
                         <h3><i class="fas fa-chart-line"></i> Dashboard Financiero</h3>
                         <div class="dashboard-actions">
+                            <button class="btn-secondary btn-small" id="btn-guia-dashboard" title="Qué significa cada dato del dashboard">
+                                <i class="fas fa-question-circle"></i> ¿Cómo leer este dashboard?
+                            </button>
                             <button class="btn-secondary btn-small" id="btn-exportar-csv">
                                 <i class="fas fa-download"></i> Exportar CSV
                             </button>
@@ -261,6 +264,56 @@
                             <span class="kpi-label">Día Pico</span>
                             <strong class="kpi-value" id="kpi-dia-pico">-</strong>
                         </div>
+                    </div>
+                    <div class="guia-dashboard" id="guia-dashboard" style="display:none;">
+                        <h4><i class="fas fa-book-open"></i> ¿Qué es el Dashboard Financiero?</h4>
+                        <p>
+                            Es el resumen económico de tu negocio: cuánto vendiste hoy, esta semana y este mes;
+                            qué servicios se reservan más; en qué días hay más actividad; y cuánto ganas en promedio
+                            por cada venta. Todos los montos se calculan automáticamente desde las <strong>citas registradas</strong>
+                            en tu agenda (cada cita cuenta como una venta por el precio de su servicio).
+                        </p>
+
+                        <h4><i class="fas fa-list-ol"></i> Cómo leerlo, paso a paso</h4>
+                        <ol class="guia-pasos">
+                            <li>
+                                <strong>Filtro de fechas (Desde / Hasta):</strong> por defecto el dashboard muestra el mes en curso.
+                                Elige un rango de fechas y pulsa <em>Aplicar</em> para ver solo ese período: la tarjeta
+                                <em>Este Mes</em> se actualiza con el total del rango y marca "(filtradas)".
+                                <em>Limpiar</em> vuelve a hoy / esta semana / este mes.
+                            </li>
+                            <li>
+                                <strong>Tarjetas Hoy · Esta Semana · Este Mes:</strong> el dinero total generado y la cantidad
+                                de ventas (citas) en cada período. Compara los tres para ver tu ritmo de facturación.
+                            </li>
+                            <li>
+                                <strong>Tendencia de Ventas:</strong> gráfico de barras con la recaudación por día de la semana.
+                                La barra más alta indica tu día con más demanda: sirve para planificar descansos, promociones
+                                o reforzar personal.
+                            </li>
+                            <li>
+                                <strong>Servicios Más Vendidos:</strong> ranking (🥇🥈🥉) de los servicios más reservados,
+                                con su número de ventas y el dinero que aportaron. Útil para saber qué ofrecer en promociones
+                                y qué servicios necesitan más difusión.
+                            </li>
+                            <li>
+                                <strong>KPIs (indicadores):</strong>
+                                <ul>
+                                    <li><strong>Ticket Promedio:</strong> cuánto ganas en promedio por venta = total facturado ÷ número de ventas.</li>
+                                    <li><strong>Total Ventas:</strong> cuántas citas/ventas hay en el período.</li>
+                                    <li><strong>Clientes Únicos:</strong> cuántos clientes distintos reservaron (por email).</li>
+                                    <li><strong>Día Pico:</strong> el día de la semana con más ventas (ej. "Sábado").</li>
+                                </ul>
+                            </li>
+                            <li>
+                                <strong>Exportar CSV:</strong> descarga todas tus ventas en un archivo CSV que puedes abrir
+                                en Excel o Google Sheets para análisis propio.
+                            </li>
+                        </ol>
+                        <p class="guia-nota">
+                            <i class="fas fa-info-circle"></i> Si el dashboard aparece en $0, es porque aún no hay citas
+                            registradas en el período seleccionado. Las ventas se derivan de las citas, no se cargan por separado.
+                        </p>
                     </div>
                 </div>
             </div>
