@@ -360,6 +360,36 @@ function formatearDinero(numero) {
 }
 const formatearPeso = formatearDinero;
 
+// Ajusta el font-size de una estadística para que la cifra completa quepa en
+// una línea: mide el desbordamiento real y reduce el tamaño según la cantidad
+// de dígitos (usado en Ventas del Mes / Este Mes del dashboard admin).
+function ajustarTamanoStat(el, minRem) {
+    if (!el || !el.textContent) return;
+    const minPx = (minRem || 0.85) * 16;
+    el.style.setProperty('font-size', '', 'important'); // reset inline previo
+    el.style.whiteSpace = 'nowrap';
+    let px = parseFloat(getComputedStyle(el).fontSize);
+    if (!px || isNaN(px) || px <= 0) px = 28;
+    el.style.setProperty('font-size', px + 'px', 'important');
+    let guard = 0;
+    while (el.scrollWidth > el.clientWidth + 1 && px > minPx && guard < 40) {
+        px -= 1;
+        el.style.setProperty('font-size', px + 'px', 'important');
+        guard++;
+    }
+}
+
+// Re-aplica el ajuste al redimensionar/rotar para que la cifra siga completa
+let resizeStatTimer = null;
+window.addEventListener('resize', function () {
+    clearTimeout(resizeStatTimer);
+    resizeStatTimer = setTimeout(function () {
+        ['valor-diario', 'valor-semanal', 'valor-mensual', 'statVentas'].forEach(function (id) {
+            ajustarTamanoStat(document.getElementById(id));
+        });
+    }, 150);
+});
+
 function formatFechaCorta(dateStr) {
     try {
         const date = parseDate(dateStr);
@@ -3026,16 +3056,19 @@ async function actualizarEstadisticasTriples() {
     const totalHoy = VentasManager.calcularTotal(ventasHoy);
     document.getElementById('valor-diario').textContent = formatearPeso(totalHoy);
     document.getElementById('detalle-diario').textContent = `${ventasHoy.length} venta${ventasHoy.length !== 1 ? 's' : ''}`;
+    ajustarTamanoStat(document.getElementById('valor-diario'));
     
     const ventasSemana = await VentasManager.getSemana();
     const totalSemana = VentasManager.calcularTotal(ventasSemana);
     document.getElementById('valor-semanal').textContent = formatearPeso(totalSemana);
     document.getElementById('detalle-semanal').textContent = `${ventasSemana.length} venta${ventasSemana.length !== 1 ? 's' : ''}`;
+    ajustarTamanoStat(document.getElementById('valor-semanal'));
     
     const ventasMes = await VentasManager.getMes();
     const totalMes = VentasManager.calcularTotal(ventasMes);
     document.getElementById('valor-mensual').textContent = formatearPeso(totalMes);
     document.getElementById('detalle-mensual').textContent = `${ventasMes.length} venta${ventasMes.length !== 1 ? 's' : ''}`;
+    ajustarTamanoStat(document.getElementById('valor-mensual'));
 }
 
 async function actualizarTopServicios() {
@@ -6413,6 +6446,7 @@ async function actualizarStatsHeader() {
 
     if (statVentas) {
         statVentas.textContent = formatearPeso(totalVentasMes);
+        ajustarTamanoStat(statVentas);
     }
 
     if (statCitas) {
