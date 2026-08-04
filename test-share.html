@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Compartir Trabajadores</title>
+<link rel="stylesheet" href="style.css?v=TEST2">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  /* Réplica mínima del shell admin para contexto de ancho real */
+  html, body { background: #0f0f17; }
+  .admin-screen { padding: 20px; }
+  .admin-main { display: block; }
+  #main-container { width: 100%; }
+  .section-content { display: block !important; }
+</style>
+</head>
+<body>
+<div class="admin-screen">
+  <main class="admin-main" id="dynamic-content">
+    <div id="main-container" style="width:100%;">
+      <div id="section-compartir-trabajadores" class="section-content">
+        <section class="admin-panel share-panel">
+          <div class="glass-panel">
+            <div id="workers-share-container">
+              <div class="glass-panel">
+                <h3><i class="fas fa-share-alt"></i> Compartir con Trabajadores</h3>
+                <div class="step-guide" style="margin-bottom:16px;">
+                  <i class="fas fa-info-circle"></i>
+                  <span>Cada trabajador tiene su propio enlace. Puedes copiarlo o enviarlo por WhatsApp. Al abrirlo, verán su horario y las reservas que tienen asignadas.</span>
+                </div>
+                <div class="workers-share-list">
+                  <div class="worker-share-card">
+                    <div class="worker-share-avatar" style="background:#9d4edd"><span>M</span></div>
+                    <div class="worker-share-info">
+                      <h4>María Fernanda González</h4>
+                      <p class="worker-skills">Manicure, Pedicure, Uñas acrílicas, Decoración</p>
+                    </div>
+                    <div class="worker-share-links">
+                      <input type="text" class="worker-share-input" value="https://agenda-pro-red.vercel.app/trabajador.html?tenant=abc123def456&id=wkr_maria_01" readonly>
+                      <button class="btn-secondary btn-sm" onclick="void 0" title="Copiar enlace"><i class="fas fa-copy"></i></button>
+                      <button class="btn-secondary btn-sm" onclick="void 0" title="Enviar por WhatsApp"><i class="fab fa-whatsapp"></i></button>
+                    </div>
+                  </div>
+                  <div class="worker-share-card">
+                    <div class="worker-share-avatar" style="background:#4e9edd"><span>C</span></div>
+                    <div class="worker-share-info">
+                      <h4>Carlos Andrés Pérez</h4>
+                      <p class="worker-skills">Corte de cabello, Barba, Tinte</p>
+                    </div>
+                    <div class="worker-share-links">
+                      <input type="text" class="worker-share-input" value="https://agenda-pro-red.vercel.app/trabajador.html?tenant=abc123def456&id=wkr_carlos_02" readonly>
+                      <button class="btn-secondary btn-sm" onclick="void 0" title="Copiar enlace"><i class="fas fa-copy"></i></button>
+                      <button class="btn-secondary btn-sm" onclick="void 0" title="Enviar por WhatsApp"><i class="fab fa-whatsapp"></i></button>
+                    </div>
+                  </div>
+                  <div class="worker-share-card">
+                    <div class="worker-share-avatar" style="background:#4edd9e"><span>J</span></div>
+                    <div class="worker-share-info">
+                      <h4>Jorge Luis Ramírez</h4>
+                      <p class="worker-skills">Masajes relajantes, Terapia</p>
+                    </div>
+                    <div class="worker-share-links">
+                      <input type="text" class="worker-share-input" value="https://agenda-pro-red.vercel.app/trabajador.html?tenant=abc123def456&id=wkr_jorge_03" readonly>
+                      <button class="btn-secondary btn-sm" onclick="void 0" title="Copiar enlace"><i class="fas fa-copy"></i></button>
+                      <button class="btn-secondary btn-sm" onclick="void 0" title="Enviar por WhatsApp"><i class="fab fa-whatsapp"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

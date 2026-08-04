@@ -13298,3 +13298,96 @@ input:-moz-autofill {
         margin: 0;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v8 — COMPARTIR TRABAJADORES: tarjetas compactas y claras en móvil
+   - 1 fila: avatar + nombre | 2 fila: enlace + Copiar + WhatsApp
+   - Solo afecta #section-compartir-trabajadores (no "Compartir Clientes")
+   - No modifica nada del layout desktop
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* Contenedor: un solo nivel de tarjeta visible */
+    .admin-screen #section-compartir-trabajadores .share-panel .glass-panel {
+        padding: 14px !important;
+    }
+    .admin-screen #section-compartir-trabajadores .glass-panel > h3 {
+        margin-bottom: 12px !important;
+        font-size: 0.95rem;
+    }
+    .admin-screen #section-compartir-trabajadores .step-guide {
+        margin-bottom: 12px;
+    }
+
+    /* Tarjeta: header (avatar + nombre) arriba, acciones abajo */
+    .admin-screen #section-compartir-trabajadores .worker-share-card {
+        flex-wrap: wrap;
+        gap: 10px 12px;
+        padding: 12px;
+    }
+    .admin-screen #section-compartir-trabajadores .worker-share-info h4 {
+        font-size: 0.88rem;
+    }
+    .admin-screen #section-compartir-trabajadores .worker-skills {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    /* Fila de acciones: input flexible + 2 botones icon-only en UNA línea */
+    .admin-screen #section-compartir-trabajadores .worker-share-links {
+        flex-direction: row !important;      /* gana al column de v6.1 */
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+        flex-shrink: 0;
+        gap: 8px !important;
+        align-items: center;
+    }
+    .admin-screen #section-compartir-trabajadores .worker-share-input {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: auto !important;              /* gana al 100% de v6.1 */
+        min-height: 44px;
+        font-size: 0.66rem !important;       /* gana a la fuente global de inputs */
+        padding: 8px 10px;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .admin-screen #section-compartir-trabajadores .worker-share-links button,
+    .admin-screen #section-compartir-trabajadores .worker-share-links .btn-secondary {
+        flex: 0 0 44px;
+        width: 44px !important;              /* gana al 100% de v6.1 */
+        min-width: 44px;
+        min-height: 44px;
+        max-width: 44px;
+        padding: 0 !important;
+        margin: 0 !important;
+        justify-content: center !important;
+        border-radius: 12px !important;      /* unifica el pill 30px legacy */
+        border-color: rgba(157, 78, 221, 0.35) !important; /* tema, no magenta */
+    }
+    /* WhatsApp: verde reconocible al instante */
+    .admin-screen #section-compartir-trabajadores .worker-share-links button[title*="WhatsApp"] {
+        background: rgba(37, 211, 102, 0.14) !important;
+        border-color: rgba(37, 211, 102, 0.45) !important;
+        color: #25d366 !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-screen #section-compartir-trabajadores .worker-share-card {
+        gap: 8px 10px;
+        padding: 10px;
+    }
+    .admin-screen #section-compartir-trabajadores .worker-share-avatar {
+        width: 34px;
+        height: 34px;
+        font-size: 0.8rem;
+    }
+    .admin-screen #section-compartir-trabajadores .worker-share-input {
+        font-size: 0.6rem !important;
+    }
+}
