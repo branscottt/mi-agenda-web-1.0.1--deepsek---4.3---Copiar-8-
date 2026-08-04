@@ -38,3 +38,4 @@ venv/
 
 # Supabase (local)
 supabase/.temp/
+.env*

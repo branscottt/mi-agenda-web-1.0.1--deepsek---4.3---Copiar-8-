@@ -13102,3 +13102,197 @@ input:-moz-autofill {
     .cliente-meta span { white-space: nowrap; }
     .cliente-meta span:nth-child(3) { flex-shrink: 0; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v11 — Mi Suscripción en móvil: tarjetas y botones profesionales
+   Antes (medido en 390px): la fila de botones "Cambiar plan" +
+   "Cancelar Suscripción" desbordaba el panel (327px de ancho en
+   una tarjeta de 268px), la vigencia se salía de la tarjeta, el
+   badge de estado era texto plano sin chip y la nav-card quedaba
+   como caja vertical gigante. Ahora: info en filas con icono,
+   badge tipo chip para todos los estados, acciones full-width
+   apiladas (CTA gradiente + cancelar outline) y nav-card
+   horizontal compacta. Scope: solo admin, sección suscripción.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── PANEL INTERNO: menos "caja dentro de caja" ── */
+    .admin-screen #section-suscripcion #sub-detail-panel {
+        padding: 0 0 16px !important;
+    }
+
+    /* ── TARJETA DE SUSCRIPCIÓN: fondo del tema, sin magenta viejo ── */
+    .admin-screen #section-suscripcion .subscription-info {
+        padding: 16px !important; /* vence el inline padding:15px */
+        background: linear-gradient(145deg, rgba(32,22,48,0.92), rgba(24,16,38,0.95)) !important;
+        border: 1px solid rgba(157, 78, 221, 0.35) !important;
+        border-left: 4px solid var(--primary-color) !important; /* era #b300ff */
+        border-radius: 14px !important;
+        margin-bottom: 14px !important;
+    }
+
+    /* ── FILAS DE INFO (Plan / Vigencia): etiqueta con icono alineado ── */
+    .admin-screen #section-suscripcion .subscription-info .flex-between > span:not(.status-badge) {
+        display: flex !important;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        font-size: 0.88rem;
+        padding: 2px 0;
+        line-height: 1.4;
+    }
+    .admin-screen #section-suscripcion .subscription-info .flex-between > span i {
+        width: 18px;
+        text-align: center;
+        color: var(--primary-light);
+        flex-shrink: 0;
+    }
+    .admin-screen #section-suscripcion .subscription-info .flex-between > span strong {
+        color: #fff;
+    }
+
+    /* ── BADGE DE ESTADO: chip real para todos los estados ── */
+    .admin-screen #section-suscripcion .status-badge {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 7px;
+        align-self: flex-start;
+        padding: 5px 14px !important;
+        border-radius: 20px !important;
+        font-size: 0.7rem !important;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        margin-top: 2px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.06);
+    }
+    .admin-screen #section-suscripcion .status-badge::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+    .admin-screen #section-suscripcion .status-badge.active {
+        color: #2ecc9a;
+        background: rgba(0,184,148,0.16);
+        border-color: rgba(0,184,148,0.4);
+    }
+    .admin-screen #section-suscripcion .status-badge.inactive,
+    .admin-screen #section-suscripcion .status-badge.canceled,
+    .admin-screen #section-suscripcion .status-badge.cancelled,
+    .admin-screen #section-suscripcion .status-badge.expired {
+        color: #ff7a6b;
+        background: rgba(231,76,60,0.14);
+        border-color: rgba(231,76,60,0.4);
+    }
+    .admin-screen #section-suscripcion .status-badge.trial {
+        color: #fdcb6e;
+        background: rgba(253,203,110,0.14);
+        border-color: rgba(253,203,110,0.4);
+    }
+
+    /* ── ACCIONES: columna full-width, CTA + cancelar diferenciados ── */
+    .admin-screen #section-suscripcion .subscription-info .flex-between > div {
+        display: flex !important; /* vence el inline display:flex row */
+        flex-direction: column !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        gap: 10px !important;
+        margin-top: 6px;
+    }
+    .admin-screen #section-suscripcion .subscription-info .btn-small {
+        width: 100% !important;
+        min-height: 46px;
+        justify-content: center;
+        border-radius: 12px !important;
+        font-weight: 600;
+        font-size: 0.82rem !important;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+    }
+    .admin-screen #section-suscripcion .subscription-info a.btn-small {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+        color: #fff !important;
+        border: none !important;
+        box-shadow: 0 6px 18px rgba(157, 78, 221, 0.45) !important;
+    }
+    .admin-screen #section-suscripcion .subscription-info a.btn-small:active {
+        transform: translateY(1px);
+    }
+    .admin-screen #section-suscripcion .subscription-info button.btn-small.danger {
+        background: rgba(231, 76, 60, 0.12) !important;
+        border: 1px solid rgba(231, 76, 60, 0.5) !important;
+        color: #ff7a6b !important;
+    }
+
+    /* ── HINT: aire correcto (vence el margin-top:-10px inline) ── */
+    .admin-screen #section-suscripcion .field-hint {
+        margin: 12px 4px 16px !important;
+        font-size: 0.76rem;
+        line-height: 1.55;
+        color: rgba(255,255,255,0.55);
+    }
+
+    /* ── NAV CARD "Ver Planes": horizontal compacta, sin caja gigante ── */
+    .admin-screen #section-suscripcion .nav-card {
+        display: flex !important;
+        align-items: center;
+        gap: 14px;
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 14px 16px !important;
+        border-radius: 14px !important;
+    }
+    .admin-screen #section-suscripcion .nav-number {
+        margin: 0 !important;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+        background: rgba(157, 78, 221, 0.16) !important;
+        border: 1px solid rgba(157, 78, 221, 0.4);
+        font-size: 1.05rem;
+    }
+    .admin-screen #section-suscripcion .nav-card h4 {
+        margin: 0 0 2px;
+        font-size: 0.92rem;
+    }
+    .admin-screen #section-suscripcion .nav-card p {
+        margin: 0;
+        font-size: 0.75rem;
+        line-height: 1.45;
+    }
+    .admin-screen #section-suscripcion .nav-card::after {
+        content: '›';
+        margin-left: auto;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary-light);
+        flex-shrink: 0;
+    }
+}
+
+@media (max-width: 480px) {
+
+    /* ── AÚN MÁS COMPACTO EN PANTALLAS PEQUEÑAS ── */
+    .admin-screen #section-suscripcion .subscription-info .flex-between > span:not(.status-badge) {
+        font-size: 0.82rem;
+    }
+    .admin-screen #section-suscripcion .status-badge {
+        padding: 4px 12px !important;
+        font-size: 0.66rem !important;
+    }
+    .admin-screen #section-suscripcion .subscription-info .btn-small {
+        min-height: 44px;
+        font-size: 0.78rem !important;
+    }
+    .admin-screen #section-suscripcion .nav-card p {
+        display: none; /* solo icono + título + chevron */
+    }
+    .admin-screen #section-suscripcion .nav-card h4 {
+        margin: 0;
+    }
+}
