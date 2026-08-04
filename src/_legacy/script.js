@@ -6394,6 +6394,12 @@ window.actualizarEstadisticas = actualizarEstadisticas;
 
 async function actualizarStatsHeader() {
     const servicios = await ServiciosManager.getAll();
+    // Citas reales del tenant (las completadas/vencidas se eliminan solas,
+    // por lo que lo que queda en BD son las citas vigentes)
+    const citas = await CitasManager.getAll();
+    // Ventas reales del mes (misma fuente que el Dashboard Financiero)
+    const ventasMes = await VentasManager.getMes();
+    const totalVentasMes = VentasManager.calcularTotal(ventasMes);
 
     const statServicios = document.getElementById('statServicios');
     const statVentas = document.getElementById('statVentas');
@@ -6406,16 +6412,16 @@ async function actualizarStatsHeader() {
     }
 
     if (statVentas) {
-        const ventas = servicios.reduce((sum, s) => sum + s.precio, 0) * 2;
-        statVentas.textContent = formatearPeso(ventas);
+        statVentas.textContent = formatearPeso(totalVentasMes);
     }
 
     if (statCitas) {
-        statCitas.textContent = servicios.length * 3;
+        statCitas.textContent = citas.length;
     }
 
     if (statClientes) {
-        statClientes.textContent = servicios.length * 5;
+        const clientesUnicos = new Set(citas.map(c => c.contacto?.email).filter(Boolean)).size;
+        statClientes.textContent = clientesUnicos;
     }
 }
 window.actualizarStatsHeader = actualizarStatsHeader;
