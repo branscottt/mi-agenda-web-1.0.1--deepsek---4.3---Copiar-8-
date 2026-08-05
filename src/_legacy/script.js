@@ -399,6 +399,19 @@ function formatFechaCorta(dateStr) {
     }
 }
 
+function formatFechaConDiaSemana(dateStr) {
+    try {
+        const date = parseDate(dateStr);
+        const dd = String(date.getUTCDate()).padStart(2, '0');
+        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = date.getUTCFullYear();
+        const diaSemana = date.toLocaleDateString('es-ES', { weekday: 'long', timeZone: 'UTC' });
+        return `${dd}-${mm}-${yyyy} ${diaSemana}`;
+    } catch (e) {
+        return dateStr;
+    }
+}
+
 // ============================================
 // GESTIÓN DE CITAS - VERSIÓN CORREGIDA (SIN servicio_nombre)
 // ============================================
@@ -10163,7 +10176,7 @@ async function abrirModalReserva(serviceId) {
     const fechasOptions = fechas.map(f => {
         const modulosForDate = servicio.disponibilidad[f] || [];
         const todosAgotadosEnFecha = modulosForDate.length > 0 && modulosForDate.every(m => (Number(m.cupos || 0) <= 0));
-        return `<option value="${f}" ${todosAgotadosEnFecha ? 'disabled' : ''}>${f}${todosAgotadosEnFecha ? ' (Agotada)' : ''}</option>`;
+        return `<option value="${f}" ${todosAgotadosEnFecha ? 'disabled' : ''}>${formatFechaConDiaSemana(f)}${todosAgotadosEnFecha ? ' (Agotada)' : ''}</option>`;
     }).join('');
 
     detallesDiv.innerHTML = `
@@ -10246,7 +10259,7 @@ async function abrirModalReserva(serviceId) {
         }
         if(resumenEl){
             if(selF && selH){
-                resumenEl.innerHTML = `<div class="popup-summary">Reservarás para el <strong>${escapeHtml(selF)}</strong> a las <strong>${escapeHtml(horaTextoLocal)}</strong>. Recuerda: No hay reembolsos y cambios solo con 24h de antelación.</div>`;
+                resumenEl.innerHTML = `<div class="popup-summary">Reservarás para el <strong>${escapeHtml(formatFechaConDiaSemana(selF))}</strong> a las <strong>${escapeHtml(horaTextoLocal)}</strong>. Recuerda: No hay reembolsos y cambios solo con 24h de antelación.</div>`;
             } else {
                 resumenEl.innerHTML = `<div class="popup-summary">Selecciona fecha y hora para ver el resumen de la reserva.</div>`;
             }
@@ -10786,7 +10799,7 @@ async function abrirModalCambioFecha(citaId, serviceId, citaActual) {
             infoActual.style.background = 'rgba(255,255,255,0.05)';
             infoActual.style.borderRadius = '8px';
             infoActual.innerHTML = `
-                <p><strong>Cita actual:</strong> ${citaActual.fecha} - ${citaActual.hora}</p>
+                <p><strong>Cita actual:</strong> ${formatFechaConDiaSemana(citaActual.fecha)} - ${citaActual.hora}</p>
                 <p><small>Selecciona nueva fecha y hora para reprogramar</small></p>
             `;
             detallesEl.appendChild(infoActual);
@@ -10831,7 +10844,7 @@ async function abrirModalCambioFecha(citaId, serviceId, citaActual) {
                     if(tieneCupos) {
                         const option = document.createElement('option');
                         option.value = fecha;
-                        option.textContent = fecha;
+                        option.textContent = formatFechaConDiaSemana(fecha);
                         fechaSelect.appendChild(option);
                     }
                 });
@@ -11255,7 +11268,7 @@ async function renderCarrito() {
 
         citasUsuario.forEach(cita => {
             const servicioNombre = escapeHtml(cita.nombre || 'Servicio');
-            const fecha = escapeHtml(cita.fecha || '—');
+            const fecha = escapeHtml(formatFechaConDiaSemana(cita.fecha || '—'));
             const hora = escapeHtml(limpiarHora(cita.hora || '—'));
             const precio = formatearPeso(cita.precio || 0);
             
