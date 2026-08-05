@@ -13942,3 +13942,127 @@ input:-moz-autofill {
         flex: 1 1 100% !important;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO MÓVIL v15b — PÁGINA DE PLANES (planes.html)
+   - El grid de tarjetas es un .stats-container con inline
+     grid-template-columns:repeat(3,1fr) generado por JS → en móvil
+     las 3 columnas se aplastan a ~100px. Se fuerza 1 columna con
+     !important (gana al inline style) sin tocar el JS.
+   - Botón "Seleccionar plan": gradiente y sombra del tema (era
+     magenta flúor legacy). Scope .planes-container → login intacto.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* Grid de tarjetas: 1 columna en móvil (el inline JS es 3 columnas) */
+    .login-screen .planes-container .stats-container {
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+    }
+
+    /* Tarjetas de plan: son .stat-box por herencia de clase, pero NO son
+       stat boxes del dashboard — borde al tema y ancho completo */
+    .login-screen .stat-box.plan-card {
+        width: 100% !important;
+        min-width: 0 !important;
+        border-color: rgba(157, 78, 221, 0.3) !important;
+        border-radius: 16px !important;
+    }
+
+    /* Botón seleccionar plan: tema, touch target cómodo */
+    .login-screen .planes-container .btn-grad {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+        box-shadow: 0 6px 18px rgba(157, 78, 221, 0.45) !important;
+        border-radius: 12px !important;
+        min-height: 44px !important;
+    }
+    .login-screen .planes-container .btn-grad:hover {
+        background: linear-gradient(135deg, var(--primary-dark), var(--primary-color)) !important;
+    }
+
+    /* Nav inferior (Volver al Login / Ir al Panel): compacto */
+    .login-screen .screen-navigation { margin-top: 20px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO MÓVIL v15b — PÁGINA DE PLANES (planes.html)
+   - El grid de tarjetas es un .stats-container con inline
+     grid-template-columns:repeat(3,1fr) generado por JS → en móvil
+     las 3 columnas se aplastan a ~100px. Se fuerza 1 columna con
+     !important (gana al inline style) sin tocar el JS.
+   - Botón "Seleccionar plan": gradiente y sombra del tema (era
+     magenta flúor legacy). Scope .planes-container → login intacto.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* Grid de tarjetas: 1 columna en móvil (el inline JS es 3 columnas) */
+    .login-screen .planes-container .stats-container {
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+    }
+
+    /* Tarjetas de plan: son .stat-box por herencia de clase, pero NO son
+       stat boxes del dashboard — borde al tema y ancho completo */
+    .login-screen .stat-box.plan-card {
+        width: 100% !important;
+        min-width: 0 !important;
+        border-color: rgba(157, 78, 221, 0.3) !important;
+        border-radius: 16px !important;
+    }
+
+    /* Botón seleccionar plan: tema, touch target cómodo */
+    .login-screen .planes-container .btn-grad {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+        box-shadow: 0 6px 18px rgba(157, 78, 221, 0.45) !important;
+        border-radius: 12px !important;
+        min-height: 44px !important;
+    }
+    .login-screen .planes-container .btn-grad:hover {
+        background: linear-gradient(135deg, var(--primary-dark), var(--primary-color)) !important;
+    }
+
+    /* Nav inferior (Volver al Login / Ir al Panel): compacto */
+    .login-screen .screen-navigation { margin-top: 20px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO MÓVIL v15b — PÁGINA DE PLANES (planes.html)
+   - El grid de tarjetas es un .stats-container con inline
+     grid-template-columns:repeat(3,1fr) generado por JS → en móvil
+     las 3 columnas se aplastan a ~100px. Se fuerza 1 columna con
+     !important (gana al inline style) sin tocar el JS.
+   - Botón "Seleccionar plan": gradiente y sombra del tema (era
+     magenta flúor legacy). Scope .planes-container → login intacto.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* Grid de tarjetas: 1 columna en móvil (el inline JS es 3 columnas) */
+    .login-screen .planes-container .stats-container {
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+    }
+
+    /* Tarjetas de plan: son .stat-box por herencia de clase, pero NO son
+       stat boxes del dashboard — borde al tema y ancho completo */
+    .login-screen .stat-box.plan-card {
+        width: 100% !important;
+        min-width: 0 !important;
+        border-color: rgba(157, 78, 221, 0.3) !important;
+        border-radius: 16px !important;
+    }
+
+    /* Botón seleccionar plan: tema, touch target cómodo */
+    .login-screen .planes-container .btn-grad {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+        box-shadow: 0 6px 18px rgba(157, 78, 221, 0.45) !important;
+        border-radius: 12px !important;
+        min-height: 44px !important;
+    }
+    .login-screen .planes-container .btn-grad:hover {
+        background: linear-gradient(135deg, var(--primary-dark), var(--primary-color)) !important;
+    }
+
+    /* Nav inferior (Volver al Login / Ir al Panel): compacto */
+    .login-screen .screen-navigation { margin-top: 20px !important; }
+}
+
