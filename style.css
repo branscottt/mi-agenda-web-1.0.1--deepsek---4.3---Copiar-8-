@@ -14066,3 +14066,103 @@ input:-moz-autofill {
     .login-screen .screen-navigation { margin-top: 20px !important; }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO PLANES v17 — AMBAS RUTAS DE RENDER (PC y móvil)
+   planes.html tiene DOS renders en carrera (Strangler Fig):
+   1) Moderno (PlansView.js): tarjetas BLANCAS inline width:280px,
+      botones .btn-primary/.btn-success SIN estilos (default browser)
+   2) Legacy (script.js cargarPlanes): .stat-box.plan-card + .btn-grad
+   Este bloque lleva AMBAS al tema oscuro glass, en PC y móvil.
+   Scope .login-screen .plans-container / .plan-card → el formulario
+   de login queda intacto.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── RENDER MODERNO (PlansView.js) — tarjetas glass oscuras ── */
+.login-screen .plans-container .plan-card {
+    background: rgba(18, 18, 24, 0.75) !important;
+    border: 1px solid rgba(157, 78, 221, 0.35) !important;
+    border-radius: 16px !important;
+    color: #e0e0e0 !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+}
+/* Plan actual resaltado (el borde de color del plan lo marca el botón disabled) */
+.login-screen .plans-container .plan-card:has(.btn[disabled]) {
+    border-color: rgba(157, 78, 221, 0.7) !important;
+    box-shadow: 0 0 0 1px rgba(157, 78, 221, 0.25), 0 8px 28px rgba(0, 0, 0, 0.35) !important;
+}
+.login-screen .plans-container h2 {
+    color: #fff !important;
+    font-size: 1.4rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+.login-screen .plans-container .text-muted {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+.login-screen .plans-container .plan-card h3 {
+    color: #fff !important;
+}
+.login-screen .plans-container .plan-card ul li {
+    color: rgba(224, 224, 224, 0.85) !important;
+}
+.login-screen .plans-container .plan-card ul li .fa-check {
+    color: #00b894 !important;
+}
+/* Botones del render moderno: tema púrpura / éxito / secundario */
+.login-screen .plans-container .btn-pagar-mp,
+.login-screen .plans-container .btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    padding: 12px 20px !important;
+    min-height: 44px !important;
+    box-shadow: 0 6px 18px rgba(157, 78, 221, 0.4) !important;
+}
+.login-screen .plans-container .btn-activar-trial,
+.login-screen .plans-container .btn-success {
+    background: linear-gradient(135deg, #00b894, #00a381) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    padding: 12px 20px !important;
+    min-height: 44px !important;
+    box-shadow: 0 6px 18px rgba(0, 184, 148, 0.35) !important;
+}
+.login-screen .plans-container .btn-secondary {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(157, 78, 221, 0.35) !important;
+    border-radius: 12px !important;
+    color: #e0e0e0 !important;
+    font-weight: 600 !important;
+    padding: 12px 20px !important;
+    min-height: 44px !important;
+}
+
+/* ── RENDER LEGACY (script.js cargarPlanes) — también en desktop ── */
+.login-screen .stat-box.plan-card {
+    border-color: rgba(157, 78, 221, 0.3) !important;
+    border-radius: 16px !important;
+    background: rgba(18, 18, 24, 0.75) !important;
+}
+.login-screen .select-plan-btn {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: #fff !important;
+    box-shadow: 0 6px 18px rgba(157, 78, 221, 0.4) !important;
+    min-height: 44px !important;
+}
+
+@media (max-width: 768px) {
+    /* Render moderno: tarjetas full-width (el inline dice 280px) */
+    .login-screen .plans-container .plan-card {
+        width: 100% !important;
+        max-width: none !important;
+    }
+}
+
