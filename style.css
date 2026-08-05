@@ -583,6 +583,19 @@ body {
     border-color: var(--primary-color);
 }
 
+/* Tarjetas de estadísticas clickeables (navegan a secciones) */
+.stat-box.stat-box-clickable {
+    cursor: pointer;
+}
+
+.stat-box.stat-box-clickable:hover {
+    box-shadow: 0 10px 30px rgba(157, 78, 221, 0.3);
+}
+
+.stat-box.stat-box-clickable:active {
+    transform: translateY(-2px);
+}
+
 .stat-box::before {
     content: '';
     position: absolute;

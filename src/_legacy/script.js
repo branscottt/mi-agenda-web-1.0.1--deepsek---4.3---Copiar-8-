@@ -6460,6 +6460,28 @@ async function actualizarStatsHeader() {
 }
 window.actualizarStatsHeader = actualizarStatsHeader;
 
+// Navegación desde tarjetas de estadísticas del header:
+// Servicios Activos → Mis Servicios | Citas Activas → Citas Programadas | Clientes Registrados → Mis Clientes
+function vincularNavegacionStatsHeader() {
+    const destinos = {
+        statServicios: 'mis-servicios',
+        statCitas: 'citas',
+        statClientes: 'clientes'
+    };
+    Object.keys(destinos).forEach(function(id) {
+        const stat = document.getElementById(id);
+        if (!stat) return;
+        const box = stat.closest('.stat-box');
+        if (!box || box.dataset.navVinculado) return;
+        box.dataset.navVinculado = '1';
+        box.classList.add('stat-box-clickable');
+        box.addEventListener('click', function() {
+            if (typeof navigateTo === 'function') navigateTo(destinos[id]);
+        });
+    });
+}
+window.vincularNavegacionStatsHeader = vincularNavegacionStatsHeader;
+
 function configurarFiltros() {
     const filtroEstado = document.getElementById('filter-status');
     const filtroUrgencia = document.getElementById('filter-urgency');
@@ -11666,6 +11688,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     // CSP Event Bridge: convertir onclick/onchange/onsubmit inline a addEventListener
     // (evita que CSP los bloquee sin necesidad de 'unsafe-inline')
     _initCSPEventBridge();
+
+    // Tarjetas de estadísticas del header → navegación a secciones
+    vincularNavegacionStatsHeader();
 
     // Esperar a que supabaseClient esté disponible (espera hasta 2s)
     const supabaseListo = await initSupabase();
