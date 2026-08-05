@@ -22,8 +22,22 @@ const fs = require('fs');
     localStorage.setItem('agendapro_user_data', ud);
   }, [s.access_token, s.refresh_token, ud]);
   const page = await ctx.newPage();
-  await page.goto('http://localhost:8080/planes.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.waitForTimeout(8000); // planes carga datos de la API
+  let enPlanes = false;
+  for (let i = 1; i <= 4 && !enPlanes; i++) {
+    await page.goto(process.env.PLANES_URL || 'http://localhost:8080/planes.html', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(7000);
+    enPlanes = await page.evaluate(() => !!document.querySelector('.plan-card'));
+    if (!enPlanes) {
+      await page.evaluate(([at, rt, ud]) => {
+        localStorage.setItem('agendapro_access_token', at);
+        localStorage.setItem('agendapro_refresh_token', rt);
+        localStorage.setItem('agendapro_user_data', ud);
+        location.reload();
+      }, [s.access_token, s.refresh_token, ud]);
+      await page.waitForTimeout(7000);
+      enPlanes = await page.evaluate(() => !!document.querySelector('.plan-card'));
+    }
+  }
   const r = await page.evaluate(() => {
     const vw = document.documentElement.clientWidth;
     const cs = getComputedStyle.bind(window);
