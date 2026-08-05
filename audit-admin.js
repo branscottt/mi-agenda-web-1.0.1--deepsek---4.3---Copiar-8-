@@ -96,7 +96,7 @@ async function auditView(page, label) {
 }
 
 (async () => {
-  const key = fs.readFileSync('/tmp/agendapro-key.txt', 'utf8').trim();
+  const key = fs.readFileSync('/tmp/agendapro-key-clean.txt', 'utf8').trim();
   const cfg = { url: 'https://dfcfimipkfhitlsyixqu.supabase.co', key };
   const session = await login(cfg, 'admin@demo.com', 'demo123');
   if (!session) { console.log('login falló'); process.exit(1); }

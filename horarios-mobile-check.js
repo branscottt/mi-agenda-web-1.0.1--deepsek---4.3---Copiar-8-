@@ -12,7 +12,7 @@ const path = require('path');
 const BASE = process.env.BASE_URL || 'https://agenda-organify.vercel.app';
 const OUT = path.join(__dirname, 'responsive-shots', 'm393');
 const SUPABASE_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co';
-const KEY = fs.readFileSync('/tmp/agendapro-key.txt', 'utf8').trim();
+const KEY = fs.readFileSync('/tmp/agendapro-key-clean.txt', 'utf8').trim();
 
 const EMAIL = 'admin@demo.com';
 const PASSWORD = 'demo123';

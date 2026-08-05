@@ -37,7 +37,7 @@ const PAGES_AUTH = [
   { file: 'cliente.html', name: 'cliente', email: 'cliente@demo.com', password: 'demo123' },
 ];
 
-// ── Leer config de Supabase: env > /tmp/agendapro-key.txt (prod) > .env.local ──
+// ── Leer config de Supabase: env > /tmp/agendapro-key-clean.txt (prod) > .env.local ──
 function loadSupabaseConfig() {
   // 1. Variables de entorno explícitas
   if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
@@ -45,7 +45,7 @@ function loadSupabaseConfig() {
   }
   // 2. Key extraída del bundle de producción (anon key pública)
   try {
-    const prodKey = fs.readFileSync('/tmp/agendapro-key.txt', 'utf8').trim();
+    const prodKey = fs.readFileSync('/tmp/agendapro-key-clean.txt', 'utf8').trim();
     if (prodKey && prodKey.length > 100) {
       return { url: 'https://dfcfimipkfhitlsyixqu.supabase.co', key: prodKey };
     }

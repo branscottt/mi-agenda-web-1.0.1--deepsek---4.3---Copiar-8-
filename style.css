@@ -13700,3 +13700,245 @@ input:-moz-autofill {
     #se-por-dia .se-dia-row .se-time-sm { font-size: 0.74rem; }
     #se-uniforme .time-input-group input[type="time"] { font-size: 0.76rem; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO ESTÉTICO MÓVIL v15 — PALETA ÚNICA + OVERFLOW + ESPACIADO
+   (aditivo, NO modifica desktop; scoped .admin-screen/.client-screen,
+   el login .login-screen NO se toca)
+   - Unifica el magenta legacy (rgba(179,0,255)/#b300ff) al tema
+     púrpura (#9d4edd / rgba(157,78,221,...)): mismo look en PC y móvil
+   - Corrige overflow del toolbar de Mis Servicios (Exportar CSV salía
+     de pantalla: R=479 en viewport 393px)
+   - Compacta espaciados (menos scroll, más claro, no saturado)
+   - Touch targets mínimos cómodos
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* Red de seguridad: nunca scroll lateral en móvil */
+    html, body { overflow-x: clip !important; }
+
+    /* ── 1. PALETA: botón menú (visible en todas las vistas) ── */
+    .admin-screen #sidebar-toggle,
+    .client-screen #sidebar-toggle {
+        border-color: rgba(157, 78, 221, 0.35) !important;
+    }
+
+    /* Iconos de stats del header (todas las vistas) — sombra al tema */
+    .admin-screen .stat-icon,
+    .client-screen .stat-icon {
+        box-shadow: 0 0 15px rgba(157, 78, 221, 0.3) !important;
+    }
+
+    /* Pie del sidebar */
+    .admin-screen .sidebar-footer { border-top-color: rgba(157, 78, 221, 0.15) !important; }
+
+    /* ── 2. BOTONES secundarios/pequeños: borde al tema (era magenta) ── */
+    .admin-screen .btn-secondary,
+    .admin-screen .btn-small,
+    .client-screen .btn-secondary,
+    .client-screen .btn-small {
+        border-color: rgba(157, 78, 221, 0.35) !important;
+    }
+    .admin-screen .btn-secondary:hover,
+    .admin-screen .btn-small:hover,
+    .client-screen .btn-secondary:hover,
+    .client-screen .btn-small:hover {
+        background: rgba(157, 78, 221, 0.15) !important;
+        border-color: #9d4edd !important;
+    }
+
+    /* ── 3. INPUTS / SELECTS / TEXTAREA: borde al tema + focus claro ── */
+    .admin-screen input,
+    .admin-screen select,
+    .admin-screen textarea,
+    .client-screen input,
+    .client-screen select,
+    .client-screen textarea {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+    .admin-screen input:focus,
+    .admin-screen select:focus,
+    .admin-screen textarea:focus,
+    .client-screen input:focus,
+    .client-screen select:focus,
+    .client-screen textarea:focus {
+        border-color: #9d4edd !important;
+        box-shadow: 0 0 0 3px rgba(157, 78, 221, 0.2) !important;
+    }
+    /* Formulario crear-servicio: gana a los ids legacy (#srv-*) */
+    .admin-screen #section-crear-servicio input,
+    .admin-screen #section-crear-servicio select,
+    .admin-screen #section-crear-servicio textarea {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+    .admin-screen #section-crear-servicio input:focus,
+    .admin-screen #section-crear-servicio select:focus,
+    .admin-screen #section-crear-servicio textarea:focus {
+        border-color: #9d4edd !important;
+        box-shadow: 0 0 0 3px rgba(157, 78, 221, 0.2) !important;
+    }
+
+    /* ── 4. FILTROS / FECHAS / TARJETAS DE STAT: borde al tema ── */
+    .admin-screen .date-range-filter,
+    .client-screen .date-range-filter {
+        border-color: rgba(157, 78, 221, 0.2) !important;
+    }
+    .admin-screen .date-range-filter i,
+    .client-screen .date-range-filter i {
+        color: #c77dff !important;
+    }
+    .admin-screen .date-input,
+    .client-screen .date-input {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+    .admin-screen .stat-card,
+    .client-screen .stat-card {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+
+    /* ── 5. COMPARTIR: input de enlace y botones de acción ── */
+    .admin-screen #client-share-link,
+    .admin-screen #share-input-cliente {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+    .admin-screen #copy-link-btn,
+    .admin-screen #share-whatsapp-btn,
+    .admin-screen #generate-qr-btn {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+
+    /* ── 6. URGENCIA "próximos" (2-24h): glow del tema, no magenta flúor ── */
+    .admin-screen .urgent-soon,
+    .client-screen .urgent-soon {
+        border-color: rgba(157, 78, 221, 0.8) !important;
+        box-shadow: 0 0 15px rgba(157, 78, 221, 0.4), 0 0 30px rgba(157, 78, 221, 0.15) !important;
+    }
+    .admin-screen .urgent-soon .service-card-title h4,
+    .client-screen .urgent-soon .service-card-title h4 {
+        color: #c77dff !important;
+        text-shadow: 0 0 8px rgba(157, 78, 221, 0.4) !important;
+    }
+    .admin-screen .urgent-soon .service-card-header,
+    .client-screen .urgent-soon .service-card-header {
+        border-bottom-color: rgba(157, 78, 221, 0.6) !important;
+    }
+    .admin-screen .appointments-table .urgent-soon td {
+        background: rgba(157, 78, 221, 0.1) !important;
+        border-left-color: rgba(157, 78, 221, 0.8) !important;
+    }
+
+    /* ── 6b. DASHBOARD FINANCIERO: KPIs y gráfico al tema ── */
+    .admin-screen .chart-container {
+        border-color: rgba(157, 78, 221, 0.2) !important;
+    }
+    .admin-screen .kpi-item {
+        border-color: rgba(157, 78, 221, 0.15) !important;
+    }
+    .admin-screen .kpi-value {
+        color: #c77dff !important;
+    }
+    /* Calendario mini (crear-servicio) */
+    .admin-screen .calendar-mini {
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+    /* Top servicios del dashboard financiero */
+    .admin-screen .top-service-item {
+        border-color: rgba(157, 78, 221, 0.15) !important;
+    }
+    .admin-screen .top-service-item:hover {
+        background: rgba(157, 78, 221, 0.1) !important;
+    }
+    .admin-screen .top-service-rank {
+        background: rgba(157, 78, 221, 0.2) !important;
+        color: #c77dff !important;
+    }
+    .admin-screen .top-service-stats i {
+        color: #c77dff !important;
+    }
+    /* Botón QR: gana al inline style legacy sin tocar HTML */
+    .admin-screen #generate-qr-btn {
+        background: rgba(157, 78, 221, 0.2) !important;
+        border-color: rgba(157, 78, 221, 0.3) !important;
+    }
+
+    /* ── 7. FIX OVERFLOW: toolbar de Mis Servicios (Exportar CSV salía de pantalla) ── */
+    .admin-screen .panel-actions,
+    .client-screen .panel-actions {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    .admin-screen .filter-controls {
+        flex-wrap: wrap !important;
+        width: 100% !important;
+    }
+    .admin-screen .filter-controls .filter-select {
+        flex: 1 1 45% !important;
+        min-width: 0 !important;
+        width: auto !important;
+    }
+    .admin-screen .panel-actions .btn-grad,
+    .admin-screen .panel-actions .btn-secondary,
+    .admin-screen .panel-actions .btn-small {
+        flex: 1 1 auto !important;
+        justify-content: center !important;
+    }
+    .admin-screen .panel-actions .btn-secondary,
+    .admin-screen .panel-actions .btn-small {
+        margin-left: 0 !important;
+    }
+
+    /* ── 8. ESPACIADO COMPACTO (menos scroll, más claro) ── */
+    .admin-screen .triple-stats { margin-bottom: 12px !important; }
+    .admin-screen .glass-panel { margin-bottom: 14px !important; }
+    .admin-screen .panel-header { margin-bottom: 14px !important; }
+    .admin-screen .date-range-filter { margin-bottom: 14px !important; }
+
+    /* ── 9. TOUCH TARGETS ── */
+    /* "Ver como Cliente" del header: un poco más alto, texto visible */
+    .admin-screen .admin-header .btn-grad,
+    .client-screen .client-header .btn-grad {
+        min-height: 34px !important;
+    }
+    /* Logout de cliente: única salida de sesión en la página */
+    .client-screen #logout-btn {
+        min-width: 40px !important;
+        min-height: 40px !important;
+        margin-left: 0 !important;
+    }
+    /* Banner 2FA (si aparece en contenido principal) */
+    .admin-screen .mfa-banner {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: center !important;
+        padding: 10px 12px !important;
+        margin-bottom: 12px !important;
+        border-radius: 12px !important;
+        background: rgba(157, 78, 221, 0.1) !important;
+        border: 1px solid rgba(157, 78, 221, 0.3) !important;
+        font-size: 0.8rem !important;
+    }
+    .admin-screen .mfa-btn {
+        min-height: 40px !important;
+        padding: 8px 14px !important;
+        border-radius: 10px !important;
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark)) !important;
+        color: #fff !important;
+        border: none !important;
+        font-weight: 600 !important;
+        font-size: 0.78rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Selects de filtro: una columna en pantallas muy pequeñas */
+    .admin-screen .filter-controls .filter-select {
+        flex: 1 1 100% !important;
+    }
+    .admin-screen .panel-actions .btn-grad,
+    .admin-screen .panel-actions .btn-secondary,
+    .admin-screen .panel-actions .btn-small {
+        flex: 1 1 100% !important;
+    }
+}
