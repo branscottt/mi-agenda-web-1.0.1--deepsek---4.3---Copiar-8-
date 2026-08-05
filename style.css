@@ -13391,3 +13391,299 @@ input:-moz-autofill {
         font-size: 0.6rem !important;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   HORARIOS DEL EQUIPO — PULIDO MÓVIL (aditivo, NO modifica desktop)
+   Vista WorkerScheduleView (#schedule-container) + modal editor
+   (#schedule-editor-overlay) + selectores de semanas.
+   - Grid semanal: columna del trabajador STICKY + scroll suave
+   - Modal editar: modo uniforme con labels Entrada/Colación/Salida,
+     modo por-día en grid 2×2 (se ve el horario completo y claro)
+   - Paleta del tema (púrpura #9d4edd / var(--primary-color))
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* ── NAV BAR: 2 filas limpias (título+mes / semana) ── */
+    .admin-screen .schedule-nav-bar {
+        display: grid !important;
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "titulo mes" "semana semana";
+        gap: 6px 8px;
+        margin-bottom: 10px;
+    }
+    .admin-screen .schedule-nav-left { grid-area: titulo; align-self: center; }
+    .admin-screen .schedule-nav-left h3 { font-size: 0.85rem; }
+    .admin-screen .schedule-nav-center { grid-area: mes; justify-content: flex-end; }
+    .admin-screen .schedule-nav-right { grid-area: semana; justify-content: center; }
+    .admin-screen .schedule-month-label { min-width: 80px; font-size: 0.9rem; }
+    /* "2026-W32" es técnico: el indicador de semana ya muestra las fechas */
+    .admin-screen .schedule-week-label { display: none !important; }
+    .admin-screen .schedule-nav-btn {
+        min-height: 40px !important; /* gana a .schedule-main-panel button (0,2,1) */
+        padding: 6px 12px;
+        font-size: 0.78rem;
+    }
+    .admin-screen .schedule-nav-today { padding: 6px 10px; }
+
+    /* ── WEEK CARDS: compactas con scroll-snap ── */
+    .admin-screen .schedule-week-cards {
+        gap: 6px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+    .admin-screen .week-card {
+        flex: 0 0 88px;
+        min-width: 88px;
+        padding: 8px 6px;
+        scroll-snap-align: start;
+    }
+    .admin-screen .week-card .week-card-label { font-size: 0.72rem; }
+    .admin-screen .week-card .week-card-range { font-size: 0.6rem; }
+    .admin-screen .week-card .week-card-summary { font-size: 0.68rem; }
+    /* tipo (📋/✏️) ya se deduce del summary + badge ✏️ de la semana activa */
+    .admin-screen .week-card .week-card-type { display: none !important; }
+
+    /* ── INDICADOR DE SEMANA: columna, botón copiar full-width ── */
+    .admin-screen .schedule-week-indicator {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 12px;
+        font-size: 0.78rem;
+    }
+    .admin-screen .schedule-week-indicator > div {
+        width: 100%;
+        justify-content: center;
+    }
+    .admin-screen #btn-copy-all-weeks {
+        flex: 1 1 100% !important;
+        min-height: 42px;
+        font-size: 0.72rem !important;
+    }
+
+    /* ── BANNER CUMPLIMIENTO: título + 3 badges en grid ── */
+    .admin-screen .schedule-compliance-banner {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+    }
+    .admin-screen .schedule-compliance-banner > span:first-child { grid-column: 1 / -1; }
+    .admin-screen .schedule-compliance-banner .comp-badge {
+        text-align: center;
+        font-size: 0.7rem;
+        padding: 4px 6px;
+    }
+    .admin-screen .schedule-compliance-banner #comp-total-hs {
+        grid-column: 1 / -1;
+        margin-left: 0 !important;
+        text-align: center;
+        font-size: 0.72rem;
+    }
+
+    /* ── GRID SEMANAL: trabajador fijo a la izquierda + scroll suave ── */
+    .admin-screen .schedule-container {
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    .admin-screen .schedule-header-row,
+    .admin-screen .schedule-worker-row {
+        /* minmax(68px,1fr): 68px = ancho real de "09:00 18:00"; mismos tracks en
+           header y filas => alineación perfecta + scroll horizontal cuando no cabe */
+        grid-template-columns: 118px repeat(7, minmax(68px, 1fr));
+        gap: 3px;
+    }
+    .admin-screen .schedule-worker-row {
+        padding: 6px;
+        background: #14141e;
+        border-left-width: 0 !important; /* el color del trabajador vive en el avatar */
+    }
+    /* mismo padding que las filas => días del header alineados con las celdas */
+    .admin-screen .schedule-header-row { padding: 6px; margin-bottom: 3px; }
+    .admin-screen .schedule-corner {
+        position: sticky;
+        left: 6px;
+        z-index: 3;
+        background: #14141e;
+        display: flex;
+        align-items: center;
+        padding-left: 2px;
+        border-radius: 8px;
+    }
+    .admin-screen .schedule-corner::before {
+        content: 'Trabajador';
+        font-size: 0.58rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: rgba(255, 255, 255, 0.45);
+        white-space: nowrap;
+    }
+    .admin-screen .schedule-corner::after {
+        content: '⇠ desliza';
+        font-size: 0.52rem;
+        color: rgba(157, 78, 221, 0.75);
+        margin-left: 6px;
+        white-space: nowrap;
+    }
+    .admin-screen .schedule-worker-info {
+        position: sticky;
+        left: 6px;
+        z-index: 2;
+        background: #14141e;
+        border-radius: 8px;
+        padding: 4px 6px;
+        gap: 6px;
+    }
+    .admin-screen .sw-avatar { width: 28px; height: 28px; font-size: 0.7rem; }
+    .admin-screen .schedule-day-header { padding: 6px 2px; }
+    .admin-screen .s-day-num { font-size: 0.85rem; }
+    .admin-screen .schedule-day-cell { min-height: 44px; padding: 3px 2px; }
+    .admin-screen .s-day-bar { height: 26px; }
+    .admin-screen .s-day-hours { font-size: 0.58rem; }
+    .admin-screen .s-day-ocupacion { font-size: 0.56rem; }
+
+    /* ── GUÍA RÁPIDA: summary compacto ── */
+    .admin-screen .schedule-help summary {
+        font-size: 0.76rem !important;
+        padding: 9px 12px !important;
+    }
+
+    /* ── MODAL EDITOR HORARIO ── */
+    #schedule-editor-overlay {
+        padding: 10px;
+        align-items: flex-start;
+    }
+    #schedule-editor-overlay .modal-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 18px 14px;
+        max-height: 94vh;
+    }
+    #schedule-editor-overlay h3 { font-size: 1.05rem; }
+    #schedule-editor-overlay .se-modo-btn {
+        font-size: 0.75rem;
+        padding: 9px 6px;
+    }
+
+    /* Modo uniforme: 3 bloques apilados con label claro */
+    #se-uniforme > div[style*="display:flex"] {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    #se-uniforme > div[style*="display:flex"] > span { display: none !important; } /* separadores │ */
+    #se-uniforme .time-input-group {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: 3px;
+    }
+    #se-uniforme .time-input-group::before {
+        content: 'Entrada';
+        font-size: 0.66rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.45);
+    }
+    #se-uniforme .time-input-group:nth-of-type(2)::before { content: 'Colación'; }
+    #se-uniforme .time-input-group:nth-of-type(3)::before { content: 'Salida'; }
+    #se-uniforme .time-input-group:nth-of-type(2) { grid-template-columns: 1fr 1fr; align-items: center; }
+    #se-uniforme .time-input-group i { display: none !important; }
+    #se-uniforme .time-input-group span { display: none !important; } /* el "a" de colación */
+    #se-uniforme .time-input-group input[type="time"] {
+        width: 100% !important;
+        flex: 1;
+        min-width: 0;
+        font-size: 0.8rem;
+    }
+
+    /* Modo por-día: cada día en grid 2×2 — se ve TODO y claro */
+    #se-por-dia .se-dia-row {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "dias hs"
+            "entrada salida"
+            "col1 col2";
+        gap: 6px;
+        padding: 8px;
+    }
+    #se-por-dia .se-dia-row > label { grid-area: dias; min-width: 0; }
+    #se-por-dia .se-dia-row .se-pd-hs { grid-area: hs; align-self: center; justify-self: end; }
+    #se-por-dia .se-dia-row .se-pd-inicio { grid-area: entrada; }
+    #se-por-dia .se-dia-row .se-pd-fin { grid-area: salida; }
+    #se-por-dia .se-dia-row .se-pd-ci { grid-area: col1; }
+    #se-por-dia .se-dia-row .se-pd-cf { grid-area: col2; }
+    #se-por-dia .se-dia-row > i,
+    #se-por-dia .se-dia-row > span:not(.se-pd-hs) { display: none !important; }
+    #se-por-dia .se-dia-row .se-time-sm {
+        width: 100% !important;
+        min-width: 0;
+        font-size: 0.78rem;
+    }
+    /* la fila de colación se distingue con un fondo sutil */
+    #se-por-dia .se-dia-row .se-pd-ci,
+    #se-por-dia .se-dia-row .se-pd-cf { background: rgba(253, 203, 110, 0.05); }
+
+    /* Total semanal + máx: compacto */
+    #se-form > div:nth-of-type(4) { padding: 10px; }
+    #se-form > div:nth-of-type(4) > div:first-child { flex-wrap: wrap; gap: 6px; }
+
+    /* Acciones: Cancelar | Copiar en fila, Guardar full-width abajo */
+    #se-form > div:last-of-type {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    #se-form > div:last-of-type .btn-save-primary {
+        grid-column: 1 / -1;
+        min-height: 44px;
+    }
+    #se-form > div:last-of-type .btn-reset-styled,
+    #se-form > div:last-of-type .btn-secondary {
+        min-height: 44px;
+        width: 100%;
+    }
+
+    /* ── SELECTORES DE SEMANAS (copiar a) ── */
+    #week-selector-overlay,
+    #copy-all-overlay {
+        padding: 10px;
+        align-items: flex-start;
+    }
+    #week-selector-overlay .modal-content,
+    #copy-all-overlay .modal-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 18px 14px;
+        max-height: 94vh;
+    }
+    #week-selector-overlay .ws-weeks-grid,
+    #copy-all-overlay .ws-weeks-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    #week-selector-overlay .ws-week-label,
+    #copy-all-overlay .ws-week-label { min-height: 42px; }
+    #week-selector-overlay .ws-week-label input[type="checkbox"],
+    #copy-all-overlay .ws-week-label input[type="checkbox"] { flex-shrink: 0; }
+    #week-selector-overlay .modal-content > div:last-of-type,
+    #copy-all-overlay .modal-content > div:last-of-type {
+        flex-wrap: wrap;
+        padding-top: 10px;
+    }
+    #week-selector-overlay .modal-content > div:last-of-type button,
+    #copy-all-overlay .modal-content > div:last-of-type button { min-height: 44px; }
+}
+
+@media (max-width: 480px) {
+    .admin-screen .schedule-header-row,
+    .admin-screen .schedule-worker-row {
+        grid-template-columns: 104px repeat(7, minmax(68px, 1fr));
+    }
+    .admin-screen .schedule-corner::after { display: none; } /* hint solo en ≥480 */
+    .admin-screen .sw-name { font-size: 0.76rem; }
+    #schedule-editor-overlay .modal-content { padding: 16px 12px; }
+    #se-por-dia .se-dia-row .se-time-sm { font-size: 0.74rem; }
+    #se-uniforme .time-input-group input[type="time"] { font-size: 0.76rem; }
+}

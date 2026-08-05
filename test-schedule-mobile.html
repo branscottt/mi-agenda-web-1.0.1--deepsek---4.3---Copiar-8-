@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TEST HORARIOS MÓVIL</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  body { background: #0d0d0d; }
+  #wrap { max-width: 1400px; margin: 0 auto; }
+  .report { position: fixed; bottom: 0; left: 0; right: 0; background: #111; color: #0f0;
+    font: 11px monospace; padding: 6px 10px; z-index: 99999; max-height: 40vh; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="wrap" class="admin-screen">
+
+  <section class="admin-panel schedule-panel">
+    <div class="glass-panel schedule-main-panel" id="schedule-container">
+
+      <!-- NAV BAR (fiel a WorkerScheduleView.js) -->
+      <div class="schedule-nav-bar">
+        <div class="schedule-nav-left">
+          <h3 style="margin:0;"><i class="fas fa-calendar-alt"></i> Horarios del Equipo</h3>
+        </div>
+        <div class="schedule-nav-center">
+          <button class="schedule-nav-btn" title="Mes anterior"><i class="fas fa-chevron-left"></i></button>
+          <span class="schedule-month-label">Agosto 2026</span>
+          <button class="schedule-nav-btn" title="Mes siguiente"><i class="fas fa-chevron-right"></i></button>
+          <button class="schedule-nav-btn schedule-nav-today" title="Ir a hoy"><i class="fas fa-calendar-day"></i> Hoy</button>
+        </div>
+        <div class="schedule-nav-right">
+          <button class="schedule-nav-btn schedule-nav-week"><i class="fas fa-arrow-left"></i> Sem.</button>
+          <span class="schedule-week-label">2026-W32</span>
+          <button class="schedule-nav-btn schedule-nav-week">Sem. <i class="fas fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- WEEK CARDS -->
+      <div class="schedule-week-cards" id="schedule-week-cards">
+        <div class="week-card week-card-active" data-week="2026-W31" title="Ver semana">
+          <span class="week-card-label">Sem 31</span>
+          <span class="week-card-range">27 Jul – 2 Ago</span>
+          <span class="week-card-summary">✅ 3/3</span>
+          <span class="week-card-type">📋 Plantilla</span>
+        </div>
+        <div class="week-card week-card-today" data-week="2026-W32" title="Ver semana">
+          <span class="week-card-label">Sem 32</span>
+          <span class="week-card-range">3 Ago – 9 Ago</span>
+          <span class="week-card-summary">⚠️ 2/3</span>
+          <span class="week-card-type">✏️ Personalizada</span>
+          <span class="week-card-hoy">HOY</span>
+        </div>
+        <div class="week-card" data-week="2026-W33" title="Ver semana">
+          <span class="week-card-label">Sem 33</span>
+          <span class="week-card-range">10 Ago – 16 Ago</span>
+          <span class="week-card-summary">✅ 3/3</span>
+          <span class="week-card-type">📋 Plantilla</span>
+        </div>
+        <div class="week-card" data-week="2026-W34" title="Ver semana">
+          <span class="week-card-label">Sem 34</span>
+          <span class="week-card-range">17 Ago – 23 Ago</span>
+          <span class="week-card-summary">✅ 3/3</span>
+          <span class="week-card-type">📋 Plantilla</span>
+        </div>
+      </div>
+
+      <!-- INDICADOR -->
+      <div class="schedule-week-indicator" id="schedule-week-indicator">
+        <span><i class="fas fa-calendar-week"></i> Semana del <strong>3 de agosto</strong> al <strong>9 de agosto</strong></span>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span class="week-type-badge week-type-custom"><i class="fas fa-pencil-alt"></i> Personalizada <button class="btn-reset-week" id="btn-restore-template">Restaurar plantilla</button></span>
+          <button class="btn-secondary" id="btn-copy-all-weeks" style="font-size:0.72rem;padding:4px 10px;white-space:nowrap;"><i class="fas fa-copy"></i> Copiar a semanas...</button>
+        </div>
+      </div>
+
+      <!-- BANNER -->
+      <div class="schedule-compliance-banner" style="margin-bottom:14px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:0.85rem;white-space:nowrap;"><i class="fas fa-clipboard-check"></i> Cumplimiento Chile</span>
+        <span class="comp-badge comp-ok" id="comp-ok-count">✅ 2 cumplen</span>
+        <span class="comp-badge comp-warning" id="comp-warning-count">⚠️ 1 con advertencias</span>
+        <span class="comp-badge comp-error" id="comp-error-count">❌ 0 exceden</span>
+        <span style="font-size:0.78rem;color:rgba(255,255,255,0.35);margin-left:auto;" id="comp-total-hs">95h totales / 3 trabajadores</span>
+      </div>
+
+      <!-- GRID SEMANAL (fiel a renderGridSemanal) -->
+      <div class="schedule-container">
+        <div class="schedule-header-row">
+          <div class="schedule-corner"></div>
+          <div class="schedule-day-header today"><span class="s-day-name">Lun</span><span class="s-day-num">3</span></div>
+          <div class="schedule-day-header"><span class="s-day-name">Mar</span><span class="s-day-num">4</span></div>
+          <div class="schedule-day-header"><span class="s-day-name">Mié</span><span class="s-day-num">5</span></div>
+          <div class="schedule-day-header"><span class="s-day-name">Jue</span><span class="s-day-num">6</span></div>
+          <div class="schedule-day-header"><span class="s-day-name">Vie</span><span class="s-day-num">7</span></div>
+          <div class="schedule-day-header"><span class="s-day-name">Sáb</span><span class="s-day-num">8</span></div>
+          <div class="schedule-day-header"><span class="s-day-name">Dom</span><span class="s-day-num">9</span></div>
+        </div>
+
+        <!-- Worker 1: jornada completa 09-18 con colación -->
+        <div class="schedule-worker-row clickable" style="border-left:4px solid #9d4edd;cursor:pointer;" title="Editar horario de Ana">
+          <div class="schedule-worker-info">
+            <span class="sw-avatar" style="background:#9d4edd">A</span>
+            <div class="sw-details">
+              <strong class="sw-name">Ana González</strong>
+              <span class="sw-total">40h/sem <span class="sw-badge badge-ok">✅</span></span>
+            </div>
+          </div>
+          <div class="schedule-day-cell on today">
+            <div class="s-day-bar" style="background:#9d4edd15;"><div class="s-day-fill" style="width:75%;background:#9d4edd;"><span class="s-day-hours">09:00 🍴 18:00</span></div></div>
+            <span class="s-day-ocupacion ocup-media">🟡 6 citas</span>
+          </div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#9d4edd15;"><div class="s-day-fill" style="width:75%;background:#9d4edd;"><span class="s-day-hours">09:00 🍴 18:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 2 citas</span>
+          </div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#9d4edd15;"><div class="s-day-fill" style="width:75%;background:#9d4edd;"><span class="s-day-hours">09:00 🍴 18:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 1 cita</span>
+          </div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#9d4edd15;"><div class="s-day-fill" style="width:75%;background:#9d4edd;"><span class="s-day-hours">09:00 🍴 18:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 0 citas</span>
+          </div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#9d4edd15;"><div class="s-day-fill" style="width:75%;background:#9d4edd;"><span class="s-day-hours">09:00 🍴 18:00</span></div></div>
+            <span class="s-day-ocupacion ocup-llena">🔴 10 citas</span>
+          </div>
+          <div class="schedule-day-cell off"><span class="s-day-status">--</span></div>
+          <div class="schedule-day-cell off"><span class="s-day-status">--</span></div>
+        </div>
+
+        <!-- Worker 2: media jornada -->
+        <div class="schedule-worker-row clickable" style="border-left:4px solid #00b894;cursor:pointer;" title="Editar horario de Luis">
+          <div class="schedule-worker-info">
+            <span class="sw-avatar" style="background:#00b894">L</span>
+            <div class="sw-details">
+              <strong class="sw-name">Luis Pérez</strong>
+              <span class="sw-total">20h/sem <span class="sw-badge badge-warning">⚠️</span></span>
+            </div>
+          </div>
+          <div class="schedule-day-cell on today">
+            <div class="s-day-bar" style="background:#00b89415;"><div class="s-day-fill" style="width:42%;background:#00b894;"><span class="s-day-hours">09:00 13:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 1 cita</span>
+          </div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#00b89415;"><div class="s-day-fill" style="width:42%;background:#00b894;"><span class="s-day-hours">09:00 13:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 0 citas</span>
+          </div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#00b89415;"><div class="s-day-fill" style="width:42%;background:#00b894;"><span class="s-day-hours">09:00 13:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 0 citas</span>
+          </div>
+          <div class="schedule-day-cell off"><span class="s-day-status">--</span></div>
+          <div class="schedule-day-cell on">
+            <div class="s-day-bar" style="background:#00b89415;"><div class="s-day-fill" style="width:42%;background:#00b894;"><span class="s-day-hours">09:00 13:00</span></div></div>
+            <span class="s-day-ocupacion ocup-baja">🟢 1 cita</span>
+          </div>
+          <div class="schedule-day-cell off"><span class="s-day-status">--</span></div>
+          <div class="schedule-day-cell off"><span class="s-day-status">--</span></div>
+        </div>
+      </div>
+
+      <!-- LEYENDA -->
+      <div class="schedule-legend" style="margin-top:14px;display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(0,184,148,0.4);"></span> Disponible</span>
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);"></span> Descanso</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ MODAL EDITOR (fiel a abrirEditorHorario) ═══ -->
+  <div class="modal-overlay" id="schedule-editor-overlay" style="overflow-y:auto;display:flex;">
+    <div class="modal-content" style="max-width:580px;">
+      <button class="modal-close" id="se-close">&times;</button>
+      <h3><i class="fas fa-clock"></i> Ana González</h3>
+      <div style="margin-bottom:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span class="week-type-badge week-type-custom" style="font-size:0.78rem;">✏️ Personalizada (2026-W32)</span>
+        <span style="font-size:0.72rem;color:rgba(255,255,255,0.3);">Semana 2026-W32</span>
+      </div>
+      <form id="se-form">
+
+        <!-- TABS -->
+        <div style="margin-bottom:14px;display:flex;gap:8px;background:rgba(255,255,255,0.02);border-radius:10px;padding:6px;">
+          <button type="button" class="se-modo-btn" data-modo="uniforme" style="flex:1;padding:10px;border-radius:8px;border:2px solid transparent;cursor:pointer;font-weight:600;font-size:0.82rem;transition:all 0.2s;background:transparent;color:rgba(255,255,255,0.5);">
+            <i class="fas fa-equals"></i> Mismo horario todos los días
+          </button>
+          <button type="button" class="se-modo-btn active" data-modo="por-dia" style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--primary-color);cursor:pointer;font-weight:600;font-size:0.82rem;transition:all 0.2s;background:rgba(157,78,221,0.1);color:#c77dff;">
+            <i class="fas fa-list"></i> Horario diferente por día
+          </button>
+        </div>
+
+        <!-- UNIFORME -->
+        <div id="se-uniforme" style="display:none;">
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.6);margin-bottom:8px;">Días que trabaja</label>
+          <div class="wf-dias-grid" style="margin-bottom:12px;">
+            <label class="wf-dia-label activo"><input type="checkbox" class="se-dia-cb" data-dia="1" checked><span>Lun</span></label>
+            <label class="wf-dia-label activo"><input type="checkbox" class="se-dia-cb" data-dia="2" checked><span>Mar</span></label>
+            <label class="wf-dia-label activo"><input type="checkbox" class="se-dia-cb" data-dia="3" checked><span>Mié</span></label>
+            <label class="wf-dia-label activo"><input type="checkbox" class="se-dia-cb" data-dia="4" checked><span>Jue</span></label>
+            <label class="wf-dia-label activo"><input type="checkbox" class="se-dia-cb" data-dia="5" checked><span>Vie</span></label>
+            <label class="wf-dia-label"><input type="checkbox" class="se-dia-cb" data-dia="6"><span>Sáb</span></label>
+            <label class="wf-dia-label"><input type="checkbox" class="se-dia-cb" data-dia="7"><span>Dom</span></label>
+          </div>
+          <label style="display:block;font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.6);margin-bottom:6px;">Horario</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div class="time-input-group"><i class="fas fa-play"></i><input type="time" id="se-inicio" value="09:00" class="se-time"></div>
+            <span style="color:rgba(255,255,255,0.15);">│</span>
+            <div class="time-input-group"><i class="fas fa-utensils" style="color:rgba(253,203,110,0.5);"></i><input type="time" id="se-ci" value="13:00" class="se-time" style="width:80px;"><span style="color:rgba(255,255,255,0.15);font-size:0.7rem;">a</span><input type="time" id="se-cf" value="14:00" class="se-time" style="width:80px;"></div>
+            <span style="color:rgba(255,255,255,0.15);">│</span>
+            <div class="time-input-group"><i class="fas fa-stop"></i><input type="time" id="se-fin" value="18:00" class="se-time"></div>
+          </div>
+        </div>
+
+        <!-- POR DIA (7 filas, fiel al template) -->
+        <div id="se-por-dia">
+          <div class="se-dia-row" data-dia="1" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="1" checked> Lun</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="1" value="09:00">
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="1" value="13:00">
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="1" value="14:00">
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="1" value="18:00">
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">8h</span>
+          </div>
+          <div class="se-dia-row" data-dia="2" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="2" checked> Mar</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="2" value="09:00">
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="2" value="13:00">
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="2" value="14:00">
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="2" value="18:00">
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">8h</span>
+          </div>
+          <div class="se-dia-row" data-dia="3" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="3" checked> Mié</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="3" value="09:00">
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="3" value="13:00">
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="3" value="14:00">
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="3" value="18:00">
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">8h</span>
+          </div>
+          <div class="se-dia-row" data-dia="4" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="4" checked> Jue</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="4" value="09:00">
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="4" value="13:00">
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="4" value="14:00">
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="4" value="18:00">
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">8h</span>
+          </div>
+          <div class="se-dia-row" data-dia="5" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="5" checked> Vie</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="5" value="09:00">
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="5" value="13:00">
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="5" value="14:00">
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="5" value="18:00">
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">8h</span>
+          </div>
+          <div class="se-dia-row" data-dia="6" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);opacity:0.4;">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="6"> Sáb</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="6" value="09:00" disabled>
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="6" value="13:00" disabled>
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="6" value="14:00" disabled>
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="6" value="18:00" disabled>
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">0h</span>
+          </div>
+          <div class="se-dia-row" data-dia="7" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);opacity:0.4;">
+            <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;"><input type="checkbox" class="se-pd-cb" data-dia="7"> Dom</label>
+            <input type="time" class="se-pd-inicio se-time-sm" data-dia="7" value="09:00" disabled>
+            <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
+            <input type="time" class="se-pd-ci se-time-sm" data-dia="7" value="13:00" disabled>
+            <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
+            <input type="time" class="se-pd-cf se-time-sm" data-dia="7" value="14:00" disabled>
+            <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
+            <input type="time" class="se-pd-fin se-time-sm" data-dia="7" value="18:00" disabled>
+            <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">0h</span>
+          </div>
+        </div>
+
+        <!-- TOTAL + MAX -->
+        <div style="margin-top:14px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.04);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.5);">Total semanal: <strong id="se-total-hs" style="color:var(--primary-color);font-size:1.2rem;">40</strong>h</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:0.7rem;color:rgba(255,255,255,0.35);">Máx:</span>
+              <input type="number" id="se-max" value="45" min="1" max="168" style="width:55px;padding:5px 8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:var(--text-color);font-size:0.8rem;text-align:center;">
+              <span style="font-size:0.7rem;color:rgba(255,255,255,0.35);">h/sem</span>
+            </div>
+          </div>
+          <div class="se-progress-bar" id="se-progress-bar"><div class="se-progress-fill" id="se-progress-fill" style="width:89%;background:var(--primary-color);"></div></div>
+        </div>
+
+        <!-- ACCIONES -->
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button type="button" class="btn-reset-styled" id="se-cancel" style="flex:1;min-width:100px;">Cancelar</button>
+          <button type="button" class="btn-secondary" id="se-copy-weeks" style="flex:1;min-width:120px;"><i class="fas fa-copy"></i> Copiar a semanas...</button>
+          <button type="submit" class="btn-save-primary" style="flex:2;"><i class="fas fa-save"></i> Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── MEDICIÓN: se ejecuta en el iframe 390px (?frame=390) ───
+function medir() {
+  const r = {};
+  const vw = document.documentElement.clientWidth;
+  r.viewport = vw;
+  const c = document.getElementById('schedule-container');
+  r.grid_scrollWidth = c.scrollWidth;
+  r.grid_clientWidth = c.clientWidth;
+  r.grid_scrolls = c.scrollWidth > c.clientWidth;
+
+  const wi = document.querySelector('.schedule-worker-info');
+  r.workerInfo_sticky = getComputedStyle(wi).position;
+  r.workerInfo_left0 = Math.round(wi.getBoundingClientRect().left);
+
+  // scroll horizontal del grid y re-medir sticky
+  c.scrollLeft = 400;
+  r.workerInfo_left_after_scroll = Math.round(wi.getBoundingClientRect().left);
+  r.corner_left_after_scroll = Math.round(document.querySelector('.schedule-corner').getBoundingClientRect().left);
+  c.scrollLeft = 0;
+
+  // Modal por-día: overflow por fila
+  r.modalW = Math.round(document.querySelector('#schedule-editor-overlay .modal-content').getBoundingClientRect().width);
+  const filas = [...document.querySelectorAll('.se-dia-row')];
+  r.filas_con_overflow = filas.filter(f => f.scrollWidth > f.clientWidth + 1).length;
+  r.fila_ejemplo = { sw: filas[0].scrollWidth, cw: filas[0].clientWidth };
+  r.inputs_fullwidth = filas.every(f => {
+    const i = f.querySelector('.se-pd-inicio');
+    return i && i.getBoundingClientRect().width > 60;
+  });
+  r.hs_visible = getComputedStyle(filas[0].querySelector('.se-pd-hs')).display !== 'none';
+  r.iconos_ocultos = filas.every(f => getComputedStyle(f.querySelector('i')).display === 'none');
+
+  // Modal uniforme
+  const uni = document.querySelector('#se-uniforme > div[style*="display:flex"]');
+  r.uni_cols = getComputedStyle(uni).gridTemplateColumns;
+  const g1 = uni.querySelector('.time-input-group');
+  r.uni_label1 = getComputedStyle(g1, '::before').content;
+  r.uni_input_w = Math.round(g1.querySelector('input').getBoundingClientRect().width);
+  r.uni_input_overflow = g1.scrollWidth > g1.clientWidth + 1;
+
+  // Acciones
+  const acc = document.querySelector('#se-form > div:last-of-type');
+  r.acciones_grid = getComputedStyle(acc).display;
+  r.guardar_ancho = Math.round(acc.querySelector('.btn-save-primary').getBoundingClientRect().width);
+  r.guardar_minh = Math.round(acc.querySelector('.btn-save-primary').getBoundingClientRect().height);
+
+  // Nav bar
+  const nav = document.querySelector('.schedule-nav-bar');
+  r.nav_grid = getComputedStyle(nav).display;
+  r.nav_areas = getComputedStyle(nav).gridTemplateAreas.replace(/\s+/g, ' ');
+  r.week_label_oculto = getComputedStyle(document.querySelector('.schedule-week-label')).display === 'none';
+
+  // Banner
+  r.banner_grid = getComputedStyle(document.querySelector('.schedule-compliance-banner')).display;
+
+  // Overflow global
+  r.overflowX_global = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+
+  // corner hint
+  r.corner_hint = getComputedStyle(document.querySelector('.schedule-corner'), '::after').content;
+
+  window.__report = r;
+  console.log('REPORT', JSON.stringify(r, null, 1));
+}
+window.addEventListener('load', () => setTimeout(medir, 400));
+</script>
+</body>
+</html>
