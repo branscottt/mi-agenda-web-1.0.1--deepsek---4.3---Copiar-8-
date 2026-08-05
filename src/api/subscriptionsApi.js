@@ -27,7 +27,7 @@ export async function getActiveSubscriptionByTenantId(tenantId) {
     if (!tenantId) return null;
     const { data, error } = await getSupabase()
         .from(TABLE)
-        .select('id, tenant_id, plan, status, start_date, end_date, monto')
+        .select('id, tenant_id, plan, status, start_date, end_date')
         .eq('tenant_id', String(tenantId).trim())
         .eq('status', 'active')
         .order('start_date', { ascending: false })

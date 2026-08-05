@@ -26,6 +26,10 @@ export async function renderPlans(container, apis) {
         if (nav) nav.style.display = 'none';
     }
 
+    // Free Trial SOLO al crear tenant (?new=true) — nunca al cambiar de plan
+    const isNewAdmin = urlParams.get('new') === 'true';
+    const plansVisibles = PLANS.filter(p => p.key !== 'free_trial' || isNewAdmin);
+
     // Mostrar estado de pago si venimos de MP
     const paymentStatus = checkPaymentStatusFromUrl();
     const paymentMessage = getPaymentStatusMessage(paymentStatus);
@@ -65,6 +69,16 @@ export async function renderPlans(container, apis) {
     const currentPlan = await obtenerPlanActual(tenantId);
     const userEmail = obtenerUserEmail();
 
+    // Cupón promocional 50% (solo Pro mensual): mostrar SOLO si está aprobado
+    let promoActiva = false;
+    try {
+        const promoStatus = await checkPromoCouponStatus(tenantId);
+        const promoData = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
+        if (promoData && promoData.discount_available) promoActiva = true;
+    } catch (e) {
+        console.warn('[PlansView] Error verificando cupón promocional:', e);
+    }
+
     // Auto-redirect después de pago exitoso
     if (paymentStatus?.status === 'success') {
         // Marcar cupón promocional como usado si corresponde
@@ -85,19 +99,29 @@ export async function renderPlans(container, apis) {
         <div class="plans-container">
             <h2><i class="fas fa-tags"></i> Planes de suscripción</h2>
             <p class="text-muted">Selecciona el plan que mejor se adapte a tu negocio.</p>
+            ${promoActiva ? `
+            <div class="promo-activa" style="background:rgba(0,184,148,0.12);border:1px solid rgba(0,184,148,0.45);color:#7ff5d8;padding:12px 16px;border-radius:12px;margin:14px 0 18px;display:flex;align-items:center;gap:10px;">
+                <i class="fas fa-tags" style="font-size:18px;"></i>
+                <span><strong>¡Cupón 50% activado!</strong> Tu plan Pro cuesta <strong>$7.500/mes</strong> — el descuento se aplica al pagar.</span>
+            </div>` : ''}
             ${paymentMessage}
             ${expiredBanner}
             ${pendingWhatsapp}
             ${suspendedBanner}
             <div class="plans-grid" style="display:flex; gap:20px; flex-wrap:wrap; justify-content:center;">
-                ${PLANS.map(p => {
+                ${plansVisibles.map(p => {
                     const isCurrent = currentPlan === p.key;
                     const canPay = p.key !== 'freemium' && !isCurrent;
+                    const conDescuento = p.key === 'pro' && promoActiva;
                     return `
                     <div class="plan-card" data-plan="${p.key}" style="border:2px solid ${isCurrent ? p.color : '#dee2e6'}; border-radius:12px; padding:24px; width:280px; text-align:center; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
                         <i class="fas ${p.icon}" style="font-size:48px; color:${p.color};"></i>
                         <h3 style="margin:12px 0 4px;">${p.name}</h3>
-                        <p style="font-size:24px; font-weight:bold; color:${p.color};">${p.price}</p>
+                        <p style="font-size:24px; font-weight:bold; color:${p.color};">
+                            ${conDescuento
+                                ? '<span style="text-decoration:line-through;opacity:0.55;font-size:16px;font-weight:600;">$15.000</span> $7.500/mes <span style="font-size:11px;background:#00b894;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px;">50% OFF</span>'
+                                : p.price}
+                        </p>
                         <ul style="list-style:none; padding:0; margin:16px 0; text-align:left;">
                             <li><i class="fas fa-check text-success"></i> Catálogo de servicios</li>
                             <li><i class="fas fa-check text-success"></i> Gestión de citas</li>
