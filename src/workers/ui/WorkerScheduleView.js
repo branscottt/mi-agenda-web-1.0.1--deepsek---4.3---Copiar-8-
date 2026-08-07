@@ -464,33 +464,46 @@ export function abrirEditorHorario(worker, weekKey, hrInfo) {
                         }).join('')}
                     </div>
                     <label style="display:block;font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.6);margin-bottom:6px;">Horario</label>
-                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                        <div class="time-input-group"><i class="fas fa-play"></i><input type="time" id="se-inicio" value="${hr['1']?.inicio||'09:00'}" class="se-time"></div>
+                    <div class="se-uniforme-horario" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <div class="time-input-group"><span class="se-uni-label">Entrada</span><i class="fas fa-play"></i><input type="time" id="se-inicio" value="${hr['1']?.inicio||'09:00'}" class="se-time"></div>
                         <span style="color:rgba(255,255,255,0.15);">│</span>
-                        <div class="time-input-group"><i class="fas fa-utensils" style="color:rgba(253,203,110,0.5);"></i><input type="time" id="se-ci" value="${hr['1']?.colacion_inicio||'13:00'}" class="se-time" style="width:80px;"><span style="color:rgba(255,255,255,0.15);font-size:0.7rem;">a</span><input type="time" id="se-cf" value="${hr['1']?.colacion_fin||'14:00'}" class="se-time" style="width:80px;"></div>
+                        <div class="time-input-group"><span class="se-uni-label">Colación</span><i class="fas fa-utensils" style="color:rgba(253,203,110,0.5);"></i><input type="time" id="se-ci" value="${hr['1']?.colacion_inicio||'13:00'}" class="se-time" style="width:80px;"><span style="color:rgba(255,255,255,0.15);font-size:0.7rem;">a</span><input type="time" id="se-cf" value="${hr['1']?.colacion_fin||'14:00'}" class="se-time" style="width:80px;"></div>
                         <span style="color:rgba(255,255,255,0.15);">│</span>
-                        <div class="time-input-group"><i class="fas fa-stop"></i><input type="time" id="se-fin" value="${hr['1']?.fin||'18:00'}" class="se-time"></div>
+                        <div class="time-input-group"><span class="se-uni-label">Salida</span><i class="fas fa-stop"></i><input type="time" id="se-fin" value="${hr['1']?.fin||'18:00'}" class="se-time"></div>
                     </div>
                 </div>
 
                 <!-- POR DIA -->
                 <div id="se-por-dia" style="${modoUniforme?'display:none;':''}">
+                    <div class="se-pd-header">
+                        <span class="se-pd-hd-dia">Día</span>
+                        <span>Entrada</span>
+                        <span>Colación ini</span>
+                        <span>Colación fin</span>
+                        <span>Salida</span>
+                        <span class="se-pd-hd-hs">Hs</span>
+                    </div>
                     ${[1,2,3,4,5,6,7].map(k => {
                         const d = hr[String(k)]||{activo:false,inicio:'09:00',fin:'18:00',colacion_inicio:'13:00',colacion_fin:'14:00'};
                         const nom = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][k-1];
                         return `
-                            <div class="se-dia-row" data-dia="${k}" style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);${d.activo?'':'opacity:0.4;'}">
-                                <label style="display:flex;align-items:center;gap:4px;min-width:40px;cursor:pointer;font-size:0.82rem;font-weight:600;">
+                            <div class="se-dia-row" data-dia="${k}" style="${d.activo?'':'opacity:0.45;'}">
+                                <label class="se-pd-dia-label" style="display:flex;align-items:center;gap:4px;min-width:0;cursor:pointer;font-size:0.82rem;font-weight:600;">
                                     <input type="checkbox" class="se-pd-cb" data-dia="${k}" ${d.activo?'checked':''}> ${nom}
                                 </label>
-                                <input type="time" class="se-pd-inicio se-time-sm" data-dia="${k}" value="${d.inicio}" ${d.activo?'':'disabled'}>
-                                <i class="fas fa-utensils" style="font-size:0.55rem;color:rgba(253,203,110,0.3);"></i>
-                                <input type="time" class="se-pd-ci se-time-sm" data-dia="${k}" value="${d.colacion_inicio}" ${d.activo?'':'disabled'}>
-                                <span style="color:rgba(255,255,255,0.1);font-size:0.65rem;">a</span>
-                                <input type="time" class="se-pd-cf se-time-sm" data-dia="${k}" value="${d.colacion_fin}" ${d.activo?'':'disabled'}>
-                                <i class="fas fa-stop" style="font-size:0.55rem;color:rgba(255,255,255,0.15);"></i>
-                                <input type="time" class="se-pd-fin se-time-sm" data-dia="${k}" value="${d.fin}" ${d.activo?'':'disabled'}>
-                                <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);min-width:30px;text-align:right;">${calcHoras(d)}h</span>
+                                <div class="se-pd-field se-pd-field-inicio" data-label="Entrada">
+                                    <input type="time" class="se-pd-inicio se-time-sm" data-dia="${k}" value="${d.inicio}" ${d.activo?'':'disabled'} aria-label="Entrada ${nom}">
+                                </div>
+                                <div class="se-pd-field se-pd-field-ci" data-label="Col. inicio">
+                                    <input type="time" class="se-pd-ci se-time-sm" data-dia="${k}" value="${d.colacion_inicio}" ${d.activo?'':'disabled'} aria-label="Colación inicio ${nom}">
+                                </div>
+                                <div class="se-pd-field se-pd-field-cf" data-label="Col. fin">
+                                    <input type="time" class="se-pd-cf se-time-sm" data-dia="${k}" value="${d.colacion_fin}" ${d.activo?'':'disabled'} aria-label="Colación fin ${nom}">
+                                </div>
+                                <div class="se-pd-field se-pd-field-fin" data-label="Salida">
+                                    <input type="time" class="se-pd-fin se-time-sm" data-dia="${k}" value="${d.fin}" ${d.activo?'':'disabled'} aria-label="Salida ${nom}">
+                                </div>
+                                <span class="se-pd-hs" style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.35);min-width:28px;text-align:right;">${calcHoras(d)}h</span>
                             </div>`;
                     }).join('')}
                 </div>

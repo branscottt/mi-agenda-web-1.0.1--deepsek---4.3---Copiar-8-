@@ -2046,6 +2046,68 @@ body {
     min-width: 0;
 }
 
+/* ─── EDITOR HORARIO: modo uniforme — etiquetas visibles ─── */
+.se-uniforme-horario .time-input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+}
+.se-uniforme-horario .time-input-group .se-uni-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.4);
+}
+.se-uniforme-horario .time-input-group i { display: none; } /* iconos decorativos ya no hacen falta */
+.se-uniforme-horario > span { align-self: flex-end; margin-bottom: 4px; }
+
+/* ─── EDITOR HORARIO: modo por día — tabla clara con cabecera ─── */
+#se-por-dia .se-pd-header,
+#se-por-dia .se-dia-row {
+    display: grid;
+    grid-template-columns: 56px 1fr 1fr 1fr 1fr 34px;
+    gap: 8px;
+    align-items: center;
+}
+#se-por-dia .se-pd-header {
+    padding: 6px 10px 6px 12px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.4);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 6px;
+}
+#se-por-dia .se-pd-header .se-pd-hd-hs { text-align: right; }
+#se-por-dia .se-dia-row {
+    padding: 7px 10px;
+    margin-bottom: 5px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+#se-por-dia .se-dia-row:hover { border-color: rgba(157,78,221,0.35); }
+#se-por-dia .se-dia-row .se-pd-field {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+#se-por-dia .se-dia-row .se-pd-field .se-time-sm {
+    width: 100%;
+    min-width: 0;
+}
+#se-por-dia .se-dia-row .se-pd-hs { justify-self: end; }
+/* Resaltar la colación con borde sutil para que se distinga de entrada/salida */
+#se-por-dia .se-dia-row .se-pd-field-ci,
+#se-por-dia .se-dia-row .se-pd-field-cf {
+    border-left: 2px solid rgba(253,203,110,0.35);
+    padding-left: 8px;
+}
+
 /* ─── TAGS INPUT (skills multi-valor) ─── */
 .tags-input-wrapper {
     width: 100%;
@@ -13611,7 +13673,8 @@ input:-moz-autofill {
         font-size: 0.8rem;
     }
 
-    /* Modo por-día: cada día en grid 2×2 — se ve TODO y claro */
+    /* Modo por-día: cada día en grid 2×2 con ETIQUETA visible en cada campo */
+    #se-por-dia .se-pd-header { display: none !important; } /* la cabecera desktop no cabe en móvil */
     #se-por-dia .se-dia-row {
         display: grid !important;
         grid-template-columns: 1fr 1fr;
@@ -13624,20 +13687,39 @@ input:-moz-autofill {
     }
     #se-por-dia .se-dia-row > label { grid-area: dias; min-width: 0; }
     #se-por-dia .se-dia-row .se-pd-hs { grid-area: hs; align-self: center; justify-self: end; }
-    #se-por-dia .se-dia-row .se-pd-inicio { grid-area: entrada; }
-    #se-por-dia .se-dia-row .se-pd-fin { grid-area: salida; }
-    #se-por-dia .se-dia-row .se-pd-ci { grid-area: col1; }
-    #se-por-dia .se-dia-row .se-pd-cf { grid-area: col2; }
-    #se-por-dia .se-dia-row > i,
-    #se-por-dia .se-dia-row > span:not(.se-pd-hs) { display: none !important; }
+    #se-por-dia .se-dia-row .se-pd-field-inicio { grid-area: entrada; }
+    #se-por-dia .se-dia-row .se-pd-field-fin { grid-area: salida; }
+    #se-por-dia .se-dia-row .se-pd-field-ci { grid-area: col1; }
+    #se-por-dia .se-dia-row .se-pd-field-cf { grid-area: col2; }
+    #se-por-dia .se-dia-row .se-pd-field {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        border-left: none !important;
+        padding-left: 0 !important;
+    }
+    /* Etiqueta visible sobre cada input (Entrada / Salida / Colación) */
+    #se-por-dia .se-dia-row .se-pd-field::before {
+        content: attr(data-label);
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: rgba(255,255,255,0.4);
+    }
+    #se-por-dia .se-dia-row .se-pd-field-ci::before,
+    #se-por-dia .se-dia-row .se-pd-field-cf::before {
+        color: rgba(253,203,110,0.65);
+    }
     #se-por-dia .se-dia-row .se-time-sm {
         width: 100% !important;
         min-width: 0;
         font-size: 0.78rem;
     }
     /* la fila de colación se distingue con un fondo sutil */
-    #se-por-dia .se-dia-row .se-pd-ci,
-    #se-por-dia .se-dia-row .se-pd-cf { background: rgba(253, 203, 110, 0.05); }
+    #se-por-dia .se-dia-row .se-pd-field-ci,
+    #se-por-dia .se-dia-row .se-pd-field-cf { background: rgba(253, 203, 110, 0.05); border-radius: 6px; }
 
     /* Total semanal + máx: compacto */
     #se-form > div:nth-of-type(4) { padding: 10px; }
