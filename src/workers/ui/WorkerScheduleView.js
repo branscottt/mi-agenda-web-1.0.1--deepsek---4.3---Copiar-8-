@@ -370,7 +370,7 @@ function renderGridSemanal(workers, weekKey) {
             const fechaStr = d.toISOString().split('T')[0];
             const citasCount = _citasCache[(w.id || 'null') + '_' + fechaStr] || 0;
             if (!dia || !dia.activo) {
-                html += `<div class="schedule-day-cell off ${esHoy ? 'today' : ''}"><span class="s-day-status">--</span></div>`;
+                html += `<div class="schedule-day-cell off ${esHoy ? 'today' : ''}" data-dia="${DIAS[i]}" data-num="${d.getDate()}"><span class="s-day-status">--</span></div>`;
             } else {
                 const horas = calcHoras(dia);
                 const tieneColacion = dia.colacion_inicio && dia.colacion_inicio !== '00:00';
@@ -381,11 +381,12 @@ function renderGridSemanal(workers, weekKey) {
                 if (ocupPct >= 100) { ocupClass = 'ocup-llena'; ocupIcon = '\uD83D\uDD34'; }
                 else if (ocupPct >= 60) { ocupClass = 'ocup-media'; ocupIcon = '\uD83D\uDFE1'; }
                 else if (citasCount > 0) { ocupIcon = '\uD83D\uDFE2'; }
+                if (citasCount === 0) ocupClass += ' ocup-cero';
                 html += `
-                    <div class="schedule-day-cell on ${esHoy ? 'today' : ''}">
+                    <div class="schedule-day-cell on ${esHoy ? 'today' : ''}" data-dia="${DIAS[i]}" data-num="${d.getDate()}">
                         <div class="s-day-bar" style="background:${w.color||'#9d4edd'}15;">
                             <div class="s-day-fill" style="width:${Math.min(100,(horas/12)*100)}%;background:${w.color||'#9d4edd'};">
-                                <span class="s-day-hours">${dia.inicio}${tieneColacion ? ' \uD83C\uDF74' : ''} ${dia.fin}</span>
+                                <span class="s-day-hours">${dia.inicio}<span class="s-day-sep"> – </span>${dia.fin}${tieneColacion ? ' <span class="s-day-col">\uD83C\uDF74</span>' : ''}</span>
                             </div>
                         </div>
                         <span class="s-day-ocupacion ${ocupClass}">${ocupIcon} ${citasCount}${citasCount === 1 ? ' cita' : ' citas'}</span>
