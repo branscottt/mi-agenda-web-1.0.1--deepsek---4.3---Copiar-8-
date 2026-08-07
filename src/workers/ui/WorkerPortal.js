@@ -1,5 +1,7 @@
 // src/workers/ui/WorkerPortal.js
 // Página pública del trabajador — sin login, solo con ?id=XXX
+// Usa la RPC get_worker_portal_data (SECURITY DEFINER) para leer
+// datos sin exponer RLS de citas/trabajadores a anon.
 
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getSemanaISO, getHorarioParaSemana } from '../../workers/domain/horarioValidation.js';
@@ -13,6 +15,8 @@ export async function initWorkerPortal() {
     const skillsEl = document.getElementById('wp-habilidades');
     const scheduleEl = document.getElementById('wp-horario');
     const reservationsEl = document.getElementById('wp-reservas');
+    const avatarEl = document.getElementById('wp-avatar-inner');
+    const inicialEl = document.getElementById('wp-inicial');
 
     if (!workerId || !tenantId) {
         if (nameEl) nameEl.textContent = 'Enlace inválido';
@@ -27,25 +31,29 @@ export async function initWorkerPortal() {
             return;
         }
 
-        // Cargar datos del trabajador
-        const { data: worker, error: wErr } = await supabase
-            .from('trabajadores')
-            .select('*')
-            .eq('id', workerId)
-            .eq('tenant_id', String(tenantId).trim())
-            .single();
+        const { data, error } = await supabase.rpc('get_worker_portal_data', {
+            p_tenant_id: String(tenantId).trim(),
+            p_worker_id: workerId
+        });
 
-        if (wErr || !worker) {
+        if (error) throw error;
+
+        if (!data || data.error === 'not_found') {
             if (nameEl) nameEl.textContent = 'Trabajador no encontrado';
             if (reservationsEl) reservationsEl.innerHTML = '<p>El trabajador no existe o fue desactivado.</p>';
             return;
         }
+
+        const worker = data.worker;
+        const citas = data.citas_hoy || [];
 
         // Mostrar info del trabajador
         if (nameEl) nameEl.textContent = worker.nombre;
         if (skillsEl) {
             skillsEl.textContent = worker.habilidades || 'Sin habilidades registradas';
         }
+        if (avatarEl && worker.color) avatarEl.style.background = worker.color;
+        if (inicialEl && worker.nombre) inicialEl.textContent = worker.nombre.charAt(0).toUpperCase();
 
         // Horario semanal desde datos reales (resolviendo plantilla vs excepción)
         if (scheduleEl) {
@@ -80,17 +88,9 @@ export async function initWorkerPortal() {
             }
         }
 
-        // Cargar reservas de HOY
-        const hoy = new Date().toISOString().split('T')[0];
-        const { data: citas, error: cErr } = await supabase
-            .from('citas')
-            .select('*, servicios!inner(nombre)')
-            .eq('trabajador_id', workerId)
-            .eq('fecha', hoy)
-            .order('hora');
-
+        // Reservas de HOY (devueltas por la RPC)
         if (reservationsEl) {
-            if (cErr || !citas || !citas.length) {
+            if (!citas.length) {
                 reservationsEl.innerHTML = `
                     <div class="empty-state" style="padding:20px;">
                         <i class="fas fa-calendar-check" style="font-size:1.5rem;opacity:0.3;"></i>
@@ -104,8 +104,8 @@ export async function initWorkerPortal() {
                             <div class="worker-cita-card">
                                 <span class="cita-hora">${formatTime(c.hora)}</span>
                                 <div class="cita-info">
-                                    <strong>${escapeHtml(c.servicios?.nombre || 'Servicio')}</strong>
-                                    <span>${escapeHtml(c.contacto?.nombre || 'Cliente')}</span>
+                                    <strong>${escapeHtml(c.servicio || 'Servicio')}</strong>
+                                    <span>${escapeHtml(c.cliente || 'Cliente')}</span>
                                 </div>
                             </div>
                         `).join('')}
@@ -130,5 +130,5 @@ function formatTime(hora) {
 
 function escapeHtml(str) {
     if (!str && str !== 0) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');
 }

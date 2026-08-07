@@ -161,6 +161,7 @@ async function syncJwtSession() {
         const esSuperAdmin = document.querySelector('.superadmin-screen');
         const esCliente = document.querySelector('.client-screen');
         const esPlanes = document.getElementById('planes-container');
+        const esTrabajador = document.querySelector('.worker-portal-body');
 
         if (esLogin && !esPlanes) {
             try {
@@ -266,6 +267,17 @@ async function syncJwtSession() {
                 renderPlans(document.getElementById('planes-container'));
             } catch (e) {
                 console.warn('[main.js] PlansView no disponible:', e.message);
+            }
+        }
+
+        if (esTrabajador) {
+            try {
+                // Portal público del trabajador (trabajador.html?tenant=X&id=Y)
+                const { initWorkerPortal } = await import('./workers/ui/WorkerPortal.js');
+                initWorkerPortal();
+                console.log('[main.js] Portal trabajador iniciado');
+            } catch (e) {
+                console.warn('[main.js] WorkerPortal no disponible:', e.message);
             }
         }
 

@@ -182,18 +182,6 @@
     </div>
 
     <script type="module" src="dist/app.js"></script>
-    <script>
-        // Inicializar portal del trabajador
-        (async function() {
-            try {
-                const { initWorkerPortal } = await import('./src/workers/ui/WorkerPortal.js');
-                initWorkerPortal();
-            } catch(e) {
-                console.warn('[WorkerPortal] Error cargando modulo:', e.message);
-                // Fallback inline
-                document.getElementById('wp-nombre').textContent = 'Error al cargar';
-            }
-        })();
-    </script>
+    <!-- El portal del trabajador se inicia desde app.js (main.js detecta .worker-portal-body) -->
 </body>
 </html>

@@ -56,6 +56,42 @@ esbuild.buildSync({
 });
 console.log('   ✅ dist/legacy.js created');
 
+// 2b. Inyectar credenciales reales desde .env.local en los bundles generados.
+//     El código fuente solo contiene placeholders (sin secretos en git).
+//     .env.local está en .gitignore — la key real vive solo ahí.
+//     Solo reemplaza si el valor de .env.local parece real (JWT de longitud >= 100).
+function loadEnvLocal() {
+    try {
+        const raw = fs.readFileSync('.env.local', 'utf-8');
+        const cfg = {};
+        for (const line of raw.split('\n')) {
+            const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+            if (m) cfg[m[1]] = m[2].replace(/^["']|["']$/g, '');
+        }
+        return cfg;
+    } catch (e) {
+        return {};
+    }
+}
+const envLocal = loadEnvLocal();
+// Prioridad: env vars del entorno de build (Vercel inyecta las del proyecto) > .env.local
+const realKey = (process.env.SUPABASE_KEY || envLocal.SUPABASE_KEY || '').trim();
+const realUrl = (process.env.SUPABASE_URL || envLocal.SUPABASE_URL || '').trim();
+if (realKey.length >= 100 && !realKey.includes('...')) {
+    for (const bundle of ['dist/app.js', 'dist/legacy.js']) {
+        if (!fs.existsSync(bundle)) continue;
+        let code = fs.readFileSync(bundle, 'utf-8');
+        // Placeholder anon key truncada usada como fallback en src/ (nunca debe llegar a prod)
+        const replaced = code.replace(/eyJhbG\.\.\.Ccw0/g, realKey);
+        if (replaced !== code) {
+            fs.writeFileSync(bundle, replaced);
+            console.log(`   🔑 ${bundle}: key Supabase real inyectada desde .env.local`);
+        }
+    }
+} else {
+    console.warn('   ⚠️ SUPABASE_KEY de .env.local parece truncada — el bundle conservará el placeholder (NO desplegar así)');
+}
+
 // 3. Copiar style.css a dist/
 console.log('📂 Copying assets to dist/...');
 fs.copyFileSync('style.css', 'dist/style.css');
