@@ -561,7 +561,11 @@ export function abrirEditorHorario(worker, weekKey, hrInfo) {
     // Eventos
     overlay.querySelectorAll('.se-modo-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            overlay.querySelectorAll('.se-modo-btn').forEach(b => { b.style.background='transparent'; b.style.color='rgba(255,255,255,0.5)'; b.style.borderColor='transparent'; });
+            overlay.querySelectorAll('.se-modo-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background='transparent'; b.style.color='rgba(255,255,255,0.5)'; b.style.borderColor='transparent';
+            });
+            btn.classList.add('active'); // ← CRÍTICO: recolectarHorario/recalc leen .se-modo-btn.active
             btn.style.background='rgba(157,78,221,0.1)'; btn.style.color='#c77dff'; btn.style.borderColor='var(--primary-color)';
             const modo=btn.dataset.modo;
             document.getElementById('se-uniforme').style.display=modo==='uniforme'?'':'none';
@@ -759,7 +763,12 @@ function calcHoras(dia) {
     const[i1,i2] = [(dia.inicio||'00:00').split(':').map(Number),(dia.fin||'00:00').split(':').map(Number)];
     const[c1,c2] = [(dia.colacion_inicio||'00:00').split(':').map(Number),(dia.colacion_fin||'00:00').split(':').map(Number)];
     let t = (i2[0]*60+i2[1])-(i1[0]*60+i1[1]);
-    const col = (c1[0]*60+c1[1]>0&&c2[0]*60+c2[1]>0)?(c2[0]*60+c2[1])-(c1[0]*60+c1[1]):0;
+    if (t <= 0) t += 24*60; // turno nocturno: 22:00 → 06:00 cruza medianoche
+    let col = 0;
+    if (c1[0]*60+c1[1] > 0 && c2[0]*60+c2[1] > 0) {
+        col = (c2[0]*60+c2[1])-(c1[0]*60+c1[1]);
+        if (col < 0) col += 24*60; // colación que cruza medianoche
+    }
     return Math.max(0,Math.round((t-Math.max(0,col))/60*10)/10);
 }
 

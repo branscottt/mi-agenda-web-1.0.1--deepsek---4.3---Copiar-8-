@@ -42,7 +42,9 @@ function horarioPorTipo(tipo) {
 function calcHorasSimples(ini, fin) {
     const [h1,m1] = (ini||'00:00').split(':').map(Number);
     const [h2,m2] = (fin||'00:00').split(':').map(Number);
-    return ((h2*60+m2)-(h1*60+m1))/60;
+    let diff = (h2*60+m2)-(h1*60+m1);
+    if (diff <= 0) diff += 24*60; // turno nocturno cruza medianoche
+    return diff/60;
 }
 
 function calcHoras(dia) {
@@ -51,7 +53,12 @@ function calcHoras(dia) {
     const [h2,m2] = (dia.fin||'00:00').split(':').map(Number);
     const [c1,c2] = [(dia.colacion_inicio||'00:00').split(':').map(Number), (dia.colacion_fin||'00:00').split(':').map(Number)];
     let total = (h2*60+m2)-(h1*60+m1);
-    const colacion = (c1[0]*60+c1[1] > 0 && c2[0]*60+c2[1] > 0) ? (c2[0]*60+c2[1])-(c1[0]*60+c1[1]) : 0;
+    if (total <= 0) total += 24*60; // turno nocturno: 22:00 → 06:00 cruza medianoche
+    let colacion = 0;
+    if (c1[0]*60+c1[1] > 0 && c2[0]*60+c2[1] > 0) {
+        colacion = (c2[0]*60+c2[1])-(c1[0]*60+c1[1]);
+        if (colacion < 0) colacion += 24*60; // colación que cruza medianoche
+    }
     return Math.max(0, Math.round((total - Math.max(0, colacion))/60*10)/10);
 }
 

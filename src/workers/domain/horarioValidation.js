@@ -20,34 +20,36 @@ function aMinutos(hhmm) {
 
 /**
  * Calcula horas efectivas de un día (restando colación si existe)
+ * Soporta turnos nocturnos que cruzan medianoche (ej: 22:00 → 06:00)
  * @param {object} dia - { activo, inicio, fin, colacion_inicio, colacion_fin }
  * @returns {number} horas efectivas (decimal)
  */
 function calcularHorasEfectivas(dia) {
     if (!dia || !dia.activo) return 0;
     const inicio = aMinutos(dia.inicio);
-    const fin = aMinutos(dia.fin);
-    if (fin <= inicio) return 0;
+    let fin = aMinutos(dia.fin);
+    if (fin <= inicio) fin += 24 * 60; // cruce de medianoche
 
     let totalMin = fin - inicio;
-    const ci = aMinutos(dia.colacion_inicio);
-    const cf = aMinutos(dia.colacion_fin);
-
-    if (ci > 0 && cf > ci) {
-        totalMin -= (cf - ci);
+    let ci = aMinutos(dia.colacion_inicio);
+    let cf = aMinutos(dia.colacion_fin);
+    if (ci > 0 && cf > 0) {
+        let colMin = cf - ci;
+        if (colMin < 0) colMin += 24 * 60; // colación que cruza medianoche
+        totalMin -= colMin;
     }
 
     return Math.max(0, Math.round((totalMin / 60) * 10) / 10);
 }
 
 /**
- * Calcula jornada bruta (sin descontar colación)
+ * Calcula jornada bruta (sin descontar colación). Soporta cruce de medianoche.
  */
 function calcularJornadaBruta(dia) {
     if (!dia || !dia.activo) return 0;
     const inicio = aMinutos(dia.inicio);
-    const fin = aMinutos(dia.fin);
-    if (fin <= inicio) return 0;
+    let fin = aMinutos(dia.fin);
+    if (fin <= inicio) fin += 24 * 60;
     return Math.round(((fin - inicio) / 60) * 10) / 10;
 }
 
@@ -95,7 +97,9 @@ export function validarHorarioChile(horario_semanal, horario_max_semanal) {
             // Validar: colación obligatoria si jornada bruta > 5h
             const ci = aMinutos(dia.colacion_inicio);
             const cf = aMinutos(dia.colacion_fin);
-            const tieneColacion = ci > 0 && cf > ci;
+            let colMin = cf - ci;
+            if (ci > 0 && cf > 0 && colMin < 0) colMin += 24 * 60; // colación que cruza medianoche
+            const tieneColacion = ci > 0 && cf > 0 && colMin > 0;
 
             if (brutas > UMBRAL_COLACION_HORAS && !tieneColacion) {
                 detalle.errores.push(`Falta colación: jornada de ${brutas}h sin pausa (obligatorio Art. 34 CT)`);
@@ -103,9 +107,8 @@ export function validarHorarioChile(horario_semanal, horario_max_semanal) {
 
             // Validar: colación mínima 30 min
             if (tieneColacion) {
-                const colacionMin = cf - ci;
-                if (colacionMin < MIN_COLACION_MIN) {
-                    detalle.advertencias.push(`Colación muy corta: ${Math.round(colacionMin)}min (mínimo ${MIN_COLACION_MIN}min Art. 34 CT)`);
+                if (colMin < MIN_COLACION_MIN) {
+                    detalle.advertencias.push(`Colación muy corta: ${Math.round(colMin)}min (mínimo ${MIN_COLACION_MIN}min Art. 34 CT)`);
                 }
             }
 
