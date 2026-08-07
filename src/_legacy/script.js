@@ -5887,16 +5887,16 @@ async function cargarServiciosExistentes() {
                 </div>
                 
                 <div class="service-card-actions">
-                    <button class="btn-secondary btn-small" onclick="editarServicio(${servicio.id})">
+                    <button class="btn-secondary btn-small" data-srv-action="editar" data-id="${servicio.id}">
                         <i class="fas fa-edit"></i> Editar
                     </button>
-                    <button class="btn-small" onclick="duplicarServicio(${servicio.id})" title="Duplicar servicio">
+                    <button class="btn-small" data-srv-action="duplicar" data-id="${servicio.id}" title="Duplicar servicio">
                         <i class="fas fa-copy"></i>
                     </button>
-                    <button class="btn-small danger" onclick="eliminarServicio(${servicio.id})">
+                    <button class="btn-small danger" data-srv-action="eliminar" data-id="${servicio.id}">
                         <i class="fas fa-trash"></i> Eliminar
                     </button>
-                    <button class="btn-grad btn-small" onclick="toggleActivoServicio(${servicio.id})">
+                    <button class="btn-grad btn-small" data-srv-action="toggle" data-id="${servicio.id}">
                         <i class="fas fa-eye${servicio.activo ? '' : '-slash'}"></i> ${servicio.activo ? 'Ocultar' : 'Mostrar'}
                     </button>
                 </div>
@@ -5906,6 +5906,20 @@ async function cargarServiciosExistentes() {
     });
 
     container.innerHTML = html;
+
+    // CSP: los onclick inline quedan bloqueados (nonce/hash anulan 'unsafe-inline').
+    // Se bindean con addEventListener tras renderizar, como WorkersListView.
+    container.querySelectorAll('[data-srv-action]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const id = this.dataset.id;
+            const accion = this.dataset.srvAction;
+            if (accion === 'editar') editarServicio(id);
+            else if (accion === 'duplicar') duplicarServicio(id);
+            else if (accion === 'eliminar') eliminarServicio(id);
+            else if (accion === 'toggle') toggleActivoServicio(id);
+        });
+    });
 
     // Click handler: abrir detalle al hacer clic en la card (no en botones)
     container.querySelectorAll('.service-card-admin').forEach(card => {
