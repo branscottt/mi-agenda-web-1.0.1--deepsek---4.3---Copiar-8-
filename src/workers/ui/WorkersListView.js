@@ -86,12 +86,13 @@ export async function renderWorkersList(containerId = 'workers-list-container') 
                 <div class="empty-state">
                     <i class="fas fa-users" style="font-size:2rem;opacity:0.3;"></i>
                     <p style="margin-top:10px;">Aún no has agregado trabajadores.</p>
-                    <button class="btn-grad" onclick="window.__abrirFormTrabajador()">
+                    <button class="btn-grad" id="btn-agregar-primer-trabajador" type="button">
                         <i class="fas fa-user-plus"></i> Agregar primer trabajador
                     </button>
                 </div>
             </div>
         `;
+        bindWorkersListEvents(target);
         return;
     }
 
@@ -99,7 +100,7 @@ export async function renderWorkersList(containerId = 'workers-list-container') 
         <div class="glass-panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
                 <h3 style="margin:0;"><i class="fas fa-users"></i> Mi Equipo (${_workers.filter(w => w.activo).length} activos)</h3>
-                <button class="btn-grad" onclick="window.__abrirFormTrabajador()">
+                <button class="btn-grad" id="btn-agregar-trabajador" type="button">
                     <i class="fas fa-user-plus"></i> Agregar Trabajador
                 </button>
             </div>
@@ -121,11 +122,11 @@ export async function renderWorkersList(containerId = 'workers-list-container') 
                             </p>
                         </div>
                         <div class="worker-actions">
-                            <button class="btn-small" onclick="window.__editarTrabajador('${w.id}')" title="Editar horario y datos">
+                            <button class="btn-small" data-action="editar" data-id="${w.id}" type="button" title="Editar horario y datos">
                                 <i class="fas fa-edit"></i>
                             </button>
                             ${w.activo ? `
-                                <button class="btn-small danger" onclick="window.__quitarTrabajador('${w.id}')" title="Quitar del equipo">
+                                <button class="btn-small danger" data-action="quitar" data-id="${w.id}" type="button" title="Quitar del equipo">
                                     <i class="fas fa-user-slash"></i>
                                 </button>
                             ` : `<span class="inactive-badge">Inactivo</span>`}
@@ -135,6 +136,28 @@ export async function renderWorkersList(containerId = 'workers-list-container') 
             </div>
         </div>
     `;
+
+    bindWorkersListEvents(target);
+}
+
+// ─── BINDING DE BOTONES ───
+// Los onclick inline quedan bloqueados por la CSP (nonce/hash anulan 'unsafe-inline').
+// Se bindean con addEventListener tras renderizar, como hace el CSP bridge con el DOM estático.
+function bindWorkersListEvents(container) {
+    container.querySelector('#btn-agregar-primer-trabajador')?.addEventListener('click', () => abrirFormTrabajador(null));
+    container.querySelector('#btn-agregar-trabajador')?.addEventListener('click', () => abrirFormTrabajador(null));
+    container.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            if (btn.dataset.action === 'editar') {
+                const worker = _workers.find(w => w.id === id);
+                if (worker) abrirFormTrabajador(worker);
+                else mostrarToast('Error: trabajador no encontrado', 'error');
+            } else if (btn.dataset.action === 'quitar') {
+                quitarTrabajadorHandler(id);
+            }
+        });
+    });
 }
 
 // ─── FORMULARIO (simplificado) ───

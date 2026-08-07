@@ -49,10 +49,10 @@ export async function renderWorkerShare(containerId) {
                             </div>
                             <div class="worker-share-links">
                                 <input type="text" class="worker-share-input" value="${escapeAttr(link)}" readonly>
-                                <button class="btn-secondary btn-sm" onclick="window.__copiarLinkTrabajador(this, '${escapeAttr(link)}')" title="Copiar enlace">
+                                <button class="btn-secondary btn-sm" data-share-action="copiar" data-link="${escapeAttr(link)}" type="button" title="Copiar enlace">
                                     <i class="fas fa-copy"></i>
                                 </button>
-                                <button class="btn-secondary btn-sm" onclick="window.__whatsappTrabajador('${escapeAttr(link)}', '${escapeAttr(w.nombre)}')" title="Enviar por WhatsApp">
+                                <button class="btn-secondary btn-sm" data-share-action="whatsapp" data-link="${escapeAttr(link)}" data-nombre="${escapeAttr(w.nombre)}" type="button" title="Enviar por WhatsApp">
                                     <i class="fab fa-whatsapp"></i>
                                 </button>
                             </div>
@@ -64,6 +64,18 @@ export async function renderWorkerShare(containerId) {
     `;
 
     container.innerHTML = html;
+
+    // Los onclick inline quedan bloqueados por la CSP (nonce/hash anulan 'unsafe-inline')
+    container.querySelectorAll('[data-share-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const link = btn.dataset.link || '';
+            if (btn.dataset.shareAction === 'copiar') {
+                window.__copiarLinkTrabajador(btn, link);
+            } else if (btn.dataset.shareAction === 'whatsapp') {
+                window.__whatsappTrabajador(link, btn.dataset.nombre || '');
+            }
+        });
+    });
 }
 
 export function exposeShareGlobals() {
