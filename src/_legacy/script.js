@@ -6173,7 +6173,56 @@ async function eliminarServicio(id) {
     if (!confirm("¿Estás seguro de eliminar este servicio?")) {
         return;
     }
-    await ServiciosManager.delete(id);
+
+    // Consultar citas asociadas para la doble confirmación (reservas futuras)
+    let citas = [];
+    try {
+        const { data } = await supabaseClient
+            .from('citas')
+            .select('id, fecha')
+            .eq('servicio_id', id);
+        citas = data || [];
+    } catch (e) {
+        console.warn('No se pudieron consultar citas del servicio:', e);
+    }
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    const futuras = citas.filter(c => String(c.fecha) >= hoy);
+
+    if (futuras.length > 0) {
+        const msg = `⚠️ Esta card tiene ${futuras.length} reserva(s) futura(s). Si eliminas el servicio, esas reservas se cancelarán.\n\n¿Eliminar de todas formas?`;
+        if (!confirm(msg)) return;
+    } else if (citas.length > 0) {
+        const msg = `ℹ️ Este servicio tiene ${citas.length} cita(s) en el historial. Se eliminarán junto con el servicio.\n\n¿Continuar?`;
+        if (!confirm(msg)) return;
+    }
+
+    // 1. Liberar relaciones trabajador-servicio (si existen)
+    try {
+        await supabaseClient.from('servicios_trabajadores').delete().eq('servicio_id', id);
+    } catch (e) {
+        console.warn('Sin relaciones de trabajadores que limpiar:', e);
+    }
+
+    // 2. Eliminar citas asociadas (requisito de la FK citas_servicio_id_fkey)
+    if (citas.length > 0) {
+        const { error: errCitas } = await supabaseClient
+            .from('citas')
+            .delete()
+            .eq('servicio_id', id);
+        if (errCitas) {
+            console.error('Error borrando citas:', errCitas);
+            mostrarMensaje('❌ No se pudo eliminar: ' + (errCitas.message || 'error al borrar reservas'), 'error');
+            return;
+        }
+    }
+
+    // 3. Eliminar el servicio verificando el resultado real
+    const ok = await ServiciosManager.delete(id);
+    if (!ok) {
+        mostrarMensaje('❌ No se pudo eliminar el servicio (puede tener datos asociados). Intenta de nuevo.', 'error');
+        return;
+    }
     cargarServicios();
     mostrarMensaje("Servicio eliminado correctamente", "success");
 }
@@ -6532,12 +6581,22 @@ function configurarFiltros() {
     // Guía de Mis Servicios: toggle del panel explicativo (mismo patrón que guia-dashboard)
     const btnGuia = document.getElementById('btn-guia-servicios');
     if (btnGuia) {
-        btnGuia.addEventListener('click', function() {
+        btnGuia.addEventListener('click', function(e) {
+            e.stopPropagation();
             const guia = document.getElementById('guia-servicios');
             if (!guia) return;
             const visible = guia.style.display !== 'none';
             guia.style.display = visible ? 'none' : 'block';
             btnGuia.classList.toggle('active', !visible);
+        });
+
+        // Cerrar la guía al hacer click/tap FUERA del panel y del botón (PC y móvil)
+        document.addEventListener('click', function(e) {
+            const guia = document.getElementById('guia-servicios');
+            if (!guia || guia.style.display === 'none') return;
+            if (guia.contains(e.target) || btnGuia.contains(e.target)) return;
+            guia.style.display = 'none';
+            btnGuia.classList.remove('active');
         });
     }
 }

@@ -71,7 +71,7 @@ en el borde izquierdo** de la card (más limpio, sin saturar):
    |---|---|---|
    | ✏️ **Editar** | `editarServicio(id)` | Carga el servicio en el formulario de creación y navega allí para modificarlo |
    | 📋 **Duplicar** | `duplicarServicio(id)` | Copia el servicio (nombre, precio, horarios, disponibilidad) como borrador en el formulario |
-   | 🗑️ **Eliminar** | `eliminarServicio(id)` | Pide confirmación y borra el servicio (y sus horarios asociados) |
+   | 🗑️ **Eliminar** | `eliminarServicio(id)` | Pide confirmación y borra el servicio. **Si tiene reservas futuras, aparece una doble confirmación** avisando que las reservas se cancelarán. Al confirmar, borra las reservas asociadas (y el historial de citas del servicio) y luego el servicio. Si el borrado falla, muestra el error real en vez de un falso "correcto" |
    | 👁️ **Ocultar/Mostrar** | `toggleActivoServicio(id)` | Activa/desactiva el servicio sin borrarlo (no aparece en la vista cliente) |
 
 7. **Click en la card** (fuera de botones): abre el **modal de detalle**
