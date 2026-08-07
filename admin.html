@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agenda Pro - Panel Admin</title>
-    <link rel="stylesheet" href="style.css?v=18">
+    <link rel="stylesheet" href="style.css?v=19">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
@@ -663,9 +663,57 @@
                                     <option value="normal">Sin urgencia</option>
                                 </select>
                             </div>
+                            <button class="btn-secondary btn-small" id="btn-guia-servicios" title="Qué significan los colores y cómo funcionan estas cards">
+                                <i class="fas fa-question-circle"></i> ¿Cómo funcionan estas cards?
+                            </button>
                             <button class="btn-grad" id="refresh-services"><i class="fas fa-sync-alt"></i> Actualizar</button>
                             <button class="btn-secondary btn-small" id="export-services-csv" title="Exportar servicios visibles a CSV"><i class="fas fa-download"></i> Exportar CSV</button>
                         </div>
+                    </div>
+                    <div class="guia-dashboard" id="guia-servicios" style="display:none;">
+                        <h4><i class="fas fa-palette"></i> ¿Qué significan los colores de las cards?</h4>
+                        <p>
+                            El <strong>borde y el brillo</strong> de cada card te dicen qué tan pronto hay disponibilidad
+                            para reservar ese servicio. Es un semáforo calculado con la próxima fecha y hora con cupos:
+                        </p>
+                        <ul class="guia-pasos" style="list-style:none;padding-left:0;">
+                            <li><strong style="color:#b300ff;">▣ Morado brillante (pulso):</strong> "Próximo" — la próxima cita posible está <strong>entre 2 y 24 horas</strong>. La card respira en morado para que la veas.</li>
+                            <li><strong style="color:#ff1744;">▣ Rojo brillante + sello "⚠️ URGENTE":</strong> la próxima cita posible está a <strong>menos de 2 horas</strong>. Es la card más urgente de atender.</li>
+                            <li><strong style="color:#e74c3c;">▣ Gris atenuado + sello "EXPIRADO":</strong> el servicio <strong>no tiene fechas futuras con cupos</strong> (todo pasado o cupos en 0).</li>
+                            <li><strong style="color:#f8f9fa;">▣ Sin brillo (normal):</strong> hay disponibilidad, pero la próxima cita posible está a <strong>más de 24 horas</strong>. Todo en orden.</li>
+                        </ul>
+                        <p style="font-size:0.85rem;color:var(--text-muted);">
+                            <i class="fas fa-mobile-alt"></i> En el celular el brillo se convierte en una <strong>barra de color en el borde izquierdo</strong>:
+                            verde = Activo · rojo = Inactivo · naranja = urgencia.
+                        </p>
+
+                        <h4><i class="fas fa-list-ol"></i> Cómo funcionan las cards, paso a paso</h4>
+                        <ol class="guia-pasos">
+                            <li>
+                                <strong>Click en la card (fuera de los botones)</strong> abre el detalle completo:
+                                imagen, precio, duración y el desglose fecha por fecha con horarios y cupos.
+                            </li>
+                            <li>
+                                <strong>✏️ Editar</strong> — lleva el servicio al formulario con sus datos cargados
+                                para modificar precio, descripción, horarios o disponibilidad.
+                            </li>
+                            <li>
+                                <strong>📋 Duplicar</strong> — copia el servicio (nombre, precio, horarios y fechas)
+                                como borrador en el formulario; guárdalo con otro nombre si quieres una variante.
+                            </li>
+                            <li>
+                                <strong>🗑️ Eliminar</strong> — pide confirmación y borra el servicio (y sus horarios).
+                                Esta acción no se puede deshacer.
+                            </li>
+                            <li>
+                                <strong>👁️ Ocultar / Mostrar</strong> — activa o desactiva el servicio sin borrarlo.
+                                Un servicio oculto <em>no aparece</em> en la vista de tus clientes, pero conserva sus datos.
+                            </li>
+                            <li>
+                                <strong>Filtros superiores</strong> — "Activos/Inactivos" y "Próximos (2-24h) / Urgentes (&lt;2h) / Sin urgencia"
+                                te dejan ver solo lo que te interesa.
+                            </li>
+                        </ol>
                     </div>
                     <div class="services-cards-container" id="services-cards">
                         <div class="empty-state" id="no-services">

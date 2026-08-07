@@ -6528,6 +6528,18 @@ function configurarFiltros() {
             mostrarMensaje("Lista de servicios actualizada", "info");
         });
     }
+
+    // Guía de Mis Servicios: toggle del panel explicativo (mismo patrón que guia-dashboard)
+    const btnGuia = document.getElementById('btn-guia-servicios');
+    if (btnGuia) {
+        btnGuia.addEventListener('click', function() {
+            const guia = document.getElementById('guia-servicios');
+            if (!guia) return;
+            const visible = guia.style.display !== 'none';
+            guia.style.display = visible ? 'none' : 'block';
+            btnGuia.classList.toggle('active', !visible);
+        });
+    }
 }
 window.configurarFiltros = configurarFiltros;
 
