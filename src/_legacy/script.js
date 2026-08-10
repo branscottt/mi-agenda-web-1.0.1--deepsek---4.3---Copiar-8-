@@ -12428,17 +12428,14 @@ async function cargarServiciosGlobales() {
     container.innerHTML = '<p>Cargando servicios...</p>';
     
     try {
-        let servicios;
-        if (window.__serviciosApi && typeof window.__serviciosApi.getAll === 'function') {
-            servicios = await window.__serviciosApi.getAll();
-        } else {
-            console.log('[cargarServiciosGlobales] Usando fallback legacy');
-            const { data, error } = await supabaseClient
-                .from('servicios')
-                .select('*, tenants:tenant_id(nombre_negocio)');
-            if (error) throw error;
-            servicios = data;
-        }
+        // Vista GLOBAL (superadmin): consulta directa SIN filtro de tenant.
+        // NO usar window.__serviciosApi.getAll(): la API moderna es tenant-scoped
+        // (if (!tenantId) return []) y esta vista necesita los servicios de TODOS los negocios.
+        const { data, error } = await supabaseClient
+            .from('servicios')
+            .select('*, tenants:tenant_id(nombre_negocio)');
+        if (error) throw error;
+        const servicios = data;
         
         if (!servicios || servicios.length === 0) {
             container.innerHTML = '<p>No hay servicios registrados</p>';
@@ -12473,17 +12470,14 @@ async function cargarCitasGlobales() {
     tbody.innerHTML = '<tr><td colspan="6">Cargando citas...</td></tr>';
     
     try {
-        let citas;
-        if (window.__appointmentsApi && typeof window.__appointmentsApi.getAllCitas === 'function') {
-            citas = await window.__appointmentsApi.getAllCitas();
-        } else {
-            console.log('[cargarCitasGlobales] Usando fallback legacy');
-            const { data, error } = await supabaseClient
-                .from('citas')
-                .select('*, tenants:tenant_id(nombre_negocio), servicios:servicio_id(nombre)');
-            if (error) throw error;
-            citas = data;
-        }
+        // Vista GLOBAL (superadmin): consulta directa SIN filtro de tenant.
+        // NO usar window.__appointmentsApi.getAllCitas(): la API moderna es
+        // tenant-scoped (if (!tenantId) return []) y esta vista necesita las de TODOS.
+        const { data, error } = await supabaseClient
+            .from('citas')
+            .select('*, tenants:tenant_id(nombre_negocio), servicios:servicio_id(nombre)');
+        if (error) throw error;
+        const citas = data;
         
         if (!citas || citas.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6">No hay citas registradas</td></tr>';
