@@ -364,6 +364,7 @@ async function syncJwtSession() {
             const mercadopagoClient = await import('./subscriptions/infrastructure/mercadopago.js');
             window.__mercadopago = {
                 createPreference: mercadopagoClient.createMercadoPagoPreference,
+                createPreapproval: mercadopagoClient.createMercadoPagoPreapproval,
                 redirect: mercadopagoClient.redirectToMercadoPago,
                 checkStatus: mercadopagoClient.checkPaymentStatusFromUrl
             };

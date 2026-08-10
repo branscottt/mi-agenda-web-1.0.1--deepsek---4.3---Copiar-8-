@@ -45,6 +45,113 @@ function montoValidoParaPlan(plan: string | null, amount: number | undefined | n
   return !!allowed && allowed.includes(Number(amount));
 }
 
+/** Parsea el external_reference JSON de un payment/preapproval de MP */
+function parseExternalRef(externalRef: string): { tenantId: string | null; plan: string | null; email: string | null } {
+  try {
+    const ref = JSON.parse(externalRef);
+    return {
+      tenantId: ref.tenant_id || null,
+      plan: ref.plan || null,
+      email: ref.email || null,
+    };
+  } catch {
+    console.warn(`[MP-Webhook] external_reference no es JSON válido: ${externalRef}`);
+    return { tenantId: null, plan: null, email: null };
+  }
+}
+
+/**
+ * Procesa una notificación de SUSCRIPCIÓN RECURRENTE (topic preapproval).
+ * MP envía esto cuando una suscripción recurrente cambia de estado:
+ *   - authorized: el cliente aprobó la suscripción (primera cuota cobrada)
+ *   - cancelled: el cliente o MP canceló la suscripción
+ *   - paused: la suscripción fue pausada
+ */
+async function procesarPreapproval(
+  preapprovalId: string,
+  accessToken: string,
+  supabaseUrl: string,
+  serviceRoleKey: string
+): Promise<boolean> {
+  // Consultar el preapproval en MP API
+  const mpResp = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+
+  if (!mpResp.ok) {
+    const errText = await mpResp.text().catch(() => '');
+    console.error(`[MP-Webhook] Error consultando preapproval ${preapprovalId}:`, errText.slice(0, 200));
+    return false;
+  }
+
+  const pa = await mpResp.json();
+  const paStatus = pa.status;
+  const { tenantId, plan } = parseExternalRef(pa.external_reference || '');
+
+  console.log(`[MP-Webhook] Preapproval ${preapprovalId}: status=${paStatus}, tenant=${tenantId}, plan=${plan}`);
+
+  if (!tenantId) {
+    console.warn('[MP-Webhook] Preapproval sin external_reference válida — ignorando');
+    return true;
+  }
+
+  if (paStatus === 'authorized' && plan) {
+    // Suscripción activada: primera cuota cobrada → activar/renovar
+    const amount = Number(pa.auto_recurring?.transaction_amount || 0);
+    if (!montoValidoParaPlan(plan, amount)) {
+      console.error(`[MP-Webhook] Monto inesperado en preapproval para plan ${plan}: ${amount} — NO se activa`);
+      return true;
+    }
+    const rpcResp = await fetch(
+      `${supabaseUrl}/rest/v1/rpc/activar_suscripcion_post_pago`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          p_tenant_id: tenantId,
+          p_plan: plan,
+          p_mp_payment_id: null,
+          p_monto: amount,
+        }),
+      }
+    );
+    if (!rpcResp.ok) {
+      const err = await rpcResp.text().catch(() => '');
+      console.error(`[MP-Webhook] Error activando suscripción por preapproval (${rpcResp.status}):`, err.slice(0, 200));
+    } else {
+      console.log(`[MP-Webhook] Suscripción activada por preapproval para tenant ${tenantId}`);
+    }
+  } else if (paStatus === 'cancelled' || paStatus === 'paused') {
+    // Suscripción cancelada/pausada → desactivar la suscripción del tenant
+    const rpcResp = await fetch(
+      `${supabaseUrl}/rest/v1/rpc/desactivar_suscripcion`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ p_tenant_id: tenantId }),
+      }
+    );
+    if (!rpcResp.ok) {
+      const err = await rpcResp.text().catch(() => '');
+      console.error(`[MP-Webhook] Error desactivando suscripción (${rpcResp.status}):`, err.slice(0, 200));
+    } else {
+      console.log(`[MP-Webhook] Suscripción desactivada para tenant ${tenantId} (preapproval ${paStatus})`);
+    }
+  } else {
+    console.log(`[MP-Webhook] Preapproval status ${paStatus} sin acción requerida`);
+  }
+
+  return true;
+}
+
 /**
  * Valida la firma HMAC X-Signature de Mercado Pago (esquema oficial).
  * Si MERCADOPAGO_WEBHOOK_SECRET no está configurado, se salta la validación
@@ -160,10 +267,20 @@ serve(async (req) => {
     // Validar firma HMAC (si MERCADOPAGO_WEBHOOK_SECRET está configurado)
     const firmaValida = await validarFirmaMP(req, rawBody, paymentId);
     if (!firmaValida) {
-      console.error(`[MP-Webhook] Firma HMAC inválida para payment ${paymentId} — rechazando`);
+      console.error(`[MP-Webhook] Firma HMAC inválida para ${topic} ${paymentId} — rechazando`);
       return new Response(JSON.stringify({ error: 'Firma inválida' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ============================================================
+    // SUSCRIPCIONES RECURRENTES (topic preapproval)
+    // ============================================================
+    if (topic === 'preapproval') {
+      const ok = await procesarPreapproval(paymentId, accessToken, supabaseUrl, serviceRoleKey);
+      return new Response(ok ? 'OK' : 'Error procesando preapproval', {
+        status: ok ? 200 : 502,
       });
     }
 
@@ -188,17 +305,26 @@ serve(async (req) => {
     console.log(`[MP-Webhook] Payment ${paymentId}: status=${mpStatus}, detail=${mpStatusDetail}`);
 
     // Parsear external_reference (JSON: { tenant_id, plan, email })
-    let tenantId: string | null = null;
-    let plan: string | null = null;
-    let email: string | null = null;
+    // Los payments RECURRENTES (cuotas de preapproval) NO traen
+    // external_reference: se obtiene consultando el preapproval.
+    let { tenantId, plan, email } = parseExternalRef(externalRef);
 
-    try {
-      const ref = JSON.parse(externalRef);
-      tenantId = ref.tenant_id || null;
-      plan = ref.plan || null;
-      email = ref.email || null;
-    } catch {
-      console.warn(`[MP-Webhook] external_reference no es JSON válido: ${externalRef}`);
+    if ((!tenantId || !plan) && payment.preapproval_id) {
+      try {
+        const paResp = await fetch(`https://api.mercadopago.com/preapproval/${payment.preapproval_id}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
+        if (paResp.ok) {
+          const pa = await paResp.json();
+          const ref = parseExternalRef(pa.external_reference || '');
+          if (!tenantId) tenantId = ref.tenantId;
+          if (!plan) plan = ref.plan;
+          if (!email) email = ref.email;
+          console.log(`[MP-Webhook] Payment recurrente ${paymentId} → preapproval ${payment.preapproval_id}: tenant=${tenantId}, plan=${plan}`);
+        }
+      } catch (e) {
+        console.warn(`[MP-Webhook] Error consultando preapproval ${payment.preapproval_id}:`, e);
+      }
     }
 
     // Actualizar mercadopago_payments
@@ -255,6 +381,7 @@ serve(async (req) => {
         const insertData: Record<string, unknown> = {
           mp_payment_id: paymentId,
           mp_preference_id: payment.preference_id || null,
+          mp_preapproval_id: payment.preapproval_id || null,
           mp_status: ourStatus,
           mp_status_detail: mpStatusDetail,
           mp_payer_email: payment.payer?.email || email,

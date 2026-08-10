@@ -2886,14 +2886,16 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
         } catch (e) {}
     }
 
-    // Cupón promocional 50% (solo Pro mensual)
+    // Cupón promocional 50% (solo Pro mensual, pago único del mes)
     let monto;
+    let cuponAprobado = false;
     if (planKey === 'pro' && window.__subscriptionsApi?.checkPromoCoupon) {
         try {
             const promoStatus = await window.__subscriptionsApi.checkPromoCoupon(tenantId);
             const data = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
             if (data && data.discount_available) {
                 monto = 7500; // 50% de $15.000
+                cuponAprobado = true;
                 const cuponId = data.existing_id;
                 if (cuponId) sessionStorage.setItem('promo_coupon_used', cuponId);
                 console.log('[Planes] Cupón 50% aplicado. Monto: $7.500');
@@ -2904,14 +2906,35 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
     }
 
     try {
-        const pref = await mp.createPreference({
-            plan: planKey,
-            tenantId: tenantId,
-            email: email,
-            nombre: email,
-            ...(monto !== undefined ? { monto } : {}),
-        });
-        mp.redirect(pref.init_point || pref.sandbox_init_point);
+        if (cuponAprobado) {
+            // Con cupón aprobado: pago único del mes con descuento
+            const pref = await mp.createPreference({
+                plan: planKey,
+                tenantId: tenantId,
+                email: email,
+                nombre: email,
+                monto: monto,
+            });
+            mp.redirect(pref.init_point || pref.sandbox_init_point);
+        } else if (typeof mp.createPreapproval === 'function') {
+            // Sin cupón: suscripción recurrente con cobro automático
+            const pref = await mp.createPreapproval({
+                plan: planKey,
+                tenantId: tenantId,
+                email: email,
+                nombre: email,
+            });
+            mp.redirect(pref.init_point);
+        } else {
+            // Fallback: pago único a precio normal
+            const pref = await mp.createPreference({
+                plan: planKey,
+                tenantId: tenantId,
+                email: email,
+                nombre: email,
+            });
+            mp.redirect(pref.init_point || pref.sandbox_init_point);
+        }
     } catch (err) {
         console.error('[Planes] Error iniciando pago MP:', err);
         mostrarToast('Error al iniciar pago: ' + err.message, 'error');

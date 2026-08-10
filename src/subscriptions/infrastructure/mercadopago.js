@@ -89,6 +89,50 @@ export async function createMercadoPagoPreference({ plan, tenantId, email, nombr
 }
 
 /**
+ * Crea una SUSCRIPCIÓN RECURRENTE en Mercado Pago (preapproval) y redirige al checkout
+ * @param {Object} params
+ * @param {string} params.plan - 'pro' | 'premium_anual'
+ * @param {string} params.tenantId
+ * @param {string} params.email
+ * @param {string} params.nombre
+ * @returns {Promise<{preapproval_id: string, init_point: string}>}
+ */
+export async function createMercadoPagoPreapproval({ plan, tenantId, email, nombre }) {
+    if (!plan || !tenantId || !email) {
+        throw new Error('plan, tenantId y email son requeridos');
+    }
+
+    const token = getAuthToken();
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    } else {
+        console.warn('[MP] No JWT disponible — la solicitud podría ser rechazada');
+    }
+
+    const response = await fetch(`${getEdgeFunctionUrl()}/create-preapproval`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            tenant_id: tenantId,
+            plan: plan,
+            email: email,
+            nombre: nombre || email,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || `Error HTTP ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+/**
  * Redirige al usuario al checkout de Mercado Pago
  * @param {string} initPoint - URL de checkout (init_point o sandbox_init_point)
  */

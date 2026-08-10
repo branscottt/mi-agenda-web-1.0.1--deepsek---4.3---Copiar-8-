@@ -2,7 +2,7 @@
 // Vista de selección y cambio de planes de suscripción
 // Incluye integración con Mercado Pago para pagos
 
-import { createMercadoPagoPreference, redirectToMercadoPago, checkPaymentStatusFromUrl } from '../infrastructure/mercadopago.js';
+import { createMercadoPagoPreference, createMercadoPagoPreapproval, redirectToMercadoPago, checkPaymentStatusFromUrl } from '../infrastructure/mercadopago.js';
 import { checkPromoCouponStatus, markPromoCouponUsed } from '../../api/subscriptionsApi.js';
 
 const PLANS = [
@@ -138,9 +138,18 @@ export async function renderPlans(container, apis) {
                                 ? `<button class="btn btn-success btn-activar-trial" data-plan="${p.key}">
                                     <i class="fas fa-flask"></i> Activar prueba gratis
                                   </button>`
-                                : `<button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-price="${p.priceValue}">
-                                    <i class="fas fa-credit-card"></i> Pagar con Mercado Pago
-                                  </button>`
+                                : conDescuento
+                                    ? `<div style="display:flex;flex-direction:column;gap:8px;">
+                                        <button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-modo="pago" data-price="7500">
+                                            <i class="fas fa-tags"></i> Pagar $7.500 (50% dcto)
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-pagar-mp" data-plan="${p.key}" data-modo="suscripcion" data-price="${p.priceValue}" style="background:transparent;border:1px solid #ced4da;color:#495057;">
+                                            <i class="fas fa-sync-alt"></i> Cobro automático $15.000/mes
+                                        </button>
+                                      </div>`
+                                    : `<button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-modo="suscripcion" data-price="${p.priceValue}">
+                                        <i class="fas fa-sync-alt"></i> Suscribirme (cobro automático)
+                                      </button>`
                         }
                     </div>`;
                 }).join('')}
@@ -152,12 +161,13 @@ export async function renderPlans(container, apis) {
     container.querySelectorAll('.btn-pagar-mp').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const plan = e.currentTarget.dataset.plan;
+            const modo = e.currentTarget.dataset.modo || 'suscripcion';
 
             // Validar: no pagar si ya tiene este plan activo
             if (plan === currentPlan) {
                 mostrarToast(`Ya tienes el plan ${plan} activo`, 'warning');
                 btn.disabled = false;
-                btn.innerHTML = '<i class=\"fas fa-credit-card\"></i> Pagar con Mercado Pago';
+                btn.innerHTML = '<i class="fas fa-sync-alt"></i> Suscribirme (cobro automático)';
                 return;
             }
 
@@ -165,10 +175,10 @@ export async function renderPlans(container, apis) {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
 
             try {
-                // Verificar si hay cupón de descuento aprobado (solo para Pro mensual)
+                // Cupón 50% aprobado: SOLO aplica al pago único del mes (modo pago)
                 let monto = undefined;
                 let cuponId = null;
-                if (plan === 'pro') {
+                if (plan === 'pro' && modo === 'pago') {
                     try {
                         const promoStatus = await checkPromoCouponStatus(tenantId);
                         const data = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
@@ -182,25 +192,37 @@ export async function renderPlans(container, apis) {
                     }
                 }
 
-                const pref = await createMercadoPagoPreference({
-                    plan: plan,
-                    tenantId: tenantId,
-                    email: userEmail,
-                    nombre: userEmail,
-                    monto: monto,
-                });
+                if (modo === 'suscripcion') {
+                    // Suscripción recurrente: cobro automático mensual/anual
+                    const pref = await createMercadoPagoPreapproval({
+                        plan: plan,
+                        tenantId: tenantId,
+                        email: userEmail,
+                        nombre: userEmail,
+                    });
+                    redirectToMercadoPago(pref.init_point);
+                } else {
+                    // Pago único del mes (con o sin descuento)
+                    const pref = await createMercadoPagoPreference({
+                        plan: plan,
+                        tenantId: tenantId,
+                        email: userEmail,
+                        nombre: userEmail,
+                        monto: monto,
+                    });
 
-                // Guardar cuponId en sessionStorage para marcarlo como usado cuando vuelva
-                if (cuponId) {
-                    sessionStorage.setItem('promo_coupon_used', cuponId);
+                    // Guardar cuponId en sessionStorage para marcarlo como usado cuando vuelva
+                    if (cuponId) {
+                        sessionStorage.setItem('promo_coupon_used', cuponId);
+                    }
+
+                    redirectToMercadoPago(pref.init_point || pref.sandbox_init_point);
                 }
-
-                redirectToMercadoPago(pref.init_point || pref.sandbox_init_point);
             } catch (err) {
                 console.error('[MP] Error:', err);
                 mostrarToast('Error al iniciar pago: ' + err.message, 'error');
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagar con Mercado Pago';
+                btn.innerHTML = '<i class="fas fa-sync-alt"></i> Suscribirme (cobro automático)';
             }
         });
     });
@@ -286,8 +308,13 @@ function obtenerUserEmail() {
 }
 
 async function obtenerPlanActual(tenantId) {
-    // Usar API expuesta globalmente por main.js
-    const api = window.__subscriptionsApi;
+    // Esperar a que main.js exponga la API (race condition: renderPlans
+    // puede correr antes que exposeApi → api undefined → plan 'freemium')
+    let api = window.__subscriptionsApi;
+    for (let i = 0; i < 10 && !api?.getByTenant; i++) {
+        await new Promise(r => setTimeout(r, 150));
+        api = window.__subscriptionsApi;
+    }
     if (!tenantId || !api?.getByTenant) return 'freemium';
     try {
         const sub = await api.getByTenant(tenantId);

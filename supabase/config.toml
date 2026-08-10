@@ -395,6 +395,10 @@ deno_version = 2
 [functions.create-preference]
 verify_jwt = true
 
+# create-preapproval: protegida con JWT — suscripciones recurrentes
+[functions.create-preapproval]
+verify_jwt = true
+
 # mercadopago-webhook: pública (sin JWT) porque la llama Mercado Pago
 [functions.mercadopago-webhook]
 verify_jwt = false
