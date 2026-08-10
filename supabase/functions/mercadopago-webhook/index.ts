@@ -32,29 +32,48 @@ const STATUS_MAP: Record<string, string> = {
   in_process: 'pending',
 };
 
+// Montos esperados por plan (CLP) — anti-fraude: no se activa si el monto no coincide
+// 7500 = cupón promocional 50% del Plan Pro mensual
+const EXPECTED_AMOUNTS: Record<string, number[]> = {
+  pro: [15000, 7500],
+  premium_anual: [140000],
+};
+
+function montoValidoParaPlan(plan: string | null, amount: number | undefined | null): boolean {
+  if (!plan || !amount) return false;
+  const allowed = EXPECTED_AMOUNTS[plan];
+  return !!allowed && allowed.includes(Number(amount));
+}
+
 /**
- * Valida la firma HMAC X-Signature de Mercado Pago.
- * Si MERCADOPAGO_CLIENT_SECRET no está configurado,跳过 (backward compatible).
+ * Valida la firma HMAC X-Signature de Mercado Pago (esquema oficial).
+ * Si MERCADOPAGO_WEBHOOK_SECRET no está configurado, se salta la validación
+ * (la verificación contra MP API sigue siendo obligatoria).
  * Retorna true si la firma es válida o si no hay secret configurado.
  * Retorna false si la firma es inválida.
+ *
+ * Formato oficial del manifest a firmar (documentación MP):
+ *   "id:{data.id};request-id:{x-request-id};ts:{ts};" + rawBody
+ * El secret es el "Secret" del webhook creado en el panel de MP
+ * (NO es el client secret de la aplicación).
  */
 async function validarFirmaMP(
   req: Request,
   rawBody: string,
-  paymentId: string,
-  topic: string
+  dataId: string
 ): Promise<boolean> {
-  const clientSecret = Deno.env.get('MERCADOPAGO_CLIENT_SECRET');
-  if (!clientSecret) {
+  const webhookSecret = Deno.env.get('MERCADOPAGO_WEBHOOK_SECRET');
+  if (!webhookSecret) {
     // No hay secret configurado — saltar validación HMAC
     // La verificación contra MP API sigue siendo obligatoria
-    console.log('[MP-Webhook] MERCADOPAGO_CLIENT_SECRET no configurado — saltando validación HMAC');
+    console.log('[MP-Webhook] MERCADOPAGO_WEBHOOK_SECRET no configurado — saltando validación HMAC');
     return true;
   }
 
   const xSignature = req.headers.get('x-signature') || '';
-  if (!xSignature) {
-    console.warn('[MP-Webhook] Header X-Signature ausente (con CLIENT_SECRET configurado)');
+  const xRequestId = req.headers.get('x-request-id') || '';
+  if (!xSignature || !xRequestId) {
+    console.warn('[MP-Webhook] Headers X-Signature/X-Request-Id ausentes (con secret configurado)');
     return false;
   }
 
@@ -74,20 +93,19 @@ async function validarFirmaMP(
     return false;
   }
 
-  // La data a firmar: "payment.id|payment.type|payment.state|ts|rawBody"
-  // Nota: usamos la información que tenemos del body (sin state porque puede variar)
-  const dataToSign = `${paymentId}|${topic}|${ts}|${rawBody}`;
+  // Manifest oficial: "id:{data.id};request-id:{x-request-id};ts:{ts};" + rawBody
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};` + rawBody;
 
   try {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       'raw',
-      encoder.encode(clientSecret),
+      encoder.encode(webhookSecret),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
     );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(dataToSign));
+    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(manifest));
     const computed = Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
@@ -139,8 +157,8 @@ serve(async (req) => {
       return new Response('OK', { status: 200 });
     }
 
-    // Validar firma HMAC (si CLIENT_SECRET está configurado)
-    const firmaValida = await validarFirmaMP(req, rawBody, paymentId, topic);
+    // Validar firma HMAC (si MERCADOPAGO_WEBHOOK_SECRET está configurado)
+    const firmaValida = await validarFirmaMP(req, rawBody, paymentId);
     if (!firmaValida) {
       console.error(`[MP-Webhook] Firma HMAC inválida para payment ${paymentId} — rechazando`);
       return new Response(JSON.stringify({ error: 'Firma inválida' }), {
@@ -190,7 +208,7 @@ serve(async (req) => {
     if (supabaseUrl && serviceRoleKey) {
       // Buscar si ya existe un registro con este mp_payment_id
       const findResp = await fetch(
-        `${supabaseUrl}/rest/v1/mercadopago_payments?mp_payment_id=eq.${paymentId}&select=id`,
+        `${supabaseUrl}/rest/v1/mercadopago_payments?mp_payment_id=eq.${paymentId}&select=id,paid_at,subscription_id`,
         {
           headers: {
             'apikey': serviceRoleKey,
@@ -201,6 +219,10 @@ serve(async (req) => {
       const existing = await findResp.json();
 
       const ourStatus = STATUS_MAP[mpStatus] || 'pending';
+      // Idempotencia: si este payment ya fue procesado como aprobado, no reactivar
+      const yaProcesado = existing && existing.length > 0 &&
+        (!!existing[0].paid_at || !!existing[0].subscription_id);
+
       const updateData: Record<string, unknown> = {
         mp_status: ourStatus,
         mp_status_detail: mpStatusDetail,
@@ -258,28 +280,65 @@ serve(async (req) => {
       }
 
       // Si el pago fue aprobado y tenemos tenant_id y plan, activar suscripción
-      if (ourStatus === 'approved' && tenantId && plan) {
-        console.log(`[MP-Webhook] Activando suscripción para tenant ${tenantId}, plan ${plan}`);
+      // (solo si NO fue procesado antes — idempotencia ante reintentos de MP)
+      if (ourStatus === 'approved' && tenantId && plan && !yaProcesado) {
+        const paidAmount = Number(payment.transaction_amount || 0);
 
-        // Llamar a la función SQL activar_suscripcion_post_pago via REST
-        await fetch(
-          `${supabaseUrl}/rest/v1/rpc/activar_suscripcion_post_pago`,
-          {
-            method: 'POST',
-            headers: {
-              'apikey': serviceRoleKey,
-              'Authorization': `Bearer ${serviceRoleKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              p_tenant_id: tenantId,
-              p_plan: plan,
-              p_mp_payment_id: paymentId,
-            }),
+        // Anti-fraude: validar que el monto pagado corresponda al plan
+        if (!montoValidoParaPlan(plan, paidAmount)) {
+          console.error(`[MP-Webhook] Monto inesperado para plan ${plan}: ${paidAmount} — suscripción NO activada`);
+        } else {
+          console.log(`[MP-Webhook] Activando suscripción para tenant ${tenantId}, plan ${plan}, monto ${paidAmount}`);
+
+          // Llamar a la función SQL activar_suscripcion_post_pago via REST
+          // (con p_monto; si la RPC vieja aún no lo soporta, reintentar sin él)
+          let rpcResp = await fetch(
+            `${supabaseUrl}/rest/v1/rpc/activar_suscripcion_post_pago`,
+            {
+              method: 'POST',
+              headers: {
+                'apikey': serviceRoleKey,
+                'Authorization': `Bearer ${serviceRoleKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                p_tenant_id: tenantId,
+                p_plan: plan,
+                p_mp_payment_id: paymentId,
+                p_monto: paidAmount,
+              }),
+            }
+          );
+
+          if (!rpcResp.ok) {
+            console.warn(`[MP-Webhook] RPC con p_monto falló (${rpcResp.status}) — reintentando sin p_monto`);
+            rpcResp = await fetch(
+              `${supabaseUrl}/rest/v1/rpc/activar_suscripcion_post_pago`,
+              {
+                method: 'POST',
+                headers: {
+                  'apikey': serviceRoleKey,
+                  'Authorization': `Bearer ${serviceRoleKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  p_tenant_id: tenantId,
+                  p_plan: plan,
+                  p_mp_payment_id: paymentId,
+                }),
+              }
+            );
           }
-        );
 
-        console.log(`[MP-Webhook] Suscripción activada para tenant ${tenantId}`);
+          if (!rpcResp.ok) {
+            const rpcErr = await rpcResp.text().catch(() => '');
+            console.error(`[MP-Webhook] Error activando suscripción (${rpcResp.status}):`, rpcErr.slice(0, 300));
+          } else {
+            console.log(`[MP-Webhook] Suscripción activada para tenant ${tenantId}`);
+          }
+        }
+      } else if (ourStatus === 'approved' && tenantId && plan && yaProcesado) {
+        console.log(`[MP-Webhook] Payment ${paymentId} ya procesado — omitiendo activación duplicada`);
       }
     } else {
       console.warn('[MP-Webhook] SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados');

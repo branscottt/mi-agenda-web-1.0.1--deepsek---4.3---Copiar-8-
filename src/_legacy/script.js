@@ -2517,6 +2517,27 @@ async function cargarPlanes() {
     const isNewAdmin = urlParams.get('new') === 'true';
     const tenantIdFromUrl = urlParams.get('tenant_id');
 
+    // Manejar retorno de Mercado Pago (planes.html?status=success|failure|pending)
+    const mpReturnStatus = urlParams.get('status');
+    if (mpReturnStatus === 'success') {
+        const couponId = sessionStorage.getItem('promo_coupon_used');
+        if (couponId && window.__subscriptionsApi?.markCouponUsed) {
+            try {
+                await window.__subscriptionsApi.markCouponUsed(couponId);
+                sessionStorage.removeItem('promo_coupon_used');
+                console.log('[Planes] Cupón marcado como usado:', couponId);
+            } catch (e) {
+                console.warn('[Planes] Error marcando cupón usado:', e);
+            }
+        }
+        mostrarToast('¡Pago exitoso! Tu suscripción se activará en segundos...', 'success');
+        setTimeout(() => window.location.replace('admin.html'), 2500);
+    } else if (mpReturnStatus === 'failure') {
+        mostrarToast('El pago fue rechazado. Intenta con otro método de pago.', 'error');
+    } else if (mpReturnStatus === 'pending') {
+        mostrarToast('El pago está pendiente. Te notificaremos cuando se confirme.', 'warning');
+    }
+
     // Ocultar navegación para nuevos registros
     if (isNewAdmin) {
         const nav = document.querySelector('.screen-navigation');
@@ -2838,10 +2859,75 @@ async function cargarPlanes() {
     }
 }
 
+// Inicia el pago de un plan pagado con Mercado Pago (usa el cliente moderno expuesto por main.js)
+async function iniciarPagoMercadoPago(planKey, tenantId) {
+    const mp = window.__mercadopago;
+    if (!mp || typeof mp.createPreference !== 'function') {
+        mostrarToast('El módulo de pagos no está disponible. Recarga la página.', 'error');
+        return;
+    }
+
+    // Obtener email del usuario autenticado
+    let email = '';
+    try {
+        const userData = window.JwtManager?.getUserData?.();
+        email = userData?.email || '';
+    } catch (e) {}
+    if (!email) {
+        try {
+            const stored = JSON.parse(localStorage.getItem('agendapro_user_data') || '{}');
+            email = stored.email || '';
+        } catch (e) {}
+    }
+    if (!email) {
+        try {
+            const sessionData = await getSession();
+            email = sessionData?.user?.email || '';
+        } catch (e) {}
+    }
+
+    // Cupón promocional 50% (solo Pro mensual)
+    let monto;
+    if (planKey === 'pro' && window.__subscriptionsApi?.checkPromoCoupon) {
+        try {
+            const promoStatus = await window.__subscriptionsApi.checkPromoCoupon(tenantId);
+            const data = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
+            if (data && data.discount_available) {
+                monto = 7500; // 50% de $15.000
+                const cuponId = data.existing_id;
+                if (cuponId) sessionStorage.setItem('promo_coupon_used', cuponId);
+                console.log('[Planes] Cupón 50% aplicado. Monto: $7.500');
+            }
+        } catch (e) {
+            console.warn('[Planes] Error verificando cupón promocional:', e);
+        }
+    }
+
+    try {
+        const pref = await mp.createPreference({
+            plan: planKey,
+            tenantId: tenantId,
+            email: email,
+            nombre: email,
+            ...(monto !== undefined ? { monto } : {}),
+        });
+        mp.redirect(pref.init_point || pref.sandbox_init_point);
+    } catch (err) {
+        console.error('[Planes] Error iniciando pago MP:', err);
+        mostrarToast('Error al iniciar pago: ' + err.message, 'error');
+    }
+}
+
 // Nueva función para crear suscripción inicial (alta de nuevo admin)
 async function crearSuscripcionInicial(planKey, tenantId) {
     if (planKey === 'freemium') {
         mostrarToast('El plan Freemium no está disponible para nuevos administradores', 'error');
+        return;
+    }
+
+    // Planes de pago → Mercado Pago (nunca activar sin pago)
+    if (planKey === 'pro' || planKey === 'premium_anual') {
+        await iniciarPagoMercadoPago(planKey, tenantId);
         return;
     }
     
@@ -2927,6 +3013,12 @@ async function solicitarCambioPlan(planKey) {
     const nuevoPlan = planKey; // 'freemium', 'pro', 'premium_anual'
     const planAnterior = suscripcion.plan;
     const tenantId = suscripcion.tenant_id;
+
+    // Planes de pago → Mercado Pago (nunca cambiar de plan sin pago)
+    if (nuevoPlan === 'pro' || nuevoPlan === 'premium_anual') {
+        await iniciarPagoMercadoPago(nuevoPlan, tenantId);
+        return;
+    }
 
     // Calcular end_date según el nuevo plan
     let endDate = null;

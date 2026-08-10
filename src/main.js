@@ -355,7 +355,17 @@ async function syncJwtSession() {
                 create: subscriptionsApi.createSubscription,
                 update: subscriptionsApi.updateSubscription,
                 cancel: subscriptionsApi.cancelSubscription,
-                getByFilter: subscriptionsApi.getSubscriptionsByFilter
+                getByFilter: subscriptionsApi.getSubscriptionsByFilter,
+                checkPromoCoupon: subscriptionsApi.checkPromoCouponStatus,
+                markCouponUsed: subscriptionsApi.markPromoCouponUsed
+            };
+
+            // Exponer cliente Mercado Pago para script.js legacy
+            const mercadopagoClient = await import('./subscriptions/infrastructure/mercadopago.js');
+            window.__mercadopago = {
+                createPreference: mercadopagoClient.createMercadoPagoPreference,
+                redirect: mercadopagoClient.redirectToMercadoPago,
+                checkStatus: mercadopagoClient.checkPaymentStatusFromUrl
             };
 
             const notificacionesApi = await import('./api/notificacionesApi.js');

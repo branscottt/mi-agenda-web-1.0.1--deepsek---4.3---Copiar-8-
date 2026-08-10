@@ -19,6 +19,13 @@ const PRICES: Record<string, { title: string; price: number }> = {
   premium_anual: { title: 'Plan Premium Anual', price: 140000 },
 };
 
+// Montos permitidos por plan (CLP) — protege contra montos arbitrarios
+// 7500 = cupón promocional 50% del Plan Pro mensual
+const ALLOWED_AMOUNTS: Record<string, number[]> = {
+  pro: [15000, 7500],
+  premium_anual: [140000],
+};
+
 interface PrefRequest {
   tenant_id: string;
   plan: string;
@@ -39,6 +46,27 @@ interface JwtPayload {
 }
 
 /**
+ * Decodifica el payload de un JWT (parte 2, base64url) sin verificar la firma.
+ * La firma YA fue verificada por la plataforma Supabase (verify_jwt = true),
+ * por lo que aquí solo necesitamos LEER los claims (sub, email, user_metadata).
+ */
+function decodeJwtPayload(token: string): JwtPayload | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+    const json = new TextDecoder().decode(
+      Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))
+    );
+    return JSON.parse(json) as JwtPayload;
+  } catch (e) {
+    console.error('[create-preference] Error decodificando JWT:', e);
+    return null;
+  }
+}
+
+/**
  * Valida el JWT y extrae el tenant_id del usuario autenticado.
  * Supabase verifica el JWT automáticamente cuando verify_jwt = true,
  * pero hacemos validación adicional por seguridad.
@@ -49,25 +77,18 @@ function validateJwt(req: Request): { userId: string | null; userTenantId: strin
     return { userId: null, userTenantId: null, email: null };
   }
 
-  try {
-    // El JWT ya fue verificado por Supabase (verify_jwt = true).
-    // Obtenemos los claims del header x-supabase-auth-* o del body.
-    // La info está disponible a través del entorno de Supabase
-    const jwtPayloadStr = Deno.env.get('SUPABASE_JWT_PAYLOAD');
-    if (jwtPayloadStr) {
-      const jwt = JSON.parse(jwtPayloadStr) as JwtPayload;
-      const tenantId = jwt.user_metadata?.tenant_id || null;
-      return {
-        userId: jwt.sub || null,
-        userTenantId: tenantId,
-        email: jwt.email || null,
-      };
-    }
-  } catch (e) {
-    console.error('[create-preference] Error parsing JWT:', e);
+  const token = authHeader.slice(7).trim();
+  const jwt = decodeJwtPayload(token);
+  if (!jwt) {
+    return { userId: null, userTenantId: null, email: null };
   }
 
-  return { userId: null, userTenantId: null, email: null };
+  const tenantId = jwt.user_metadata?.tenant_id || null;
+  return {
+    userId: jwt.sub || null,
+    userTenantId: tenantId,
+    email: jwt.email || null,
+  };
 }
 
 serve(async (req) => {
@@ -134,8 +155,20 @@ serve(async (req) => {
     }
 
     // Usar monto personalizado si se proporcionó (ej: descuento 50%)
-    const unitPrice = monto !== undefined ? monto : planInfo.price;
-    const titleSuffix = monto !== undefined && monto < planInfo.price ? ' (50% desc.)' : '';
+    // SOLO se aceptan montos exactos permitidos para el plan (anti-fraude)
+    let unitPrice = planInfo.price;
+    let titleSuffix = '';
+    if (monto !== undefined) {
+      if (!Number.isFinite(monto) || !ALLOWED_AMOUNTS[plan].includes(monto)) {
+        console.warn(`[create-preference] Monto inválido para plan ${plan}: ${monto}`);
+        return new Response(JSON.stringify({ error: 'Monto inválido para este plan' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
+        });
+      }
+      unitPrice = monto;
+      titleSuffix = monto < planInfo.price ? ' (50% desc.)' : '';
+    }
 
     if (!tenant_id || !email) {
       return new Response(JSON.stringify({ error: 'tenant_id y email son requeridos' }), {
