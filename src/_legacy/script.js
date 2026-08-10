@@ -5090,7 +5090,7 @@ async function cargarUsuarios() {
         data = await window.__usuariosApi.getAll();
     } catch (e) {
         console.error(e);
-        document.getElementById('users-list-body').innerHTML = '<tr><td colspan="5">Error cargando usuarios. Asegúrate de tener la vista "usuarios_con_rol".</td></tr>';
+        document.getElementById('users-list-body').innerHTML = '<tr><td colspan="5">Error cargando usuarios. Verifica la RPC get_all_users_for_superadmin.</td></tr>';
         return;
     }
     currentUsers = data;
@@ -12222,9 +12222,10 @@ async function cargarEstadisticasGlobales() {
         const elCitas = document.getElementById('total-citas');
         if (elCitas) elCitas.innerText = citasCount || 0;
         
-        // Usuarios via vista
+        // Usuarios via RPC superadmin (vista usuarios_con_rol bloqueada por seguridad)
         try {
-            const { count: usersCount } = await supabaseClient.from('usuarios_con_rol').select('id', { count: 'exact', head: true });
+            const { data: usersData } = await supabaseClient.rpc('get_all_users_for_superadmin');
+            const usersCount = (usersData || []).length;
             const elUsuarios = document.getElementById('total-usuarios');
             if (elUsuarios) elUsuarios.innerText = usersCount || 0;
         } catch (e) {
@@ -12379,10 +12380,9 @@ async function cargarUsuariosSuper() {
         if (window.__usuariosApi && typeof window.__usuariosApi.getAll === 'function') {
             users = await window.__usuariosApi.getAll();
         } else {
-            console.log('[cargarUsuariosSuper] Usando fallback legacy (supabaseClient directo)');
+            console.log('[cargarUsuariosSuper] Usando fallback legacy (RPC get_all_users_for_superadmin)');
             const { data, error } = await supabaseClient
-                .from('usuarios_con_rol')
-                .select('*');
+                .rpc('get_all_users_for_superadmin');
             if (error) throw error;
             users = data;
         }
@@ -12476,9 +12476,7 @@ window.cambiarRol = async (userId, nuevoRol) => {
 window.cambiarRolUsuarioDirecto = async (userId, nuevoRol) => {
     try {
         const { error } = await supabaseClient
-            .from('usuarios_con_rol')
-            .update({ rol: nuevoRol })
-            .eq('id', userId);
+            .rpc('actualizar_rol_usuario', { p_user_id: userId, p_rol: nuevoRol });
         if (error) throw error;
         mostrarToast(`Rol cambiado a ${nuevoRol}`, 'success');
         cargarUsuariosSuper();
@@ -12523,9 +12521,7 @@ window.eliminarUsuarioDirecto = async (userId) => {
     if (!confirm('¿Eliminar este usuario permanentemente?')) return;
     try {
         const { error } = await supabaseClient
-            .from('usuarios_con_rol')
-            .delete()
-            .eq('id', userId);
+            .rpc('eliminar_usuario', { p_user_id: userId });
         if (error) throw error;
         mostrarToast('Usuario eliminado', 'success');
         cargarUsuariosSuper();

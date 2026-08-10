@@ -61,23 +61,25 @@ function decodeJwtPayload(token: string): JwtPayload | null {
   }
 }
 
-function validateJwt(req: Request): { userId: string | null; userTenantId: string | null; email: string | null } {
+function validateJwt(req: Request): { userId: string | null; userTenantId: string | null; email: string | null; rol: string | null } {
   const authHeader = req.headers.get('Authorization') || '';
   if (!authHeader.startsWith('Bearer ')) {
-    return { userId: null, userTenantId: null, email: null };
+    return { userId: null, userTenantId: null, email: null, rol: null };
   }
 
   const token = authHeader.slice(7).trim();
   const jwt = decodeJwtPayload(token);
   if (!jwt) {
-    return { userId: null, userTenantId: null, email: null };
+    return { userId: null, userTenantId: null, email: null, rol: null };
   }
 
   const tenantId = jwt.user_metadata?.tenant_id || null;
+  const rol = jwt.user_metadata?.rol || null;
   return {
     userId: jwt.sub || null,
     userTenantId: tenantId,
     email: jwt.email || null,
+    rol,
   };
 }
 
@@ -123,6 +125,16 @@ serve(async (req) => {
       });
     }
 
+    // Si el usuario no tiene tenant asignado y no es super_admin, no puede
+    // crear suscripciones para ningún tenant.
+    if (!jwtInfo.userTenantId && jwtInfo.rol !== 'super_admin') {
+      console.warn(`[create-preapproval] Usuario ${jwtInfo.userId} sin tenant intentó crear suscripción para tenant ${tenant_id}`);
+      return new Response(JSON.stringify({ error: 'No autorizado: tu cuenta no tiene tenant asignado' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
     if (jwtInfo.userTenantId && jwtInfo.userTenantId !== tenant_id) {
       console.warn(`[create-preapproval] Usuario ${jwtInfo.userId} intentó crear suscripción para tenant ${tenant_id} (su tenant: ${jwtInfo.userTenantId})`);
       return new Response(JSON.stringify({ error: 'No autorizado para este tenant' }), {
@@ -156,10 +168,10 @@ serve(async (req) => {
       });
     }
 
-    // URLs de retorno
-    const origin = req.headers.get('origin') || '';
+    // URLs de retorno — baseUrl desde fuentes confiables (env o ALLOWED_ORIGINS),
+    // NUNCA del Origin de la request (anti-phishing post-pago).
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://dfcfimipkfhitlsyixqu.supabase.co';
-    const baseUrl = origin || supabaseUrl.replace(/\/$/, '');
+    const baseUrl = (Deno.env.get('AGENDA_BASE_URL') || allowedOrigins[0] || supabaseUrl).replace(/\/$/, '');
 
     // Crear preapproval (suscripción recurrente) en Mercado Pago
     const preapprovalBody = {
@@ -178,13 +190,16 @@ serve(async (req) => {
 
     console.log('Creando preapproval MP:', JSON.stringify({ reason: preapprovalBody.reason, amount: planInfo.amount }));
 
+    const mpHeaders: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    };
+    const integratorId = Deno.env.get('MERCADOPAGO_INTEGRATOR_ID');
+    if (integratorId) mpHeaders['X-Integrator-Id'] = integratorId;
+
     const mpResp = await fetch(MERCADOPAGO_API, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Integrator-Id': 'dev_24c2ac8c0c86410e9718b2b12a9c9b77',
-      },
+      headers: mpHeaders,
       body: JSON.stringify(preapprovalBody),
     });
 

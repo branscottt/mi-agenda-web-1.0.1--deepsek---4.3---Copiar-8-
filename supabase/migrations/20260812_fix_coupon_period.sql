@@ -3,6 +3,11 @@
 -- Reemplaza get_current_coupon_period() y can_use_promo_coupon()
 -- para que el ciclo de 2 meses cuente DESDE la suscripción,
 -- no desde el calendario.
+-- RENOMBRADA de 20260728_fix_coupon_period.sql a 20260812 para
+-- eliminar la colisión de timestamp con 20260728_promo_video_coupons.sql
+-- (quedó sin aplicar en remoto por la colisión).
+-- AÑADIDO 2026-08-12: validación de tenant en get_current_coupon_period
+-- (solo el propio tenant o super_admin) — anti data-leak multi-tenant.
 -- ============================================================
 
 -- Reemplazar función helper de período
@@ -18,6 +23,13 @@ DECLARE
     v_cycle INT;
 BEGIN
     IF p_tenant_id IS NULL THEN
+        RETURN 'no-tenant';
+    END IF;
+
+    -- Validación de aislamiento multi-tenant: solo el propio tenant o super_admin
+    -- puede consultar el período de cupón de un tenant.
+    IF p_tenant_id IS DISTINCT FROM public.get_user_tenant_id()
+       AND NOT public.is_super_admin() THEN
         RETURN 'no-tenant';
     END IF;
 

@@ -71,23 +71,25 @@ function decodeJwtPayload(token: string): JwtPayload | null {
  * Supabase verifica el JWT automáticamente cuando verify_jwt = true,
  * pero hacemos validación adicional por seguridad.
  */
-function validateJwt(req: Request): { userId: string | null; userTenantId: string | null; email: string | null } {
+function validateJwt(req: Request): { userId: string | null; userTenantId: string | null; email: string | null; rol: string | null } {
   const authHeader = req.headers.get('Authorization') || '';
   if (!authHeader.startsWith('Bearer ')) {
-    return { userId: null, userTenantId: null, email: null };
+    return { userId: null, userTenantId: null, email: null, rol: null };
   }
 
   const token = authHeader.slice(7).trim();
   const jwt = decodeJwtPayload(token);
   if (!jwt) {
-    return { userId: null, userTenantId: null, email: null };
+    return { userId: null, userTenantId: null, email: null, rol: null };
   }
 
   const tenantId = jwt.user_metadata?.tenant_id || null;
+  const rol = jwt.user_metadata?.rol || jwt.role || null;
   return {
     userId: jwt.sub || null,
     userTenantId: tenantId,
     email: jwt.email || null,
+    rol,
   };
 }
 
@@ -132,6 +134,17 @@ serve(async (req) => {
     if (!jwtInfo.userId) {
       return new Response(JSON.stringify({ error: 'Autenticación requerida' }), {
         status: 401,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
+      });
+    }
+
+    // Si el usuario no tiene tenant asignado y no es super_admin, no puede
+    // crear preferencias para ningún tenant (cierra el bypass cuando
+    // user_metadata.tenant_id es null).
+    if (!jwtInfo.userTenantId && jwtInfo.rol !== 'super_admin') {
+      console.warn(`[create-preference] Usuario ${jwtInfo.userId} sin tenant intentó crear preferencia para tenant ${tenant_id}`);
+      return new Response(JSON.stringify({ error: 'No autorizado: tu cuenta no tiene tenant asignado' }), {
+        status: 403,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
       });
     }
@@ -187,9 +200,11 @@ serve(async (req) => {
     }
 
     // Construir URLs de retorno
-    const origin = req.headers.get('origin') || '';
+    // baseUrl SIEMPRE desde fuentes confiables (env AGENDA_BASE_URL o primer
+    // origen de ALLOWED_ORIGINS), NUNCA del Origin de la request:
+    // evita que back_urls redirija al comprador a sitios de phishing tras pagar.
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://dfcfimipkfhitlsyixqu.supabase.co';
-    const baseUrl = origin || supabaseUrl.replace(/\/$/, '');
+    const baseUrl = (Deno.env.get('AGENDA_BASE_URL') || allowedOrigins[0] || supabaseUrl).replace(/\/$/, '');
 
     // Crear preferencia en Mercado Pago
     const prefBody = {
@@ -218,15 +233,18 @@ serve(async (req) => {
       purpose: 'subscription',
     };
 
-    console.log('Creando preferencia MP:', JSON.stringify(prefBody));
+    console.log('Creando preferencia MP:', JSON.stringify({ plan, tenant_id, unit_price: unitPrice }));
+
+    const mpHeaders: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    };
+    const integratorId = Deno.env.get('MERCADOPAGO_INTEGRATOR_ID');
+    if (integratorId) mpHeaders['X-Integrator-Id'] = integratorId;
 
     const mpResp = await fetch(MERCADOPAGO_API, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Integrator-Id': 'dev_24c2ac8c0c86410e9718b2b12a9c9b77',
-      },
+      headers: mpHeaders,
       body: JSON.stringify(prefBody),
     });
 

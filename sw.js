@@ -2,9 +2,9 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v21';
+const CACHE_NAME = 'agendapro-v22';
 const STATIC_ASSETS = [
-    '/dist/style.css',
+    '/style.css',
     '/admin.html',
     '/cliente.html',
     '/login.html',
@@ -61,9 +61,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 2. Assets locales en /dist/ (CSS, fuentes, imagenes) → Cache First
-    //    Los JS (app.js, legacy.js, chunks/) NO se cachean — cambian con cada build
-    if (url.includes('/dist/') && (url.endsWith('.css') || url.endsWith('.woff') || url.endsWith('.woff2') || url.endsWith('.ttf') || url.endsWith('.eot') || url.endsWith('.png') || url.endsWith('.svg') || url.endsWith('.ico'))) {
+    // 2. Assets locales (CSS, fuentes, imagenes) → Cache First
+    //    En producción (Vercel outputDirectory=dist) y en dev los assets
+    //    viven en la raíz: /style.css, /img/... (no /dist/)
+    const isLocalAsset = /\.(css|woff2?|ttf|eot|png|svg|ico|jpg|jpeg|webp|gif)$/.test(url) &&
+        url.startsWith(self.location.origin);
+    if (isLocalAsset) {
         event.respondWith(
             caches.match(event.request).then((cached) => {
                 return cached || fetchAndCache(event.request);
@@ -74,7 +77,7 @@ self.addEventListener('fetch', (event) => {
 
     // 3. JS files (app.js, legacy.js, chunks/) → Network First, nunca cachear
     //    Los chunks de code-splitting cambian de nombre con cada build
-    if (url.includes('/dist/') && url.endsWith('.js')) {
+    if (url.endsWith('.js')) {
         event.respondWith(
             fetch(event.request)
                 .then(response => response)

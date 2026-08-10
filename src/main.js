@@ -393,7 +393,7 @@ async function syncJwtSession() {
             const { fetchWithAuth } = await import('./shared/infrastructure/httpClient.js');
             window.fetchWithAuth = fetchWithAuth;
 
-            // Exponer API de usuarios (vista usuarios_con_rol)
+            // Exponer API de usuarios (RPCs superadmin seguras — vista usuarios_con_rol bloqueada)
             const usuariosApi = await import('./api/usuariosApi.js');
             window.__usuariosApi = {
                 getAll: usuariosApi.getAllUsuarios,
