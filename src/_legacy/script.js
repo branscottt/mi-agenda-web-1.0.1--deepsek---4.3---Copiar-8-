@@ -2649,7 +2649,7 @@ async function cargarPlanes() {
                     <h3 style="margin-bottom:15px;"><i class="fab fa-whatsapp"></i> Completa tu número de WhatsApp</h3>
                     <p style="margin-bottom:15px;color:#b0b0b0;font-size:0.9rem;">
                         Necesitamos tu WhatsApp para que tus clientes puedan contactarte.<br>
-                        <strong>Importante:</strong> Si ya tienes un negocio registrado con este número, te vincularemos automáticamente.
+                        <strong>Importante:</strong> Si ya tienes un negocio registrado, inicia sesión con tu correo electrónico para administrarlo.
                     </p>
                     <input type="tel" id="whatsapp-input" class="form-input"
                            placeholder="Ej: +56912345678" maxlength="16"
@@ -2701,46 +2701,41 @@ async function cargarPlanes() {
 
                 try {
                     // ============================================================
-                    // PASO A: BUSCAR POR WHATSAPP — ¿otro negocio ya usa este número?
+                    // PASO A (SEGURIDAD): ¿el número ya lo usa OTRO negocio?
+                    // ANTES: este bloque vinculaba automáticamente al tenant cuyo
+                    // whatsapp coincidía (toma de control con solo conocer el número).
+                    // AHORA: se consulta disponibilidad vía RPC (sin exponer datos)
+                    // y se bloquea si el número pertenece a otro negocio.
                     // ============================================================
-                    const { data: tenantPorWhatsapp, error: buscaWAError } = await supabaseClient
-                        .from('tenants')
-                        .select('id, nombre_negocio')
-                        .eq('whatsapp', whatsapp)
-                        .maybeSingle();
+                    let whatsappEnUso = false;
+                    try {
+                        const { data: waEnUso } = await supabaseClient.rpc('whatsapp_en_uso', { p_whatsapp: whatsapp });
+                        whatsappEnUso = !!waEnUso;
+                    } catch (e) {
+                        console.warn('[WhatsApp] No se pudo verificar disponibilidad del número:', e);
+                    }
 
-                    if (buscaWAError) throw buscaWAError;
-
-                    // Email del admin de pruebas (bypass antifraude)
-                    const _esAdminPruebas = userEmail === 'super@demo.com';
-
-                    if (tenantPorWhatsapp && !_esAdminPruebas) {
-                        // 🔴 VINCULACIÓN: Este WhatsApp ya pertenece a otro negocio
-                        infoMsg.textContent = `🔗 Vinculando con "${tenantPorWhatsapp.nombre_negocio}"...`;
-                        infoMsg.style.display = 'block';
-
-                        // Actualizar metadata del usuario con el tenant existente
-                        const { error: linkError } = await supabaseClient.auth.updateUser({
-                            data: {
-                                tenant_id: tenantPorWhatsapp.id,
-                                rol: 'admin',
-                                whatsapp: whatsapp
-                            }
-                        });
-                        if (linkError) throw linkError;
-
-                        await supabaseClient.auth.refreshSession();
-
-                        // Sincronizar JwtManager
-                        const { data: { session: fresh } } = await supabaseClient.auth.getSession();
-                        if (fresh && window.JwtManager) {
-                            window.JwtManager.setTokens(fresh.access_token, fresh.refresh_token);
+                    // ¿El número es del tenant actual (propio negocio)? → permitido
+                    let esMiWhatsapp = false;
+                    if (tenantId) {
+                        try {
+                            const { data: miTenant } = await supabaseClient
+                                .from('tenants')
+                                .select('whatsapp')
+                                .eq('id', tenantId)
+                                .maybeSingle();
+                            esMiWhatsapp = !!(miTenant && miTenant.whatsapp && String(miTenant.whatsapp).trim() === String(whatsapp).trim());
+                        } catch (e) {
+                            console.warn('[WhatsApp] No se pudo leer el whatsapp de mi tenant:', e);
                         }
+                    }
 
-                        modal.style.display = 'none';
-                        document.removeEventListener('keydown', trapEscape);
-                        mostrarToast(`Vinculado a "${tenantPorWhatsapp.nombre_negocio}". Bienvenido de vuelta!`, 'success');
-                        window.location.replace('admin.html');
+                    if (whatsappEnUso && !esMiWhatsapp) {
+                        // Número registrado por otro negocio → NO vincular (seguridad)
+                        errorMsg.textContent = 'Este número de WhatsApp ya está registrado a otro negocio. Si es tuyo, inicia sesión con tu correo electrónico para administrarlo.';
+                        errorMsg.style.display = 'block';
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-check"></i> Guardar WhatsApp';
                         return;
                     }
 
@@ -2784,13 +2779,17 @@ async function cargarPlanes() {
                         if (dbError) throw dbError;
                     } else {
                         // Sin tenant asociado — es un caso borde, crear uno
+                        // Vía RPC crear_tenant_completo (SECURITY DEFINER) para que
+                        // también se registre el rol server-side (user_roles).
                         const nombreNegocio = userEmail.split('@')[0];
                         const { data: newTenant, error: createError } = await supabaseClient
-                            .from('tenants')
-                            .insert({ nombre_negocio: nombreNegocio, email_contacto: userEmail, whatsapp: whatsapp, plan: null })
-                            .select()
-                            .single();
+                            .rpc('crear_tenant_completo', {
+                                p_nombre_negocio: nombreNegocio,
+                                p_email_contacto: userEmail,
+                                p_whatsapp: whatsapp
+                            });
                         if (createError) throw createError;
+                        if (!newTenant || !newTenant.id) throw new Error('No se pudo crear el negocio. Intenta nuevamente.');
                         tenantIdActual = newTenant.id;
 
                         // Actualizar metadata con el nuevo tenant
@@ -6920,7 +6919,7 @@ function renderImagenServicio(servicio, className) {
     const gradient = gradients[gradientIndex];
 
     if (servicio.imagen && servicio.imagen.trim()) {
-        return `<img src="${servicio.imagen}" alt="${nombre}" class="${imgClass}"
+        return `<img src="${M(servicio.imagen)}" alt="${M(nombre)}" class="${imgClass}"
                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`;
     } else {
         return `<div class="${imgClass} service-image-fallback" style="background:${gradient};display:flex;align-items:center;justify-content:center;">
@@ -9060,10 +9059,10 @@ function mostrarVistaPrevia() {
         <div class="preview-modal" style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:30px;max-width:420px;width:90%;color:#fff;position:relative;">
             <button onclick="this.closest('.preview-modal-overlay').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#888;font-size:24px;cursor:pointer;">×</button>
             <div class="service-card-preview" style="text-align:center;">
-                <img src="${imagen}" alt="${nombre}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">
-                <h3 style="color:#fff;font-size:1.3rem;margin-bottom:8px;">${nombre}</h3>
+                <img src="${M(imagen)}" alt="${M(nombre)}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">
+                <h3 style="color:#fff;font-size:1.3rem;margin-bottom:8px;">${M(nombre)}</h3>
                 <div style="font-size:1.5rem;font-weight:bold;color:#9d4edd;margin-bottom:8px;">$ ${parseFloat(precio).toLocaleString('es-CL')}</div>
-                ${descripcion ? `<p style="color:#aaa;font-size:0.9rem;margin-bottom:12px;">${descripcion}</p>` : ''}
+                ${descripcion ? `<p style="color:#aaa;font-size:0.9rem;margin-bottom:12px;">${M(descripcion)}</p>` : ''}
                 <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.04);border-radius:8px;">
                     <div style="color:#888;font-size:0.8rem;margin-bottom:4px;">${fechas.length} fecha(s) · ${serviceModules.length} horario(s)</div>
                     <div style="color:#9d4edd;font-size:0.85rem;">${fechas.slice(0,3).join(', ')}${fechas.length > 3 ? '...' : ''}</div>
@@ -10024,8 +10023,8 @@ function actualizarGridCliente(servicios) {
             </div>
             
             <div class="service-content">
-                <h3>${servicio.nombre}</h3>
-                <p class="service-description">${servicio.descripcion || 'Sin descripción disponible'}</p>
+                <h3>${M(servicio.nombre)}</h3>
+                <p class="service-description">${M(servicio.descripcion) || 'Sin descripción disponible'}</p>
                 
                 ${servicio.fechas && servicio.fechas.length > 0 ? `
                 <div class="service-dates-info-card">

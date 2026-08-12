@@ -314,10 +314,23 @@ async function syncJwtSession() {
     // ============================================
     // Exponer APIs unicas para script.js legacy
     // ============================================
+    // Los globals se definen NO-enumerables: no aparecen en Object.keys(window)
+    // ni en el autocompletado de la consola, pero siguen accesibles por nombre
+    // (script.js legacy los consume así). No son credenciales: son wrappers de
+    // fetch que usan la anon key pública de Supabase + el JWT de sesión del usuario.
+    function exposeGlobal(name, value) {
+        Object.defineProperty(window, name, {
+            value,
+            enumerable: false,   // invisible en Object.keys(window)
+            configurable: false, // no redefinible desde consola
+            writable: false,     // no reasignable desde consola
+        });
+    }
+
     async function exposeApi() {
         try {
             const appointmentsApi = await import('./api/appointmentsApi.js');
-            window.__appointmentsApi = {
+            exposeGlobal('__appointmentsApi', {
                 getAllCitas: appointmentsApi.getAllCitas,
                 createCita: appointmentsApi.createCita,
                 updateCita: appointmentsApi.updateCita,
@@ -326,30 +339,30 @@ async function syncJwtSession() {
                 getCitasByDate: appointmentsApi.getCitasByDate,
                 limpiarCitasExpiradas: appointmentsApi.limpiarCitasExpiradas,
                 createCitasBulk: appointmentsApi.createCitasBulk
-            };
+            });
 
             const serviciosApi = await import('./api/serviciosApi.js');
-            window.__serviciosApi = {
+            exposeGlobal('__serviciosApi', {
                 getAll: serviciosApi.getAllServicios,
                 getById: serviciosApi.getServicioById,
                 create: serviciosApi.createServicio,
                 update: serviciosApi.updateServicio,
                 delete: serviciosApi.deleteServicio,
                 upsert: serviciosApi.upsertServicio
-            };
+            });
 
             const tenantsApi = await import('./api/tenantsApi.js');
-            window.__tenantsApi = {
+            exposeGlobal('__tenantsApi', {
                 getAll: tenantsApi.getAllTenants,
                 getById: tenantsApi.getTenantById,
                 getByEmail: tenantsApi.getTenantByEmail,
                 create: tenantsApi.createTenant,
                 update: tenantsApi.updateTenant,
                 delete: tenantsApi.deleteTenant
-            };
+            });
 
             const subscriptionsApi = await import('./api/subscriptionsApi.js');
-            window.__subscriptionsApi = {
+            exposeGlobal('__subscriptionsApi', {
                 getAll: subscriptionsApi.getAllSubscriptions,
                 getByTenant: subscriptionsApi.getActiveSubscriptionByTenantId,
                 create: subscriptionsApi.createSubscription,
@@ -358,49 +371,49 @@ async function syncJwtSession() {
                 getByFilter: subscriptionsApi.getSubscriptionsByFilter,
                 checkPromoCoupon: subscriptionsApi.checkPromoCouponStatus,
                 markCouponUsed: subscriptionsApi.markPromoCouponUsed
-            };
+            });
 
             // Exponer cliente Mercado Pago para script.js legacy
             const mercadopagoClient = await import('./subscriptions/infrastructure/mercadopago.js');
-            window.__mercadopago = {
+            exposeGlobal('__mercadopago', {
                 createPreference: mercadopagoClient.createMercadoPagoPreference,
                 createPreapproval: mercadopagoClient.createMercadoPagoPreapproval,
                 redirect: mercadopagoClient.redirectToMercadoPago,
                 checkStatus: mercadopagoClient.checkPaymentStatusFromUrl
-            };
+            });
 
             const notificacionesApi = await import('./api/notificacionesApi.js');
-            window.__notificacionesApi = {
+            exposeGlobal('__notificacionesApi', {
                 getAll: notificacionesApi.getAllNotificaciones,
                 create: notificacionesApi.createNotificacion,
                 marcarLeida: notificacionesApi.marcarComoLeida,
                 delete: notificacionesApi.deleteNotificacion,
                 getUnreadCount: notificacionesApi.getUnreadCount
-            };
+            });
 
             const tenantConfigApi = await import('./api/tenantConfigApi.js');
-            window.__tenantConfigApi = {
+            exposeGlobal('__tenantConfigApi', {
                 getByTenant: tenantConfigApi.getConfigByTenantId,
                 upsert: tenantConfigApi.upsertConfig,
                 delete: tenantConfigApi.deleteConfig
-            };
+            });
 
             // Exponer CitasManager modular para script.js legacy
             const cm = await import('./features/citas/CitasManager.js');
-            window.__CitasManagerModular = cm;
+            exposeGlobal('__CitasManagerModular', cm);
 
             // Exponer httpClient para uso futuro
             const { fetchWithAuth } = await import('./shared/infrastructure/httpClient.js');
-            window.fetchWithAuth = fetchWithAuth;
+            exposeGlobal('fetchWithAuth', fetchWithAuth);
 
             // Exponer API de usuarios (RPCs superadmin seguras — vista usuarios_con_rol bloqueada)
             const usuariosApi = await import('./api/usuariosApi.js');
-            window.__usuariosApi = {
+            exposeGlobal('__usuariosApi', {
                 getAll: usuariosApi.getAllUsuarios,
                 getById: usuariosApi.getUsuarioById,
                 updateRol: usuariosApi.updateUsuarioRol,
                 delete: usuariosApi.deleteUsuario
-            };
+            });
 
             console.log('[main.js] APIs expuestas en window.__*');
         } catch (e) {
