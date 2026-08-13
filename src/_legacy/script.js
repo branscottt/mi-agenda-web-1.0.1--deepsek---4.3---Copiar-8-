@@ -6807,7 +6807,19 @@ async function subirImagenServicio(file) {
         mostrarProgresoUpload(true, 40, 'Subiendo a la nube...');
 
         // === 2. Subir a Supabase Storage ===
-        const tenantId = window.currentTenantId || 'public';
+        // La política RLS del bucket exige que la carpeta sea el tenant de
+        // user_roles (get_user_tenant_id), no el del JWT. Pedir el canónico
+        // primero; si no hay, caer al JWT y por último 'public'.
+        let tenantId = null;
+        try {
+            if (supabaseClient) {
+                const { data: tenantCanonico } = await supabaseClient.rpc('get_user_tenant_id');
+                tenantId = tenantCanonico || null;
+            }
+        } catch (e) {
+            console.warn('[subirImagenServicio] tenant canónico no disponible, uso JWT:', e);
+        }
+        tenantId = tenantId || window.currentTenantId || 'public';
         const fileName = `servicio-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
         const filePath = `${tenantId}/${fileName}`;
 

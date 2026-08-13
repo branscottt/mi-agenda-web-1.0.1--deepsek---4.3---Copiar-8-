@@ -370,9 +370,21 @@ async function subirImagenStorage(file, tipo, inputId) {
         if (fill) fill.style.width = '50%';
         if (text) text.textContent = 'Subiendo...';
 
-        const tenantId = window.currentTenantId || window.__clientTenantId || (await getCurrentTenantId()) || 'public';
+        // La política RLS del bucket exige que la PRIMERA carpeta del path sea
+        // el tenant de user_roles (get_user_tenant_id), no el del JWT.
+        // Por eso el path es {tenant}/logos/{file} (antes logos/{tenant} daba 403).
+        let tenantId = null;
+        try {
+            if (window.supabaseClient) {
+                const { data: tenantCanonico } = await window.supabaseClient.rpc('get_user_tenant_id');
+                tenantId = tenantCanonico || null;
+            }
+        } catch (e) {
+            console.warn(`[${tipo} upload] tenant canónico no disponible, uso JWT:`, e);
+        }
+        tenantId = tenantId || window.currentTenantId || window.__clientTenantId || (await getCurrentTenantId()) || 'public';
         const fileName = `${tipo}-${Date.now()}.jpg`;
-        const filePath = `logos/${tenantId}/${fileName}`;
+        const filePath = `${tenantId}/logos/${fileName}`;
         const supabase = window.supabaseClient;
         if (!supabase) throw new Error('Cliente no disponible');
 
