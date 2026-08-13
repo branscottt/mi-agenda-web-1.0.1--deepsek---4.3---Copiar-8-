@@ -10844,71 +10844,51 @@ async function confirmarReserva(e) {
     const session = await getSession();
     const userId = session?.id || null;
 
-    const cita = {
-        id: String(Date.now()),
-        servicioId: servicio.id,
-        nombre: servicio.nombre,
-        fecha: fecha,
-        hora: horaTexto,
-        precio: servicio.precio,
-        creadoEn: new Date().toISOString(),
-        contacto: {
+    // ================================================================
+    // RESERVA SERVER-SIDE: RPC reservar_cita — valida cupos, descuenta,
+    // crea la cita y la notificación, todo atómico en el servidor.
+    // (El cliente ya no inserta ni descuenta directamente.)
+    // ================================================================
+    const tenantIdReserva = await getCurrentTenantId();
+    if (!tenantIdReserva) {
+        mostrarMensaje('No se pudo identificar el negocio. Recarga la página.', 'error');
+        popup.dataset.reserving = '0';
+        if (confirmBtnImmediate) { confirmBtnImmediate.disabled = false; confirmBtnImmediate.style.cursor = 'pointer'; }
+        return;
+    }
+
+    const { data: reserva, error: rpcError } = await supabaseClient.rpc('reservar_cita', {
+        p_tenant_id: tenantIdReserva,
+        p_servicio_id: servicio.id,
+        p_fecha: fecha,
+        p_hora: horaTexto,
+        p_contacto: {
             nombre: clienteNombre || session?.nombre || '',
             telefono: clienteTel || '',
             email: clienteEmail || session?.email || '',
             userId: userId || null
-        },
-        notificaciones: { 
-            emailEnviado: false, 
-            whatsappEnviado: false 
         }
-    };
-    cita.telefonoCliente = cita.contacto.telefono || '';
-
-await CitasManager.upsert(cita, window.currentTenantId);
-
-    // Insertar notificación admin para nueva reserva
-    try {
-        const tenantId = await getCurrentTenantId();
-        if (tenantId) {
-            const notifId = 'notif-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-            const { error: notifError } = await supabaseClient
-                .from('notificaciones_admin')
-                .insert({
-                    id: notifId,
-                    tenant_id: tenantId,
-                    tipo: 'nueva_reserva',
-                    cita_id: cita.id,
-                    fecha_original: null,
-                    hora_original: null,
-                    fecha_nueva: null,
-                    hora_nueva: null,
-                    cliente: cita.contacto || {},
-                    leido: false,
-                    creado_en: new Date().toISOString(),
-                    metadata: {
-                        servicio: cita.nombre || '',
-                        fecha: cita.fecha || '',
-                        hora: cita.hora || '',
-                        precio: cita.precio || 0
-                    }
-                });
-            if (notifError) console.error('Error creando notificación admin:', notifError);
-        }
-    } catch (e) {
-        console.error('Error al crear notificación admin:', e);
-    }
-    
-    servicio.disponibilidad[fecha][moduloIndex].cupos = Math.max(0, cuposActuales - 1);
-
-    let anyRemaining = false;
-    Object.keys(servicio.disponibilidad || {}).forEach(f => {
-        if((servicio.disponibilidad[f] || []).some(m => Number(m.cupos || 0) > 0)) anyRemaining = true;
     });
-    if(!anyRemaining) servicio.activo = false;
-    servicios[idx] = servicio;
-    await ServiciosManager.save(servicio);
-    
+
+    if (rpcError) {
+        console.error('Error en reservar_cita:', rpcError);
+        mostrarMensaje('No se pudo completar la reserva. Intenta de nuevo.', 'error');
+        popup.dataset.reserving = '0';
+        if (confirmBtnImmediate) { confirmBtnImmediate.disabled = false; confirmBtnImmediate.style.cursor = 'pointer'; }
+        if (typeof cargarServiciosParaCliente === 'function') cargarServiciosParaCliente();
+        return;
+    }
+
+    if (!reserva || reserva.ok !== true) {
+        // El servidor es la fuente de verdad (agotado, horario no disponible, etc.)
+        mostrarMensaje(reserva?.error || 'No se pudo completar la reserva', 'error');
+        if (typeof cargarServiciosParaCliente === 'function') cargarServiciosParaCliente();
+        if (typeof actualizarGridCliente === 'function') actualizarGridCliente(await ServiciosManager.getAll());
+        popup.dataset.reserving = '0';
+        if (confirmBtnImmediate) { confirmBtnImmediate.disabled = false; confirmBtnImmediate.style.cursor = 'pointer'; }
+        return;
+    }
+
     if (typeof generarNotificaciones === 'function') generarNotificaciones();
 
     popup.style.display = 'none';

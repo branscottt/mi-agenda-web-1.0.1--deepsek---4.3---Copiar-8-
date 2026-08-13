@@ -4,6 +4,7 @@
 
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getAllServicios } from '../../api/serviciosApi.js';
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
 
 // --- Estado del carrito (singleton en memoria) ---
 let _carrito = [];
@@ -145,20 +146,25 @@ export async function confirmarReserva(contacto) {
     const tenantId = await getCurrentTenantId();
     if (!tenantId || !_carrito.length) throw new Error('Carrito vacio o sesion expirada');
 
-    const citas = _carrito.map(item => ({
-        tenant_id: String(tenantId).trim(),
+    const items = _carrito.map(item => ({
         servicio_id: item.id,
-        servicio_nombre: item.nombre,
         fecha: item.fecha,
         hora: item.hora,
-        precio: item.precio,
-        contacto: contacto,
-        trabajador_id: item.trabajadorId || null,
-        notificaciones: { emailEnviado: false, whatsappEnviado: false }
+        trabajador_id: item.trabajadorId || null
     }));
 
-    const data = await createCitasBulk(citas);
+    // Reserva server-side: RPC atómico (valida cupos, descuenta, crea
+    // citas + notificaciones en el servidor — el cliente no manipula datos)
+    const { data: resultado, error } = await getSupabase().rpc('reservar_citas_bulk', {
+        p_tenant_id: String(tenantId).trim(),
+        p_items: items,
+        p_contacto: contacto
+    });
+    if (error) throw error;
+    if (!resultado || resultado.ok !== true) {
+        throw new Error(resultado?.error || 'No se pudo completar la reserva');
+    }
 
     vaciarCarrito();
-    return data;
+    return resultado;
 }
