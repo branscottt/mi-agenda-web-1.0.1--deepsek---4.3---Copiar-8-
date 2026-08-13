@@ -5670,6 +5670,17 @@ async function crearServicio() {
         }
     }
 
+    // Validar trabajadores: solo obligatorio si existen trabajadores con disponibilidad horaria
+    if (window.__validarWorkersServicio) {
+        const r = window.__validarWorkersServicio();
+        if (r && !r.valido) {
+            mostrarMensaje(r.mensaje, "warning");
+            const workersSection = document.getElementById('service-workers-list');
+            if (workersSection) workersSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+    }
+
     // Leer duración (con validación y fallback)
     const duracion = getServiceDuration();
 

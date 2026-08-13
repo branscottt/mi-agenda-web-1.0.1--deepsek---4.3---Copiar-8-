@@ -204,8 +204,9 @@ async function syncJwtSession() {
                 window.__initWorkerShare = () => renderWorkerShare('workers-share-container');
                 exposeShareGlobals();
 
-                const { guardarWorkersDelServicio } = await import('./services/ui/ServiceForm.js');
+                const { guardarWorkersDelServicio, validarWorkersServicio } = await import('./services/ui/ServiceForm.js');
                 window.__guardarWorkersDelServicio = guardarWorkersDelServicio;
+                window.__validarWorkersServicio = validarWorkersServicio;
 
                 // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
                 const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');

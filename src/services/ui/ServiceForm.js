@@ -4,6 +4,21 @@
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero } from '../../shared/infrastructure/formatters.js';
 import { getAllTrabajadores, getTrabajadoresDelServicio, asignarTrabajadoresAlServicio } from '../../workers/application/WorkersService.js';
+import { calcularHorasEfectivas } from '../../workers/domain/horarioValidation.js';
+
+/**
+ * Un trabajador "tiene tiempo disponible" si su horario semanal tiene
+ * al menos un día activo con horas efectivas > 0.
+ */
+function tieneDisponibilidad(w) {
+    const hs = w && w.horario_semanal;
+    if (!hs || typeof hs !== 'object') return false;
+    for (let k = 1; k <= 7; k++) {
+        const dia = hs[String(k)];
+        if (dia && dia.activo && calcularHorasEfectivas(dia) > 0) return true;
+    }
+    return false;
+}
 
 export function configurarFormularioServicio() {
     const form = document.getElementById('service-form');
@@ -87,12 +102,13 @@ async function cargarWorkersCheckboxes() {
             container.innerHTML = `
                 <div class="empty-state-small">
                     <i class="fas fa-user-slash" style="opacity:0.3;"></i>
-                    <p style="margin-top:6px;font-size:0.85rem;">No hay trabajadores activos.</p>
+                    <p style="margin-top:6px;font-size:0.85rem;">No hay trabajadores. Puedes crear el servicio sin asignar trabajadores.</p>
                     <a href="#" onclick="navigateTo('equipo');return false;" style="color:var(--primary-color);font-size:0.82rem;">
                         Agregar trabajadores en Mi Equipo
                     </a>
                 </div>
             `;
+            container.dataset.requiereTrabajador = '0';
             return;
         }
 
@@ -108,22 +124,50 @@ async function cargarWorkersCheckboxes() {
             }
         }
 
+        // Separar: solo los que tienen horario configurado son seleccionables
+        const disponibles = activos.filter(tieneDisponibilidad);
+        const sinHorario = activos.filter(w => !tieneDisponibilidad(w));
+        // En edición, los ya asignados se mantienen habilitados aunque no tengan horario
+        const sinHorarioYaAsignados = sinHorario.filter(w => selectedIds.includes(w.id));
+        const sinHorarioBloqueados = sinHorario.filter(w => !selectedIds.includes(w.id));
+
+        container.dataset.requiereTrabajador = disponibles.length > 0 ? '1' : '0';
+
+        const renderWorker = (w, bloqueado) => {
+            const checked = selectedIds.includes(w.id);
+            const disabled = bloqueado ? 'disabled' : '';
+            const cls = `worker-checkbox-label ${checked ? 'checked' : ''} ${bloqueado ? 'worker-checkbox-disabled' : ''}`;
+            return `
+                <label class="${cls}" title="${bloqueado ? 'Sin horario configurado — define su horario en la sección Horarios antes de asignarlo' : ''}">
+                    <input type="checkbox" value="${w.id}" ${checked ? 'checked' : ''} ${disabled}>
+                    <span class="worker-check-avatar" style="background:${w.color || '#9d4edd'};${bloqueado ? 'filter:grayscale(1);opacity:0.5;' : ''}">
+                        ${w.nombre.charAt(0).toUpperCase()}
+                    </span>
+                    <span class="worker-check-name">${escapeHtml(w.nombre)}</span>
+                    <span class="worker-check-skills">
+                        ${bloqueado
+                            ? '<span style="color:#ff9f43;">⛔ Sin horario</span>'
+                            : (w.habilidades ? escapeHtml(w.habilidades) : 'Disponible')}
+                    </span>
+                </label>
+            `;
+        };
+
         container.innerHTML = `
             <div class="workers-checkbox-grid">
-                ${activos.map(w => `
-                    <label class="worker-checkbox-label ${selectedIds.includes(w.id) ? 'checked' : ''}">
-                        <input type="checkbox" value="${w.id}" ${selectedIds.includes(w.id) ? 'checked' : ''}>
-                        <span class="worker-check-avatar" style="background:${w.color || '#9d4edd'}">
-                            ${w.nombre.charAt(0).toUpperCase()}
-                        </span>
-                        <span class="worker-check-name">${escapeHtml(w.nombre)}</span>
-                        ${w.habilidades ? `<span class="worker-check-skills">${escapeHtml(w.habilidades)}</span>` : ''}
-                    </label>
-                `).join('')}
+                ${disponibles.map(w => renderWorker(w, false)).join('')}
+                ${sinHorarioYaAsignados.map(w => renderWorker(w, false)).join('')}
+                ${sinHorarioBloqueados.map(w => renderWorker(w, true)).join('')}
             </div>
-            <p class="field-hint" style="margin-top:6px;">
-                Marca los trabajadores que pueden realizar este servicio. Si no marcas ninguno, el servicio funcionará sin asignación de trabajador.
-            </p>
+            ${disponibles.length > 0 ? `
+                <p class="field-hint" style="margin-top:6px;color:#ffd700;">
+                    <i class="fas fa-exclamation-triangle"></i> Obligatorio: selecciona al menos un trabajador con disponibilidad para este servicio.
+                </p>
+            ` : `
+                <p class="field-hint" style="margin-top:6px;">
+                    Ningún trabajador tiene horario configurado aún. Puedes crear el servicio sin asignar trabajadores, o configurar horarios en la sección Horarios.
+                </p>
+            `}
         `;
 
         // Event listeners para toggle class
@@ -136,7 +180,28 @@ async function cargarWorkersCheckboxes() {
     } catch (e) {
         console.error('Error cargando workers checkboxes:', e);
         container.innerHTML = '<p class="field-hint" style="color:var(--danger);">Error al cargar trabajadores</p>';
+        container.dataset.requiereTrabajador = '0';
     }
+}
+
+/**
+ * Validación usada por legacy script.js al CREAR un servicio.
+ * Solo exige seleccionar trabajador si existen trabajadores con disponibilidad horaria.
+ * @returns {{valido: boolean, mensaje: string}}
+ */
+export function validarWorkersServicio() {
+    const container = document.getElementById('service-workers-list');
+    if (!container || container.dataset.requiereTrabajador !== '1') {
+        return { valido: true, mensaje: '' };
+    }
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+    if (!checkboxes.length) {
+        return {
+            valido: false,
+            mensaje: '⚠️ Hay trabajadores con disponibilidad horaria. Selecciona al menos uno para este servicio (o quita el horario a todos en la sección Horarios si quieres crearlo sin asignación).'
+        };
+    }
+    return { valido: true, mensaje: '' };
 }
 
 export async function editarServicioForm(id, servicio) {
