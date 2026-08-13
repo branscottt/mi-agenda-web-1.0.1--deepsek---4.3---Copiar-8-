@@ -14387,3 +14387,54 @@ input:-moz-autofill {
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   FIX v12 — Mis Servicios: TODAS las acciones de la card visibles
+   Problema medido: en PC la fila de 4 botones (Editar, Duplicar,
+   Eliminar, Mostrar/Ocultar) desbordaba la card (necesita ~370px de
+   ancho mínimo pero el contenedor da ~210-300px) y el recorte por
+   overflow:hidden dejaba el 4º botón casi invisible. En móvil v9.1
+   ocultaba las etiquetas (font-size:0) dejando iconos sin texto.
+   Fix: wrap en base (los botones fluyen a 2ª fila, nada se recorta)
+   + en móvil etiquetas visibles con target táctil. CSS aditivo;
+   no toca HTML/JS ni seguridad.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Desktop (y base): los botones fluyen a 2ª fila si no caben */
+.service-card-actions {
+    flex-wrap: wrap;
+}
+.service-card-actions button {
+    white-space: nowrap;
+}
+
+/* Desktop medio (1024-1366): grid 2×2 para evitar filas con un botón solitario */
+@media (max-width: 1366px) and (min-width: 769px) {
+    .service-card-admin .service-card-actions {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px !important;
+    }
+    .service-card-admin .service-card-actions .btn-small {
+        width: 100%;
+    }
+}
+
+/* Móvil: etiquetas visibles (anula font-size:0 de v9.1) + target táctil */
+@media (max-width: 768px) {
+    .service-card-admin .service-card-actions {
+        gap: 6px !important;
+        margin-top: 8px;
+    }
+    .service-card-admin .service-card-actions .btn-small {
+        font-size: 0.68rem !important;
+        gap: 4px !important;
+        padding: 6px 8px !important;
+        min-height: 34px;
+        flex: 1 1 0; /* basis 0: neutraliza el width:100% residual del bloque 480px */
+    }
+    .service-card-admin .service-card-actions .btn-small i {
+        font-size: 0.8rem !important;
+        margin: 0 !important;
+    }
+}
+
