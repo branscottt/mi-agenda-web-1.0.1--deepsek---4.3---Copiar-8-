@@ -5639,12 +5639,18 @@ window.configurarFormulario = configurarFormulario;
 async function crearServicio() {
     const submitBtn = document.querySelector('#service-form button[type="submit"]');
 
-    const nombre = document.getElementById('srv-name').value;
+    const nombre = (document.getElementById('srv-name').value || '').trim();
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
 
     if (!nombre || !precio) {
         mostrarMensaje("Por favor completa todos los campos obligatorios", "error");
+        return;
+    }
+
+    if (nombre.length < 2) {
+        mostrarMensaje("⚠️ El nombre del servicio debe tener al menos 2 caracteres.", "warning");
+        document.getElementById('srv-name')?.focus();
         return;
     }
 
@@ -6536,12 +6542,18 @@ async function actualizarServicio() {
         return;
     }
 
-    const nombre = document.getElementById('srv-name').value;
+    const nombre = (document.getElementById('srv-name').value || '').trim();
     const precio = document.getElementById('srv-price').value;
     const activo = document.getElementById('srv-active').checked;
 
     if (!nombre || !precio) {
         mostrarMensaje("Por favor completa todos los campos obligatorios", "error");
+        return;
+    }
+
+    if (nombre.length < 2) {
+        mostrarMensaje("⚠️ El nombre del servicio debe tener al menos 2 caracteres.", "warning");
+        document.getElementById('srv-name')?.focus();
         return;
     }
 
