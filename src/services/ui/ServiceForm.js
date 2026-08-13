@@ -94,23 +94,21 @@ async function cargarWorkersCheckboxes() {
     const container = document.getElementById('service-workers-list');
     if (!container) return;
 
+    // El paso 4 del formulario (details.form-step) se oculta por completo
+    // cuando no hay trabajadores activos: crear el servicio no debe exigir nada.
+    const paso = container.closest('details.form-step') || container.closest('details');
+
     try {
         const workers = await getAllTrabajadores();
         const activos = workers.filter(w => w.activo);
 
         if (!activos.length) {
-            container.innerHTML = `
-                <div class="empty-state-small">
-                    <i class="fas fa-user-slash" style="opacity:0.3;"></i>
-                    <p style="margin-top:6px;font-size:0.85rem;">No hay trabajadores. Puedes crear el servicio sin asignar trabajadores.</p>
-                    <a href="#" onclick="navigateTo('equipo');return false;" style="color:var(--primary-color);font-size:0.82rem;">
-                        Agregar trabajadores en Mi Equipo
-                    </a>
-                </div>
-            `;
+            container.innerHTML = '';
             container.dataset.requiereTrabajador = '0';
+            if (paso) paso.style.display = 'none';
             return;
         }
+        if (paso) paso.style.display = '';
 
         // Determinar workers ya seleccionados (modo edición)
         const editId = document.getElementById('service-form')?.dataset?.editId;
@@ -179,8 +177,9 @@ async function cargarWorkersCheckboxes() {
 
     } catch (e) {
         console.error('Error cargando workers checkboxes:', e);
-        container.innerHTML = '<p class="field-hint" style="color:var(--danger);">Error al cargar trabajadores</p>';
+        container.innerHTML = '';
         container.dataset.requiereTrabajador = '0';
+        if (paso) paso.style.display = 'none';
     }
 }
 
