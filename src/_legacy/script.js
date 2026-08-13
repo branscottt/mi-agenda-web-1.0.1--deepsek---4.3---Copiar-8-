@@ -3298,8 +3298,13 @@ async function renderizarGraficoVentas() {
         return;
     }
     
-    // Destruir gráfico anterior si existe
-    if (window.ventasChart) {
+    // Destruir gráfico anterior si existe (API oficial de Chart.js v4: busca por canvas,
+    // no por variable global — evita el error "Canvas is already in use" cuando el
+    // dashboard se actualiza dos veces en paralelo)
+    const chartExistente = window.Chart && window.Chart.getChart ? window.Chart.getChart(canvas) : null;
+    if (chartExistente) {
+        chartExistente.destroy();
+    } else if (window.ventasChart) {
         window.ventasChart.destroy();
     }
     
@@ -6954,7 +6959,7 @@ function renderImagenServicio(servicio, className) {
     const gradient = gradients[gradientIndex];
 
     if (servicio.imagen && servicio.imagen.trim()) {
-        return `<img src="${M(servicio.imagen)}" alt="${M(nombre)}" class="${imgClass}"
+        return `<img src="${escapeHtml(servicio.imagen)}" alt="${escapeHtml(nombre)}" class="${imgClass}"
                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`;
     } else {
         return `<div class="${imgClass} service-image-fallback" style="background:${gradient};display:flex;align-items:center;justify-content:center;">
@@ -9094,10 +9099,10 @@ function mostrarVistaPrevia() {
         <div class="preview-modal" style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:30px;max-width:420px;width:90%;color:#fff;position:relative;">
             <button onclick="this.closest('.preview-modal-overlay').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#888;font-size:24px;cursor:pointer;">×</button>
             <div class="service-card-preview" style="text-align:center;">
-                <img src="${M(imagen)}" alt="${M(nombre)}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">
-                <h3 style="color:#fff;font-size:1.3rem;margin-bottom:8px;">${M(nombre)}</h3>
+                <img src="${escapeHtml(imagen)}" alt="${escapeHtml(nombre)}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">
+                <h3 style="color:#fff;font-size:1.3rem;margin-bottom:8px;">${escapeHtml(nombre)}</h3>
                 <div style="font-size:1.5rem;font-weight:bold;color:#9d4edd;margin-bottom:8px;">$ ${parseFloat(precio).toLocaleString('es-CL')}</div>
-                ${descripcion ? `<p style="color:#aaa;font-size:0.9rem;margin-bottom:12px;">${M(descripcion)}</p>` : ''}
+                ${descripcion ? `<p style="color:#aaa;font-size:0.9rem;margin-bottom:12px;">${escapeHtml(descripcion)}</p>` : ''}
                 <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.04);border-radius:8px;">
                     <div style="color:#888;font-size:0.8rem;margin-bottom:4px;">${fechas.length} fecha(s) · ${serviceModules.length} horario(s)</div>
                     <div style="color:#9d4edd;font-size:0.85rem;">${fechas.slice(0,3).join(', ')}${fechas.length > 3 ? '...' : ''}</div>
@@ -10058,8 +10063,8 @@ function actualizarGridCliente(servicios) {
             </div>
             
             <div class="service-content">
-                <h3>${M(servicio.nombre)}</h3>
-                <p class="service-description">${M(servicio.descripcion) || 'Sin descripción disponible'}</p>
+                <h3>${escapeHtml(servicio.nombre)}</h3>
+                <p class="service-description">${escapeHtml(servicio.descripcion) || 'Sin descripción disponible'}</p>
                 
                 ${servicio.fechas && servicio.fechas.length > 0 ? `
                 <div class="service-dates-info-card">
