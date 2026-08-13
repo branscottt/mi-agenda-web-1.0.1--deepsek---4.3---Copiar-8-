@@ -9097,7 +9097,7 @@ function mostrarVistaPrevia() {
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999;';
     modal.innerHTML = `
         <div class="preview-modal" style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:30px;max-width:420px;width:90%;color:#fff;position:relative;">
-            <button onclick="this.closest('.preview-modal-overlay').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#888;font-size:24px;cursor:pointer;">×</button>
+            <button type="button" class="preview-modal-close" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#888;font-size:24px;cursor:pointer;">×</button>
             <div class="service-card-preview" style="text-align:center;">
                 <img src="${escapeHtml(imagen)}" alt="${escapeHtml(nombre)}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;margin-bottom:16px;" onerror="this.style.display='none'">
                 <h3 style="color:#fff;font-size:1.3rem;margin-bottom:8px;">${escapeHtml(nombre)}</h3>
@@ -9115,6 +9115,19 @@ function mostrarVistaPrevia() {
         </div>
     `;
     document.body.appendChild(modal);
+
+    // CSP: los onclick inline quedan bloqueados (nonce/hash anulan 'unsafe-inline').
+    // Se bindean con addEventListener tras el render (patrón del repo, ver DOCUMENTACION-CARDS-SERVICIOS.md).
+    const btnCerrarPreview = modal.querySelector('.preview-modal-close');
+    if (btnCerrarPreview) {
+        btnCerrarPreview.addEventListener('click', function () {
+            modal.remove();
+        });
+    }
+    // Cerrar también al hacer clic fuera del modal (backdrop)
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) modal.remove();
+    });
 }
 window.mostrarVistaPrevia = mostrarVistaPrevia;
 
