@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Test — Vista previa card cliente</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { background:#0f0f14; color:#eee; font-family:system-ui,sans-serif; padding:20px; }
+  #results { white-space:pre-wrap; font-family:monospace; font-size:13px; margin-top:16px; }
+  .pass { color:#00b894; } .fail { color:#ff6b6b; }
+  /* Popup mínimo para el flujo preview -> reserva */
+  #popup-reserva { display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+<h2>Harness: vista previa al hacer clic en la card (cliente)</h2>
+<div id="client-services-grid"></div>
+
+<!-- Popup mínimo (misma estructura que cliente.html) -->
+<div id="popup-reserva" class="popup-reserva">
+  <div class="popup-inner">
+    <div class="detalles-servicio"></div>
+    <div id="resumen-confirmacion"><div class="popup-summary">x</div></div>
+    <div class="terms-accept"><label><input type="checkbox" id="acepto-condiciones"> ok</label></div>
+    <div class="popup-actions">
+      <button id="btn-confirmar-reserva" disabled class="btn-confirm">Confirmar Reserva</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Bloquear el auto-init del bundle (sesión/redirecciones) SIN afectar definiciones
+document.addEventListener('DOMContentLoaded', function (e) { e.stopImmediatePropagation(); }, true);
+</script>
+<script src="dist/legacy.js"></script>
+<script>
+(function () {
+  'use strict';
+  const results = [];
+  const ok = (cond, msg) => results.push((cond ? 'PASS' : 'FAIL') + ' | ' + msg);
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+  // Fechas futuras dinámicas (hoy + 6 / + 7)
+  const d1 = new Date(); d1.setDate(d1.getDate() + 6);
+  const d2 = new Date(); d2.setDate(d2.getDate() + 7);
+  const f1 = d1.toISOString().slice(0, 10);
+  const f2 = d2.toISOString().slice(0, 10);
+  const dia1 = dayNames[new Date(f1 + 'T12:00:00').getDay()];
+  const dia2 = dayNames[new Date(f2 + 'T12:00:00').getDay()];
+
+  const serv1 = {
+    id: 1, nombre: 'Corte Clásico', precio: 15000, descripcion: 'Corte y peinado',
+    duracion: 30, imagen: '', activo: true, destacado: true,
+    fechas: [f1, f2],
+    disponibilidad: {
+      [f1]: [
+        { hora: '10:00', endTime: '10:30', cupos: 5, duration: 30 },
+        { hora: '11:00', endTime: '11:30', cupos: 0, duration: 30 }
+      ],
+      [f2]: [{ hora: '12:00', endTime: '12:30', cupos: 2, duration: 30 }]
+    }
+  };
+  const serv2 = {
+    id: 2, nombre: 'Masaje', precio: 20000, descripcion: 'Masaje relajante',
+    duracion: 60, imagen: '', activo: true, destacado: false,
+    fechas: [f1],
+    disponibilidad: { [f1]: [{ hora: '09:00', endTime: '10:00', cupos: 0, duration: 60 }] }
+  };
+
+  // ── Mocks (después de cargar el bundle) ──
+  // El bundle usa su variable interna ServiciosManager (== window.ServiciosManager),
+  // así que mutamos getAll sobre el objeto real expuesto.
+  window.ServiciosManager.getAll = async () => [serv1, serv2];
+  window.mostrarMensaje = (m, t) => console.log('[mock mostrarMensaje]', m, t);
+
+  const run = async () => {
+    ok(typeof window.verServicioCliente === 'function', 'verServicioCliente definida globalmente');
+
+    // 1) Vista previa del servicio 1
+    await window.verServicioCliente(1);
+    const overlay = document.getElementById('modal-servicio-cliente');
+    ok(!!overlay, 'modal creado en el DOM');
+    ok(overlay.style.display === 'flex', 'modal visible tras verServicioCliente(1)');
+    ok(document.getElementById('cliente-detalle-nombre').textContent === 'Corte Clásico', 'nombre renderizado');
+    ok(document.getElementById('cliente-detalle-precio').textContent.includes('15.000'), 'precio renderizado: ' + document.getElementById('cliente-detalle-precio').textContent);
+
+    const resumen = document.getElementById('cliente-detalle-cupos-resumen').textContent;
+    ok(resumen.includes('2 fecha(s) disponibles'), 'resumen: 2 fechas');
+    ok(resumen.includes('3 turno(s)'), 'resumen: 3 turnos');
+    ok(resumen.includes('7 cupo(s) totales'), 'resumen: 7 cupos');
+    ok(resumen.includes('2 fecha(s) con cupo'), 'resumen: 2 fechas con cupo');
+
+    const fechas = document.getElementById('cliente-detalle-fechas').children;
+    ok(fechas.length === 2, 'desglose con 2 fechas');
+    ok(fechas[0].textContent.includes(dia1), 'fecha 1 muestra día ' + dia1);
+    ok(fechas[1].textContent.includes(dia2), 'fecha 2 muestra día ' + dia2);
+    ok(fechas[0].textContent.includes('5 cupos'), 'fecha 1 muestra "5 cupos"');
+    ok(fechas[0].textContent.includes('Agotado'), 'fecha 1 muestra horario Agotado');
+    ok(fechas[0].textContent.includes('10:00 AM'), 'fecha 1 muestra hora 10:00 AM');
+
+    const btnReservar = document.getElementById('btn-reservar-preview-cliente');
+    ok(!btnReservar.disabled, 'botón "Reservar ahora" habilitado con cupos');
+
+    // 2) Flujo: Reservar ahora -> cierra preview y abre popup de reserva
+    btnReservar.click();
+    await new Promise(r => setTimeout(r, 150)); // abrirModalReserva es async
+    ok(overlay.style.display === 'none', 'preview cerrado al pulsar "Reservar ahora"');
+    const selFecha = document.getElementById('select-fecha');
+    ok(!!selFecha && selFecha.options.length === 3, 'popup de reserva abierto con fechas (' + (selFecha ? selFecha.options.length : 0) + ' options)');
+
+    // 3) Cierre con X
+    await window.verServicioCliente(1);
+    document.getElementById('close-servicio-cliente').click();
+    ok(overlay.style.display === 'none', 'preview cerrado con botón X');
+
+    // 4) Click en la card (fuera de botones) abre el preview
+    window.actualizarGridCliente([serv1, serv2]);
+    const cards = document.querySelectorAll('#client-services-grid .service-card');
+    ok(cards.length === 2, 'grid renderiza 2 cards');
+    cards[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 50));
+    ok(document.getElementById('modal-servicio-cliente').style.display === 'flex', 'click en card abre vista previa');
+
+    // 5) Click en el botón Reservar de la card NO abre preview (va directo a reserva)
+    document.getElementById('close-servicio-cliente').click();
+    const btnCard = cards[0].querySelector('.btn-reservar');
+    btnCard.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 50));
+    ok(document.getElementById('modal-servicio-cliente').style.display === 'none', 'click en botón Reservar no abre preview (flujo directo intacto)');
+
+    // 6) Servicio agotado -> botón deshabilitado "Agotado"
+    await window.verServicioCliente(2);
+    const btnAgotado = document.getElementById('btn-reservar-preview-cliente');
+    ok(btnAgotado.disabled, 'servicio sin cupos: botón deshabilitado');
+    ok(btnAgotado.textContent.includes('Agotado'), 'servicio sin cupos: texto "Agotado"');
+    const fechas2 = document.getElementById('cliente-detalle-fechas').textContent;
+    ok(fechas2.includes('Agotado'), 'desglose servicio agotado marca Agotado');
+
+    // 7) Escape cierra
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    ok(overlay.style.display === 'none', 'Escape cierra el preview');
+
+    document.getElementById('results').innerHTML = results.map(r => r).join('\n');
+    const fails = results.filter(r => r.startsWith('FAIL')).length;
+    console.log('[HARNESS] ' + (fails === 0 ? 'TODO OK (' + results.length + ' checks)' : fails + ' FALLOS de ' + results.length));
+  };
+
+  run().catch(err => { results.push('FAIL | excepción en harness: ' + err.message); document.getElementById('results').innerHTML = results.join('\n'); console.error(err); });
+})();
+</script>
+<pre id="results">corriendo...</pre>
+</body>
+</html>

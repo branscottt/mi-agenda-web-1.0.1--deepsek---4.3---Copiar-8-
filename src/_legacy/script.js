@@ -10126,8 +10126,214 @@ function actualizarGridCliente(servicios) {
             abrirModalReserva(serviceId);
         });
     });
+
+    // Vista previa: clic en la card (fuera de botones) muestra la
+    // disponibilidad (fechas, días y horarios) antes de reservar
+    gridContainer.querySelectorAll('.service-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+            if (e.target.closest('button') || e.target.closest('a')) return;
+            const id = this.dataset.serviceId;
+            if (id) verServicioCliente(id);
+        });
+    });
 }
 window.actualizarGridCliente = actualizarGridCliente;
+
+// ── Vista previa de servicio (vista cliente) ──
+// Al hacer clic en la card se muestra qué fechas, días y horarios están
+// disponibles (mismo estilo que el detalle de "Mis Servicios"), antes de
+// que el cliente decida reservar. "Reservar ahora" deriva al popup de reserva.
+function _getPreviewModalCliente() {
+    let overlay = document.getElementById('modal-servicio-cliente');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.id = 'modal-servicio-cliente';
+    overlay.className = 'modal-overlay';
+    overlay.style.display = 'none';
+    overlay.innerHTML = `
+        <div class="modal-content glass-panel" style="max-width:680px;padding:0;overflow:hidden;">
+            <div style="position:relative;padding:24px 28px 18px;background:linear-gradient(135deg,rgba(157,78,221,0.15),rgba(0,184,148,0.08));border-bottom:1px solid rgba(255,255,255,0.08);">
+                <button type="button" class="modal-close" id="close-servicio-cliente" aria-label="Cerrar" style="position:absolute;top:14px;right:18px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;line-height:1;opacity:0.7;transition:0.2s;">&times;</button>
+                <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                    <div id="cliente-detalle-imagen" style="width:72px;height:72px;border-radius:12px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;"></div>
+                    <div style="min-width:0;">
+                        <h3 id="cliente-detalle-nombre" style="margin:0;font-size:1.25rem;color:var(--text-light);"></h3>
+                        <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap;">
+                            <span id="cliente-detalle-precio" style="font-size:1.1rem;font-weight:700;color:#9d4edd;"></span>
+                            <span id="cliente-detalle-duracion" style="font-size:0.8rem;color:var(--text-muted);"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="padding:20px 28px 24px;max-height:60vh;overflow-y:auto;">
+                <div id="cliente-detalle-descripcion" style="margin-bottom:20px;color:var(--text-muted);font-size:0.9rem;line-height:1.5;"></div>
+                <div id="cliente-detalle-cupos-resumen" style="margin-bottom:16px;padding:12px 16px;background:rgba(0,184,148,0.08);border-radius:8px;border:1px solid rgba(0,184,148,0.15);display:flex;gap:16px;flex-wrap:wrap;"></div>
+                <h4 style="margin:0 0 12px;color:var(--text-light);font-size:0.95rem;"><i class="fas fa-calendar-alt"></i> Fechas y horarios disponibles</h4>
+                <div id="cliente-detalle-fechas" style="display:flex;flex-direction:column;gap:8px;"></div>
+                <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+                    <button type="button" class="btn-secondary" id="btn-cerrar-preview-cliente"><i class="fas fa-times"></i> Cerrar</button>
+                    <button type="button" class="btn-grad" id="btn-reservar-preview-cliente"><i class="fas fa-calendar-plus"></i> Reservar ahora</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const cerrar = () => { overlay.style.display = 'none'; };
+    const closeBtn = overlay.querySelector('#close-servicio-cliente');
+    if (closeBtn) closeBtn.addEventListener('click', cerrar);
+    const btnCerrar = overlay.querySelector('#btn-cerrar-preview-cliente');
+    if (btnCerrar) btnCerrar.addEventListener('click', cerrar);
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) cerrar();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && overlay.style.display === 'flex') cerrar();
+    });
+    const btnReservar = overlay.querySelector('#btn-reservar-preview-cliente');
+    if (btnReservar) {
+        btnReservar.addEventListener('click', function() {
+            const sid = overlay.dataset.serviceId;
+            overlay.style.display = 'none';
+            if (sid) abrirModalReserva(sid);
+        });
+    }
+    return overlay;
+}
+
+async function verServicioCliente(id) {
+    const servicios = await ServiciosManager.getAll();
+    const s = servicios.find(sv => String(sv.id) === String(id));
+    if (!s) { mostrarMensaje('Servicio no encontrado', 'error'); return; }
+
+    // Formato 12h (mismo que las cards del cliente, p.ej. "10:00 AM")
+    function _fmt12h(time24) {
+        if (!time24) return '';
+        const [hour, minute] = time24.split(':');
+        const h = parseInt(hour, 10) || 0;
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 || 12;
+        return `${hour12}:${minute} ${ampm}`;
+    }
+
+    const overlay = _getPreviewModalCliente();
+    overlay.dataset.serviceId = String(id);
+
+    // Imagen
+    const imgContainer = overlay.querySelector('#cliente-detalle-imagen');
+    imgContainer.innerHTML = '';
+    imgContainer.style.background = 'rgba(255,255,255,0.05)';
+    if (s.imagen) {
+        const img = document.createElement('img');
+        img.src = s.imagen;
+        img.alt = s.nombre || '';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.onerror = () => {
+            imgContainer.style.background = 'rgba(255,255,255,0.05)';
+            imgContainer.innerHTML = '<i class="fas fa-image" style="font-size:1.5rem;color:var(--text-muted);"></i>';
+        };
+        imgContainer.appendChild(img);
+    } else {
+        imgContainer.innerHTML = '<i class="fas fa-image" style="font-size:1.5rem;color:var(--text-muted);"></i>';
+    }
+
+    overlay.querySelector('#cliente-detalle-nombre').textContent = s.nombre || 'Sin nombre';
+    overlay.querySelector('#cliente-detalle-precio').textContent = (typeof window.formatearPeso === 'function' ? formatearPeso(s.precio) : '$' + (s.precio || 0));
+    const dur = s.modulos && s.modulos.length > 0 ? (s.modulos[0].duration || s.duracion || 60) : (s.duracion || 60);
+    overlay.querySelector('#cliente-detalle-duracion').innerHTML = '<i class="fas fa-hourglass-half"></i> ' + dur + ' min por turno';
+
+    overlay.querySelector('#cliente-detalle-descripcion').textContent = s.descripcion || 'Sin descripción';
+
+    // Resumen: solo fechas desde hoy (mismo criterio que las cards del cliente)
+    const hoy = (new Date()).toISOString().slice(0, 10);
+    const fechasKeys = (s.disponibilidad && typeof s.disponibilidad === 'object')
+        ? Object.keys(s.disponibilidad).sort().filter(f => f >= hoy)
+        : ((s.fechas || []).slice().sort().filter(f => f >= hoy));
+
+    let totalCupos = 0;
+    let fechasConCupos = 0;
+    let totalTurnos = 0;
+    fechasKeys.forEach(f => {
+        const mods = (s.disponibilidad && s.disponibilidad[f]) || s.modulos || [];
+        totalTurnos += mods.length;
+        mods.forEach(m => {
+            const cupo = Number(m.cupos || 0);
+            totalCupos += cupo;
+            if (cupo > 0) fechasConCupos++;
+        });
+    });
+
+    const cuposResumen = overlay.querySelector('#cliente-detalle-cupos-resumen');
+    cuposResumen.innerHTML = `
+        <span><i class="fas fa-calendar-alt"></i> <strong>${fechasKeys.length}</strong> fecha(s) disponibles</span>
+        <span><i class="fas fa-clock"></i> <strong>${totalTurnos}</strong> turno(s)</span>
+        <span><i class="fas fa-users"></i> <strong>${totalCupos}</strong> cupo(s) totales</span>
+        <span><i class="fas fa-calendar-check"></i> <strong>${fechasConCupos}</strong> fecha(s) con cupo</span>
+    `;
+
+    // Desglose fecha por fecha: día de la semana + horarios + cupos
+    const fechasContainer = overlay.querySelector('#cliente-detalle-fechas');
+    fechasContainer.innerHTML = '';
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+    if (!fechasKeys.length) {
+        fechasContainer.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);"><i class="fas fa-calendar-times"></i> Sin fechas disponibles próximamente</div>';
+    } else {
+        fechasKeys.forEach(f => {
+            const mods = (s.disponibilidad && s.disponibilidad[f]) || s.modulos || [];
+            const fechaFormateada = typeof window.formatFechaCorta === 'function' ? formatFechaCorta(f) : f;
+            const diaSemana = dayNames[new Date(f + 'T12:00:00').getDay()];
+
+            let card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 14px;border:1px solid rgba(255,255,255,0.07);';
+
+            const headerHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <strong style="font-size:0.9rem;">${fechaFormateada}</strong>
+                <span style="font-size:0.75rem;color:var(--text-muted);">${diaSemana}</span>
+            </div>`;
+
+            if (!mods.length) {
+                card.innerHTML = headerHtml + '<div style="font-size:0.8rem;color:#ff6b6b;padding:6px 0;"><i class="fas fa-exclamation-triangle"></i> Sin horarios asignados</div>';
+            } else {
+                let horariosHtml = '';
+                mods.forEach(m => {
+                    const hora = _fmt12h(m.hora || m.startTime || '--:--');
+                    const endTime = m.endTime ? ' - ' + _fmt12h(m.endTime) : '';
+                    const cupo = Number(m.cupos || 0);
+                    const cupoColor = cupo <= 0 ? '#ff6b6b' : (cupo <= 3 ? '#ffaa00' : '#00b894');
+                    const durMod = m.duration ? m.duration + ' min' : '';
+                    horariosHtml += `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:3px;${cupo <= 0 ? 'opacity:0.5;' : ''}">
+                        <span style="font-size:0.85rem;font-weight:500;min-width:120px;">${hora}${endTime}</span>
+                        ${durMod ? `<span style="font-size:0.75rem;color:var(--text-muted);">${durMod}</span>` : ''}
+                        <span style="margin-left:auto;font-size:0.8rem;font-weight:600;color:${cupoColor};background:${cupoColor}15;padding:2px 10px;border-radius:10px;">${cupo <= 0 ? 'Agotado' : cupo + ' cupo' + (cupo !== 1 ? 's' : '')}</span>
+                    </div>`;
+                });
+                card.innerHTML = headerHtml + horariosHtml;
+            }
+            fechasContainer.appendChild(card);
+        });
+    }
+
+    // Botón reservar: deshabilitado si no hay cupos (igual que la card)
+    const btnReservar = overlay.querySelector('#btn-reservar-preview-cliente');
+    if (totalCupos <= 0) {
+        btnReservar.disabled = true;
+        btnReservar.style.opacity = '0.6';
+        btnReservar.style.cursor = 'not-allowed';
+        btnReservar.innerHTML = '<i class="fas fa-calendar-times"></i> Agotado';
+    } else {
+        btnReservar.disabled = false;
+        btnReservar.style.opacity = '';
+        btnReservar.style.cursor = '';
+        btnReservar.innerHTML = '<i class="fas fa-calendar-plus"></i> Reservar ahora';
+    }
+
+    overlay.style.display = 'flex';
+}
+window.verServicioCliente = verServicioCliente;
 
 function configurarFiltroFecha() {
     const dateInput = document.getElementById('filter-date');
