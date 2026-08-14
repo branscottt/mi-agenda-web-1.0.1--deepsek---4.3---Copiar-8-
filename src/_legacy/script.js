@@ -359,6 +359,11 @@ function formatearDinero(numero) {
     }
 }
 const formatearPeso = formatearDinero;
+// Expuestos a window: el modal de detalle (verDetalleServicio) los espera con
+// guards typeof y sin ellos muestra precios sin separador y fechas crudas.
+window.formatearPeso = formatearPeso;
+window.formatTimeDisplay = formatTimeDisplay;
+window.formatFechaCorta = formatFechaCorta;
 
 // Ajusta el font-size de una estadística para que la cifra completa quepa en
 // una línea: mide el desbordamiento real y reduce el tamaño según la cantidad
@@ -5946,7 +5951,7 @@ async function cargarServiciosExistentes() {
             }).join('\n');
             horariosMeta = `
                 <span class="hours-count" title="${tooltipHorarios}">
-                    <i class="fas fa-clock"></i> ${totalTurnos} turnos
+                    <i class="fas fa-clock"></i> ${servicio.modulos.length} turnos
                 </span>
             `;
         }
