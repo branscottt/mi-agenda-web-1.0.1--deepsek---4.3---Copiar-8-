@@ -2658,7 +2658,6 @@ async function cargarPlanes() {
                     </p>
                     <input type="tel" id="whatsapp-input" class="form-input"
                            placeholder="Ej: +56912345678" maxlength="16"
-                           oninput="this.value=this.value.replace(/[^0-9+]/g,'')"
                            style="width:100%;margin-bottom:10px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:white;font-size:1rem;">
                     <p id="whatsapp-info" style="display:none;color:#ffd700;margin-bottom:10px;font-size:0.85rem;"></p>
                     <p id="whatsapp-error" style="display:none;color:#e74c3c;margin-bottom:10px;font-size:0.85rem;"></p>
@@ -2668,6 +2667,13 @@ async function cargarPlanes() {
                 </div>
             `;
             document.body.appendChild(modal);
+            // CSP FIX (2026-08-27): el oninput inline queda bloqueado por CSP → listener
+            const whatsappInput = document.getElementById('whatsapp-input');
+            if (whatsappInput) {
+                whatsappInput.addEventListener('input', function () {
+                    this.value = this.value.replace(/[^0-9+]/g, '');
+                });
+            }
         }
 
         const input = document.getElementById('whatsapp-input');
@@ -5131,16 +5137,24 @@ function renderUsuarios(users) {
             <td><span class="${rolClass}">${escapeHtml(u.rol)}</span></td>
             <td>${escapeHtml(u.tenant_id || '-')}</td>
             <td>
-                <select onchange="cambiarRol('${u.id}', this.value)" class="filter-select" style="padding:4px;">
+                <select class="filter-select rol-select-usuario" data-user-id="${u.id}" style="padding:4px;">
                     <option value="cliente" ${u.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
                     <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Admin</option>
                     <option value="super_admin" ${u.rol === 'super_admin' ? 'selected' : ''}>Super Admin</option>
                 </select>
-                ${u.rol !== 'super_admin' ? `<button class="btn-small danger" style="margin-left:8px;" onclick="eliminarUsuario('${u.id}')"><i class="fas fa-trash"></i></button>` : ''}
+                ${u.rol !== 'super_admin' ? `<button class="btn-small danger btn-eliminar-usuario" data-user-id="${u.id}" style="margin-left:8px;"><i class="fas fa-trash"></i></button>` : ''}
             </td>
         </tr>`;
     });
     tbody.innerHTML = html;
+
+    // CSP FIX (2026-08-27): handlers inline bloqueados por CSP → addEventListener
+    tbody.querySelectorAll('.rol-select-usuario').forEach(sel => {
+        sel.addEventListener('change', () => cambiarRol(sel.dataset.userId, sel.value));
+    });
+    tbody.querySelectorAll('.btn-eliminar-usuario').forEach(btn => {
+        btn.addEventListener('click', () => eliminarUsuario(btn.dataset.userId));
+    });
 }
 
 // ============================================
@@ -12705,18 +12719,26 @@ async function cargarUsuariosSuper() {
                 <td style="font-size:0.85rem;">${tenantNombre}</td>
                 <td class="action-icons">
                     ${user.rol !== 'super_admin' ? `
-                        <select onchange="cambiarRolUsuarioDirecto('${user.id}', this.value)" class="filter-select" style="padding:4px; width:100px;">
+                        <select class="filter-select rol-select-usuario" data-user-id="${user.id}" style="padding:4px; width:100px;">
                             <option value="cliente" ${user.rol === 'cliente' ? 'selected' : ''}>Cliente</option>
                             <option value="admin" ${user.rol === 'admin' ? 'selected' : ''}>Admin</option>
                             <option value="super_admin" ${user.rol === 'super_admin' ? 'selected' : ''}>Super Admin</option>
                         </select>
-                        <button class="btn-small danger" style="margin-left:8px;" onclick="eliminarUsuarioDirecto('${user.id}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn-small danger btn-eliminar-usuario" data-user-id="${user.id}" style="margin-left:8px;"><i class="fas fa-trash"></i></button>
                     ` : '<span>—</span>'}
                 </td>
             </tr>`;
         });
         
         tbody.innerHTML = html;
+
+        // CSP FIX (2026-08-27): handlers inline bloqueados por CSP → addEventListener
+        tbody.querySelectorAll('.rol-select-usuario').forEach(sel => {
+            sel.addEventListener('change', () => cambiarRolUsuarioDirecto(sel.dataset.userId, sel.value));
+        });
+        tbody.querySelectorAll('.btn-eliminar-usuario').forEach(btn => {
+            btn.addEventListener('click', () => eliminarUsuarioDirecto(btn.dataset.userId));
+        });
         
     } catch (error) {
         console.error('Error cargando usuarios:', error);
