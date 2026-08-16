@@ -11483,25 +11483,34 @@ async function confirmarCambioFecha(citaId, serviceId, citaActual) {
 
         const citaOriginal = citas[idxOriginal];
 
-        if(servicio.disponibilidad && servicio.disponibilidad[citaOriginal.fecha]){
-            const modulosOriginal = servicio.disponibilidad[citaOriginal.fecha];
-            const moduloOriginal = modulosOriginal.find(m => {
-                const horaMod = limpiarHora(m.hora || m.startTime || '');
-                return horaMod === limpiarHora(citaOriginal.hora);
-            });
+        // ============================================================
+        // FASE 2 (2026-08-25): reagendar SERVER-SIDE vía RPC
+        // reagendar_cita valida dueño/admin, cupos con FOR UPDATE,
+        // devuelve +1 al horario original, descuenta -1 al nuevo y
+        // actualiza la cita (mismo id) en UNA operación atómica.
+        // Se elimina la manipulación client-side de cupos (el RLS
+        // bloqueaba el UPDATE de servicios del cliente: el cupo del
+        // horario original nunca se devolvía y el nuevo no se
+        // descontaba → sobreventa silenciosa) y el upsert directo
+        // (el trigger de Fase 1 ya fuerza el precio del servicio).
+        // ============================================================
+        const { data: rpcData, error: rpcError } = await supabaseClient.rpc('reagendar_cita', {
+            p_cita_id: citaId,
+            p_tenant_id: window.currentTenantId,
+            p_nueva_fecha: nuevaFecha,
+            p_nueva_hora: nuevaHora
+        });
 
-            if(moduloOriginal) {
-                moduloOriginal.cupos = (Number(moduloOriginal.cupos || 0) + 1);
-            }
+        if (rpcError || !rpcData || rpcData.ok !== true) {
+            mostrarToast((rpcData && rpcData.error) || (rpcError && rpcError.message) || 'Error al reprogramar la cita', 'error');
+            if (btnConfirm) btnConfirm.disabled = false;
+            return;
         }
 
-        moduloEncontrado.cupos = Math.max(0, Number(moduloEncontrado.cupos || 0) - 1);
-
-        const [citaExtraida] = citas.splice(idxOriginal, 1);
-
+        // Objeto para la notificación de cambio (flujo admin) — sin mutar cupos
         const nuevaCita = {
-            ...citaExtraida,
-            id: citaExtraida.id, // mantener mismo ID
+            ...citaOriginal,
+            id: citaOriginal.id, // mantener mismo ID
             fecha: nuevaFecha,
             hora: nuevaHora,
             editado: true,
@@ -11511,12 +11520,6 @@ async function confirmarCambioFecha(citaId, serviceId, citaActual) {
                 whatsappEnviado: false 
             }
         };
-
-        citas.push(nuevaCita);
-
-        // En Supabase, actualizamos la cita directamente (upsert)
-        await CitasManager.upsert(nuevaCita, window.currentTenantId);
-        await ServiciosManager.save(servicio);
         
         let esEdicionAdmin = window._modoEdicionAdmin === true;
         let citaOriginalAdmin = esEdicionAdmin ? window._citaEnEdicionAdmin : null;
