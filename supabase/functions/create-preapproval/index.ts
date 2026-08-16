@@ -16,6 +16,7 @@
 //   4. Los cobros llegan al webhook (payment con preapproval_id) → se renueva la suscripción
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { applySecurityHeaders } from '../_shared/security-headers.ts';
 
 const MERCADOPAGO_API = 'https://api.mercadopago.com/preapproval';
 
@@ -83,7 +84,7 @@ function validateJwt(req: Request): { userId: string | null; userTenantId: strin
   };
 }
 
-serve(async (req) => {
+async function handle(req: Request): Promise<Response> {
   // CORS — permitir solo orígenes configurados
   const requestOrigin = req.headers.get('origin') || '';
   const allowedOriginsEnv = Deno.env.get('ALLOWED_ORIGINS') || '';
@@ -235,4 +236,7 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+// Cabeceras de seguridad OWASP en TODAS las respuestas (éxito, error, preflight)
+serve(async (req) => applySecurityHeaders(await handle(req)));

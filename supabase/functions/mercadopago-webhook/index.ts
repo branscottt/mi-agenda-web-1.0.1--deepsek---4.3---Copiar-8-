@@ -17,6 +17,7 @@
 // Esas se ignoran silenciosamente.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { applySecurityHeaders } from '../_shared/security-headers.ts';
 
 const MERCADOPAGO_API = 'https://api.mercadopago.com/v1/payments';
 
@@ -228,7 +229,7 @@ async function validarFirmaMP(
   }
 }
 
-serve(async (req) => {
+async function handle(req: Request): Promise<Response> {
   // CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -483,4 +484,7 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+// Cabeceras de seguridad OWASP en TODAS las respuestas (éxito, error, preflight)
+serve(async (req) => applySecurityHeaders(await handle(req)));

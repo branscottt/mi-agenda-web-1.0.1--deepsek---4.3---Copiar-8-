@@ -10,6 +10,7 @@
 //   MERCADOPAGO_ACCESS_TOKEN — Access token de MP (se setea con `supabase secrets set`)
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { applySecurityHeaders } from '../_shared/security-headers.ts';
 
 const MERCADOPAGO_API = 'https://api.mercadopago.com/checkout/preferences';
 
@@ -93,7 +94,7 @@ function validateJwt(req: Request): { userId: string | null; userTenantId: strin
   };
 }
 
-serve(async (req) => {
+async function handle(req: Request): Promise<Response> {
   // CORS — permitir solo orígenes configurados o el mismo de la solicitud
   const requestOrigin = req.headers.get('origin') || '';
   const allowedOriginsEnv = Deno.env.get('ALLOWED_ORIGINS') || '';
@@ -280,4 +281,7 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+// Cabeceras de seguridad OWASP en TODAS las respuestas (éxito, error, preflight)
+serve(async (req) => applySecurityHeaders(await handle(req)));
