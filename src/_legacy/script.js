@@ -3336,6 +3336,11 @@ async function renderizarGraficoVentas() {
     );
     
     const ctx = canvas.getContext('2d');
+    // Fix: el dashboard se renderiza 2 veces al iniciar; Chart.js exige
+    // destruir el chart anterior antes de reusar el mismo canvas.
+    if (window.ventasChart) {
+        window.ventasChart.destroy();
+    }
     window.ventasChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -12565,6 +12570,9 @@ async function cargarMetricasGlobales() {
         }
 
         const ctx = canvas.getContext('2d');
+        if (window.tenantsChart) {
+            window.tenantsChart.destroy();
+        }
         window.tenantsChart = new Chart(ctx, {
             type: 'bar',
             data: {
