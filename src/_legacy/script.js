@@ -8735,7 +8735,8 @@ function obtenerFechasPendientes() {
             if (!_weekdayModules[d] || _weekdayModules[d].length === 0) {
                 result.push({
                     label: dayNames[d],
-                    onClick: 'asignarDiaWeekday(' + d + ')'
+                    accion: 'asignarDiaWeekday',
+                    valor: d
                 });
             }
         });
@@ -8744,7 +8745,8 @@ function obtenerFechasPendientes() {
             if (!_dateSpecificModules[f] || _dateSpecificModules[f].length === 0) {
                 result.push({
                     label: f,
-                    onClick: 'asignarFechaDate("' + f + '")'
+                    accion: 'asignarFechaDate',
+                    valor: f
                 });
             }
         });
@@ -8842,7 +8844,7 @@ function renderModulesList() {
         html += '<div style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-muted);">';
         // Botón cupo masivo para esta fecha
         if (tieneMods) {
-            html += '<button type="button" class="btn-small" style="font-size:0.7rem;padding:2px 8px;" onclick="aplicarCupoAHorarios(\'' + date + '\')" title="Aplicar cupo a todos los horarios de esta fecha">↓ Cupo masivo</button>';
+            html += '<button type="button" class="btn-small btn-cupo-masivo-fecha" data-fecha="' + date + '" style="font-size:0.7rem;padding:2px 8px;" title="Aplicar cupo a todos los horarios de esta fecha">↓ Cupo masivo</button>';
         }
         html += 'Total: <strong>' + totalCuposFecha + '</strong> cupos';
         html += '</div>';
@@ -8878,8 +8880,8 @@ function renderModulesList() {
                 // Cupo input
                 html += '<div class="cupo-input-group" style="display:flex;align-items:center;gap:4px;margin-left:auto;">';
                 html += '<label style="font-size:0.75rem;color:var(--text-muted);">Cupos:</label>';
-                html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" onchange="actualizarCupo(this)" style="width:55px;padding:3px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:#fff;text-align:center;">';
-                html += '<button type="button" class="btn-disable-cupo" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;" onclick="deshabilitarCupo(\'' + date + '\',\'' + key + '\')" title="Deshabilitar (cupo=0)">×</button>';
+                html += '<input type="number" class="module-cupos-input" data-date="' + date + '" data-hora="' + key + '" value="' + cupo + '" min="0" style="width:55px;padding:3px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:#fff;text-align:center;">';
+                html += '<button type="button" class="btn-disable-cupo" data-fecha="' + date + '" data-hora="' + key + '" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:1rem;padding:2px 4px;line-height:1;" title="Deshabilitar (cupo=0)">×</button>';
                 html += '</div>';
 
                 html += '</div>'; // fin modulo-row
@@ -8899,13 +8901,37 @@ function renderModulesList() {
             html += '<div style="margin-bottom:8px;font-size:0.85rem;color:#ff6b6b;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> ' + pendientes.length + ' elemento(s) sin módulos asignados:</div>';
             html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
             pendientes.forEach(item => {
-                html += '<button type="button" class="btn-small" style="background:rgba(255,70,70,0.2);color:#ff6b6b;border:1px solid rgba(255,70,70,0.3);padding:4px 12px;cursor:pointer;" onclick="' + item.onClick + '">➕ ' + item.label + '</button>';
+                html += '<button type="button" class="btn-small btn-pendiente-asignar" data-accion="' + item.accion + '" data-valor="' + item.valor + '" style="background:rgba(255,70,70,0.2);color:#ff6b6b;border:1px solid rgba(255,70,70,0.3);padding:4px 12px;cursor:pointer;">➕ ' + item.label + '</button>';
             });
             html += '</div></div>';
         }
     }
 
     modulesList.innerHTML = html;
+
+    // ============================================================
+    // CSP FIX (2026-08-27): los onclick/onchange inline generados por JS
+    // quedan BLOQUEADOS por el CSP hash-based (script-src-attr) porque
+    // llevan valores interpolados (fecha/hora) que no se pueden listar
+    // como hashes. Se bindean con addEventListener tras el render.
+    // ============================================================
+    modulesList.querySelectorAll('.btn-cupo-masivo-fecha').forEach(btn => {
+        btn.addEventListener('click', () => aplicarCupoAHorarios(btn.dataset.fecha));
+    });
+    modulesList.querySelectorAll('.module-cupos-input').forEach(inp => {
+        inp.addEventListener('change', () => actualizarCupo(inp));
+    });
+    modulesList.querySelectorAll('.btn-disable-cupo').forEach(btn => {
+        btn.addEventListener('click', () => deshabilitarCupo(btn.dataset.fecha, btn.dataset.hora));
+    });
+    modulesList.querySelectorAll('.btn-pendiente-asignar').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const accion = btn.dataset.accion;
+            const valor = btn.dataset.valor;
+            if (accion === 'asignarDiaWeekday') asignarDiaWeekday(Number(valor));
+            else if (accion === 'asignarFechaDate') asignarFechaDate(valor);
+        });
+    });
 }
 window.renderModulesList = renderModulesList;
 
