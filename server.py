@@ -363,7 +363,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
             "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https: https://http2.mlstatic.com; "
-            "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com; "
+            "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com https://api.qrserver.com; "
             "frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li; "
             "form-action 'self'; "
             "base-uri 'self'; "

@@ -13175,7 +13175,10 @@ function configurarCompartirEnlace() {
             qrImg.alt = 'Código QR';
             qrImg.onload = () => {
                 qrContainer.innerHTML = '';
+                qrContainer.style.flexDirection = 'column';
+                qrContainer.style.alignItems = 'center';
                 qrContainer.appendChild(qrImg);
+                qrContainer.appendChild(crearAccionesQR(url));
                 qrContainer.style.display = 'flex';
             };
             qrImg.onerror = () => {
@@ -13183,6 +13186,145 @@ function configurarCompartirEnlace() {
             };
         });
     }
+}
+
+// ── Acciones del QR: imprimir / descargar como imagen ──────────────────
+// Crea los botones "Imprimir QR" y "Descargar PNG" junto al código QR.
+// Se generan dinámicamente con addEventListener (compatible con CSP).
+function crearAccionesQR(url) {
+    const wrap = document.createElement('div');
+    wrap.className = 'qr-actions';
+    wrap.style.cssText = 'display:flex; gap:10px; justify-content:center; margin-top:12px; flex-wrap:wrap;';
+
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.className = 'btn-secondary';
+    printBtn.innerHTML = '<i class="fas fa-print"></i> Imprimir QR';
+    printBtn.addEventListener('click', () => imprimirQR(url));
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.type = 'button';
+    downloadBtn.className = 'btn-secondary';
+    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Descargar PNG';
+    downloadBtn.addEventListener('click', () => descargarQR(url));
+
+    wrap.appendChild(printBtn);
+    wrap.appendChild(downloadBtn);
+    return wrap;
+}
+
+// Abre una ventana de impresión con el QR en alta resolución y el enlace,
+// para que la pyme lo imprima y lo deje en su local.
+function imprimirQR(url) {
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(url)}`;
+    const win = window.open('', '_blank', 'width=640,height=720');
+    if (!win) {
+        mostrarToast('Permite ventanas emergentes para imprimir el QR', 'warning');
+        return;
+    }
+    win.document.write(
+        '<!DOCTYPE html><html><head><title>Imprimir QR - Mi Agenda</title>' +
+        '<style>' +
+        'body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding:30px;color:#222;}' +
+        'h2{margin:0 0 6px;font-size:22px;}' +
+        'p{margin:0 0 18px;color:#555;}' +
+        'img{width:340px;height:340px;image-rendering:pixelated;}' +
+        '.qr-url{margin-top:18px;font-size:13px;color:#444;word-break:break-all;}' +
+        '@media print{body{padding:10px;}}' +
+        '</style></head><body>' +
+        '<h2>Escaneá y agendá tu cita</h2>' +
+        '<p>Mirá nuestros servicios y reservá tu hora</p>' +
+        '<img src="' + qrSrc + '" alt="Código QR">' +
+        '<div class="qr-url">' + url + '</div>' +
+        '</body></html>'
+    );
+    win.onload = () => {
+        win.focus();
+        win.print();
+    };
+    win.onafterprint = () => win.close();
+    win.document.close();
+}
+
+// Descarga el QR como imagen PNG (para editarla o imprimirla externamente).
+// Estrategia multi-fallback para que funcione en PC y móvil:
+//   1. fetch → blob → <a download> (Android/PC)
+//   2. Si el fetch falla (CSP/red): canvas con crossOrigin (usa img-src, no connect-src)
+//   3. Último recurso: abrir la imagen para guardarla con pulsación larga
+// iOS Safari no soporta <a download> con blob/data URLs → se abre la imagen directo.
+async function descargarQR(url) {
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(url)}`;
+    const nombreArchivo = 'qr-mi-agenda.png';
+
+    const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (esIOS) {
+        const win = window.open(qrSrc, '_blank');
+        if (win) {
+            mostrarToast('Imagen abierta: mantené el dedo sobre ella para guardarla', 'info');
+        } else {
+            mostrarToast('Permite ventanas emergentes para descargar el QR', 'warning');
+        }
+        return;
+    }
+
+    try {
+        mostrarToast('Generando imagen…', 'info');
+        const resp = await fetch(qrSrc);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = nombreArchivo;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+        mostrarToast('QR descargado como imagen', 'success');
+    } catch (e) {
+        // Fallback sin fetch: dibujar en canvas con crossOrigin (solo necesita img-src https:)
+        try {
+            await descargarQRViaCanvas(qrSrc, nombreArchivo);
+            mostrarToast('QR descargado como imagen', 'success');
+        } catch (e2) {
+            console.error('Error descargando QR:', e, e2);
+            const win = window.open(qrSrc, '_blank');
+            if (win) {
+                mostrarToast('Imagen abierta: mantené pulsado para guardarla', 'info');
+            } else {
+                mostrarToast('Error al descargar el QR. Revisá tu conexión', 'error');
+            }
+        }
+    }
+}
+
+// Descarga vía canvas: la API de QR responde Access-Control-Allow-Origin: *,
+// así que con crossOrigin='anonymous' el canvas no se mancha y se puede exportar.
+function descargarQRViaCanvas(src, nombreArchivo) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                canvas.getContext('2d').drawImage(img, 0, 0);
+                const dataUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                a.download = nombreArchivo;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                resolve();
+            } catch (err) {
+                reject(err);
+            }
+        };
+        img.onerror = () => reject(new Error('No se pudo cargar la imagen del QR'));
+        img.src = src;
+    });
 }
 
 // ============================================
