@@ -3808,7 +3808,17 @@ function setupNotificacionesListeners() {
             }
             
             citas[citaIndex] = cita;
-            await CitasManager.upsert(cita);
+            // UPDATE puro de notificaciones (20260901): el INSERT directo a
+            // citas está cerrado en el servidor (las citas solo se crean vía
+            // RPCs reservar_cita/reservar_citas_bulk). Aquí la cita YA existe,
+            // solo se marca la notificación como enviada.
+            const { error: updErr } = await supabaseClient
+                .from('citas')
+                .update({ notificaciones: cita.notificaciones })
+                .eq('id', cita.id);
+            if (updErr) {
+                console.error('Error actualizando notificaciones de cita:', updErr);
+            }
             
         } else if (origen === 'reserva' && notifId) {
             // Notificación de nueva_reserva desde tabla notificaciones_admin
