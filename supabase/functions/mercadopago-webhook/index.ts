@@ -247,6 +247,12 @@ async function handle(req: Request): Promise<Response> {
     return new Response('Error de configuración', { status: 500 });
   }
 
+  // Declaradas ANTES de cualquier uso: la rama preapproval (más abajo) las
+  // necesita; declararlas después lanzaba ReferenceError (TDZ) y hacía que
+  // las notificaciones de suscripción recurrente siempre fallaran con 500.
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+
   try {
     // Leer body como texto para HMAC (necesitamos el raw, no el parseado)
     const rawBody = await req.text();
@@ -329,9 +335,6 @@ async function handle(req: Request): Promise<Response> {
     }
 
     // Actualizar mercadopago_payments
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-
     if (supabaseUrl && serviceRoleKey) {
       // Buscar si ya existe un registro con este mp_payment_id
       const findResp = await fetch(
