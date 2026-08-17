@@ -311,6 +311,9 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(content)))
+        # OWASP: no-store en documentos con config inyectada (evita cachear
+        # supabaseUrl/key de entorno ni páginas viejas tras un deploy)
+        self.send_header('Cache-Control', 'no-store, max-age=0')
         self.end_headers()
         self.wfile.write(content)
 
@@ -352,7 +355,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # silenciosamente (sin errores visibles).
         csp_script = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' "
+            "script-src 'self' "
             + (("'nonce-" + self._csp_nonce + "' ") if getattr(self, '_csp_nonce', None) else "")
             + "'sha256-s+bEyqHw8XVioi6JNlo+DJI21V7B2UI6wwsJwUN9s0M=' "
             "'sha256-+UV8Se628DiIqlxmNFCAoWzroa6MxiTC6bQbL50O06k=' "
