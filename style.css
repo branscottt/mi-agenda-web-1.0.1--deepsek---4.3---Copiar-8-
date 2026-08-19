@@ -134,6 +134,18 @@ body {
     filter: drop-shadow(0 0 10px var(--primary-glow));
 }
 
+.login-logo {
+    max-width: 240px;
+    width: 100%;
+    height: auto;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    /* El logo tiene fondo oscuro propio; screen lo fusiona con el panel glass
+       (negro -> desaparece, contenido claro -> se mantiene). Sin drop-shadow:
+       con imagen opaca la sombra seguiría el rectángulo y delataría el borde. */
+    mix-blend-mode: screen;
+}
+
 .logo-header h1 {
     font-size: 2.8rem;
     background: linear-gradient(90deg, var(--primary-light), var(--primary-color));
@@ -3539,6 +3551,10 @@ body {
     
     .logo-header h1 {
         font-size: 2rem;
+    }
+    
+    .login-logo {
+        max-width: 180px;
     }
     
     .services-stats {

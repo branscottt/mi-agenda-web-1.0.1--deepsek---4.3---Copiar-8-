@@ -96,6 +96,12 @@ if (realKey.length >= 100 && !realKey.includes('...')) {
 console.log('📂 Copying assets to dist/...');
 fs.copyFileSync('style.css', 'dist/style.css');
 
+// 3b. Copiar logo a dist/ (imagen del login)
+if (fs.existsSync('logo.png')) {
+    fs.copyFileSync('logo.png', 'dist/logo.png');
+    console.log('   ✅ dist/logo.png copied');
+}
+
 // 4. Copiar Service Worker a dist/
 if (fs.existsSync('sw.js')) {
     fs.copyFileSync('sw.js', 'dist/sw.js');
