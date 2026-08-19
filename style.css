@@ -14452,3 +14452,85 @@ input:-moz-autofill {
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   FIX v13 — PASO 3 (Horarios del servicio): módulos en móvil
+   Problema medido (viewport 393px, CSS real):
+   - .module-card-body: 271px de ancho pero scrollW 377px (los selects
+     de hora del editor se salen 45px de la pantalla). Causa: el media
+     query <=500px ponía select{width:100%} DENTRO de un flex
+     (.module-time-selects con 2 selects + separador) → 200%+ de ancho.
+   - .modulo-row (fila de cupos por fecha): 275px vs scrollW 418px
+     (los inputs/botones de cupos se salen 84px). Causa: fila flex sin
+     wrap con min-width:100px+50px inline y cupo-input-group con
+     margin-left:auto.
+   - .assignment-save-inner: 279px vs 303px (info min-width:180px +
+     actions flex-shrink:0).
+   Fix: CSS 100% aditivo al final, scoped a .admin-screen, solo en
+   móvil (<=768px). No toca HTML/JS ni desktop.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Base: fila de módulo fluye a 2ª línea si no cabe (patrón FIX v12).
+   En desktop ancho no cambia nada (cabe en una línea). */
+.modulo-row {
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    /* --- Editor editable (.module-card): selects repartidos --- */
+    .admin-screen .module-card-body {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .admin-screen .module-time-group,
+    .admin-screen .module-cupos-group {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    .admin-screen .module-time-group .module-time-selects {
+        width: 100% !important;
+    }
+    .admin-screen .module-time-group .module-time-selects select {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
+    }
+    .admin-screen .module-cupos-input {
+        width: 100% !important;
+    }
+
+    /* --- Lista por fecha (.modulo-row): cupos a su propia línea --- */
+    .admin-screen .modulo-row {
+        flex-wrap: wrap !important;
+    }
+    .admin-screen .modulo-row .cupo-input-group {
+        margin-left: 0 !important;
+        flex: 1 1 100% !important;
+        justify-content: flex-end !important;
+    }
+    /* spans hora/duración (min-width inline de JS): dejan fluir el wrap */
+    .admin-screen .modulo-row > span {
+        min-width: 0 !important;
+        flex: 0 1 auto !important;
+    }
+    /* input de cupos: el base #service-form input impone min-width:180px
+       (medido: a 360px estira el grupo a 244px > 226px disponibles) */
+    .admin-screen .modulo-row .cupo-input-group input.module-cupos-input {
+        min-width: 0 !important;
+        width: 55px !important;
+        flex: 0 0 55px !important;
+    }
+
+    /* --- Área guardar asignación --- */
+    .admin-screen .assignment-save-inner {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .admin-screen .assignment-actions {
+        justify-content: flex-end !important;
+        flex-wrap: wrap !important;
+    }
+    .admin-screen .assignment-info {
+        min-width: 0 !important;
+    }
+}
+
