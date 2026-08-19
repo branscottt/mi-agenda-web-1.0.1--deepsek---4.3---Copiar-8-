@@ -139,12 +139,9 @@ body {
     width: 100%;
     height: auto;
     margin-bottom: 16px;
-    border-radius: 12px;
-    /* Logo con fondo oscuro propio: se muestra como badge/tarjeta sobre el panel.
-       mix-blend-mode NO aplica aquí: el fondo del logo tiene grises (35-90) que
-       screen no funde — con blend se vería un rectángulo más claro. */
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    /* PNG con canal alpha real: el logo flota sobre el panel glass.
+       drop-shadow sigue el contorno del logo (no el rectángulo). */
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.45));
 }
 
 .logo-header h1 {
