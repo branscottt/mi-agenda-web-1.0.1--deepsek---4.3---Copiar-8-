@@ -3619,7 +3619,7 @@ window.noAsistioCita = noAsistioCita;
 // ============================================
 // RENDERIZADO DE NOTIFICACIONES (modificado para async)
 // ============================================
-async function renderNotificaciones(lista, containerId) {
+async function renderNotificaciones(lista, containerId, todasLasCitas) {
     // Usar el contenedor del popover por defecto, o el que se pase
     const targetId = containerId || 'notif-popover-list';
     const container = document.getElementById(targetId);
@@ -3632,7 +3632,11 @@ async function renderNotificaciones(lista, containerId) {
     }
 
     const notifsAdmin = await NotificacionesAdminManager.getAll();
-    const noLeidas = notifsAdmin.filter(n => !n.leido);
+    // Filtrar notificaciones cuya cita ya no existe (ej. servicio eliminado en
+    // admin: sus citas se borran y la notificacion de reserva queda huerfana).
+    const citasValidas = todasLasCitas || await CitasManager.getAll();
+    const idsCitasValidas = new Set(citasValidas.map(c => String(c.id)));
+    const noLeidas = notifsAdmin.filter(n => !n.leido && (!n.cita_id || idsCitasValidas.has(String(n.cita_id))));
     
     const todas = [
         ...lista.map(c => ({ ...c, tipoOrigen: 'reserva' })),
@@ -3887,7 +3891,7 @@ async function generarNotificaciones() {
         ...proximas.map(c => ({ ...c, tipo: 'proxima' }))
     ];
 
-    renderNotificaciones(notificaciones);
+    renderNotificaciones(notificaciones, null, citas);
 }
 
 // ============================================
