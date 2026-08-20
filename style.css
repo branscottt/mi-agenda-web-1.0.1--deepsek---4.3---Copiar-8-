@@ -14722,3 +14722,65 @@ input:-moz-autofill {
         max-height: 62vh;
     }
 }
+
+/* ============================================================
+   TUTORIAL — PC: video flotante lateral ARRASTRABLE (estilo PiP)
+   En pantallas grandes el video no tapa el centro: flota a un
+   lado y se mueve arrastrando desde la barra superior.
+   El móvil (<=768px) conserva el modo fijo arriba (no se toca).
+   ============================================================ */
+.tutorial-drag-bar {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border-radius: 10px;
+    background: rgba(157, 78, 221, .16);
+    border: 1px dashed rgba(157, 78, 221, .5);
+    color: #d9c9ff;
+    font-size: .8rem;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+.tutorial-drag-bar:active { cursor: grabbing; }
+.tutorial-video-wrap.tutorial-fixed.tutorial-dragging {
+    cursor: grabbing;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .7);
+}
+
+@media (min-width: 769px) {
+    /* El panel flota abajo a la derecha (arrastrable) */
+    .tutorial-video-wrap.tutorial-fixed {
+        top: auto;
+        right: 18px;
+        bottom: 18px;
+        left: auto;
+        width: 340px;
+        border-radius: 14px;
+        padding: 8px 10px 10px;
+    }
+    /* El video llena el panel; el alto deriva del ancho (9:16), sin deformar */
+    .tutorial-video-wrap.tutorial-fixed .tutorial-bar video {
+        width: 100%;
+        max-width: 100%;
+        max-height: calc(100vh - 120px);
+        height: auto;
+    }
+    /* Agrandado: panel más ancho, siempre a un lado (no tapa la web) */
+    .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed {
+        width: 460px;
+        z-index: 99999;
+        padding: 10px 12px 12px;
+    }
+    .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-bar video {
+        max-width: 100%;
+        max-height: calc(100vh - 130px);
+    }
+    /* Barra de arrastre visible; el hint "abajo" no aplica en PC */
+    .tutorial-drag-bar { display: flex; }
+    .tutorial-video-wrap.tutorial-fixed .tutorial-fixed-hint { display: none; }
+}

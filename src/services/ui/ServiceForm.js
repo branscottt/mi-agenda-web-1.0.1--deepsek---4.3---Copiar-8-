@@ -264,6 +264,7 @@ function initTutorialServicio() {
     wrap.className = 'tutorial-video-wrap';
     wrap.id = 'tutorial-video-wrap';
     wrap.innerHTML = `
+        <div class="tutorial-drag-bar" id="tutorial-drag-bar" title="Arrastrá para mover"><i class="fas fa-grip-vertical"></i> <span>Arrastrá el video para moverlo</span></div>
         <div class="tutorial-bar">
             <video id="tutorial-video" controls playsinline preload="metadata"></video>
         </div>
@@ -277,6 +278,7 @@ function initTutorialServicio() {
     const video = wrap.querySelector('video');
     const closeBtn = wrap.querySelector('.tutorial-close-btn');
     const zoomBtn = wrap.querySelector('.tutorial-zoom-btn');
+    const dragBar = wrap.querySelector('.tutorial-drag-bar');
     const msg = wrap.querySelector('.tutorial-msg');
 
     // El PiP nativo del navegador queda DETRÁS de la web (no se controla desde
@@ -336,9 +338,62 @@ function initTutorialServicio() {
         wrapNext = wrap.nextSibling;
         document.body.appendChild(wrap);
         wrap.classList.add('tutorial-fixed');
-        // Espacio bajo el video fijo para poder rellenar el formulario sin que quede tapado
-        const h = wrap.offsetHeight;
-        if (section) section.style.paddingTop = (h + 16) + 'px';
+        // Móvil: el video queda arriba → dejar espacio bajo él para el formulario.
+        // PC: el video flota a un lado (arrastrable) → sin padding, la web se ve completa.
+        if (esMovil() && section) {
+            section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+        }
+    }
+
+    function esMovil() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    }
+
+    // Mantener el video flotante dentro de la pantalla (PC, al arrastrar o agrandar)
+    function clampPosicionFlotante() {
+        if (!fijo || esMovil()) return;
+        if (!wrap.style.left || wrap.style.left === 'auto') return;
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const w = wrap.offsetWidth, h = wrap.offsetHeight;
+        let x = parseInt(wrap.style.left, 10) || 0;
+        let y = parseInt(wrap.style.top, 10) || 0;
+        x = Math.max(8, Math.min(x, vw - w - 8));
+        y = Math.max(8, Math.min(y, vh - h - 8));
+        wrap.style.left = x + 'px';
+        wrap.style.top = y + 'px';
+    }
+
+    // PC: arrastrar el video flotante desde la barra superior (grip)
+    if (dragBar) {
+        dragBar.addEventListener('pointerdown', (e) => {
+            if (!fijo || esMovil()) return;
+            e.preventDefault();
+            const rect = wrap.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const offsetY = e.clientY - rect.top;
+            wrap.style.left = rect.left + 'px';
+            wrap.style.top = rect.top + 'px';
+            wrap.style.right = 'auto';
+            wrap.style.bottom = 'auto';
+            wrap.classList.add('tutorial-dragging');
+            const mover = (ev) => {
+                const vw = window.innerWidth, vh = window.innerHeight;
+                const w = wrap.offsetWidth, h = wrap.offsetHeight;
+                let x = ev.clientX - offsetX;
+                let y = ev.clientY - offsetY;
+                x = Math.max(8, Math.min(x, vw - w - 8));
+                y = Math.max(8, Math.min(y, vh - h - 8));
+                wrap.style.left = x + 'px';
+                wrap.style.top = y + 'px';
+            };
+            const soltar = () => {
+                wrap.classList.remove('tutorial-dragging');
+                window.removeEventListener('pointermove', mover);
+                window.removeEventListener('pointerup', soltar);
+            };
+            window.addEventListener('pointermove', mover);
+            window.addEventListener('pointerup', soltar);
+        });
     }
 
     btn.addEventListener('click', () => {
@@ -352,8 +407,14 @@ function initTutorialServicio() {
         const zoomed = wrap.classList.toggle('tutorial-zoomed');
         zoomBtn.innerHTML = zoomed ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
         zoomBtn.title = zoomed ? 'Reducir video' : 'Agrandar video';
-        // El alto de la barra cambió → recalcular el espacio para el formulario
-        if (fijo && section) section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+        if (fijo) {
+            // Móvil: recalcular el espacio bajo el video; PC: re-clampar posición si está arrastrado
+            if (esMovil()) {
+                if (section) section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+            } else {
+                clampPosicionFlotante();
+            }
+        }
     });
 
     // Defensa: si algún navegador activa el PiP nativo igualmente (p. ej. Safari
@@ -384,10 +445,13 @@ function initTutorialServicio() {
         }
     });
 
-    // Recalcular el espacio si cambia el tamaño de pantalla con el video fijo (rotación)
+    // Recalcular espacio/posición si cambia el tamaño de pantalla (rotación / resize)
     window.addEventListener('resize', () => {
-        if (fijo && section) {
-            section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+        if (!fijo) return;
+        if (esMovil()) {
+            if (section) section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+        } else {
+            clampPosicionFlotante();
         }
     });
 }
