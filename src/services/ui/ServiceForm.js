@@ -269,13 +269,20 @@ function initTutorialServicio() {
         </div>
         <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Completá el formulario acá abajo — el tutorial sigue arriba</p>
         <button type="button" class="tutorial-close-btn" id="tutorial-close-btn" title="Cerrar tutorial" aria-label="Cerrar tutorial"><i class="fas fa-times"></i></button>
+        <button type="button" class="tutorial-zoom-btn" id="tutorial-zoom-btn" title="Agrandar video" aria-label="Agrandar video"><i class="fas fa-expand"></i></button>
         <div class="tutorial-msg" id="tutorial-msg"></div>
     `;
     form.parentNode.insertBefore(wrap, form);
 
     const video = wrap.querySelector('video');
     const closeBtn = wrap.querySelector('.tutorial-close-btn');
+    const zoomBtn = wrap.querySelector('.tutorial-zoom-btn');
     const msg = wrap.querySelector('.tutorial-msg');
+
+    // El PiP nativo del navegador queda DETRÁS de la web (no se controla desde
+    // la página). Se deshabilita: el modo flotante propio (fijo + agrandar)
+    // garantiza que el video SIEMPRE quede por encima al scrollear.
+    video.disablePictureInPicture = true;
 
     // ---- Botón "Ver tutorial" junto al título (wrapper flex) ----
     const headerFlex = document.createElement('div');
@@ -304,7 +311,9 @@ function initTutorialServicio() {
 
     function cerrarTutorial() {
         video.pause();
-        wrap.classList.remove('tutorial-open', 'tutorial-fixed');
+        wrap.classList.remove('tutorial-open', 'tutorial-fixed', 'tutorial-zoomed');
+        zoomBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        zoomBtn.title = 'Agrandar video';
         // Restaurar el wrap a su lugar original (entre el título y el form)
         if (wrapParent) {
             if (wrapNext) wrapParent.insertBefore(wrap, wrapNext);
@@ -337,6 +346,25 @@ function initTutorialServicio() {
         else abrirTutorial();
     });
     closeBtn.addEventListener('click', cerrarTutorial);
+
+    // ⛶ Agrandar/reducir el video flotante (siempre por encima de la web)
+    zoomBtn.addEventListener('click', () => {
+        const zoomed = wrap.classList.toggle('tutorial-zoomed');
+        zoomBtn.innerHTML = zoomed ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
+        zoomBtn.title = zoomed ? 'Reducir video' : 'Agrandar video';
+        // El alto de la barra cambió → recalcular el espacio para el formulario
+        if (fijo && section) section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+    });
+
+    // Defensa: si algún navegador activa el PiP nativo igualmente (p. ej. Safari
+    // con gesto propio), salir del PiP y activar nuestro modo grande — el video
+    // flotante propio queda SIEMPRE encima de la web.
+    video.addEventListener('enterpictureinpicture', () => {
+        if (document.exitPictureInPicture) {
+            document.exitPictureInPicture().catch(() => {});
+        }
+        if (!wrap.classList.contains('tutorial-zoomed')) zoomBtn.click();
+    });
 
     // Al presionar play → el video se fija arriba y queda visible mientras se scrollea
     video.addEventListener('play', activarFijo);

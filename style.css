@@ -14662,3 +14662,53 @@ input:-moz-autofill {
         max-height: 30vh;
     }
 }
+
+/* ============================================================
+   TUTORIAL — botón agrandar + modo grande (siempre encima)
+   El PiP nativo del navegador queda detrás de la web; el modo
+   flotante propio con z-index alto garantiza el video visible
+   mientras se rellena el formulario.
+   ============================================================ */
+.tutorial-zoom-btn {
+    position: absolute;
+    top: 8px;
+    right: 48px;
+    z-index: 5;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(20, 18, 40, .85);
+    color: #fff;
+    font-size: .95rem;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+    transition: background .15s ease, transform .15s ease;
+}
+.tutorial-zoom-btn:hover { background: #7b2cbf; transform: scale(1.06); }
+.tutorial-video-wrap.tutorial-fixed .tutorial-zoom-btn { display: flex; }
+
+/* Modo grande: el video crece y queda por encima de TODO */
+.tutorial-video-wrap.tutorial-fixed.tutorial-zoomed {
+    z-index: 99999;
+    padding: 12px;
+}
+.tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-bar video {
+    max-width: 92vw;
+    max-height: 62vh;
+}
+.tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-fixed-hint {
+    font-size: .85rem;
+}
+
+/* Mobile: modo grande compacto para seguir rellenando */
+@media (max-width: 768px) {
+    .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed { padding: 8px; }
+    .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-bar video {
+        max-width: 96vw;
+        max-height: 44vh;
+    }
+}
