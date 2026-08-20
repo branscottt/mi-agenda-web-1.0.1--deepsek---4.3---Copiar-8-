@@ -14584,9 +14584,13 @@ input:-moz-autofill {
     flex-wrap: wrap;
 }
 .tutorial-video-wrap video {
-    width: 100%;
+    /* width:auto → el ALTO (max-height) manda y el ancho deriva de la
+       proporción 9:16 (width:100% + max-height deforma el video vertical) */
+    width: auto;
     max-width: 420px;
     max-height: 55vh;
+    aspect-ratio: 9 / 16;
+    object-fit: contain;
     border-radius: 14px;
     background: #000;
     display: block;
@@ -14637,9 +14641,12 @@ input:-moz-autofill {
     border-bottom: 1px solid rgba(157, 78, 221, .4);
     box-shadow: 0 6px 24px rgba(0, 0, 0, .55);
 }
+/* Video vertical (9:16): manda el ALTO para que se vea grande y claro
+   (el ancho se deriva del aspect ratio). En PC ~55vh de alto ≈ 310px
+   de ancho — los detalles del tutorial se leen bien. */
 .tutorial-video-wrap.tutorial-fixed .tutorial-bar video {
-    max-width: 230px;
-    max-height: 38vh;
+    max-width: 90vw;
+    max-height: 55vh;
 }
 .tutorial-fixed-hint { display: none; }
 .tutorial-video-wrap.tutorial-fixed .tutorial-fixed-hint {
@@ -14657,9 +14664,10 @@ input:-moz-autofill {
     .section-header-flex { gap: 8px; }
     .tutorial-video-wrap video { max-width: 340px; }
     .tutorial-video-wrap.tutorial-fixed { padding: 8px 8px 10px; }
+    /* En celular ~42vh de alto ≈ 200px de ancho — detalles legibles */
     .tutorial-video-wrap.tutorial-fixed .tutorial-bar video {
-        max-width: 190px;
-        max-height: 30vh;
+        max-width: 90vw;
+        max-height: 42vh;
     }
 }
 
@@ -14696,9 +14704,10 @@ input:-moz-autofill {
     z-index: 99999;
     padding: 12px;
 }
+/* Zoom: casi a tamaño real (80vh ≈ 430px de ancho en 1080p) */
 .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-bar video {
     max-width: 92vw;
-    max-height: 62vh;
+    max-height: 80vh;
 }
 .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-fixed-hint {
     font-size: .85rem;
@@ -14707,8 +14716,9 @@ input:-moz-autofill {
 /* Mobile: modo grande compacto para seguir rellenando */
 @media (max-width: 768px) {
     .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed { padding: 8px; }
+    /* Zoom móvil: 62vh ≈ 55% del ancho original — máxima claridad */
     .tutorial-video-wrap.tutorial-fixed.tutorial-zoomed .tutorial-bar video {
         max-width: 96vw;
-        max-height: 44vh;
+        max-height: 62vh;
     }
 }
