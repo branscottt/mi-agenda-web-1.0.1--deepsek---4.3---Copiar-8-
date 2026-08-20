@@ -20,7 +20,8 @@ ALLOWED_EXTENSIONS = (
     '.html', '.css', '.js',
     '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp',
     '.woff', '.woff2', '.ttf', '.eot',
-    '.json', '.txt', '.xml'
+    '.json', '.txt', '.xml',
+    '.mp4', '.webm'
 )
 
 # Rate limits por tipo de ruta (ventana de 60 segundos por defecto)
@@ -366,6 +367,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
             "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
             "img-src 'self' data: https: https://http2.mlstatic.com; "
+            "media-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co; "
             "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com https://api.qrserver.com; "
             "frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li; "
             "form-action 'self'; "

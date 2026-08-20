@@ -24,6 +24,9 @@ export function configurarFormularioServicio() {
     const form = document.getElementById('service-form');
     if (!form) return;
 
+    // Botón "Ver tutorial" + reproductor que se fija arriba al reproducir
+    initTutorialServicio();
+
     // Contador de caracteres en descripcion
     const textarea = document.getElementById('srv-desc');
     const contador = document.getElementById('char-count');
@@ -236,4 +239,127 @@ export async function editarServicioForm(id, servicio) {
 function escapeHtml(str) {
     if (!str && str !== 0) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// TUTORIAL EN VIDEO — sección Crear Servicio (admin)
+// Botón "Ver tutorial" junto al título; al presionar play el
+// video se fija en la parte superior y queda visible mientras
+// se scrollea y se rellena el formulario.
+// El video se sirve desde Supabase Storage (bucket público
+// 'tutoriales'). CSP: media-src incluye el origen de Supabase
+// (vercel.json + server.py).
+// ============================================================
+const VIDEO_TUTORIAL_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-crear-servicio.mp4?v=1';
+
+function initTutorialServicio() {
+    const header = document.getElementById('section-title-servicio');
+    const form = document.getElementById('service-form');
+    if (!header || !form) return;
+
+    const section = form.closest('.section-content') || document.getElementById('section-crear-servicio');
+
+    // ---- Contenedor del reproductor (entre el título y el formulario) ----
+    const wrap = document.createElement('div');
+    wrap.className = 'tutorial-video-wrap';
+    wrap.id = 'tutorial-video-wrap';
+    wrap.innerHTML = `
+        <div class="tutorial-bar">
+            <video id="tutorial-video" controls playsinline preload="metadata"></video>
+        </div>
+        <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Completá el formulario acá abajo — el tutorial sigue arriba</p>
+        <button type="button" class="tutorial-close-btn" id="tutorial-close-btn" title="Cerrar tutorial" aria-label="Cerrar tutorial"><i class="fas fa-times"></i></button>
+        <div class="tutorial-msg" id="tutorial-msg"></div>
+    `;
+    form.parentNode.insertBefore(wrap, form);
+
+    const video = wrap.querySelector('video');
+    const closeBtn = wrap.querySelector('.tutorial-close-btn');
+    const msg = wrap.querySelector('.tutorial-msg');
+
+    // ---- Botón "Ver tutorial" junto al título (wrapper flex) ----
+    const headerFlex = document.createElement('div');
+    headerFlex.className = 'section-header-flex';
+    header.parentNode.insertBefore(headerFlex, header);
+    headerFlex.appendChild(header);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'btn-ver-tutorial';
+    btn.className = 'tutorial-btn';
+    btn.innerHTML = '<i class="fas fa-play-circle"></i> Ver tutorial';
+    headerFlex.appendChild(btn);
+
+    let fijo = false;
+    // Posición original del wrap (para restaurarlo al cerrar)
+    let wrapParent = null;
+    let wrapNext = null;
+
+    function abrirTutorial() {
+        if (!video.src) video.src = VIDEO_TUTORIAL_URL;
+        wrap.classList.add('tutorial-open');
+        btn.innerHTML = '<i class="fas fa-times-circle"></i> Cerrar tutorial';
+        btn.classList.add('tutorial-btn-activo');
+    }
+
+    function cerrarTutorial() {
+        video.pause();
+        wrap.classList.remove('tutorial-open', 'tutorial-fixed');
+        // Restaurar el wrap a su lugar original (entre el título y el form)
+        if (wrapParent) {
+            if (wrapNext) wrapParent.insertBefore(wrap, wrapNext);
+            else wrapParent.appendChild(wrap);
+            wrapParent = null;
+            wrapNext = null;
+        }
+        if (section) section.style.paddingTop = '';
+        fijo = false;
+        btn.innerHTML = '<i class="fas fa-play-circle"></i> Ver tutorial';
+        btn.classList.remove('tutorial-btn-activo');
+    }
+
+    function activarFijo() {
+        if (fijo) return;
+        fijo = true;
+        // ⚠️ .glass-panel tiene backdrop-filter, que crea un containing block
+        // y rompe position:fixed → mover el reproductor a <body> mientras esté fijo
+        wrapParent = wrap.parentNode;
+        wrapNext = wrap.nextSibling;
+        document.body.appendChild(wrap);
+        wrap.classList.add('tutorial-fixed');
+        // Espacio bajo el video fijo para poder rellenar el formulario sin que quede tapado
+        const h = wrap.offsetHeight;
+        if (section) section.style.paddingTop = (h + 16) + 'px';
+    }
+
+    btn.addEventListener('click', () => {
+        if (wrap.classList.contains('tutorial-open')) cerrarTutorial();
+        else abrirTutorial();
+    });
+    closeBtn.addEventListener('click', cerrarTutorial);
+
+    // Al presionar play → el video se fija arriba y queda visible mientras se scrollea
+    video.addEventListener('play', activarFijo);
+
+    // Si el video aún no está subido a Supabase → mensaje visible (nada silencioso)
+    video.addEventListener('error', () => {
+        msg.textContent = '⚠️ Tutorial aún no disponible. Subí el video al bucket "tutoriales" de Supabase (pasos en el chat) y recargá la página.';
+        msg.style.display = 'block';
+    });
+    video.addEventListener('canplay', () => { msg.style.display = 'none'; });
+
+    // Al navegar a otra sección del admin → cerrar el tutorial (evita audio fantasma)
+    document.addEventListener('click', (e) => {
+        const item = e.target.closest('.sidebar-item');
+        if (item && item.dataset.section && item.dataset.section !== 'crear-servicio') {
+            cerrarTutorial();
+        }
+    });
+
+    // Recalcular el espacio si cambia el tamaño de pantalla con el video fijo (rotación)
+    window.addEventListener('resize', () => {
+        if (fijo && section) {
+            section.style.paddingTop = (wrap.offsetHeight + 16) + 'px';
+        }
+    });
 }
