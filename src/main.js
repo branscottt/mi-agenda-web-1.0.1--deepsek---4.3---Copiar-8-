@@ -208,6 +208,10 @@ async function syncJwtSession() {
                 window.__guardarWorkersDelServicio = guardarWorkersDelServicio;
                 window.__validarWorkersServicio = validarWorkersServicio;
 
+                // Tutorial en video — sección Compartir con Clientes (mismo patrón que Crear Servicio)
+                const { initTutorialCompartir } = await import('./share/ui/ShareTutorial.js');
+                initTutorialCompartir();
+
                 // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
                 const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');
                 initMfaSetup();

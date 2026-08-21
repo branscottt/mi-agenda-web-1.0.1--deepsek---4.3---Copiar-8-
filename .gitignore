@@ -38,6 +38,7 @@ venv/
 
 # Video tutorial comprimido (se sube manualmente a Supabase Storage, no al repo)
 /tutorial-crear-servicio.mp4
+/tutorial-compartir-clientes.mp4
 
 # Supabase (local)
 supabase/.temp/
