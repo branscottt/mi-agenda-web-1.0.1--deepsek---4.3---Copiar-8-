@@ -9480,6 +9480,91 @@ input:-moz-autofill {
     font-weight: 600;
 }
 
+/* Info "¿Cómo funciona?" dentro del popover de notificaciones */
+.notif-info {
+    margin: 8px 12px 0;
+    border: 1px solid rgba(179, 0, 255, 0.3);
+    border-radius: 10px;
+    background: rgba(157, 78, 221, 0.10);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.notif-info summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #e8dcff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+    user-select: none;
+}
+.notif-info summary::-webkit-details-marker { display: none; }
+.notif-info summary i { color: #b300ff; }
+.notif-info summary::after {
+    content: '\f078';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #9d4edd;
+    transition: transform 0.2s;
+}
+.notif-info[open] summary::after { transform: rotate(180deg); }
+.notif-info-tag {
+    background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+    color: #fff;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(157, 78, 221, 0.5);
+}
+.notif-info-body {
+    padding: 10px 14px 12px 12px;
+    border-top: 1px dashed rgba(179, 0, 255, 0.25);
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: #cfc6e8;
+    max-height: 190px;
+    overflow-y: auto;
+}
+.notif-info-intro { margin: 0 0 8px; }
+.notif-info-intro strong { color: #fff; }
+.notif-info-step {
+    display: flex;
+    gap: 10px;
+    margin: 8px 0;
+    align-items: flex-start;
+}
+.notif-info-step strong { color: #fff; }
+.notif-morado-text { color: #c77dff; }
+.notif-verde-text { color: #39ff14; }
+.notif-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.notif-dot-morado {
+    background: #9d4edd;
+    box-shadow: 0 0 10px rgba(157, 78, 221, 0.9), 0 0 20px rgba(157, 78, 221, 0.5);
+}
+.notif-dot-verde {
+    background: #39ff14;
+    box-shadow: 0 0 10px rgba(57, 255, 20, 0.9), 0 0 20px rgba(57, 255, 20, 0.45);
+}
+.notif-info-list {
+    margin: 8px 0 0;
+    padding-left: 16px;
+    color: #b9aed9;
+}
+.notif-info-list li { margin: 4px 0; }
+
 .notif-popover-list {
     flex: 1;
     overflow-y: auto;
@@ -9527,18 +9612,18 @@ input:-moz-autofill {
     transform: translateX(3px);
 }
 .notif-popover-list .notification-item.new-reservation {
-    border-left: 3px solid #3498db;
-    background: rgba(52, 152, 219, 0.08);
+    border-left: 3px solid #9d4edd;
+    background: rgba(157, 78, 221, 0.12);
 }
 .notif-popover-list .notification-item.new-reservation:hover {
-    background: rgba(52, 152, 219, 0.15);
+    background: rgba(157, 78, 221, 0.22);
 }
 .notif-popover-list .notification-item.upcoming {
-    border-left: 3px solid #25d366;
-    background: rgba(37, 211, 102, 0.08);
+    border-left: 3px solid #39ff14;
+    background: rgba(57, 255, 20, 0.08);
 }
 .notif-popover-list .notification-item.upcoming:hover {
-    background: rgba(37, 211, 102, 0.15);
+    background: rgba(57, 255, 20, 0.16);
 }
 .notif-popover-list .notification-item.admin-change {
     border-left: 3px solid #9b59b6;
@@ -9591,12 +9676,12 @@ input:-moz-autofill {
     gap: 4px;
 }
 .notif-popover-list .btn-notify.email {
-    background: rgba(52, 152, 219, 0.15);
-    color: #5dade2;
-    border-color: rgba(52, 152, 219, 0.25);
+    background: rgba(157, 78, 221, 0.18);
+    color: #c77dff;
+    border-color: rgba(157, 78, 221, 0.35);
 }
 .notif-popover-list .btn-notify.email:hover {
-    background: rgba(52, 152, 219, 0.3);
+    background: rgba(157, 78, 221, 0.35);
     transform: scale(1.03);
 }
 .notif-popover-list .btn-notify.whatsapp {
@@ -9698,18 +9783,18 @@ input:-moz-autofill {
 }
 /* Fondo de notificación por tipo de acción */
 .notif-popover-list .notification-item.notif-email {
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.12), rgba(52, 152, 219, 0.04));
-    border-left: 3px solid #3498db;
+    background: linear-gradient(135deg, rgba(157, 78, 221, 0.14), rgba(157, 78, 221, 0.05));
+    border-left: 3px solid #9d4edd;
 }
 .notif-popover-list .notification-item.notif-email:hover {
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.22), rgba(52, 152, 219, 0.08));
+    background: linear-gradient(135deg, rgba(157, 78, 221, 0.25), rgba(157, 78, 221, 0.10));
 }
 .notif-popover-list .notification-item.notif-whatsapp {
-    background: linear-gradient(135deg, rgba(37, 211, 102, 0.12), rgba(37, 211, 102, 0.04));
-    border-left: 3px solid #25d366;
+    background: linear-gradient(135deg, rgba(57, 255, 20, 0.10), rgba(57, 255, 20, 0.03));
+    border-left: 3px solid #39ff14;
 }
 .notif-popover-list .notification-item.notif-whatsapp:hover {
-    background: linear-gradient(135deg, rgba(37, 211, 102, 0.22), rgba(37, 211, 102, 0.08));
+    background: linear-gradient(135deg, rgba(57, 255, 20, 0.18), rgba(57, 255, 20, 0.06));
 }
 .notif-popover-list .notification-item.admin-change {
     background: linear-gradient(135deg, rgba(155, 89, 182, 0.08), rgba(155, 89, 182, 0.03));

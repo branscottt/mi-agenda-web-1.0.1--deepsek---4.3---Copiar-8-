@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agenda Pro - Panel Admin</title>
-    <link rel="stylesheet" href="style.css?v=28">
+    <link rel="stylesheet" href="style.css?v=29">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
@@ -125,6 +125,28 @@
                             <h4><i class="fas fa-bell"></i> Notificaciones</h4>
                             <button class="notif-popover-close" onclick="closeNotifPopover()">&times;</button>
                         </div>
+                        <details class="notif-info">
+                            <summary>
+                                <i class="fas fa-info-circle"></i> ¿Cómo funciona?
+                                <span class="notif-info-tag">IMPORTANTE</span>
+                            </summary>
+                            <div class="notif-info-body">
+                                <p class="notif-info-intro">Revisa tus notificaciones <strong>todos los días</strong> (antes o al terminar tu turno). Es la tarea más importante de tu agenda: cada aviso es un cliente que espera tu confirmación y así tu servicio se siente más personal.</p>
+                                <div class="notif-info-step">
+                                    <span class="notif-dot notif-dot-morado"></span>
+                                    <div><strong class="notif-morado-text">Morado — Nueva reserva:</strong> cada vez que un cliente reserva aparece en morado. Presiona <b>CORREO</b> y se abrirá el correo ya escrito con los datos de la reserva: solo dale enviar.</div>
+                                </div>
+                                <div class="notif-info-step">
+                                    <span class="notif-dot notif-dot-verde"></span>
+                                    <div><strong class="notif-verde-text">Verde fluor — 24h antes:</strong> cuando faltan 24 horas para la reserva aparece en verde fluor. Presiona <b>WHATSAPP</b> y se abrirá el mensaje ya escrito recordando la cita: solo envíalo.</div>
+                                </div>
+                                <ul class="notif-info-list">
+                                    <li>La información (cliente, servicio, fecha y hora) se arma sola: tú solo presionas y envías.</li>
+                                    <li>Al enviarlo, la notificación se elimina automáticamente.</li>
+                                    <li>Sin notificaciones = tareas de reservas al día.</li>
+                                </ul>
+                            </div>
+                        </details>
                         <div class="notif-popover-tabs">
                             <button class="tab-btn active" data-tab="todas" onclick="filtrarNotifPopover(this, 'todas')">Todas</button>
                             <button class="tab-btn" data-tab="reservas" onclick="filtrarNotifPopover(this, 'reservas')">Reservas</button>
