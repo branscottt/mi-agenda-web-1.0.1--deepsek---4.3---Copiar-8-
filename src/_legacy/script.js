@@ -3659,6 +3659,7 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
             const servicio = item.nombre || item.servicioNombre || 'Servicio';
             const fecha = item.fecha || '—';
             const hora = item.hora || '—';
+            const tieneFechaHora = fecha !== '—' && hora !== '—';
 
             const tipoTexto = item.tipo === 'nueva' ? '🆕 Nueva reserva' : '⏰ Próxima cita (24h)';
             const claseTipo = item.tipo === 'nueva' ? 'new-reservation' : 'upcoming';
@@ -3677,8 +3678,8 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
                         <span>${nombre} - ${servicio} - ${fecha} ${hora}</span>
                     </div>
                     <div class="notification-actions">
-                        ${email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
-                        ${telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                        ${tieneFechaHora && email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
+                        ${tieneFechaHora && telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
                     </div>
                 </div>
             `;
@@ -3691,6 +3692,7 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
             const servicio = meta.servicio || 'Servicio';
             const fecha = meta.fecha || item.fecha_original || '—';
             const hora = meta.hora || item.hora_original || '—';
+            const tieneFechaHora = fecha !== '—' && hora !== '—';
 
             const asuntoEmail = encodeURIComponent(`Confirmación de reserva: ${servicio}`);
             const cuerpoEmail = encodeURIComponent(`Hola ${nombre},\n\nTe confirmamos tu reserva para ${servicio} el ${fecha} a las ${hora}.\n\nGracias.`);
@@ -3700,14 +3702,14 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
             const waLink = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensajeWhatsApp}`;
 
             html += `
-                <div class="notification-item new-reservation notif-email" data-notif-id="${item.id}" data-origen="reserva">
+                <div class="notification-item new-reservation notif-email" data-notif-id="${item.id}" data-origen="cambio">
                     <div class="notification-info">
                         <strong>🆕 Nueva reserva</strong>
                         <span>${nombre} - ${servicio} - ${fecha} ${hora}</span>
                     </div>
                     <div class="notification-actions">
-                        ${email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
-                        ${telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                        ${tieneFechaHora && email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
+                        ${tieneFechaHora && telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
                     </div>
                 </div>
             `;
@@ -3858,12 +3860,39 @@ async function generarNotificaciones() {
     const ahora = new Date();
     const limiteNuevas = 24 * 60 * 60 * 1000;
 
+    const notifsAdmin = await NotificacionesAdminManager.getAll();
+    const noLeidas = notifsAdmin.filter(n => !n.leido);
+
+    // Las reservas confirmadas ya tienen su fila en notificaciones_admin
+    // (creada por el RPC junto a la cita, con nombre real del servicio y
+    // fecha/hora en metadata). Las citas con notificación propia se muestran
+    // UNA sola vez (la de notificaciones_admin) — evita duplicados e items
+    // sin datos en el popover.
+    const citasConNotificacion = new Set(
+        notifsAdmin
+            .filter(n => n.tipo === 'nueva_reserva' && n.cita_id)
+            .map(n => String(n.cita_id))
+    );
+
     const nuevas = citas.filter(c => {
         const emailNoEnviado = !c.notificaciones || c.notificaciones.emailEnviado === false;
         if (!emailNoEnviado) return false;
-        
+
         const creado = new Date(c.creadoEn || 0);
-        return (ahora - creado) <= limiteNuevas;
+        if ((ahora - creado) > limiteNuevas) return false;
+
+        // Solo reservas CONFIRMADAS: con cita y fecha/hora válidas (aún no ocurridas)
+        if (citasConNotificacion.has(String(c.id))) return false;
+        if (!c.fecha || !c.hora) return false;
+        try {
+            const citaDate = parseDate(c.fecha);
+            const [h, m] = c.hora.split(':').map(Number);
+            citaDate.setHours(h, m, 0, 0);
+            if (citaDate - ahora <= 0) return false; // ya ocurrió → no notificar
+        } catch {
+            return false;
+        }
+        return true;
     });
 
     const proximas = citas.filter(c => {
@@ -3882,9 +3911,6 @@ async function generarNotificaciones() {
             return false;
         }
     });
-
-    const notifsAdmin = await NotificacionesAdminManager.getAll();
-    const noLeidas = notifsAdmin.filter(n => !n.leido);
 
     const notificaciones = [
         ...nuevas.map(c => ({ ...c, tipo: 'nueva' })),
@@ -10694,7 +10720,9 @@ async function abrirModalReserva(serviceId) {
     const detallesDiv = document.querySelector('#popup-reserva .detalles-servicio');
     if(!detallesDiv){ mostrarMensaje('Contenedor de popup no encontrado','error'); return; }
 
-    const fechas = Object.keys(servicio.disponibilidad || {}).sort();
+    // Solo fechas desde hoy en adelante (no permitir reservar en fechas pasadas)
+    const hoyLocalStr = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+    const fechas = Object.keys(servicio.disponibilidad || {}).sort().filter(f => f >= hoyLocalStr);
     const fechasOptions = fechas.map(f => {
         const modulosForDate = servicio.disponibilidad[f] || [];
         const todosAgotadosEnFecha = modulosForDate.length > 0 && modulosForDate.every(m => (Number(m.cupos || 0) <= 0));
@@ -10820,11 +10848,22 @@ async function abrirModalReserva(serviceId) {
             return; 
         }
         const modulosForDate = (servicio.disponibilidad && servicio.disponibilidad[fecha]) ? servicio.disponibilidad[fecha] : [];
+        const esHoy = fecha === hoyLocalStr;
+        const ahoraLocal = new Date();
         let options = '<option value="">Seleccione hora</option>';
         modulosForDate.forEach((m, index) => {
             const horaText = formatTimeDisplay(m.hora || m.startTime || '00:00');
             const cupos = Number(m.cupos || 0);
             if(cupos <= 0) return;
+            // Si es hoy, ocultar horas que ya pasaron
+            if(esHoy){
+                const hp = horaText.match(/(\d{1,2}):(\d{2})/);
+                if(hp){
+                    const fh = new Date();
+                    fh.setHours(parseInt(hp[1]), parseInt(hp[2]), 0, 0);
+                    if(fh <= ahoraLocal) return;
+                }
+            }
             options += `<option value="${index}" data-hora="${horaText}" data-cupos="${cupos}">${horaText} - ${cupos} cupos</option>`;
         });
         selectHora.innerHTML = options;
@@ -10864,9 +10903,19 @@ async function abrirModalReserva(serviceId) {
 
     let anyAvailable = false;
     const disponibilidad = servicio.disponibilidad || {};
-    Object.keys(disponibilidad).forEach(f => {
+    const ahoraCheck = new Date();
+    fechas.forEach(f => {
         const mods = disponibilidad[f] || [];
-        if(mods.some(m => Number(m.cupos || 0) > 0)) anyAvailable = true;
+        const esHoy = f === hoyLocalStr;
+        if(mods.some(m => {
+            if(Number(m.cupos || 0) <= 0) return false;
+            if(!esHoy) return true;
+            const hp = String(m.hora || m.startTime || '').match(/(\d{1,2}):(\d{2})/);
+            if(!hp) return true;
+            const fh = new Date();
+            fh.setHours(parseInt(hp[1]), parseInt(hp[2]), 0, 0);
+            return fh > ahoraCheck;
+        })) anyAvailable = true;
     });
     if(!anyAvailable){
         if(btnConfirm){ btnConfirm.disabled = true; btnConfirm.style.cursor = 'not-allowed'; }
