@@ -3,6 +3,7 @@
 // Badge de no leidas + dropdown con lista
 
 import { getNotificaciones, suscribirseNotificaciones, marcarComoLeida, marcarTodasLeidas, getNotificacionesNoLeidas, iniciarPolling } from '../application/NotificationService.js';
+import { deleteNotificacion } from '../../api/notificacionesApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 
 let _notificaciones = [];
@@ -133,6 +134,7 @@ function renderList() {
                 <small>${tiempoRelativo(n.creadoEn)}</small>
             </div>
             ${!n.leida ? `<button class="notif-mark-read" data-id="${n.id}"><i class="fas fa-check"></i></button>` : ''}
+            <button class="notif-delete" data-id="${n.id}" title="Eliminar"><i class="fas fa-trash"></i></button>
         </div>
     `).join('');
 
@@ -145,6 +147,35 @@ function renderList() {
             if (notif) notif.leida = true;
             actualizarUI();
             renderList();
+        });
+    });
+
+    list.querySelectorAll('.notif-delete').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            // Doble confirmación: 1er clic pide confirmación, 2do clic elimina
+            if (btn.dataset.confirmando !== '1') {
+                btn.dataset.confirmando = '1';
+                btn.classList.add('confirmando');
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                setTimeout(() => {
+                    delete btn.dataset.confirmando;
+                    btn.classList.remove('confirmando');
+                    btn.innerHTML = '<i class="fas fa-trash"></i>';
+                }, 4000);
+                return;
+            }
+            try {
+                await deleteNotificacion(id);
+                _notificaciones = _notificaciones.filter(n => n.id !== id);
+                actualizarUI();
+                renderList();
+                mostrarToast('Notificación eliminada', 'success');
+            } catch (err) {
+                console.error('Error eliminando notificación:', err);
+                mostrarToast('No se pudo eliminar la notificación', 'error');
+            }
         });
     });
 

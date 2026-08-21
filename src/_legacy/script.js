@@ -1191,7 +1191,7 @@ const NotificacionesAdminManager = {
             
             const { data, error } = await supabaseClient
                 .from('notificaciones_admin')
-                .select('id, tipo, cita_id, fecha_original, hora_original, fecha_nueva, hora_nueva, cliente, leido, creado_en')
+                .select('id, tipo, cita_id, fecha_original, hora_original, fecha_nueva, hora_nueva, cliente, leido, creado_en, metadata')
                 .eq('tenant_id', cleanTenantId)
                 .order('creado_en', { ascending: false });
                 
@@ -1206,6 +1206,7 @@ const NotificacionesAdminManager = {
                 fechaNueva: n.fecha_nueva,
                 horaNueva: n.hora_nueva,
                 cliente: n.cliente,
+                metadata: n.metadata || {},
                 leido: n.leido || false,
                 creadoEn: n.creado_en
             }));
@@ -1230,6 +1231,21 @@ const NotificacionesAdminManager = {
             return true;
         } catch (e) {
             console.error('Error marcando como leído:', e);
+            return false;
+        }
+    },
+
+    async eliminar(id) {
+        try {
+            const { error } = await supabaseClient
+                .from('notificaciones_admin')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            return true;
+        } catch (e) {
+            console.error('Error eliminando notificación:', e);
             return false;
         }
     },
@@ -3636,10 +3652,19 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
     // admin: sus citas se borran y la notificacion de reserva queda huerfana).
     const citasValidas = todasLasCitas || await CitasManager.getAll();
     const idsCitasValidas = new Set(citasValidas.map(c => String(c.id)));
-    const noLeidas = notifsAdmin.filter(n => !n.leido && (!n.cita_id || idsCitasValidas.has(String(n.cita_id))));
-    
+    const noLeidas = notifsAdmin.filter(n => !n.leido && (!n.citaId || idsCitasValidas.has(String(n.citaId))));
+
+    // Dedupe defensivo: si una cita ya tiene su notificación en notificaciones_admin,
+    // no mostrar el item morado "Nueva reserva" derivado de cita (evita el mismo
+    // aviso 2 veces). Los recordatorios verdes de 24h (tipo 'proxima') se mantienen.
+    const idsCitasConNotif = new Set(
+        notifsAdmin
+            .filter(n => n.tipo === 'nueva_reserva' && n.citaId)
+            .map(n => String(n.citaId))
+    );
+
     const todas = [
-        ...lista.map(c => ({ ...c, tipoOrigen: 'reserva' })),
+        ...lista.filter(c => !(c.tipo === 'nueva' && idsCitasConNotif.has(String(c.id)))).map(c => ({ ...c, tipoOrigen: 'reserva' })),
         ...noLeidas.map(n => ({ ...n, tipoOrigen: 'cambio' }))
     ];
 
@@ -3680,6 +3705,7 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
                     <div class="notification-actions">
                         ${tieneFechaHora && email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
                         ${tieneFechaHora && telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                        <button class="btn-notify eliminar" data-accion="eliminar-cita" title="Quitar de notificaciones"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `;
@@ -3693,6 +3719,19 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
             const fecha = meta.fecha || item.fecha_original || '—';
             const hora = meta.hora || item.hora_original || '—';
             const tieneFechaHora = fecha !== '—' && hora !== '—';
+
+            // Ocultar reservas cuya fecha/hora ya ocurrió: solo quedan tareas pendientes
+            if (tieneFechaHora) {
+                try {
+                    const partes = fecha.split('-');
+                    if (partes.length === 3) {
+                        const fd = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+                        const hp = String(hora).match(/(\d{1,2}):(\d{2})/);
+                        if (hp) fd.setHours(parseInt(hp[1]), parseInt(hp[2]), 0, 0);
+                        if (fd - new Date() <= 0) return;
+                    }
+                } catch (e) { /* si no se puede parsear, se muestra igual */ }
+            }
 
             const asuntoEmail = encodeURIComponent(`Confirmación de reserva: ${servicio}`);
             const cuerpoEmail = encodeURIComponent(`Hola ${nombre},\n\nTe confirmamos tu reserva para ${servicio} el ${fecha} a las ${hora}.\n\nGracias.`);
@@ -3710,6 +3749,7 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
                     <div class="notification-actions">
                         ${tieneFechaHora && email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
                         ${tieneFechaHora && telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                        <button class="btn-notify eliminar" data-accion="eliminar" title="Eliminar notificación"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `;
@@ -3744,6 +3784,7 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
                     <div class="notification-actions">
                         ${email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
                         ${telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
+                        <button class="btn-notify eliminar" data-accion="eliminar" title="Eliminar notificación"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `;
@@ -3751,6 +3792,11 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
     });
 
     container.innerHTML = html;
+
+    // Garantizar scroll interno de la lista (estilos inline, gana a CSS cacheado)
+    if (typeof window.forzarScrollNotifPopover === 'function') {
+        window.forzarScrollNotifPopover();
+    }
 
     // También actualizar el popover de notificaciones si existe
     const popoverList = document.getElementById('notif-popover-list');
@@ -3792,6 +3838,47 @@ function setupNotificacionesListeners() {
         const citaId = notificacion.dataset.citaId;
         const notifId = notificacion.dataset.notifId;
         const tipo = btn.dataset.tipo;
+        const accion = btn.dataset.accion;
+
+        // ── Eliminar con DOBLE CONFIRMACIÓN (evita borrados por error) ──
+        if (accion === 'eliminar' || accion === 'eliminar-cita') {
+            // 1er clic: pedir confirmación inline (se cancela sola a los 4s)
+            if (btn.dataset.confirmando !== '1') {
+                btn.dataset.confirmando = '1';
+                btn.classList.add('confirmando');
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ¿Seguro?';
+                clearTimeout(btn._confirmTimeout);
+                btn._confirmTimeout = setTimeout(() => {
+                    delete btn.dataset.confirmando;
+                    btn.classList.remove('confirmando');
+                    btn.innerHTML = '<i class="fas fa-trash"></i>';
+                }, 4000);
+                return;
+            }
+            // 2do clic: ejecutar la eliminación
+            clearTimeout(btn._confirmTimeout);
+            delete btn.dataset.confirmando;
+            btn.classList.remove('confirmando');
+            btn.innerHTML = '<i class="fas fa-trash"></i>';
+
+            if (accion === 'eliminar' && notifId) {
+                await NotificacionesAdminManager.eliminar(notifId);
+                if (typeof actualizarContadorNotificacionesAdmin === 'function') actualizarContadorNotificacionesAdmin();
+                if (typeof generarNotificaciones === 'function') generarNotificaciones();
+            } else if (accion === 'eliminar-cita' && citaId) {
+                try {
+                    const { error: updErr } = await supabaseClient
+                        .from('citas')
+                        .update({ notificaciones: { emailEnviado: true, whatsappEnviado: true } })
+                        .eq('id', citaId);
+                    if (updErr) console.error('Error ocultando cita de notificaciones:', updErr);
+                } catch (e) {
+                    console.error('Error ocultando cita de notificaciones:', e);
+                }
+                if (typeof generarNotificaciones === 'function') generarNotificaciones();
+            }
+            return;
+        }
         
         if (origen === 'reserva' && citaId) {
             // Notificación de cita desde tabla citas
@@ -3870,8 +3957,8 @@ async function generarNotificaciones() {
     // sin datos en el popover.
     const citasConNotificacion = new Set(
         notifsAdmin
-            .filter(n => n.tipo === 'nueva_reserva' && n.cita_id)
-            .map(n => String(n.cita_id))
+            .filter(n => n.tipo === 'nueva_reserva' && n.citaId)
+            .map(n => String(n.citaId))
     );
 
     const nuevas = citas.filter(c => {
@@ -12162,12 +12249,36 @@ var cerrarPopupReserva, toggleSidebar, closeSidebar, navigateTo,
         if (!popover) return;
         if (popover.style.display === 'none' || popover.style.display === '') {
             if (typeof generarNotificaciones === 'function') generarNotificaciones();
-            popover.style.display = 'block';
+            // IMPORTANTE: display flex (no block) para que la lista interna
+            // (flex:1 + overflow-y:auto) se encoja y permita deslizar/scroll.
+            forzarScrollNotifPopover();
+            popover.style.display = 'flex';
             if (typeof window.actualizarBadgeNotif === 'function') window.actualizarBadgeNotif();
         } else {
             popover.style.display = 'none';
         }
     };
+
+    // Fuerza el layout de scroll del popover con estilos inline (ganan a
+    // cualquier CSS cacheado): popover flex-col con alto máximo y lista
+    // interna con overflow-y auto. Así el scroll funciona aunque el navegador
+    // tenga una style.css vieja en caché del service worker.
+    function forzarScrollNotifPopover() {
+        var popover = document.getElementById('notif-popover');
+        var list = document.getElementById('notif-popover-list');
+        if (popover) {
+            popover.style.maxHeight = 'min(60vh, 420px)';
+            popover.style.overflow = 'hidden';
+            popover.style.flexDirection = 'column';
+        }
+        if (list) {
+            list.style.flex = '1 1 0%';
+            list.style.minHeight = '0';
+            list.style.overflowY = 'auto';
+            list.style.WebkitOverflowScrolling = 'touch';
+        }
+    }
+    window.forzarScrollNotifPopover = forzarScrollNotifPopover;
 
     closeNotifPopover = window.closeNotifPopover = function() {
         var el = document.getElementById('notif-popover');

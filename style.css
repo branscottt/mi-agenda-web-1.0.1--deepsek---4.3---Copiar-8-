@@ -6682,6 +6682,33 @@ body {
     color: #25d366;
 }
 
+/* Botón eliminar notificación (rojo suave, hover rojo fuerte) */
+.content-panel .btn-notify.eliminar {
+    background: rgba(255, 82, 82, 0.12);
+    border-color: rgba(255, 82, 82, 0.3);
+    padding: 0.5rem 0.8rem;
+}
+.content-panel .btn-notify.eliminar i {
+    color: #ff6b6b;
+}
+.content-panel .btn-notify.eliminar:hover {
+    background: rgba(255, 82, 82, 0.3);
+    border-color: rgba(255, 82, 82, 0.9);
+    box-shadow: 0 8px 20px rgba(255, 82, 82, 0.4);
+}
+
+/* Estado de confirmación (2do clic para borrar) */
+.content-panel .btn-notify.eliminar.confirmando {
+    background: rgba(255, 82, 82, 0.45);
+    border-color: #ff4757;
+    color: #fff;
+    animation: notifConfirmPulse 0.8s infinite alternate;
+}
+@keyframes notifConfirmPulse {
+    from { box-shadow: 0 0 6px rgba(255, 71, 87, 0.4); }
+    to   { box-shadow: 0 0 18px rgba(255, 71, 87, 0.95); }
+}
+
 .content-panel .btn-notify:hover {
     background: rgba(179, 0, 255, 0.25);
     border-color: rgba(179, 0, 255, 0.8);
@@ -9567,8 +9594,22 @@ input:-moz-autofill {
 
 .notif-popover-list {
     flex: 1;
+    min-height: 0; /* clave: permite que la lista se encoja y haga scroll interno */
     overflow-y: auto;
     padding: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(179, 0, 255, 0.5) transparent;
+}
+.notif-popover-list::-webkit-scrollbar {
+    width: 6px;
+}
+.notif-popover-list::-webkit-scrollbar-thumb {
+    background: rgba(179, 0, 255, 0.45);
+    border-radius: 6px;
+}
+.notif-popover-list::-webkit-scrollbar-track {
+    background: transparent;
 }
 .notif-popover-list .notification-item {
     display: flex;
