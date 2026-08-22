@@ -1,0 +1,4 @@
+Contact: mailto:brandoncatalanmura@gmail.com
+Expires: 2027-08-22T00:00:00.000Z
+Preferred-Languages: es
+Canonical: https://agenda-organify.vercel.app/.well-known/security.txt

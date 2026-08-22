@@ -108,6 +108,20 @@ if (fs.existsSync('sw.js')) {
     console.log('   ✅ dist/sw.js copied');
 }
 
+// 4b. Copiar archivos de higiene web (robots, sitemap, security.txt)
+for (const f of ['robots.txt', 'sitemap.xml']) {
+    if (fs.existsSync(f)) {
+        fs.copyFileSync(f, path.join('dist', f));
+        console.log(`   ✅ dist/${f} copied`);
+    }
+}
+const wellKnownDir = path.join('dist', '.well-known');
+fs.mkdirSync(wellKnownDir, { recursive: true });
+if (fs.existsSync('.well-known/security.txt')) {
+    fs.copyFileSync('.well-known/security.txt', path.join(wellKnownDir, 'security.txt'));
+    console.log('   ✅ dist/.well-known/security.txt copied');
+}
+
 // 5. Copiar HTML files a dist/
 const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html'];
 for (const f of htmlFiles) {
