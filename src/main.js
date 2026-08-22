@@ -212,6 +212,10 @@ async function syncJwtSession() {
                 const { initTutorialCompartir } = await import('./share/ui/ShareTutorial.js');
                 initTutorialCompartir();
 
+                // Tutorial en video — Notificaciones (popover de la campana)
+                const { initTutorialNotificaciones } = await import('./notifications/ui/NotificationsTutorial.js');
+                initTutorialNotificaciones();
+
                 // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
                 const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');
                 initMfaSetup();
