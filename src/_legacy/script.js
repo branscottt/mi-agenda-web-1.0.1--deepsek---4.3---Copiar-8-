@@ -9299,27 +9299,6 @@ function actualizarCupo(input) {
 window.actualizarCupo = actualizarCupo;
 
 // ============================================
-// Mejora #3 – Cupo masivo por horario
-// ============================================
-function aplicarCupoAFechas(hora) {
-    const cupoStr = prompt('Ingresa el cupo deseado para el horario ' + hora + ' en todas las fechas:');
-    if (cupoStr === null) return;
-    const cupo = parseInt(cupoStr);
-    if (isNaN(cupo) || cupo < 0) { mostrarMensaje('Ingresa un número válido', 'warning'); return; }
-    if (!window.moduleDateCupos) window.moduleDateCupos = {};
-    const fechas = Array.from(selectedDates);
-    fechas.forEach(f => {
-        if (!window.moduleDateCupos[f]) window.moduleDateCupos[f] = {};
-        window.moduleDateCupos[f][hora] = cupo;
-    });
-    renderModulesList();
-    mostrarMensaje(`Cupo ${cupo} aplicado a todas las fechas para las ${hora}`, 'success');
-    const btn = document.querySelector(`.btn-mass-cupo-fila[onclick*="${hora}"]`);
-    if (btn) { btn.style.pointerEvents = 'auto'; }
-}
-window.aplicarCupoAFechas = aplicarCupoAFechas;
-
-// ============================================
 // Mejora #3 – Cupo masivo por fecha
 // ============================================
 function aplicarCupoAHorarios(fecha) {
@@ -9458,8 +9437,15 @@ async function duplicarServicio(id) {
     renderModulesList();
     saveModulesToHiddenField();
     _unsavedChanges = false;
-    // Ir al formulario
-    document.getElementById('service-creator')?.scrollIntoView({ behavior: 'smooth' });
+    // Ir al formulario: navegar a la sección crear-servicio (el id real es
+    // #section-crear-servicio; #service-creator no existe en admin.html)
+    if (typeof navigateTo === 'function') {
+        navigateTo('crear-servicio');
+    }
+    setTimeout(() => {
+        const formEl = document.getElementById('service-form');
+        if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
     mostrarMensaje('Servicio duplicado — revisa y guarda', 'info');
 }
 window.duplicarServicio = duplicarServicio;
@@ -9654,21 +9640,6 @@ function clearAllModules() {
 }
 window.clearAllModules = clearAllModules;
 
-
-function getServiceDuration() {
-    const durInput = document.getElementById('srv-duration');
-    if (durInput && durInput.value) {
-        const parsed = parseInt(durInput.value, 10);
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-    }
-    // Fallback: duración del primer módulo o 60
-    if (window.serviceModules && window.serviceModules.length > 0) {
-        const modDur = parseInt(window.serviceModules[0].duration, 10);
-        if (!isNaN(modDur) && modDur > 0) return modDur;
-    }
-    return 60;
-}
-window.getServiceDuration = getServiceDuration;
 
 // ============================================
 // RENDERIZADO DE CITAS (modificado para async)

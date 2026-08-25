@@ -1,21 +1,38 @@
 // services/ui/ServiceForm.js
 // Formulario de creacion/edicion de servicio en admin.html
 
-import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { formatearDinero } from '../../shared/infrastructure/formatters.js';
 import { getAllTrabajadores, getTrabajadoresDelServicio, asignarTrabajadoresAlServicio } from '../../workers/application/WorkersService.js';
-import { calcularHorasEfectivas } from '../../workers/domain/horarioValidation.js';
+import { calcularHorasEfectivas, getSemanaISO } from '../../workers/domain/horarioValidation.js';
 
 /**
- * Un trabajador "tiene tiempo disponible" si su horario semanal tiene
- * al menos un día activo con horas efectivas > 0.
+ * Un trabajador "tiene tiempo disponible" si tiene al menos un día activo
+ * con horas efectivas > 0 en su plantilla base (horario_semanal) O en una
+ * excepción de semana actual/futura (horario_excepciones). La sección
+ * Horarios muestra ambos como el horario del trabajador, así que el paso 4
+ * de Crear Servicio debe considerarlos igual.
  */
 function tieneDisponibilidad(w) {
     const hs = w && w.horario_semanal;
-    if (!hs || typeof hs !== 'object') return false;
-    for (let k = 1; k <= 7; k++) {
-        const dia = hs[String(k)];
-        if (dia && dia.activo && calcularHorasEfectivas(dia) > 0) return true;
+    if (hs && typeof hs === 'object') {
+        for (let k = 1; k <= 7; k++) {
+            const dia = hs[String(k)];
+            if (dia && dia.activo && calcularHorasEfectivas(dia) > 0) return true;
+        }
+    }
+    // Excepciones semanales: solo cuentan semanas actuales o futuras
+    // (una excepción vieja y sin base no debe marcar "con horario")
+    const ex = w && w.horario_excepciones;
+    if (ex && typeof ex === 'object') {
+        const semanaActual = getSemanaISO(new Date());
+        for (const weekKey of Object.keys(ex)) {
+            if (weekKey < semanaActual) continue;
+            const semana = ex[weekKey];
+            if (!semana || typeof semana !== 'object') continue;
+            for (let k = 1; k <= 7; k++) {
+                const dia = semana[String(k)];
+                if (dia && dia.activo && calcularHorasEfectivas(dia) > 0) return true;
+            }
+        }
     }
     return false;
 }
@@ -27,24 +44,9 @@ export function configurarFormularioServicio() {
     // Botón "Ver tutorial" + reproductor que se fija arriba al reproducir
     initTutorialServicio();
 
-    // Contador de caracteres en descripcion
-    const textarea = document.getElementById('srv-desc');
-    const contador = document.getElementById('char-count');
-    if (textarea && contador) {
-        textarea.addEventListener('input', function() { contador.textContent = this.value.length; });
-    }
-
-    document.getElementById('reset-form')?.addEventListener('click', () => {
-        delete form.dataset.editId;
-    });
-
-    document.getElementById('clear-image')?.addEventListener('click', function() {
-        document.getElementById('srv-image-url').value = '';
-        const fi = document.getElementById('srv-image-file');
-        if (fi) fi.value = '';
-        const fnd = document.getElementById('file-name-display');
-        if (fnd) fnd.textContent = 'Elegir imagen';
-    });
+    // NOTA: contador de caracteres, "Limpiar imagen" y submit los maneja el
+    // legacy script.js (configurarContadorCaracteres, configurarPrevisualizacionImagen,
+    // configurarFormulario). No se re-bindean aquí para evitar listeners duplicados.
 
     // Sincronizar duración con el hint del generador de módulos
     const durInput = document.getElementById('srv-duration');
@@ -60,26 +62,6 @@ export function configurarFormularioServicio() {
 
     // Cargar checkboxes de trabajadores
     cargarWorkersCheckboxes();
-
-    // Guardar trabajadores al hacer submit del form
-    // El submit lo maneja el legacy script.js, pero interceptamos para
-    // guardar la relación servicio↔trabajadores
-    const existingSubmit = form.querySelector('button[type="submit"]');
-    if (existingSubmit) {
-        existingSubmit.addEventListener('click', async (e) => {
-            const editId = form.dataset.editId;
-            if (!editId) return; // Solo en edición se necesita guardar la relación
-    
-            // Obtener workers seleccionados
-            const checkboxes = document.querySelectorAll('#service-workers-list input[type="checkbox"]:checked');
-            const selectedIds = Array.from(checkboxes).map(cb => cb.value);
-            try {
-                await asignarTrabajadoresAlServicio(editId, selectedIds);
-            } catch (err) {
-                console.error('Error guardando trabajadores del servicio:', err);
-            }
-        });
-    }
 }
 
 // Expuesta globalmente para que script.js legacy pueda llamarla al crear/editar
@@ -204,36 +186,6 @@ export function validarWorkersServicio() {
         };
     }
     return { valido: true, mensaje: '' };
-}
-
-export async function editarServicioForm(id, servicio) {
-    const form = document.getElementById('service-form');
-    if (!form) return;
-    form.dataset.editId = id;
-    document.getElementById('srv-name').value = servicio.nombre || '';
-    document.getElementById('srv-price').value = servicio.precio || 0;
-    document.getElementById('srv-desc').value = servicio.descripcion || '';
-    document.getElementById('srv-image-url').value = servicio.imagen || '';
-    const fi2 = document.getElementById('srv-image-file');
-    if (fi2) fi2.value = '';
-    const fnd2 = document.getElementById('file-name-display');
-    if (fnd2) fnd2.textContent = 'Elegir imagen';
-    document.getElementById('srv-featured').checked = servicio.destacado || false;
-    document.getElementById('srv-active').checked = servicio.activo !== false;
-    // Cargar fechas
-    const fechas = servicio.fechas || Object.keys(servicio.disponibilidad || {});
-    window.selectedDates = new Set(fechas);
-    if (typeof renderCalendar === 'function') renderCalendar();
-    // Cargar modulos
-    const modulos = Object.values(servicio.disponibilidad || {})[0] || [];
-    window.serviceModules = modulos.map((m, i) => ({ ...m, id: window.generateModuleId() }));
-    if (typeof renderModulesList === 'function') renderModulesList();
-    // Recargar checkboxes de trabajadores
-    await cargarWorkersCheckboxes();
-    // Scrollear al formulario
-    form.scrollIntoView({ behavior: 'smooth' });
-    const btn = form.querySelector('button[type="submit"]');
-    if (btn) btn.textContent = 'ACTUALIZAR SERVICIO';
 }
 
 function escapeHtml(str) {

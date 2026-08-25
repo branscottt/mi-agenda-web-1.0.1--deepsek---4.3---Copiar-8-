@@ -11,7 +11,7 @@ export async function getAllServicios(tenantId) {
     return cacheWrapper(CACHE_PREFIX, async (tid) => {
         const { data, error } = await getSupabase()
             .from(TABLE)
-            .select('id, tenant_id, nombre, descripcion, precio, duracion, imagen, activo, destacado, categoria, disponibilidad, fechas, created_at')
+            .select('id, tenant_id, nombre, descripcion, precio, duracion, imagen, activo, destacado, categoria, disponibilidad, fechas, assignment_mode, weekday_modules, date_specific_modules, module_date_cupos, created_at')
             .eq('tenant_id', String(tid).trim());
         if (error) throw error;
         return data || [];
