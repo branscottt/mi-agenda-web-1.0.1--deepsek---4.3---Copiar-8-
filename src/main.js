@@ -177,9 +177,9 @@ async function syncJwtSession() {
                 const { configurarFormularioServicio } = await import('./services/ui/ServiceForm.js');
                 configurarFormularioServicio();
 
-                const { renderAdminAppointments } = await import('./appointments/ui/AdminAppointmentList.js');
-                renderAdminAppointments('upcoming-appointments');
-
+                // NOTA: la sección "Citas Programadas" la renderiza el legacy
+                // renderAdminAppointments (script.js) vía navigateTo — el render
+                // moderno inicial aquí era sobrescrito y quedaba como trabajo muerto.
                 const { renderClientListView } = await import('./clients/ui/ClientListView.js');
                 window.renderClientListView = renderClientListView;
 
@@ -355,7 +355,8 @@ async function syncJwtSession() {
                 upsertCita: appointmentsApi.upsertCita,
                 getCitasByDate: appointmentsApi.getCitasByDate,
                 limpiarCitasExpiradas: appointmentsApi.limpiarCitasExpiradas,
-                createCitasBulk: appointmentsApi.createCitasBulk
+                createCitasBulk: appointmentsApi.createCitasBulk,
+                deleteAllCitas: appointmentsApi.deleteAllCitas
             });
 
             const serviciosApi = await import('./api/serviciosApi.js');

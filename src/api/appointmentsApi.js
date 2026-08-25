@@ -146,3 +146,21 @@ export async function limpiarCitasExpiradas(tenantId) {
     cacheClearPrefix(CACHE_PREFIX);
     return data?.length || 0;
 }
+
+/**
+ * Borra TODAS las citas del tenant (botón "Limpiar Base de Datos").
+ * El trigger trg_archivar_venta conserva el histórico en `ventas`
+ * para que el dashboard no pierda el acumulado.
+ */
+export async function deleteAllCitas(tenantId) {
+    if (!tenantId) return 0;
+    const { data, error } = await getSupabase()
+        .from(TABLE)
+        .delete()
+        .eq('tenant_id', String(tenantId).trim())
+        .select('id');
+    if (error) throw error;
+    cacheClearPrefix(CACHE_PREFIX);
+    trackEvent('appointments_cleared', { tenant_id: String(tenantId).trim(), count: data?.length || 0 });
+    return data?.length || 0;
+}

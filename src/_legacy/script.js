@@ -3587,11 +3587,20 @@ async function finalizarCita(citaId) {
     const citas = await CitasManager.getAll();
     const cita = citas.find(c => String(c.id) === String(citaId));
     
-    if (cita && await CitasManager.finalizar(citaId)) {
-        // Registrar venta en localStorage para persistencia
-        const venta = await VentasManager.registrarDesdeCita(cita);
-        VentasManager.guardarVentaLocal(venta);
-        
+    if (!cita) {
+        mostrarToast('Cita no encontrada', 'error');
+        return;
+    }
+
+    const nombreCliente = cita.contacto?.nombre || cita.nombreCliente || 'el cliente';
+    if (!confirm(`¿Marcar como completada la cita de ${nombreCliente}? Se eliminará de la lista y se registrará la venta.`)) {
+        return;
+    }
+
+    if (await CitasManager.finalizar(citaId)) {
+        // La venta queda archivada server-side por el trigger trg_archivar_venta
+        // (tabla ventas) — no se escribe localStorage (guardarVentaLocal era
+        // basura: VentasManager.getAll nunca lee 'agendapro_ventas').
         if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
         if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
         if (typeof actualizarDashboardFinanzas === 'function') actualizarDashboardFinanzas();
@@ -7699,18 +7708,52 @@ async function limpiarBaseDatos() {
 
     try{
         const tenantId = await getCurrentTenantId();
-        if (tenantId) {
-            await window.__appointmentsApi.limpiarCitasExpiradas(tenantId);
+        if (!tenantId) {
+            mostrarToast('No se pudo identificar el negocio', 'error');
+            return;
         }
+
+        let eliminadas = 0;
+        if (window.__appointmentsApi && typeof window.__appointmentsApi.deleteAllCitas === 'function') {
+            eliminadas = await window.__appointmentsApi.deleteAllCitas(tenantId);
+        } else {
+            // Fallback legacy (sin API unificada)
+            const { data, error } = await supabaseClient
+                .from('citas')
+                .delete()
+                .eq('tenant_id', String(tenantId).trim())
+                .select('id');
+            if (error) throw error;
+            eliminadas = data?.length || 0;
+        }
+
         if(typeof renderAdminAppointments === 'function') renderAdminAppointments();
         if(typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
-        mostrarToast('Base de datos de citas eliminada correctamente', 'success');
+        mostrarToast(`Base de datos de citas eliminada (${eliminadas} cita${eliminadas !== 1 ? 's' : ''})`, 'success');
     }catch(err){
         console.error('limpiarBaseDatos error', err);
         mostrarToast('Error al limpiar la base de datos', 'error');
     }
 }
 window.limpiarBaseDatos = limpiarBaseDatos;
+
+// Botón "Limpiar Base de Datos" inyectado por JS (sin onclick inline: la CSP
+// hash-based bloquea handlers inline dinámicos — patrón CitasTutorial).
+// Se crea una sola vez dentro del glass-panel de la sección de citas.
+function configurarBotonLimpiarCitas() {
+    const cont = document.getElementById('appointments-container');
+    if (!cont || document.getElementById('btn-limpiar-citas')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'btn-limpiar-citas';
+    btn.className = 'btn-small danger';
+    btn.style.cssText = 'margin-top:16px;display:inline-flex;align-items:center;gap:6px;';
+    btn.innerHTML = '<i class="fas fa-broom"></i> Limpiar Base de Datos';
+    btn.title = 'Elimina TODAS las citas de tu negocio. El historial de ventas del dashboard se conserva.';
+    btn.addEventListener('click', limpiarBaseDatos);
+    cont.appendChild(btn);
+}
+window.configurarBotonLimpiarCitas = configurarBotonLimpiarCitas;
 
 async function updateProjectedRevenue() {
     const target = document.getElementById('projected-revenue');
@@ -9753,6 +9796,17 @@ async function _renderCitasBase(contenedorId, opciones = {}) {
         }
     }
 
+    // Mapa servicio_id -> nombre real (la cita solo guarda servicio_id)
+    let mapaServicios = {};
+    if (citas.length > 0) {
+        try {
+            const servicios = await ServiciosManager.getAll();
+            (servicios || []).forEach(s => { if (s && s.id) mapaServicios[s.id] = s.nombre; });
+        } catch (e) {
+            console.warn('No se pudieron cargar nombres de servicios', e);
+        }
+    }
+
     if (citas.length === 0) {
         container.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-times"></i><p>No hay citas programadas</p></div>';
         return;
@@ -9765,7 +9819,7 @@ async function _renderCitasBase(contenedorId, opciones = {}) {
     citas.forEach(c => {
         const nombre = c.contacto?.nombre || c.nombreCliente || '—';
         const telefono = c.contacto?.telefono || c.telefonoCliente || '—';
-        const servicio = c.nombre || c.servicioNombre || '—';
+        const servicio = mapaServicios[c.servicioId] || c.servicioNombre || c.nombre || '—';
         let fechaDisplay = c.fecha || '—';
         try {
             const parsed = parseDate(c.fecha);
@@ -9912,14 +9966,34 @@ async function renderAdminAppointments() {
     const todas = await CitasManager.getAll();
     if (!todas || todas.length === 0) {
         container.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#aaa;"><i class="fas fa-calendar-times" style="font-size:48px;display:block;margin-bottom:15px;"></i><p>No hay citas programadas</p></div>';
+        configurarBotonLimpiarCitas();
         return;
     }
 
+    // Mapa servicio_id -> nombre real (la cita solo guarda servicio_id; el
+    // campo c.nombre es el placeholder 'Servicio' del mapeo legacy).
+    let mapaServicios = {};
+    try {
+        const servicios = await ServiciosManager.getAll();
+        (servicios || []).forEach(s => { if (s && s.id) mapaServicios[s.id] = s.nombre; });
+    } catch (e) {
+        console.warn('No se pudieron cargar nombres de servicios', e);
+    }
+
+    // Ordenar por fecha más próxima (fecha + hora ascendente) — el orden
+    // original era created_at DESC ("más recientes primero"), que no
+    // coincidía con el hint de la sección.
+    const ordenadas = [...todas].sort((a, b) => {
+        const fa = (a.fecha || '') + 'T' + (a.hora || '00:00');
+        const fb = (b.fecha || '') + 'T' + (b.hora || '00:00');
+        return fa.localeCompare(fb);
+    });
+
     let html = '<div class="appointments-list">';
-    todas.slice(0, 50).forEach(c => {
-        const nombre = c.contacto?.nombre || c.nombre || '—';
+    ordenadas.slice(0, 50).forEach(c => {
+        const nombre = c.contacto?.nombre || c.nombreCliente || '—';
         const telefono = c.contacto?.telefono || c.telefonoCliente || '';
-        const servicio = c.nombre || c.servicioNombre || '—';
+        const servicio = mapaServicios[c.servicioId] || c.servicioNombre || c.nombre || '—';
         const fechaDisplay = c.fecha ? (() => {
             try {
                 const parsed = new Date(c.fecha + (c.fecha.includes('T') ? '' : 'T12:00:00'));
@@ -9953,6 +10027,7 @@ async function renderAdminAppointments() {
     });
     html += '</div>';
     container.innerHTML = html;
+    configurarBotonLimpiarCitas();
 
     // Event listeners
     container.querySelectorAll('.btn-whatsapp').forEach(btn => {
@@ -11595,8 +11670,12 @@ async function abrirModalCambioFecha(citaId, serviceId, citaActual) {
 
             if(citaDate){
                 const diferenciaMs = citaDate - ahora;
+                // El admin (edición desde "Citas Programadas") puede corregir
+                // citas próximas/pasadas — el RPC reagendar_cita valida server-side
+                // (el admin conserva permiso; el cliente sigue con la regla de 24h).
+                const esEdicionAdmin = window._modoEdicionAdmin === true;
 
-                if(diferenciaMs < 24 * 60 * 60 * 1000) {
+                if(!esEdicionAdmin && diferenciaMs < 24 * 60 * 60 * 1000) {
                     let mensaje = diferenciaMs < 0 ? 'No se puede reprogramar una cita pasada' : 'No se puede reprogramar con menos de 24h de antelación';
                     mostrarToast(mensaje, 'error');
                     renderCarrito();
