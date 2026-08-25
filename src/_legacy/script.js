@@ -6038,7 +6038,8 @@ function calcularEstadoUrgenciaServicio(servicio) {
     let fechaMasCercana = null;
     let horaMasCercana = null;
 
-    if (servicio.disponibilidad && typeof servicio.disponibilidad === 'object') {
+    const tieneDisponibilidad = servicio.disponibilidad && typeof servicio.disponibilidad === 'object' && Object.keys(servicio.disponibilidad).length > 0;
+    if (tieneDisponibilidad) {
         const ahora = new Date();
         const fechas = Object.keys(servicio.disponibilidad).sort();
 
@@ -6053,6 +6054,47 @@ function calcularEstadoUrgenciaServicio(servicio) {
 
             const fechaObj = new Date(partes[0], partes[1] - 1, partes[2]);
 
+            if (fechaObj < new Date(ahora.setHours(0, 0, 0, 0))) continue;
+
+            if (fechaObj.toDateString() === new Date().toDateString()) {
+                for (const mod of modulosConCupos) {
+                    const hora = mod.hora || mod.startTime || '00:00';
+                    const horaParts = hora.match(/(\d{1,2}):(\d{2})/);
+                    if (!horaParts) continue;
+
+                    const fechaHora = new Date();
+                    fechaHora.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
+
+                    if (fechaHora > new Date()) {
+                        fechaMasCercana = fecha;
+                        horaMasCercana = hora;
+                        break;
+                    }
+                }
+            } else {
+                fechaMasCercana = fecha;
+                horaMasCercana = modulosConCupos[0].hora || modulosConCupos[0].startTime || '00:00';
+            }
+
+            if (fechaMasCercana) break;
+        }
+    } else if (servicio.modulos && servicio.modulos.length > 0 && servicio.fechas && servicio.fechas.length > 0) {
+        // Forma legacy (servicios previos al refactor de disponibilidad):
+        // modulos con hora/cupos + lista de fechas. Misma lógica de semáforo.
+        const ahora = new Date();
+        const fechas = servicio.fechas.slice().sort();
+
+        for (const fecha of fechas) {
+            const modulosConCupos = servicio.modulos.filter(m => {
+                const cupo = typeof m.cupos !== 'undefined' ? Number(m.cupos) : (typeof m.capacidad !== 'undefined' ? Number(m.capacidad) : 0);
+                return cupo > 0;
+            });
+            if (modulosConCupos.length === 0) continue;
+
+            const partes = fecha.split('-');
+            if (partes.length !== 3) continue;
+
+            const fechaObj = new Date(partes[0], partes[1] - 1, partes[2]);
             if (fechaObj < new Date(ahora.setHours(0, 0, 0, 0))) continue;
 
             if (fechaObj.toDateString() === new Date().toDateString()) {
@@ -6405,6 +6447,23 @@ async function cargarServiciosExistentes() {
             else if (accion === 'duplicar') duplicarServicio(id);
             else if (accion === 'eliminar') eliminarServicio(id);
             else if (accion === 'toggle') toggleActivoServicio(id);
+        });
+    });
+
+    // Fallback de imagen CSP-safe: el onerror inline del <img> queda bloqueado
+    // por la CSP de producción, así que el fallback se engancha por listener.
+    container.querySelectorAll('img.service-card-image[data-fallback-inicial]').forEach(img => {
+        img.addEventListener('error', function() {
+            const inicial = this.dataset.fallbackInicial || 'S';
+            const gIdx = parseInt(this.dataset.fallbackGradient || '0', 10) % SERVICE_GRADIENTS.length;
+            const div = document.createElement('div');
+            div.className = 'service-card-image service-image-fallback';
+            div.style.cssText = 'background:' + SERVICE_GRADIENTS[gIdx] + ';display:flex;align-items:center;justify-content:center;';
+            const span = document.createElement('span');
+            span.className = 'service-fallback-inicial';
+            span.textContent = inicial;
+            div.appendChild(span);
+            this.replaceWith(div);
         });
     });
 
@@ -6999,6 +7058,10 @@ async function actualizarEstadisticas() {
     if (capacityEl) capacityEl.textContent = cuposTotales;
 
     actualizarStatsHeader();
+
+    // Refrescar "Ingresos Proyectados" al recargar Mis Servicios (antes solo
+    // se actualizaba en el limpiado de 10 min o al crear una cita).
+    await updateProjectedRevenue();
 }
 window.actualizarEstadisticas = actualizarEstadisticas;
 
@@ -7077,6 +7140,13 @@ function configurarFiltros() {
             cargarServiciosExistentes();
             mostrarMensaje("Lista de servicios actualizada", "info");
         });
+    }
+
+    // Etiqueta del filtro de urgencia: corregir "Todos los estados" → "Todas
+    // las urgencias" (se hace por JS para no depender del HTML estático).
+    if (filtroUrgencia && filtroUrgencia.options.length > 0 &&
+        filtroUrgencia.options[0].textContent.trim() === 'Todos los estados') {
+        filtroUrgencia.options[0].textContent = 'Todas las urgencias';
     }
 
     // Guía de Mis Servicios: toggle del panel explicativo (mismo patrón que guia-dashboard)
@@ -7302,26 +7372,30 @@ function optimizarImagen(file, maxWidth, quality) {
 // ============================================================
 // HELPER: Renderizar imagen de servicio con fallback de nombre
 // ============================================================
+// Gradientes compartidos para el fallback de imagen (se usan también
+// en el error handler CSP-safe de cargarServiciosExistentes).
+const SERVICE_GRADIENTS = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+];
+
 function renderImagenServicio(servicio, className) {
     if (!servicio) return '';
     const imgClass = className || 'service-card-image';
     const nombre = servicio.nombre || 'S';
     const inicial = nombre.trim().charAt(0).toUpperCase();
-    const gradientIndex = (servicio.id ? String(servicio.id).length : 0) % 5;
-    const gradients = [
-        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-    ];
-    const gradient = gradients[gradientIndex];
+    const gradientIndex = (servicio.id ? String(servicio.id).length : 0) % SERVICE_GRADIENTS.length;
 
     if (servicio.imagen && servicio.imagen.trim()) {
+        // Sin onerror inline (la CSP de producción lo bloquea): el fallback se
+        // engancha con addEventListener tras el render (cargarServiciosExistentes).
         return `<img src="${escapeHtml(servicio.imagen)}" alt="${escapeHtml(nombre)}" class="${imgClass}"
-                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`;
+                     data-fallback-inicial="${inicial}" data-fallback-gradient="${gradientIndex}">`;
     } else {
-        return `<div class="${imgClass} service-image-fallback" style="background:${gradient};display:flex;align-items:center;justify-content:center;">
+        return `<div class="${imgClass} service-image-fallback" style="background:${SERVICE_GRADIENTS[gradientIndex]};display:flex;align-items:center;justify-content:center;">
                     <span class="service-fallback-inicial">${inicial}</span>
                 </div>`;
     }
@@ -10903,66 +10977,10 @@ async function exportarServiciosCSV() {
 }
 
 function configurarBotonesExportacion() {
-    const btnAdmin = document.getElementById('export-services-csv');
-    if (btnAdmin) {
-        btnAdmin.addEventListener('click', async function() {
-            const servicios = await ServiciosManager.getAll();
-            
-            if (servicios.length === 0) {
-                mostrarToast('No hay servicios para exportar', 'warning');
-                return;
-            }
-            
-            const cabeceras = ['ID', 'Nombre', 'Categoría', 'Precio', 'Descripción', 'Fechas Disponibles', 'Horarios', 'Estado', 'Destacado'];
-            
-            const filas = servicios.map(s => {
-                let fechasStr = s.fechas ? s.fechas.join('; ') : '';
-                
-                let horariosStr = '';
-                if (s.disponibilidad) {
-                    const horarios = new Set();
-                    Object.values(s.disponibilidad).forEach(mods => {
-                        (mods || []).forEach(m => {
-                            if (m.hora) horarios.add(m.hora);
-                        });
-                    });
-                    horariosStr = Array.from(horarios).join('; ');
-                }
-                
-                return [
-                    s.id,
-                    s.nombre,
-                    s.categoria,
-                    s.precio,
-                    (s.descripcion || '').replace(/,/g, ';'),
-                    fechasStr,
-                    horariosStr,
-                    s.activo ? 'Activo' : 'Inactivo',
-                    s.destacado ? 'Sí' : 'No'
-                ];
-            });
-            
-            const csvContent = [
-                cabeceras.join(','),
-                ...filas.map(f => f.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-            ].join('\n');
-            
-            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
-            link.setAttribute('href', url);
-            link.setAttribute('download', `todos_servicios_${new Date().toISOString().slice(0,10)}.csv`);
-            link.style.visibility = 'hidden';
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            mostrarToast(`Exportados ${servicios.length} servicios`, 'success');
-        });
-    }
-    
+    // El botón "Exportar CSV" del panel admin (Mis Servicios) se eliminó en
+    // admin.html: no aporta valor real para una pyme (la lista se ve en
+    // pantalla y los datos viven en la web). Solo se conserva el export del
+    // catálogo público del cliente.
     const btnCliente = document.getElementById('export-filtered-csv');
     if (btnCliente) {
         btnCliente.addEventListener('click', exportarServiciosCSV);
