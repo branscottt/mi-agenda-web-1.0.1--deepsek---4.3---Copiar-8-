@@ -3673,10 +3673,27 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
         return;
     }
 
-    todas.sort((a, b) => new Date(b.creadoEn || 0) - new Date(a.creadoEn || 0));
+    // Servicios expirados PRIMERO, como bloque aparte ("Tus servicios");
+    // el resto ordenado por fecha (más reciente arriba).
+    todas.sort((a, b) => {
+        const aExp = a.tipo === 'servicio-expirado' ? 1 : 0;
+        const bExp = b.tipo === 'servicio-expirado' ? 1 : 0;
+        if (aExp !== bExp) return bExp - aExp;
+        return new Date(b.creadoEn || 0) - new Date(a.creadoEn || 0);
+    });
 
     let html = '';
+    let headerServiciosPuesto = false;
     todas.forEach(item => {
+        if (item.tipo === 'servicio-expirado' && !headerServiciosPuesto) {
+            headerServiciosPuesto = true;
+            const cantExpirados = todas.filter(i => i.tipo === 'servicio-expirado').length;
+            html += `
+                <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:rgba(255,23,68,0.12);border-bottom:1px solid rgba(255,23,68,0.25);font-size:0.72rem;font-weight:700;color:#ff6b81;text-transform:uppercase;letter-spacing:0.4px;">
+                    <i class="fas fa-hourglass-end"></i> Tus servicios — ${cantExpirados} expirado(s)
+                </div>
+            `;
+        }
         if (item.tipoOrigen === 'reserva') {
             const nombre = item.contacto?.nombre || item.nombreCliente || 'Cliente';
             const telefono = item.contacto?.telefono || item.telefonoCliente || '';
@@ -3750,6 +3767,25 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
                         ${tieneFechaHora && email ? `<a href="${mailtoLink}" target="_blank" class="btn-notify email" data-tipo="email"><i class="fas fa-envelope"></i> Email</a>` : ''}
                         ${tieneFechaHora && telefono ? `<a href="${waLink}" target="_blank" class="btn-notify whatsapp" data-tipo="whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>` : ''}
                         <button class="btn-notify eliminar" data-accion="eliminar" title="Eliminar notificación"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            `;
+        } else if (item.tipo === 'servicio-expirado') {
+            // Aviso de servicio expirado: la card desapareció del listado,
+            // el admin puede agregar nuevas fechas desde aquí.
+            const meta = item.metadata || {};
+            const nombreServ = meta.servicio_nombre || (item.cliente && item.cliente.nombre) || 'Servicio';
+
+            html += `
+                <div class="notification-item admin-change" style="border-left:3px solid #ff1744;" data-notif-id="${item.id}" data-origen="cambio">
+                    <div class="notification-info">
+                        <strong><i class="fas fa-hourglass-end"></i> Servicio expirado</strong>
+                        <span>${escapeHtml(nombreServ)}</span>
+                        <small style="display:block; font-size:0.8rem; opacity:0.8;">Todas sus fechas y horarios ya pasaron. Agrega nuevas fechas para que vuelva a estar disponible.</small>
+                    </div>
+                    <div class="notification-actions">
+                        <button class="btn-notify editar-servicio" data-accion="editar-servicio" data-servicio-db-id="${meta.servicio_id || ''}"><i class="fas fa-calendar-plus"></i> Dar más fechas</button>
+                        <button class="btn-notify eliminar" data-accion="eliminar-servicio" data-servicio-db-id="${meta.servicio_id || ''}" title="Eliminar servicio"><i class="fas fa-trash"></i> Eliminar</button>
                     </div>
                 </div>
             `;
@@ -3879,7 +3915,43 @@ function setupNotificacionesListeners() {
             }
             return;
         }
-        
+
+        // ── Acción: agregar fechas a un servicio expirado ──
+        if (accion === 'editar-servicio') {
+            const servicioId = btn.dataset.servicioDbId;
+            if (servicioId && typeof editarServicio === 'function') {
+                if (typeof closeNotifPopover === 'function') closeNotifPopover();
+                editarServicio(servicioId);
+            }
+            return;
+        }
+
+        // ── Acción: eliminar el servicio expirado (DOBLE CONFIRMACIÓN) ──
+        if (accion === 'eliminar-servicio') {
+            const servicioId = btn.dataset.servicioDbId;
+            if (!servicioId) return;
+            // 1er clic: confirmación inline (se cancela sola a los 4s)
+            if (btn.dataset.confirmando !== '1') {
+                btn.dataset.confirmando = '1';
+                btn.classList.add('confirmando');
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ¿Seguro?';
+                clearTimeout(btn._confirmTimeout);
+                btn._confirmTimeout = setTimeout(() => {
+                    delete btn.dataset.confirmando;
+                    btn.classList.remove('confirmando');
+                    btn.innerHTML = '<i class="fas fa-trash"></i> Eliminar';
+                }, 4000);
+                return;
+            }
+            // 2do clic: ejecutar la eliminación (eliminarServicio pide su propio confirm)
+            clearTimeout(btn._confirmTimeout);
+            delete btn.dataset.confirmando;
+            btn.classList.remove('confirmando');
+            if (typeof closeNotifPopover === 'function') closeNotifPopover();
+            if (typeof eliminarServicio === 'function') eliminarServicio(servicioId);
+            return;
+        }
+
         if (origen === 'reserva' && citaId) {
             // Notificación de cita desde tabla citas
             let citas = await CitasManager.getAll();
@@ -3943,6 +4015,18 @@ function setupNotificacionesListeners() {
 }
 
 async function generarNotificaciones() {
+    // Sincronizar avisos de servicios expirados (idempotente): así la campana
+    // muestra el bloque "Tus servicios" aunque el admin no haya abierto Mis Servicios.
+    try {
+        const serviciosSync = await ServiciosManager.getAll();
+        const expiradosSync = (serviciosSync || [])
+            .filter(s => calcularEstadoUrgenciaServicio(s).estado === 'expirado')
+            .map(s => ({ id: s.id, nombre: s.nombre, activo: s.activo !== false }));
+        await notificarServiciosExpirados(expiradosSync, true);
+    } catch (e) {
+        console.warn('Sync servicios expirados en campana:', e);
+    }
+
     const citas = await CitasManager.getAll();
     const ahora = new Date();
     const limiteNuevas = 24 * 60 * 60 * 1000;
@@ -5922,6 +6006,131 @@ function guardarServicio(servicio) {
 }
 window.guardarServicio = guardarServicio;
 
+// ============================================
+// CÁLCULO DE ESTADO DE URGENCIA DE UN SERVICIO
+// Devuelve { estado, fechaMasCercana, horaMasCercana }.
+// estado: 'normal' | 'urgent-soon' | 'urgent-now' | 'expirado'
+// ('expirado' = sin fecha futura con cupos > 0: todas las fechas/horarios pasaron)
+// ============================================
+function calcularEstadoUrgenciaServicio(servicio) {
+    let estadoUrgencia = 'normal';
+    let fechaMasCercana = null;
+    let horaMasCercana = null;
+
+    if (servicio.disponibilidad && typeof servicio.disponibilidad === 'object') {
+        const ahora = new Date();
+        const fechas = Object.keys(servicio.disponibilidad).sort();
+
+        for (const fecha of fechas) {
+            const modulos = servicio.disponibilidad[fecha] || [];
+            const modulosConCupos = modulos.filter(m => Number(m.cupos || 0) > 0);
+
+            if (modulosConCupos.length === 0) continue;
+
+            const partes = fecha.split('-');
+            if (partes.length !== 3) continue;
+
+            const fechaObj = new Date(partes[0], partes[1] - 1, partes[2]);
+
+            if (fechaObj < new Date(ahora.setHours(0, 0, 0, 0))) continue;
+
+            if (fechaObj.toDateString() === new Date().toDateString()) {
+                for (const mod of modulosConCupos) {
+                    const hora = mod.hora || mod.startTime || '00:00';
+                    const horaParts = hora.match(/(\d{1,2}):(\d{2})/);
+                    if (!horaParts) continue;
+
+                    const fechaHora = new Date();
+                    fechaHora.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
+
+                    if (fechaHora > new Date()) {
+                        fechaMasCercana = fecha;
+                        horaMasCercana = hora;
+                        break;
+                    }
+                }
+            } else {
+                fechaMasCercana = fecha;
+                horaMasCercana = modulosConCupos[0].hora || modulosConCupos[0].startTime || '00:00';
+            }
+
+            if (fechaMasCercana) break;
+        }
+    }
+
+    if (fechaMasCercana) {
+        estadoUrgencia = UrgenciaManager.calcularEstado(fechaMasCercana, horaMasCercana);
+    } else {
+        estadoUrgencia = 'expirado';
+    }
+
+    return { estado: estadoUrgencia, fechaMasCercana, horaMasCercana };
+}
+window.calcularEstadoUrgenciaServicio = calcularEstadoUrgenciaServicio;
+
+// ============================================
+// NOTIFICACIÓN DE SERVICIOS EXPIRADOS
+// La card expirada se elimina del listado; aquí se avisa en la campana con
+// acción "Agregar fechas" (idempotente) y se limpian avisos de servicios
+// que volvieron a tener fechas futuras.
+// ============================================
+async function notificarServiciosExpirados(expirados, skipRefresh) {
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (!tenantId) return;
+
+        const tipo = 'servicio-expirado';
+        const notifs = await NotificacionesAdminManager.getAll();
+        const existentes = notifs.filter(n => n.tipo === tipo);
+        const idsExpirados = new Set((expirados || []).map(s => String(s.id)));
+
+        let huboCambios = false;
+
+        // 1) Crear aviso para servicios expirados ACTIVOS que aún no tienen notificación
+        for (const s of (expirados || [])) {
+            if (!s.activo) continue;
+            const yaAvisado = existentes.some(n => n.metadata && String(n.metadata.servicio_id) === String(s.id));
+            if (yaAvisado) continue;
+
+            const { error } = await supabaseClient
+                .from('notificaciones_admin')
+                .insert({
+                    id: 'notif-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+                    tenant_id: String(tenantId).trim(),
+                    tipo,
+                    cliente: { nombre: s.nombre },
+                    leido: false,
+                    creado_en: new Date().toISOString(),
+                    metadata: {
+                        mensaje: `El servicio "${s.nombre}" expiró: todas sus fechas y horarios ya pasaron.`,
+                        servicio_id: String(s.id),
+                        servicio_nombre: s.nombre,
+                        accion: 'editar-servicio'
+                    }
+                });
+
+            if (error) console.error('Error creando notificación de servicio expirado:', error);
+            else huboCambios = true;
+        }
+
+        // 2) Limpiar avisos de servicios que ya no están expirados (recuperados)
+        for (const n of existentes) {
+            const sid = n.metadata && n.metadata.servicio_id;
+            if (sid && !idsExpirados.has(String(sid))) {
+                await NotificacionesAdminManager.eliminar(n.id);
+                huboCambios = true;
+            }
+        }
+
+        if (huboCambios && !skipRefresh && typeof generarNotificaciones === 'function') {
+            generarNotificaciones();
+        }
+    } catch (e) {
+        console.error('Error en notificarServiciosExpirados:', e);
+    }
+}
+window.notificarServiciosExpirados = notificarServiciosExpirados;
+
 async function cargarServiciosExistentes() {
     const container = document.getElementById('services-cards');
     if (!container) {
@@ -5962,57 +6171,17 @@ async function cargarServiciosExistentes() {
     }
 
     let html = '';
+    const expirados = [];
 
     servicios.forEach(servicio => {
-        let estadoUrgencia = 'normal';
-        let fechaMasCercana = null;
-        let horaMasCercana = null;
-        
-        if (servicio.disponibilidad && typeof servicio.disponibilidad === 'object') {
-            const ahora = new Date();
-            const fechas = Object.keys(servicio.disponibilidad).sort();
-            
-            for (const fecha of fechas) {
-                const modulos = servicio.disponibilidad[fecha] || [];
-                const modulosConCupos = modulos.filter(m => Number(m.cupos || 0) > 0);
-                
-                if (modulosConCupos.length === 0) continue;
-                
-                const partes = fecha.split('-');
-                if (partes.length !== 3) continue;
-                
-                const fechaObj = new Date(partes[0], partes[1] - 1, partes[2]);
-                
-                if (fechaObj < new Date(ahora.setHours(0, 0, 0, 0))) continue;
-                
-                if (fechaObj.toDateString() === new Date().toDateString()) {
-                    for (const mod of modulosConCupos) {
-                        const hora = mod.hora || mod.startTime || '00:00';
-                        const horaParts = hora.match(/(\d{1,2}):(\d{2})/);
-                        if (!horaParts) continue;
-                        
-                        const fechaHora = new Date();
-                        fechaHora.setHours(parseInt(horaParts[1]), parseInt(horaParts[2]), 0, 0);
-                        
-                        if (fechaHora > new Date()) {
-                            fechaMasCercana = fecha;
-                            horaMasCercana = hora;
-                            break;
-                        }
-                    }
-                } else {
-                    fechaMasCercana = fecha;
-                    horaMasCercana = modulosConCupos[0].hora || modulosConCupos[0].startTime || '00:00';
-                }
-                
-                if (fechaMasCercana) break;
-            }
-        }
-        
-        if (fechaMasCercana) {
-            estadoUrgencia = UrgenciaManager.calcularEstado(fechaMasCercana, horaMasCercana);
-        } else {
-            estadoUrgencia = 'expirado';
+        const { estado: estadoUrgencia, fechaMasCercana, horaMasCercana } = calcularEstadoUrgenciaServicio(servicio);
+
+        // Card expirada (todas sus fechas/horarios ya pasaron o cupos en 0):
+        // se elimina del listado automáticamente. Se avisa por notificaciones
+        // (solo servicios activos) para que el admin pueda agregar fechas.
+        if (estadoUrgencia === 'expirado') {
+            expirados.push({ id: servicio.id, nombre: servicio.nombre, activo: servicio.activo !== false });
+            return;
         }
         
         const urgenciaClass = estadoUrgencia !== 'normal' && estadoUrgencia !== 'expirado' ? estadoUrgencia : '';
@@ -6192,6 +6361,16 @@ async function cargarServiciosExistentes() {
         `;
     });
 
+    if (html === '') {
+        html = `
+            <div class="empty-state" id="no-services-future">
+                <i class="fas fa-hourglass-end"></i>
+                <h4>No hay servicios con fechas futuras</h4>
+                <p>Todos tus servicios expiraron. Agrega nuevas fechas desde la campana de notificaciones (⏳ Servicio expirado) o crea un servicio nuevo.</p>
+            </div>
+        `;
+    }
+
     container.innerHTML = html;
 
     // CSP: los onclick inline quedan bloqueados (nonce/hash anulan 'unsafe-inline').
@@ -6218,6 +6397,10 @@ async function cargarServiciosExistentes() {
     });
 
     actualizarEstadisticas();
+
+    // Avisar por notificaciones los servicios expirados (idempotente) y
+    // limpiar avisos de servicios que ya volvieron a tener fechas futuras.
+    notificarServiciosExpirados(expirados);
 
     const btnPrimerServicio = document.getElementById('create-first-service');
     if (btnPrimerServicio) {
@@ -6768,10 +6951,14 @@ window.actualizarServicio = actualizarServicio;
 async function actualizarEstadisticas() {
     const servicios = await ServiciosManager.getAll();
 
-    const total = servicios.length;
-    const activos = servicios.filter(s => s.activo).length;
-    const destacados = servicios.filter(s => s.destacado && s.activo).length;
-    const cuposTotales = servicios.reduce((sum, s) => {
+    // Solo cuentan los servicios con fechas futuras (las cards expiradas ya
+    // no se muestran en el listado; los contadores deben coincidir con lo visible)
+    const visibles = servicios.filter(s => calcularEstadoUrgenciaServicio(s).estado !== 'expirado');
+
+    const total = visibles.length;
+    const activos = visibles.filter(s => s.activo).length;
+    const destacados = visibles.filter(s => s.destacado && s.activo).length;
+    const cuposTotales = visibles.reduce((sum, s) => {
         if(s.disponibilidad){
             const flat = [].concat(...Object.values(s.disponibilidad || {}));
             const ssum = flat.reduce((a,m) => a + (Number(m.cupos || 0)), 0);
@@ -6809,7 +6996,7 @@ async function actualizarStatsHeader() {
     const statClientes = document.getElementById('statClientes');
 
     if (statServicios) {
-        const activos = servicios.filter(s => s.activo).length;
+        const activos = servicios.filter(s => s.activo && calcularEstadoUrgenciaServicio(s).estado !== 'expirado').length;
         statServicios.textContent = activos;
     }
 

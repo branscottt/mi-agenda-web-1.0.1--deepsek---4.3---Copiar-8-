@@ -10,7 +10,7 @@
 // 'tutoriales'). CSP: media-src incluye el origen de Supabase
 // (vercel.json + server.py) — sin cambios necesarios.
 // ============================================================
-const VIDEO_TUTORIAL_NOTIF_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-notificaciones.mp4?v=1';
+const VIDEO_TUTORIAL_NOTIF_URL = 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-notificaciones-hd.mp4?v=2';
 
 // El reproductor dentro del popover debe ser compacto (el popover mide
 // 340px × ~60vh). Al quedar FIJO (reparentado a <body>) rigen las reglas
