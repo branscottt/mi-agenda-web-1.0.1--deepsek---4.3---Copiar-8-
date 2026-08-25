@@ -4281,8 +4281,13 @@ async function verificarProteccionRutas() {
 
         // Si NO hay sesión
         if (!session) {
-            // Permitir acceso solo a login.html
-            if (pathname !== 'login.html' && pathname !== '') {
+            // Permitir acceso a login.html, la raíz y cliente.html (link compartido).
+            // cliente.html sin sesión es el flujo legítimo del cliente externo: entra
+            // con ?tenant=XXX, el RPC set_tenant_anon valida que el tenant exista y
+            // esté activo, y el RLS protege los datos. Antes se redirigía a login.html
+            // y el catálogo + formulario de registro quedaban inalcanzables para
+            // clientes externos (bug crítico verificado en prod).
+            if (pathname !== 'login.html' && pathname !== '' && pathname !== 'cliente.html') {
                 console.log('No hay sesión, redirigiendo a login');
                 window.location.href = 'login.html';
             }
@@ -10568,7 +10573,6 @@ function actualizarGridCliente(servicios) {
             });
         }
 
-        const rating = (4.5 + Math.random() * 0.5).toFixed(1);
 
         html += `
         <div class="service-card" data-service-id="${servicio.id}">
@@ -10601,9 +10605,6 @@ function actualizarGridCliente(servicios) {
                     <span class="capacity">
                         <i class="fas fa-users"></i>
                         ${ totalCupos > 0 ? `${totalCupos} cupos totales en ${fechasConCupos} fecha(s)` : '<span class="badge agotado">AGOTADO</span>' }
-                    </span>
-                    <span class="rating">
-                        <i class="fas fa-star"></i> ${rating}
                     </span>
                 </div>
                 
@@ -11285,17 +11286,11 @@ async function abrirModalReserva(serviceId) {
     if(selectHora) selectHora.addEventListener('change', validarFormularioReserva);
     if(checkbox) checkbox.addEventListener('change', validarFormularioReserva);
 
-    if(btnConfirm){
-        btnConfirm.addEventListener('click', function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            if(idCitaEnEdicion){
-                confirmarCambioFecha(reprogramInfo.citaId, reprogramInfo.serviceId, reprogramInfo.citaActual);
-            } else {
-                confirmarReserva(e);
-            }
-        });
-    }
+    // El click del botón se enlaza UNA sola vez vía btnConfirm.onclick (arriba, línea ~11142).
+    // Antes había además un addEventListener('click') duplicado que se acumulaba entre
+    // aperturas del popup y disparaba confirmarReserva/confirmarCambioFecha DOS veces por
+    // click (toasts contradictorios éxito+error: "Reserva ya en proceso" / "La nueva
+    // fecha/hora debe ser diferente"). El guard dataset.reserving ya protege el doble submit.
 }
 window.abrirModalReserva = abrirModalReserva;
 

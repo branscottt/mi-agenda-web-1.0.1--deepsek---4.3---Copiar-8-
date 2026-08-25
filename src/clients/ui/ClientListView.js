@@ -5,7 +5,7 @@ import { getAllCitas } from '../../appointments/application/AppointmentService.j
 import { getVentasArchivadas } from '../../api/appointmentsApi.js';
 import { getAllServicios } from '../../api/serviciosApi.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
-import { formatearDinero, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
+import { formatearDinero, formatDate, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 
 // ========== DATOS ==========
@@ -165,9 +165,10 @@ function renderLista(container) {
 
 function renderGridHtml(filtrados) {
     let html = '';
+    const hoyLocal = formatDate(new Date());
     filtrados.forEach(cl => {
         const proxCita = cl.citas
-            .filter(c => c.fecha >= new Date().toISOString().split('T')[0])
+            .filter(c => c.fecha >= hoyLocal)
             .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
 
         html += `

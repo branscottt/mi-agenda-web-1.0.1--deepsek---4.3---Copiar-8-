@@ -82,7 +82,9 @@ export async function verificarProteccionRutas() {
     const pathname = (window.location.pathname || '').split('/').pop() || '';
 
     if (!session) {
-        if (pathname !== 'login.html' && pathname !== '') {
+        // cliente.html sin sesión es el flujo legítimo del link compartido (?tenant=XXX):
+        // el cliente externo no tiene cuenta; set_tenant_anon + RLS protegen los datos.
+        if (pathname !== 'login.html' && pathname !== '' && pathname !== 'cliente.html') {
             window.location.href = 'login.html';
         }
         return;
