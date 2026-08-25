@@ -14910,3 +14910,111 @@ input:-moz-autofill {
     .tutorial-drag-bar { display: flex; }
     .tutorial-video-wrap.tutorial-fixed .tutorial-fixed-hint { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   HEADER POLISH (FIX v14) — banda superior full-bleed
+   Problema medido: .admin-screen/.client-screen tienen padding 20px
+   (móvil 10px) y .profile-header arrancaba a 20px/10px del borde
+   superior y de los lados → header "cortado". Además el degradado
+   decorativo .profile-header::before (z-index:-1) nunca se veía:
+   el fondo opaco de .admin-screen/.client-screen inyectado por la
+   config visual del tenant se pinta encima (orden de pintura CSS)
+   → la parte superior quedaba plana y el header era un rectángulo
+   card_bg flotante sin radio ni sombra.
+   Fix: banda full-bleed (márgenes negativos = padding de pantalla),
+   esquinas inferiores redondeadas, glow morado sutil sobre el color
+   de tarjeta del tenant (var(--card-bg) respeta "Personalizar
+   Estilo"), header transparente encima (override con especificidad
+   mayor al !important del tenant — mismo patrón que has-cover).
+   Estado con portada (has-cover): la imagen sangra a los bordes con
+   el mismo radio; la superposición del header y el logo con borde
+   se conservan intactos. CSS 100% aditivo; no toca HTML/JS ni
+   seguridad. Solo .admin-screen/.client-screen (login y otras
+   pantallas no se tocan).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* El degradado viejo (z-index:-1) quedaba oculto bajo el fondo de
+   pantalla; la banda propia lo reemplaza. */
+.admin-screen .profile-header::before,
+.client-screen .profile-header::before {
+    display: none;
+}
+
+/* Desktop y base: banda full-bleed (pantalla con padding 20px) */
+@media (min-width: 769px) {
+    .admin-screen .profile-header,
+    .client-screen .profile-header {
+        /* width:100% dejaría la banda 40px corta a la derecha
+           (box = content-box + margen negativo no estira);
+           calc(100% + 40px) la hace exactamente del ancho del viewport */
+        width: calc(100% + 40px);
+        margin: -20px -20px 24px;
+        border-radius: 0 0 24px 24px;
+        /* Fallback: color sólido del tenant (si color-mix no aplica) */
+        background: var(--card-bg, #1a1a2e);
+        background:
+            radial-gradient(120% 90% at 50% -10%,
+                color-mix(in srgb, var(--primary-color, #9d4edd) 30%, transparent),
+                transparent 55%),
+            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 45%),
+            var(--card-bg, #1a1a2e);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    /* Header transparente sobre la banda (anula el card_bg inyectado
+       con !important por la config visual; especificidad mayor).
+       El padding horizontal restaura el inset de 20px que daba el
+       padding de pantalla (la banda ahora es full-bleed). */
+    .admin-screen .admin-header,
+    .client-screen .client-header {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    /* Con portada: la imagen ya es 100% del ancho de la banda
+       (full-bleed); solo se alinea el radio inferior al de la banda */
+    .profile-header.has-cover .cover-banner-container {
+        border-radius: 0 0 24px 24px;
+    }
+}
+
+/* Móvil/tablet (≤768px): pantalla con padding 10px */
+@media (max-width: 768px) {
+    .admin-screen .profile-header,
+    .client-screen .profile-header {
+        width: calc(100% + 20px);
+        margin: -10px -10px 16px;
+        border-radius: 0 0 16px 16px;
+        background: var(--card-bg, #1a1a2e);
+        background:
+            radial-gradient(120% 90% at 50% -10%,
+                color-mix(in srgb, var(--primary-color, #9d4edd) 30%, transparent),
+                transparent 55%),
+            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 45%),
+            var(--card-bg, #1a1a2e);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .admin-screen .admin-header,
+    .client-screen .client-header {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    .profile-header.has-cover .cover-banner-container {
+        border-radius: 0 0 16px 16px;
+    }
+}
+
+/* Móvil pequeño (≤480px): radio más compacto */
+@media (max-width: 480px) {
+    .admin-screen .profile-header,
+    .client-screen .profile-header {
+        margin: -10px -10px 14px;
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+    }
+    .profile-header.has-cover .cover-banner-container {
+        border-radius: 0 0 12px 12px;
+    }
+}
