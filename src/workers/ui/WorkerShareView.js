@@ -70,9 +70,9 @@ export async function renderWorkerShare(containerId) {
         btn.addEventListener('click', () => {
             const link = btn.dataset.link || '';
             if (btn.dataset.shareAction === 'copiar') {
-                window.__copiarLinkTrabajador(btn, link);
+                if (typeof window.__copiarLinkTrabajador === 'function') window.__copiarLinkTrabajador(btn, link);
             } else if (btn.dataset.shareAction === 'whatsapp') {
-                window.__whatsappTrabajador(link, btn.dataset.nombre || '');
+                if (typeof window.__whatsappTrabajador === 'function') window.__whatsappTrabajador(link, btn.dataset.nombre || '');
             }
         });
     });
@@ -80,16 +80,43 @@ export async function renderWorkerShare(containerId) {
 
 export function exposeShareGlobals() {
     window.__copiarLinkTrabajador = async (btn, link) => {
+        let copiado = false;
         try {
-            await navigator.clipboard.writeText(link);
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(link);
+                copiado = true;
+            }
+        } catch (e) {
+            // Clipboard API no disponible o permiso denegado -> fallback abajo
+        }
+
+        if (!copiado) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = link;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                ta.setSelectionRange(0, 99999);
+                copiado = document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (e) {
+                copiado = false;
+            }
+        }
+
+        if (copiado) {
             btn.classList.add('copied');
             btn.innerHTML = '<i class="fas fa-check"></i>';
             setTimeout(() => {
                 btn.classList.remove('copied');
                 btn.innerHTML = '<i class="fas fa-copy"></i>';
             }, 2000);
-        } catch {
             mostrarToast('Enlace copiado al portapapeles', 'success');
+        } else {
+            mostrarToast('No se pudo copiar el enlace. Selecciónalo manualmente en el campo.', 'error');
         }
     };
 
