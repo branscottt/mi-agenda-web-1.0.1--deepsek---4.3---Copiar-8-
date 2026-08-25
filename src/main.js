@@ -220,6 +220,10 @@ async function syncJwtSession() {
                 const { initTutorialCitas } = await import('./appointments/ui/CitasTutorial.js');
                 initTutorialCitas();
 
+                // Tutorial en video — Mi Equipo
+                const { initTutorialEquipo } = await import('./workers/ui/EquipoTutorial.js');
+                initTutorialEquipo();
+
                 // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
                 const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');
                 initMfaSetup();
