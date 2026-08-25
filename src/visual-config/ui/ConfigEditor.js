@@ -6,11 +6,16 @@ import { getVisualConfig, saveVisualConfig, aplicarConfigVisual, TEMAS_PREDEFINI
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 
+// Snapshot de la config cargada: conserva valores de campos ya no editables
+// (tipografía, CSS personalizado) para que guardar NO los borre.
+let _configSnapshot = null;
+
 export async function initConfigEditor(containerId = 'visual-config-editor') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
     const config = await getVisualConfig();
+    _configSnapshot = config;
 
     container.innerHTML = `
         <div class="config-editor">
@@ -18,7 +23,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- GUÍA RÁPIDA PASO A PASO -->
             <div class="step-guide">
                 <i class="fas fa-info-circle"></i>
-                <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores, tipografía y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
+                <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
             </div>
 
             <!-- PASO 1: TEMAS RÁPIDOS -->
@@ -73,54 +78,9 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
-            <!-- PASO 3: TIPOGRAFÍA Y ESTILO -->
+            <!-- PASO 3: LOGO -->
             <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-font"></i> 3. Tipografía y Estilo</h4>
-                <p class="field-hint" style="margin-bottom:10px;">Define la fuente, el redondeo de esquinas y la velocidad de animación.</p>
-                <div class="form-row two-cols">
-                    <div class="input-with-label">
-                        <label><i class="fas fa-text-height"></i> Fuente</label>
-                        <select id="cfg-font" class="config-select">
-                            <option value="'Poppins', sans-serif" ${config.font_family.includes('Poppins') ? 'selected' : ''}>Poppins</option>
-                            <option value="'Inter', sans-serif" ${config.font_family.includes('Inter') ? 'selected' : ''}>Inter</option>
-                            <option value="'Montserrat', sans-serif" ${config.font_family.includes('Montserrat') ? 'selected' : ''}>Montserrat</option>
-                            <option value="'Playfair Display', serif" ${config.font_family.includes('Playfair') ? 'selected' : ''}>Playfair Display</option>
-                            <option value="'Roboto', sans-serif" ${config.font_family.includes('Roboto') ? 'selected' : ''}>Roboto</option>
-                        </select>
-                    </div>
-                    <div class="input-with-label">
-                        <label><i class="fas fa-square"></i> Borde redondo</label>
-                        <select id="cfg-radius" class="config-select">
-                            <option value="4px" ${config.border_radius === '4px' || config.border_radius == 4 ? 'selected' : ''}>Cuadrado (4px)</option>
-                            <option value="8px" ${config.border_radius === '8px' || config.border_radius == 8 ? 'selected' : ''}>Suave (8px)</option>
-                            <option value="12px" ${config.border_radius === '12px' || config.border_radius == 12 ? 'selected' : ''}>Redondeado (12px)</option>
-                            <option value="16px" ${config.border_radius === '16px' || config.border_radius == 16 ? 'selected' : ''}>Muy redondeado (16px)</option>
-                            <option value="50%" ${config.border_radius === '50%' ? 'selected' : ''}>Píldora (50%)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row two-cols" style="margin-top:10px;">
-                    <div class="input-with-label">
-                        <label><i class="fas fa-hourglass-half"></i> Velocidad animación</label>
-                        <select id="cfg-anim-speed" class="config-select">
-                            <option value="0.15" ${config.animation_speed == 0.15 ? 'selected' : ''}>Rápido</option>
-                            <option value="0.3" ${config.animation_speed == 0.3 ? 'selected' : ''}>Normal</option>
-                            <option value="0.5" ${config.animation_speed == 0.5 ? 'selected' : ''}>Lento</option>
-                        </select>
-                    </div>
-                    <div class="input-with-label">
-                        <label><i class="fas fa-moon"></i> Modo</label>
-                        <select id="cfg-theme-mode" class="config-select">
-                            <option value="dark" ${config.theme_mode !== 'light' ? 'selected' : ''}>Oscuro</option>
-                            <option value="light" ${config.theme_mode === 'light' ? 'selected' : ''}>Claro</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PASO 4: LOGO -->
-            <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-image"></i> 4. Logo</h4>
+                <h4 class="config-section-title"><i class="fas fa-image"></i> 3. Logo</h4>
                 <p class="field-hint" style="margin-bottom:10px;">Sube el logo de tu negocio. Aparecerá en la vista de tus clientes.</p>
                 <div class="logo-input-row">
                     <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
@@ -140,9 +100,9 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
-            <!-- PASO 5: PORTADA / BANNER -->
+            <!-- PASO 4: PORTADA / BANNER -->
             <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-panorama"></i> 5. Portada / Banner</h4>
+                <h4 class="config-section-title"><i class="fas fa-panorama"></i> 4. Portada / Banner</h4>
                 <p class="field-hint" style="margin-bottom:10px;">Imagen de portada que se muestra en la parte superior de tu perfil.</p>
                 <div class="logo-input-row">
                     <input type="url" id="cfg-cover" class="config-input" value="${escapeAttr(config.cover_url || '')}" placeholder="https://ejemplo.com/portada.jpg" style="flex:1;">
@@ -162,9 +122,9 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
-            <!-- PASO 6: REDES SOCIALES -->
+            <!-- PASO 5: REDES SOCIALES -->
             <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-share-alt"></i> 6. Redes Sociales</h4>
+                <h4 class="config-section-title"><i class="fas fa-share-alt"></i> 5. Redes Sociales</h4>
                 <p class="field-hint" style="margin-bottom:10px;">Agrega los enlaces a tus redes sociales para que tus clientes puedan ver tus trabajos desde la sección "Mis Reservas".</p>
                 <div class="form-row two-cols">
                     <div class="input-with-label">
@@ -178,13 +138,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                         <span class="field-hint" style="font-size:0.75rem;">Enlace completo a tu perfil de TikTok</span>
                     </div>
                 </div>
-            </div>
-
-            <!-- PASO 7: CSS PERSONALIZADO -->
-            <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-code"></i> 7. CSS Personalizado <span class="field-hint" style="display:inline;font-weight:400;font-size:0.75rem;">(solo si sabes código)</span></h4>
-                <p class="field-hint" style="margin-bottom:8px;">Si tienes conocimientos de CSS, puedes escribir estilos avanzados aquí. De lo contrario, usa los temas y colores de arriba.</p>
-                <textarea id="custom-css" rows="4" placeholder="/* Escribe aquí tus estilos CSS personalizados */" style="width:100%;background:rgba(0,0,0,0.3);color:var(--text-color);border:1px solid var(--border-color);border-radius:var(--border-radius);padding:12px;font-family:monospace;resize:vertical;">${escapeHtml(config.custom_css || '')}</textarea>
             </div>
 
             <!-- FINALIZAR -->
@@ -487,14 +440,15 @@ function leerConfigForm() {
         card_bg: document.getElementById('cfg-card')?.value || '#1a1a2e',
         text_color: document.getElementById('cfg-text')?.value || '#e0e0e0',
         border_color: document.getElementById('cfg-border')?.value || '#2a2a4a',
-        font_family: document.getElementById('cfg-font')?.value || "'Inter', sans-serif",
+        // Campos sin UI (tipografía y CSS ya no son editables): conservar el valor guardado
+        font_family: document.getElementById('cfg-font')?.value || _configSnapshot?.font_family || "'Inter', sans-serif",
         logo_url: document.getElementById('cfg-logo')?.value || '',
         cover_url: document.getElementById('cfg-cover')?.value || '',
         instagram_url: document.getElementById('cfg-instagram')?.value || '',
         tiktok_url: document.getElementById('cfg-tiktok')?.value || '',
-        border_radius: parseInt(document.getElementById('cfg-radius')?.value) || 12,
-        animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || 0.3,
-        custom_css: document.getElementById('custom-css')?.value || ''
+        border_radius: parseInt(document.getElementById('cfg-radius')?.value) || _configSnapshot?.border_radius || 12,
+        animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || _configSnapshot?.animation_speed || 0.3,
+        custom_css: document.getElementById('custom-css')?.value || _configSnapshot?.custom_css || ''
     };
 }
 
