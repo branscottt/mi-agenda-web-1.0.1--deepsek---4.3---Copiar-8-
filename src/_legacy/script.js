@@ -686,6 +686,7 @@ const VentasManager = {
             const tenantId = await getCurrentTenantId();
             if (!tenantId) return [];
 
+            // Citas vigentes (misma fuente de siempre)
             const { data, error } = await supabaseClient
                 .from('citas')
                 .select('id, servicio_id, precio, contacto, created_at, fecha, hora')
@@ -695,6 +696,19 @@ const VentasManager = {
             if (error) {
                 console.error('Error en VentasManager.getAll:', error);
                 return [];
+            }
+
+            // Histórico archivado: la limpieza borra las citas con fecha
+            // pasada, pero el trigger trg_archivar_venta las conserva en
+            // `ventas` para que el dashboard no pierda el acumulado.
+            const { data: archivadas, error: errArchivadas } = await supabaseClient
+                .from('ventas')
+                .select('cita_id, servicio_id, precio, contacto, fecha, hora, fecha_venta')
+                .eq('tenant_id', String(tenantId).trim())
+                .order('fecha_venta', { ascending: false });
+
+            if (errArchivadas) {
+                console.warn('No se pudieron leer ventas archivadas:', errArchivadas);
             }
 
             // Obtener nombres reales de servicios (para Top Servicios legible)
@@ -711,11 +725,13 @@ const VentasManager = {
                 console.warn('No se pudieron obtener nombres de servicios:', e);
             }
 
-            const ventas = (data || []).map(c => {
-                const createdDate = new Date(c.created_at);
+            // Mapeo único para citas vigentes y ventas archivadas
+            const mapearVenta = (c, citaId) => {
+                const fechaVenta = c.fecha_venta || c.created_at;
+                const createdDate = new Date(fechaVenta);
                 return {
-                    id: `VENTA-${c.id}`,
-                    citaId: c.id,
+                    id: `VENTA-${citaId}`,
+                    citaId: citaId,
                     servicioId: c.servicio_id,
                     servicioNombre: nombresServicios[c.servicio_id] || 'Servicio',
                     clienteNombre: c.contacto?.nombre || 'Cliente',
@@ -724,12 +740,17 @@ const VentasManager = {
                     fecha: c.fecha,
                     hora: c.hora,
                     monto: Number(c.precio) || 0,
-                    fechaVenta: c.created_at,
+                    fechaVenta: fechaVenta,
                     mes: createdDate.getMonth() + 1,
                     año: createdDate.getFullYear(),
                     diaSemana: createdDate.getDay()
                 };
-            });
+            };
+
+            const ventas = [
+                ...(data || []).map(c => mapearVenta(c, c.id)),
+                ...(archivadas || []).map(v => mapearVenta(v, v.cita_id))
+            ];
 
             this._cachedVentas = ventas;
             this._cacheTime = ahora;
@@ -3352,10 +3373,10 @@ async function renderizarGraficoVentas() {
         conteoPorDia[dia]++;
     });
     
-    // Calcular promedio por día para suavizar si hay pocos datos
-    const datosGrafico = ventasPorDia.map((total, i) => 
-        conteoPorDia[i] > 0 ? Math.round(total / conteoPorDia[i] * 3) : 0
-    );
+    // Montos REALES por día de la semana (antes se multiplicaba el promedio
+    // por 3 para "suavizar", lo que distorsionaba las barras; ahora cada
+    // barra muestra el total real recaudado ese día de la semana)
+    const datosGrafico = ventasPorDia.map((total) => Math.round(total));
     
     const ctx = canvas.getContext('2d');
     // Fix: el dashboard se renderiza 2 veces al iniciar; Chart.js exige

@@ -15,6 +15,11 @@ export async function renderDashboard(containerId, apis) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    // Si el contenedor ya tiene contenido (p. ej. stats-container del admin
+    // legacy), NO inyectar ni escribir nada: evita pisar el dashboard legacy
+    // (su #top-servicios) y dejar una carrera entre ambos renderizados.
+    if (container.innerHTML.trim() !== '') return;
+
     // Inyectar HTML base del dashboard si el contenedor esta vacio
     if (container.innerHTML.trim() === '') {
         container.innerHTML = `
