@@ -1,7 +1,10 @@
 // clients/ui/ClientListView.js
-// Gesti├│n de clientes del tenant: lista, b├║squeda, historial, contacto, exportaci├│n
+// Gestión de clientes del tenant: lista, búsqueda, historial, contacto, exportación
 
 import { getAllCitas } from '../../appointments/application/AppointmentService.js';
+import { getVentasArchivadas } from '../../api/appointmentsApi.js';
+import { getAllServicios } from '../../api/serviciosApi.js';
+import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { formatearDinero, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 
@@ -34,10 +37,31 @@ function deduplicarClientes(citas) {
     return Array.from(mapa.values()).sort((a, b) => b.ultimaVisita.localeCompare(a.ultimaVisita));
 }
 
+/**
+ * Mapea una fila de la tabla `ventas` (archivo histórico) al mismo shape
+ * camelCase que las citas vigentes, para que deduplicarClientes las trate igual.
+ */
+function mapearVenta(v) {
+    return {
+        id: `VENTA-${v.cita_id}`,
+        servicioId: v.servicio_id,
+        nombre: 'Servicio', // placeholder; el nombre real se resuelve con mapaServicios
+        fecha: v.fecha,
+        hora: v.hora,
+        precio: v.precio,
+        contacto: v.contacto || {},
+        notificaciones: {},
+        creadoEn: v.fecha_venta || v.archivado_en,
+        trabajadorId: null,
+        trabajador: null
+    };
+}
+
 // ========== RENDER ==========
 
 let clientesCache = [];
 let filtroActual = '';
+let mapaServicios = {};
 
 export async function renderClientListView(containerId = 'clientes-list-container') {
     const container = document.getElementById(containerId);
@@ -46,8 +70,40 @@ export async function renderClientListView(containerId = 'clientes-list-containe
     container.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i><p>Cargando clientes...</p></div>';
 
     try {
+        const tenantId = await getCurrentTenantId();
+
+        // Histórico completo = citas vigentes (hoy/futuro) + ventas archivadas (pasado).
+        // La limpieza automática borra las citas con fecha pasada y el trigger
+        // trg_archivar_venta las conserva en `ventas`. Sin este merge, los clientes
+        // con solo citas pasadas desaparecían y el historial quedaba vacío.
         const citas = await getAllCitas();
-        clientesCache = deduplicarClientes(citas);
+
+        let ventas = [];
+        try {
+            ventas = await getVentasArchivadas(tenantId);
+        } catch (e) {
+            console.warn('[ClientListView] No se pudieron cargar ventas archivadas:', e);
+        }
+
+        // Mapa servicio_id -> nombre real (la cita solo guarda servicio_id; el
+        // campo c.nombre es el placeholder 'Servicio' del mapeo legacy).
+        mapaServicios = {};
+        try {
+            const servicios = await getAllServicios(tenantId);
+            (servicios || []).forEach(s => { if (s && s.id != null) mapaServicios[s.id] = s.nombre; });
+        } catch (e) {
+            console.warn('[ClientListView] No se pudieron cargar nombres de servicios:', e);
+        }
+
+        const idsVigentes = new Set(citas.map(c => c.id));
+        const todas = [
+            ...citas,
+            ...(ventas || [])
+                .filter(v => v && v.cita_id && !idsVigentes.has(v.cita_id))
+                .map(mapearVenta)
+        ];
+
+        clientesCache = deduplicarClientes(todas);
         renderLista(container);
     } catch (e) {
         console.error('[ClientListView] Error cargando clientes:', e);
@@ -55,15 +111,19 @@ export async function renderClientListView(containerId = 'clientes-list-containe
     }
 }
 
-function renderLista(container) {
-    const filtrados = clientesCache.filter(cl => {
-        if (!filtroActual) return true;
-        const q = filtroActual.toLowerCase();
-        return cl.nombre.toLowerCase().includes(q)
-            || cl.email.toLowerCase().includes(q)
-            || cl.telefono.includes(q);
-    });
+function coincideFiltro(cl) {
+    if (!filtroActual) return true;
+    const q = filtroActual.toLowerCase();
+    return cl.nombre.toLowerCase().includes(q)
+        || cl.email.toLowerCase().includes(q)
+        || cl.telefono.includes(q);
+}
 
+function getFiltrados() {
+    return clientesCache.filter(coincideFiltro);
+}
+
+function renderLista(container) {
     if (!clientesCache.length) {
         container.innerHTML = `
             <div class="empty-state">
@@ -75,6 +135,8 @@ function renderLista(container) {
         return;
     }
 
+    const filtrados = getFiltrados();
+
     let html = `
         <div class="clientes-header-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
             <div class="search-box" style="flex:1;min-width:200px;">
@@ -84,14 +146,25 @@ function renderLista(container) {
             <button class="btn-secondary btn-small" id="export-clientes-csv" title="Exportar todos los clientes a CSV">
                 <i class="fas fa-download"></i> Exportar CSV
             </button>
-            <span style="color:var(--text-muted);font-size:0.85rem;">
+            <span style="color:var(--text-muted);font-size:0.85rem;" id="clientes-count">
                 <i class="fas fa-users"></i> ${clientesCache.length} cliente${clientesCache.length !== 1 ? 's' : ''}
                 ${filtroActual ? `(mostrando ${filtrados.length})` : ''}
             </span>
         </div>
         <div class="clientes-grid" id="clientes-grid">
+            ${renderGridHtml(filtrados)}
+        </div>
     `;
 
+    container.innerHTML = html;
+
+    bindSearch(container);
+    bindExport(container);
+    bindHistorialButtons(container);
+}
+
+function renderGridHtml(filtrados) {
+    let html = '';
     filtrados.forEach(cl => {
         const proxCita = cl.citas
             .filter(c => c.fecha >= new Date().toISOString().split('T')[0])
@@ -137,24 +210,48 @@ function renderLista(container) {
             </div>
         `;
     });
+    return html;
+}
 
-    html += '</div>';
-    container.innerHTML = html;
-
-    // ── Search handler (con debounce 300ms) ──
+function bindSearch(container) {
     const searchInput = document.getElementById('clientes-search-input');
-    if (searchInput) {
-        let debounceTimer;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                filtroActual = e.target.value;
-                renderLista(container);
-            }, 300);
-        });
-    }
+    if (!searchInput) return;
 
-    // ── Historial toggle ──
+    let debounceTimer;
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            filtroActual = e.target.value;
+            // Re-renderizar SOLO la grilla. Re-renderizar el contenedor completo
+            // destruye el input y pierde el foco (imposible escribir >1 carácter).
+            const grid = container.querySelector('#clientes-grid');
+            if (grid) {
+                grid.innerHTML = renderGridHtml(getFiltrados());
+                actualizarContador(container);
+                bindHistorialButtons(container);
+            } else {
+                renderLista(container);
+            }
+        }, 300);
+    });
+}
+
+function actualizarContador(container) {
+    const span = container.querySelector('#clientes-count');
+    if (!span) return;
+    const total = clientesCache.length;
+    const visibles = getFiltrados().length;
+    span.innerHTML = `<i class="fas fa-users"></i> ${total} cliente${total !== 1 ? 's' : ''}${filtroActual ? ` (mostrando ${visibles})` : ''}`;
+}
+
+function bindExport(container) {
+    const exportBtn = document.getElementById('export-clientes-csv');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportarClientesCSV);
+    }
+}
+
+function bindHistorialButtons(container) {
     container.querySelectorAll('.btn-ver-historial').forEach(btn => {
         btn.addEventListener('click', () => {
             const email = btn.dataset.email;
@@ -176,12 +273,6 @@ function renderLista(container) {
             renderHistorial(historialEl, cliente);
         });
     });
-
-    // ── Export CSV ──
-    const exportBtn = document.getElementById('export-clientes-csv');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportarClientesCSV);
-    }
 }
 
 function renderHistorial(container, cliente) {
@@ -203,9 +294,11 @@ function renderHistorial(container, cliente) {
 
     citas.forEach(c => {
         const esPasada = new Date(c.fecha + 'T' + (c.hora || '12:00')) < new Date();
+        // Nombre real del servicio: la cita solo guarda servicio_id
+        const nombreServicio = mapaServicios[c.servicioId] || '—';
         html += `
             <div class="historial-row ${esPasada ? 'past' : 'future'}" style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.85rem;">
-                <span style="flex:1;">${escapeHtml(c.nombre || 'Servicio')}</span>
+                <span style="flex:1;">${escapeHtml(nombreServicio)}</span>
                 <span style="width:100px;text-align:center;">${formatFechaCorta(c.fecha)}</span>
                 <span style="width:80px;text-align:center;">${formatTimeDisplay(c.hora)}</span>
                 <span style="width:90px;text-align:right;font-weight:600;">${formatearDinero(c.precio)}</span>

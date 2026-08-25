@@ -33,6 +33,27 @@ export async function getCitaById(id) {
     return data;
 }
 
+/**
+ * Ventas archivadas (histórico). La limpieza automática borra las citas con
+ * fecha pasada; el trigger trg_archivar_venta las conserva en `ventas`.
+ * Consumidores: Mis Clientes (ClientListView) — mismo criterio que
+ * VentasManager.getAll del legacy.
+ * Prefijo de caché propio (`appointmentsApi:ventas`) para no colisionar con
+ * getAllCitas; cacheClearPrefix('appointmentsApi') lo limpia igual.
+ */
+export async function getVentasArchivadas(tenantId) {
+    if (!tenantId) return [];
+    return cacheWrapper(`${CACHE_PREFIX}:ventas`, async (tid) => {
+        const { data, error } = await getSupabase()
+            .from('ventas')
+            .select('cita_id, servicio_id, precio, contacto, fecha, hora, fecha_venta, archivado_en')
+            .eq('tenant_id', String(tid).trim())
+            .order('fecha_venta', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    }, [tenantId], 15_000); // TTL corto: igual que citas
+}
+
 export async function createCita(data) {
     const { data: result, error } = await getSupabase()
         .from(TABLE)
