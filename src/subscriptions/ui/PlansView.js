@@ -265,7 +265,7 @@ function getPaymentStatusMessage(status) {
 async function obtenerTenantId() {
     // 1. Usar JwtManager (vía window — expuesto por main.js) si está disponible
     if (window.JwtManager) {
-        const userData = window.JwtManager.getUserData();
+        const userData = window.JwtManager?.getUserData?.();
         if (userData?.tenant_id) return userData.tenant_id;
     }
     // 2. Fallback: JwtManager no cargado, leer de localStorage
@@ -287,7 +287,7 @@ async function obtenerTenantId() {
 function obtenerUserEmail() {
     // 1. Usar JwtManager si está disponible
     if (window.JwtManager) {
-        const userData = window.JwtManager.getUserData();
+        const userData = window.JwtManager?.getUserData?.();
         if (userData?.email) return userData.email;
     }
     // 2. Fallback: leer de localStorage

@@ -21,9 +21,12 @@ import { applySecurityHeaders } from '../_shared/security-headers.ts';
 const MERCADOPAGO_API = 'https://api.mercadopago.com/preapproval';
 
 // Precios y frecuencia según plan (CLP)
+// NOTA: MP solo acepta frequency_type 'days' o 'months' — el plan anual se
+// modela como 1 cobro cada 12 meses (frequency: 12, frequency_type: 'months').
+// 'years' devuelve 400 "Invalid value for frequency type" y rompía el plan anual.
 const PLANS: Record<string, { title: string; amount: number; frequency: number; frequency_type: string }> = {
   pro: { title: 'Plan Pro', amount: 15000, frequency: 1, frequency_type: 'months' },
-  premium_anual: { title: 'Plan Premium Anual', amount: 140000, frequency: 1, frequency_type: 'years' },
+  premium_anual: { title: 'Plan Premium Anual', amount: 140000, frequency: 12, frequency_type: 'months' },
 };
 
 interface PreapprovalRequest {
@@ -156,7 +159,7 @@ async function handle(req: Request): Promise<Response> {
     if (!tenant_id || !email) {
       return new Response(JSON.stringify({ error: 'tenant_id y email son requeridos' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
 
@@ -165,7 +168,7 @@ async function handle(req: Request): Promise<Response> {
       console.error('MERCADOPAGO_ACCESS_TOKEN no configurado');
       return new Response(JSON.stringify({ error: 'Error de configuración del servidor' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
 
@@ -208,11 +211,15 @@ async function handle(req: Request): Promise<Response> {
 
     if (!mpResp.ok) {
       console.error('Error MP (preapproval):', JSON.stringify(mpData));
-      return new Response(JSON.stringify({
-        error: 'Error al procesar la suscripción. Intenta de nuevo más tarde.',
-      }), {
+      // Mensaje claro para el caso verificado: email ya registrado en otro site de MP
+      // (test users / cuentas demo como algo@mail.com o algo@test.com)
+      let errorMsg = 'Error al procesar la suscripción. Intenta de nuevo más tarde.';
+      if (mpData?.code === 'guest_site_mismatch') {
+        errorMsg = 'Este email ya está asociado a otra cuenta de Mercado Pago. Inicia sesión con el email principal de tu negocio para pagar.';
+      }
+      return new Response(JSON.stringify({ error: errorMsg }), {
         status: 502,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
 
@@ -233,7 +240,7 @@ async function handle(req: Request): Promise<Response> {
     console.error('[create-preapproval] Error inesperado:', error.message || String(e));
     return new Response(JSON.stringify({ error: 'Error interno del servidor' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 }

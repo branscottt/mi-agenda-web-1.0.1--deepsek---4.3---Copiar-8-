@@ -187,7 +187,7 @@ async function handle(req: Request): Promise<Response> {
     if (!tenant_id || !email) {
       return new Response(JSON.stringify({ error: 'tenant_id y email son requeridos' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
       });
     }
 
@@ -196,7 +196,7 @@ async function handle(req: Request): Promise<Response> {
       console.error('MERCADOPAGO_ACCESS_TOKEN no configurado');
       return new Response(JSON.stringify({ error: 'Error de configuración del servidor' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
       });
     }
 
@@ -257,7 +257,7 @@ async function handle(req: Request): Promise<Response> {
         error: 'Error al procesar el pago. Intenta de nuevo más tarde.',
       }), {
         status: 502,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
       });
     }
 
@@ -278,7 +278,7 @@ async function handle(req: Request): Promise<Response> {
     console.error('Error inesperado:', e.message);
     return new Response(JSON.stringify({ error: 'Error interno del servidor' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin },
     });
   }
 }

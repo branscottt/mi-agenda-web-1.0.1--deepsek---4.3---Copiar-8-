@@ -36,6 +36,32 @@ if (!window.JwtManager) {
             const { data: { session } } = this.getSession();
             return session?.access_token || null;
         },
+        getUserData() {
+            try {
+                const raw = localStorage.getItem('agendapro_user_data');
+                if (raw) return JSON.parse(raw);
+            } catch (e) {}
+            try {
+                const stored = localStorage.getItem('supabase.auth.token');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    const token = parsed?.currentSession?.access_token;
+                    if (token) {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        const meta = payload.user_metadata || {};
+                        return {
+                            id: payload.sub,
+                            email: payload.email || '',
+                            rol: meta.rol || 'cliente',
+                            tenant_id: meta.tenant_id,
+                            nombre: meta.nombre || (payload.email ? payload.email.split('@')[0] : 'Usuario'),
+                            whatsapp: meta.whatsapp || ''
+                        };
+                    }
+                }
+            } catch (e) {}
+            return null;
+        },
         isTokenExpired() { return false; },
         clear() {},
         startAutoRefresh() {}
@@ -2911,6 +2937,17 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
     const mp = window.__mercadopago;
     if (!mp || typeof mp.createPreference !== 'function') {
         mostrarToast('El módulo de pagos no está disponible. Recarga la página.', 'error');
+        return;
+    }
+
+    // Defensa: si no llegó tenantId, obtenerlo de la sesión actual
+    if (!tenantId) {
+        try {
+            tenantId = await getCurrentTenantId();
+        } catch (e) {}
+    }
+    if (!tenantId) {
+        mostrarToast('No se pudo identificar tu negocio. Recarga la página.', 'error');
         return;
     }
 
