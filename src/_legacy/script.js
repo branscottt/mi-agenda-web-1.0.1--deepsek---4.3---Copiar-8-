@@ -12692,6 +12692,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         // Dashboard financiero: inicializar fechas, cargar datos y conectar botones
         // (antes esto vivía en un override de window.iniciarAdmin que nunca se ejecutaba)
         if (!window._subscriptionExpired) {
+            inicializarFeedbackWidget();
             inicializarFechasDashboard();
             await actualizarDashboardFinanzas();
             configurarDashboardEventos();
@@ -12908,6 +12909,8 @@ window.iniciarSuperAdmin = async function() {
     await cargarTenants();
     await cargarEstadisticasGlobales();
     await cargarMetricasGlobales();
+    // Tab de Sugerencias/Feedback de tenants (inyectado por JS, sin tocar HTML)
+    inyectarTabFeedback();
     setupSuperAdminTabs();
 };
 
@@ -12931,6 +12934,7 @@ function setupSuperAdminTabs() {
                     else if (targetId === 'servicios') await cargarServiciosGlobales();
                     else if (targetId === 'citas') await cargarCitasGlobales();
                     else if (targetId === 'solicitudes') await cargarSolicitudesCSS();
+                    else if (targetId === 'feedback') await cargarFeedbackSuper();
                 } catch(e) {
                     console.warn(`Error cargando tab ${targetId}:`, e);
                 }
@@ -13930,3 +13934,264 @@ function _initCSPEventBridge() {
         console.warn('[CSP-Bridge] onsubmit sin mapear:', subAttr);
     }
 }
+
+// ============================================================
+// FEEDBACK / SOPORTE DE TENANTS (widget en admin + tab superadmin)
+// Tabla: tenant_feedback (ver migración 20260918_tenant_feedback.sql)
+// ============================================================
+
+// ---------- Lado tenant (admin.html): widget inferior ----------
+function inicializarFeedbackWidget() {
+    if (document.getElementById('feedback-widget')) return;
+    const footer = document.querySelector('.admin-footer');
+    if (!footer) return;
+    const cont = document.createElement('div');
+    cont.id = 'feedback-widget';
+    cont.className = 'glass-panel';
+    cont.style.cssText = 'margin:26px auto 0;max-width:900px;padding:20px;';
+    cont.innerHTML = `
+        <h3 style="margin:0 0 6px;font-size:1.05rem;"><i class="fas fa-comments"></i> ¿Cómo podemos mejorar tu experiencia?</h3>
+        <p style="margin:0 0 14px;font-size:0.85rem;color:var(--text-muted,#aaa);">Cuéntanos un problema, una sugerencia o una mejora que te facilitaría el día a día en tu pyme. Tu comentario llega directo al equipo.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <select id="feedback-categoria" style="flex:1;min-width:160px;background:rgba(255,255,255,0.05);color:var(--text-color,#fff);border:1px solid var(--border-color,#2a2a4a);border-radius:8px;padding:10px;font-family:inherit;font-size:0.9rem;">
+                <option value="sugerencia">💡 Sugerencia</option>
+                <option value="problema">⚠️ Problema o error</option>
+                <option value="mejora">🚀 Mejora que me ayudaría</option>
+                <option value="otro">📝 Otro</option>
+            </select>
+        </div>
+        <textarea id="feedback-mensaje" rows="3" maxlength="2000" placeholder="Ej: Me gustaría poder exportar mis citas a Excel..." style="width:100%;margin:0 0 12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-color,#fff);border:1px solid var(--border-color,#2a2a4a);resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <button type="button" id="feedback-enviar" class="btn-grad"><i class="fas fa-paper-plane"></i> Enviar comentario</button>
+            <span id="feedback-counter" style="font-size:0.75rem;color:var(--text-muted,#888);">0/2000</span>
+        </div>
+    `;
+    footer.parentNode.insertBefore(cont, footer);
+    const enviarBtn = document.getElementById('feedback-enviar');
+    if (enviarBtn) enviarBtn.addEventListener('click', enviarFeedback);
+    const textarea = document.getElementById('feedback-mensaje');
+    if (textarea) {
+        textarea.addEventListener('input', () => {
+            const c = document.getElementById('feedback-counter');
+            if (c) c.textContent = textarea.value.length + '/2000';
+        });
+    }
+}
+
+async function enviarFeedback() {
+    const categoriaEl = document.getElementById('feedback-categoria');
+    const mensajeEl = document.getElementById('feedback-mensaje');
+    if (!mensajeEl) return;
+    const categoria = (categoriaEl && categoriaEl.value) || 'sugerencia';
+    const mensaje = mensajeEl.value.trim();
+    if (!mensaje) {
+        mostrarToast('Escribe tu comentario antes de enviar.', 'warning');
+        return;
+    }
+    const client = supabaseClient || window.supabaseClient;
+    if (!client) {
+        mostrarToast('Error de conexión. Intenta de nuevo.', 'error');
+        return;
+    }
+    const tenantId = window.currentTenantId || (typeof getCurrentTenantId === 'function' ? await getCurrentTenantId() : null);
+    if (!tenantId) {
+        mostrarToast('Error: no se pudo identificar tu negocio.', 'error');
+        return;
+    }
+    const enviarBtn = document.getElementById('feedback-enviar');
+    if (enviarBtn) {
+        enviarBtn.disabled = true;
+        enviarBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+    }
+    try {
+        const { error } = await client.from('tenant_feedback').insert({
+            tenant_id: tenantId,
+            categoria: categoria,
+            mensaje: mensaje
+        });
+        if (error) throw error;
+        mensajeEl.value = '';
+        const c = document.getElementById('feedback-counter');
+        if (c) c.textContent = '0/2000';
+        mostrarToast('¡Gracias! Tu comentario llegó al equipo.', 'success');
+    } catch (e) {
+        console.error('Error enviando feedback:', e);
+        mostrarToast('Error al enviar. Intenta de nuevo.', 'error');
+    } finally {
+        if (enviarBtn) {
+            enviarBtn.disabled = false;
+            enviarBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar comentario';
+        }
+    }
+}
+
+// ---------- Lado superadmin (superadmin.html): tab + listado ----------
+function inyectarTabFeedback() {
+    if (document.querySelector('.tab-btn[data-tab="feedback"]') && document.getElementById('tab-feedback')) return;
+    const tabsBar = document.querySelector('.superadmin-tabs');
+    if (!tabsBar) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.dataset.tab = 'feedback';
+    btn.innerHTML = '<i class="fas fa-comments"></i> Sugerencias';
+    tabsBar.appendChild(btn);
+
+    const panel = document.querySelector('.superadmin-screen .glass-panel');
+    if (!panel) return;
+    const cont = document.createElement('div');
+    cont.id = 'tab-feedback';
+    cont.className = 'tab-content';
+    cont.style.display = 'none';
+    cont.innerHTML = `
+        <div class="panel-header">
+            <h3><i class="fas fa-comments"></i> Comentarios de los tenants</h3>
+            <button type="button" class="btn-grad" id="btn-refresh-feedback"><i class="fas fa-sync"></i> Refrescar</button>
+        </div>
+        <div id="feedback-list" class="solicitudes-container" style="margin-top:20px;"><p>Cargando comentarios...</p></div>
+    `;
+    const footer = panel.querySelector('.admin-footer');
+    if (footer) footer.parentNode.insertBefore(cont, footer);
+    else panel.appendChild(cont);
+    const refreshBtn = document.getElementById('btn-refresh-feedback');
+    if (refreshBtn) refreshBtn.addEventListener('click', cargarFeedbackSuper);
+}
+
+async function cargarFeedbackSuper() {
+    const container = document.getElementById('feedback-list');
+    if (!container) return;
+    container.innerHTML = '<p>Cargando comentarios...</p>';
+    const client = supabaseClient || window.supabaseClient;
+    if (!client) {
+        container.innerHTML = '<p>Error de conexión.</p>';
+        return;
+    }
+    try {
+        const { data, error } = await client
+            .from('tenant_feedback')
+            .select('*, tenants:tenant_id(nombre_negocio)')
+            .order('creado_en', { ascending: false })
+            .limit(200);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p>No hay comentarios de tenants todavía.</p>';
+            return;
+        }
+        const categoriaLabels = { problema: 'Problema', sugerencia: 'Sugerencia', mejora: 'Mejora', otro: 'Otro' };
+        const categoriaColors = { problema: '#e74c3c', sugerencia: '#f39c12', mejora: '#2ecc71', otro: '#9b59b6' };
+        let html = '';
+        data.forEach(f => {
+            const tenantName = f.tenants?.nombre_negocio || 'Desconocido';
+            const fecha = new Date(f.creado_en).toLocaleString();
+            const cat = categoriaLabels[f.categoria] || f.categoria;
+            const color = categoriaColors[f.categoria] || '#888888';
+            html += `
+                <div class="solicitud-item" data-id="${f.id}" style="margin-bottom:14px;">
+                    <div class="solicitud-header">
+                        <span class="solicitud-tenant"><i class="fas fa-building"></i> ${escapeHtml(tenantName)}</span>
+                        <span style="margin-left:10px;background:${color}22;color:${color};border:1px solid ${color}55;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;">${escapeHtml(cat)}</span>
+                        <span class="solicitud-fecha" style="margin-left:auto;">${fecha}</span>
+                    </div>
+                    <div class="solicitud-descripcion" style="white-space:pre-wrap;">${escapeHtml(f.mensaje)}</div>
+                    <div class="solicitud-actions">
+                        <button type="button" class="btn-secondary btn-small eliminar-feedback" data-id="${f.id}" data-tenant="${escapeHtml(tenantName)}"><i class="fas fa-trash"></i> Eliminar</button>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        document.querySelectorAll('.eliminar-feedback').forEach(btn => {
+            btn.addEventListener('click', () => eliminarFeedbackSuper(btn.dataset.id, btn.dataset.tenant));
+        });
+    } catch (e) {
+        console.error('Error cargando feedback:', e);
+        container.innerHTML = '<p>Error al cargar comentarios.</p>';
+    }
+}
+
+// Modal de doble confirmación (evita confirm() nativo bloqueado en Firefox)
+function mostrarConfirmacionDoble(opciones) {
+    return new Promise((resolve) => {
+        let paso = 1;
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:#1a1a2e;color:#fff;padding:32px;border-radius:16px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center;';
+        const title = document.createElement('h3');
+        title.style.cssText = 'margin:0 0 16px;font-size:1.2rem;color:#e74c3c;';
+        const body = document.createElement('p');
+        body.style.cssText = 'margin:0 0 20px;font-size:0.95rem;line-height:1.6;';
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+        const btnCancel = document.createElement('button');
+        btnCancel.textContent = 'Cancelar';
+        btnCancel.style.cssText = 'padding:10px 24px;border:none;border-radius:8px;background:#555;color:#fff;cursor:pointer;font-size:0.95rem;';
+        const btnConfirm = document.createElement('button');
+        btnConfirm.style.cssText = 'padding:10px 24px;border:none;border-radius:8px;background:#e74c3c;color:#fff;cursor:pointer;font-size:0.95rem;font-weight:600;';
+        btnRow.appendChild(btnCancel);
+        btnRow.appendChild(btnConfirm);
+        modal.appendChild(title);
+        modal.appendChild(body);
+        modal.appendChild(btnRow);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        const cleanup = () => {
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        };
+        const renderPaso = () => {
+            if (paso === 1) {
+                title.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + (opciones.titulo || 'CONFIRMAR');
+                body.innerHTML = opciones.cuerpoPaso1 || '¿Deseas continuar?';
+                btnConfirm.textContent = 'Continuar';
+            } else {
+                title.innerHTML = '<i class="fas fa-exclamation-triangle"></i> CONFIRMACIÓN FINAL';
+                body.innerHTML = opciones.cuerpoPaso2 || '<strong style="color:#e74c3c;">Esta acción NO SE PUEDE DESHACER.</strong>';
+                btnConfirm.textContent = opciones.textoConfirmar || 'Sí, confirmar';
+            }
+        };
+        btnCancel.addEventListener('click', () => { cleanup(); resolve(false); });
+        btnConfirm.addEventListener('click', () => {
+            if (paso === 1) {
+                paso = 2;
+                renderPaso();
+                return;
+            }
+            cleanup();
+            resolve(true);
+        });
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) { cleanup(); resolve(false); }
+        });
+        renderPaso();
+    });
+}
+
+async function eliminarFeedbackSuper(feedbackId, tenantName) {
+    if (!feedbackId) return;
+    const confirmado = await mostrarConfirmacionDoble({
+        titulo: 'ELIMINAR COMENTARIO',
+        cuerpoPaso1: `Comentario de <strong>${escapeHtml(tenantName || 'Desconocido')}</strong>.<br><br>¿Deseas eliminarlo?`,
+        cuerpoPaso2: '<strong style="color:#e74c3c;">Esta acción NO SE PUEDE DESHACER.</strong>',
+        textoConfirmar: 'Sí, eliminar'
+    });
+    if (!confirmado) return;
+    const client = supabaseClient || window.supabaseClient;
+    if (!client) {
+        mostrarToast('Error de conexión.', 'error');
+        return;
+    }
+    try {
+        const { error } = await client.from('tenant_feedback').delete().eq('id', feedbackId);
+        if (error) throw error;
+        mostrarToast('Comentario eliminado', 'success');
+        cargarFeedbackSuper();
+    } catch (e) {
+        console.error('Error eliminando feedback:', e);
+        mostrarToast('Error al eliminar el comentario.', 'error');
+    }
+}
+
+// Exposición para harness de validación y consistencia con window.iniciarSuperAdmin
+window.inicializarFeedbackWidget = inicializarFeedbackWidget;
+window.inyectarTabFeedback = inyectarTabFeedback;
+window.cargarFeedbackSuper = cargarFeedbackSuper;
+window.enviarFeedback = enviarFeedback;
