@@ -12948,6 +12948,8 @@ window.iniciarSuperAdmin = async function() {
     await cargarMetricasGlobales();
     // Tab de Sugerencias/Feedback de tenants (inyectado por JS, sin tocar HTML)
     inyectarTabFeedback();
+    // Tab de Pagos Mercado Pago (inyectado por JS, sin tocar HTML)
+    inyectarTabPagos();
     setupSuperAdminTabs();
 };
 
@@ -12972,6 +12974,7 @@ function setupSuperAdminTabs() {
                     else if (targetId === 'citas') await cargarCitasGlobales();
                     else if (targetId === 'solicitudes') await cargarSolicitudesCSS();
                     else if (targetId === 'feedback') await cargarFeedbackSuper();
+                    else if (targetId === 'pagos') await cargarPagosSuper();
                 } catch(e) {
                     console.warn(`Error cargando tab ${targetId}:`, e);
                 }
@@ -14091,6 +14094,98 @@ function inyectarTabFeedback() {
     else panel.appendChild(cont);
     const refreshBtn = document.getElementById('btn-refresh-feedback');
     if (refreshBtn) refreshBtn.addEventListener('click', cargarFeedbackSuper);
+}
+
+// ---------- Tab Pagos (superadmin): pagos REALES de Mercado Pago ----------
+// Inyecta la tab por JS (patrón inyectarTabFeedback) sin tocar HTML.
+// Solo super_admin ve esta data (RLS: SELECT con is_super_admin()).
+function inyectarTabPagos() {
+    if (document.querySelector('.tab-btn[data-tab="pagos"]') && document.getElementById('tab-pagos')) return;
+    const tabsBar = document.querySelector('.superadmin-tabs');
+    if (!tabsBar) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.dataset.tab = 'pagos';
+    btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagos';
+    tabsBar.appendChild(btn);
+
+    const panel = document.querySelector('.superadmin-screen .glass-panel');
+    if (!panel) return;
+    const cont = document.createElement('div');
+    cont.id = 'tab-pagos';
+    cont.className = 'tab-content';
+    cont.style.display = 'none';
+    cont.innerHTML = `
+        <div class="panel-header">
+            <h3><i class="fas fa-credit-card"></i> Pagos Mercado Pago (reales)</h3>
+            <button type="button" class="btn-grad" id="btn-refresh-pagos"><i class="fas fa-sync"></i> Refrescar</button>
+        </div>
+        <div class="appointments-table-container" style="margin-top:20px;">
+            <table class="appointments-table" id="pagos-super-table">
+                <thead><tr><th>Fecha</th><th>Negocio</th><th>Email</th><th>Plan</th><th>Monto</th><th>Estado</th><th>Payment ID</th></tr></thead>
+                <tbody id="pagos-super-body"><tr><td colspan="7">Cargando pagos...</td></tr></tbody>
+            </table>
+        </div>
+    `;
+    const footer = panel.querySelector('.admin-footer');
+    if (footer) footer.parentNode.insertBefore(cont, footer);
+    else panel.appendChild(cont);
+    const refreshBtn = document.getElementById('btn-refresh-pagos');
+    if (refreshBtn) refreshBtn.addEventListener('click', cargarPagosSuper);
+}
+
+async function cargarPagosSuper() {
+    const tbody = document.getElementById('pagos-super-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7">Cargando pagos...</td></tr>';
+    const client = supabaseClient || window.supabaseClient;
+    if (!client) {
+        tbody.innerHTML = '<tr><td colspan="7">Error de conexión.</td></tr>';
+        return;
+    }
+    try {
+        const { data, error } = await client
+            .from('mercadopago_payments')
+            .select('*, tenants:tenant_id(nombre_negocio, email_contacto)')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7">No hay pagos registrados todavía.</td></tr>';
+            return;
+        }
+        const statusMeta = {
+            approved: { label: 'Aprobado', color: '#2ecc71' },
+            rejected: { label: 'Rechazado', color: '#e74c3c' },
+            pending: { label: 'Pendiente', color: '#f39c12' },
+            cancelled: { label: 'Cancelado', color: '#95a5a6' },
+            refunded: { label: 'Reembolsado', color: '#9b59b6' },
+        };
+        let html = '';
+        data.forEach(p => {
+            const tenantName = p.tenants?.nombre_negocio || 'Desconocido';
+            const tenantEmail = p.tenants?.email_contacto || p.mp_payer_email || '—';
+            const fecha = p.created_at ? new Date(p.created_at).toLocaleString('es-CL') : '—';
+            const planLabel = p.plan === 'premium_anual' ? 'Premium Anual' : (p.plan === 'pro' ? 'Pro' : p.plan || '—');
+            const monto = p.monto != null ? '$' + Number(p.monto).toLocaleString('es-CL') : '—';
+            const meta = statusMeta[p.mp_status] || { label: p.mp_status || '—', color: '#888888' };
+            html += `
+                <tr>
+                    <td>${fecha}</td>
+                    <td>${escapeHtml(tenantName)}</td>
+                    <td>${escapeHtml(tenantEmail)}</td>
+                    <td>${escapeHtml(planLabel)}</td>
+                    <td style="font-weight:600;">${monto}</td>
+                    <td><span style="background:${meta.color}22;color:${meta.color};border:1px solid ${meta.color}55;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;">${escapeHtml(meta.label)}</span></td>
+                    <td style="font-size:0.78rem;opacity:0.75;">${escapeHtml(p.mp_payment_id || '—')}</td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    } catch (e) {
+        console.error('[PagosSuper] Error cargando pagos:', e);
+        tbody.innerHTML = '<tr><td colspan="7">Error al cargar pagos: ' + escapeHtml(e.message) + '</td></tr>';
+    }
 }
 
 async function cargarFeedbackSuper() {
