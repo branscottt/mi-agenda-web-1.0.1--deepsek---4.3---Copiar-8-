@@ -5155,7 +5155,14 @@ async function cargarTenants() {
     if (!supabaseClient) return;
     const container = document.getElementById('tenants-list');
     if (!container) return;
-    
+
+    // Regla de negocio (2026-08): un tenant SOLO es visible en superadmin si
+    // tiene una suscripción VIGENTE (free_trial/pro/premium_anual/freemium en
+    // status active/trial). Los registros sin trial ni pago confirmado no
+    // aparecen (información no verídica).
+    const PLANES_VISIBLES = ['free_trial', 'pro', 'premium_anual', 'freemium'];
+    const STATUS_VISIBLES = ['active', 'trial'];
+
     try {
         const { data: tenants, error } = await supabaseClient
             .from('tenants')
@@ -5166,8 +5173,13 @@ async function cargarTenants() {
             .order('fecha_registro', { ascending: false });
         
         if (error) throw error;
-        if (!tenants || tenants.length === 0) {
-            container.innerHTML = '<p>No hay tenants registrados</p>';
+        const visibles = (tenants || []).filter(t =>
+            (t.subscriptions || []).some(s =>
+                PLANES_VISIBLES.includes(s.plan) && STATUS_VISIBLES.includes(s.status)
+            )
+        );
+        if (visibles.length === 0) {
+            container.innerHTML = '<p>No hay tenants con suscripción activa (trial o plan pagado).</p>';
             return;
         }
         
@@ -5179,7 +5191,7 @@ async function cargarTenants() {
         };
         
         let html = '';
-        tenants.forEach(t => {
+        visibles.forEach(t => {
             let activeSub = t.subscriptions?.find(sub => sub.status === 'active') || t.subscriptions?.[0];
             const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
             const planDisplay = planDisplayNames[planKey] || planKey;
@@ -12987,10 +12999,14 @@ function setupSuperAdminTabs() {
 async function cargarEstadisticasGlobales() {
     if (!supabaseClient) return;
     try {
-        // Tenants
-        const { count: tenantsCount } = await supabaseClient.from('tenants').select('*', { count: 'exact', head: true });
+        // Tenants (solo los que cumplen la regla: suscripción vigente trial/plan)
+        const { data: tenantsVisibles, error: errTenants } = await supabaseClient
+            .from('tenants')
+            .select('id, subscriptions!inner(plan, status)')
+            .in('subscriptions.plan', ['free_trial', 'pro', 'premium_anual', 'freemium'])
+            .in('subscriptions.status', ['active', 'trial']);
         const elTenants = document.getElementById('total-tenants');
-        if (elTenants) elTenants.innerText = tenantsCount || 0;
+        if (elTenants) elTenants.innerText = errTenants ? 0 : (tenantsVisibles || []).length;
         
         // Servicios globales (sin tenantId = super admin)
         const { count: serviciosCount } = await supabaseClient.from('servicios').select('*', { count: 'exact', head: true });

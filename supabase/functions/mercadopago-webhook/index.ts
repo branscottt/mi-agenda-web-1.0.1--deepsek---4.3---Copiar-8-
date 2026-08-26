@@ -238,7 +238,11 @@ async function handle(req: Request): Promise<Response> {
   }
 
   if (req.method !== 'POST') {
-    return new Response('Método no permitido', { status: 405 });
+    // MP verifica la URL del webhook con un GET (Simular notificaciones /
+    // verificación de URL). Responder 200 sin procesar nada — los IPN reales
+    // SIEMPRE llegan por POST (verificado 2026-08: 405 en la simulación del
+    // panel era cosmético; los pagos reales se procesan correctamente por POST).
+    return new Response('OK', { status: 200 });
   }
 
   const accessToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
