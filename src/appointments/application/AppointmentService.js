@@ -30,7 +30,8 @@ function mapToCamelCase(c) {
         notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
         creadoEn: c.created_at,
         trabajadorId: c.trabajador_id || null,
-        trabajador: c.trabajadores || null
+        trabajador: c.trabajadores || null,
+        estadoPago: c.estado_pago || null
     };
 }
 

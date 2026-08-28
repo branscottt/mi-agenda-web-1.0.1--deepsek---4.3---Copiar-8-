@@ -16688,3 +16688,129 @@ textarea.kanban-nueva-card-input {
         max-width: 100%;
     }
 }
+
+/* ============================================================
+   Portal del trabajador — pulido visual (scoped, no afecta admin)
+   El tablero del cliente reutiliza las clases .kanban-* del admin
+   tal cual (mismo look); aquí solo se pulen las tarjetas de
+   reserva de la página del trabajador.
+   ============================================================ */
+.worker-portal-body .worker-cita-card {
+    cursor: pointer;
+    transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.worker-portal-body .worker-cita-card:hover,
+.worker-portal-body .worker-cita-card:focus-visible {
+    transform: translateY(-2px);
+    border-color: rgba(157, 78, 221, 0.5);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    outline: none;
+}
+.worker-portal-body .cita-ver {
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    transition: color .15s ease, transform .15s ease;
+}
+.worker-portal-body .worker-cita-card:hover .cita-ver {
+    color: var(--primary-color, #9d4edd);
+    transform: translateX(2px);
+}
+
+/* ============================================================
+   Etiquetas de pago por CLIENTE (Mis Clientes + portal trabajador)
+   ============================================================ */
+.etiqueta-pago-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    white-space: nowrap;
+    transition: filter .12s ease, transform .12s ease, border-color .12s ease;
+}
+.etiqueta-pago-chip[data-estado="pagado"]   { background: rgba(46, 204, 113, 0.14); color: #2ecc71; border-color: rgba(46, 204, 113, 0.45); }
+.etiqueta-pago-chip[data-estado="abonado"]  { background: rgba(52, 152, 219, 0.14); color: #3498db; border-color: rgba(52, 152, 219, 0.45); }
+.etiqueta-pago-chip[data-estado="parcial"]  { background: rgba(241, 196, 15, 0.14); color: #f1c40f; border-color: rgba(241, 196, 15, 0.45); }
+.etiqueta-pago-chip[data-estado="no_pagado"]{ background: rgba(231, 76, 60, 0.14); color: #e74c3c; border-color: rgba(231, 76, 60, 0.45); }
+.etiqueta-pago-chip[role="button"] { cursor: pointer; }
+.etiqueta-pago-chip[role="button"]:hover,
+.etiqueta-pago-chip[role="button"]:focus-visible {
+    filter: brightness(1.35);
+    transform: translateY(-1px);
+    outline: none;
+}
+.etiqueta-pago-chip.etiqueta-vacia[role="button"]:hover {
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.cliente-etiqueta-fila {
+    display: flex;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.cita-etiqueta {
+    display: flex;
+    margin-bottom: 4px;
+}
+
+.etiquetas-menu {
+    width: 100%;
+    max-width: 340px;
+    margin: auto;
+    background: linear-gradient(160deg, rgba(24, 22, 38, 0.98), rgba(14, 13, 24, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.etiquetas-menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.etiquetas-menu-header h4 { margin: 0; font-size: 0.95rem; }
+.etiquetas-menu-body {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.etiquetas-menu-opcion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid transparent;
+    color: var(--text-color, #eee);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background .12s ease, border-color .12s ease;
+}
+.etiquetas-menu-opcion:hover { background: rgba(255, 255, 255, 0.09); }
+.etiquetas-menu-opcion.activa {
+    border-color: rgba(157, 78, 221, 0.5);
+    background: rgba(157, 78, 221, 0.12);
+}
+.etiquetas-menu-opcion .etiquetas-menu-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.etiquetas-menu-opcion i.fa-check { margin-left: auto; color: #9d4edd; }
+.etiquetas-menu-opcion.sin-etiqueta i.fa-ban { color: rgba(255, 255, 255, 0.4); }

@@ -14,15 +14,33 @@ import { updateCita } from '../../api/appointmentsApi.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
+import { renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
+
+// ========== DEPENDENCIAS INYECTABLES ==========
+// Por defecto usa la capa de datos admin (kanbanApi + updateCita +
+// router). El portal del trabajador inyecta una capa worker-scoped
+// (RPCs SECURITY DEFINER) vía configurarClientBoard() — así se
+// reutiliza EXACTAMENTE este tablero en ambas vistas sin duplicarlo.
+let deps = {
+    kanbanApi,
+    updateCita,
+    getCurrentTenantId,
+    adjuntosSoloLectura: false,  // true = portal del trabajador (bucket privado)
+    onEditarContacto: null,      // callback opcional → botón "Editar contacto"
+    onCerrarBoard: null          // callback opcional al cerrar el modal
+};
+
+export function configurarClientBoard(opts) {
+    if (!opts) return;
+    if (opts.kanbanApi) deps.kanbanApi = opts.kanbanApi;
+    if (opts.updateCita) deps.updateCita = opts.updateCita;
+    if (opts.getCurrentTenantId) deps.getCurrentTenantId = opts.getCurrentTenantId;
+    if (typeof opts.adjuntosSoloLectura === 'boolean') deps.adjuntosSoloLectura = opts.adjuntosSoloLectura;
+    if (typeof opts.onEditarContacto === 'function') deps.onEditarContacto = opts.onEditarContacto;
+    if (typeof opts.onCerrarBoard === 'function') deps.onCerrarBoard = opts.onCerrarBoard;
+}
 
 // ========== CONSTANTES ==========
-
-export const ETIQUETAS_PAGO = [
-    { clave: 'pagado', nombre: 'Pagado', color: '#2ecc71' },
-    { clave: 'abonado', nombre: 'Abonado', color: '#3498db' },
-    { clave: 'parcial', nombre: 'Se pagó algo', color: '#f1c40f' },
-    { clave: 'no_pagado', nombre: 'No pagado', color: '#e74c3c' }
-];
 
 const ACCEPT_ADJUNTOS = [
     'image/*',
@@ -81,7 +99,7 @@ export async function abrirInformacionCliente(cliente, citas, clientes) {
         mostrarToast('El cliente no tiene email para abrir su información', 'warning');
         return;
     }
-    const tenantId = await getCurrentTenantId();
+    const tenantId = await deps.getCurrentTenantId();
     if (!tenantId) {
         mostrarToast('No se pudo identificar el negocio', 'error');
         return;
@@ -90,8 +108,8 @@ export async function abrirInformacionCliente(cliente, citas, clientes) {
     clienteActual = cliente;
     citasCliente = Array.isArray(citas) ? citas : [];
     clientesDelTenant = Array.isArray(clientes) ? clientes : [];
-    board = await kanbanApi.getOrCreateBoard(tenantId, cliente.email, cliente.nombre || '');
-    const datos = await kanbanApi.getBoardData(board.id);
+    board = await deps.kanbanApi.getOrCreateBoard(tenantId, cliente.email, cliente.nombre || '');
+    const datos = await deps.kanbanApi.getBoardData(board.id);
     lists = datos.lists || [];
 
     renderBoardModal();
@@ -122,8 +140,13 @@ function renderBoardModal() {
                         ${escapeHtml(clienteActual.email || '')}
                         ${clienteActual.telefono ? ` · <i class="fas fa-phone"></i> ${escapeHtml(clienteActual.telefono)}` : ''}
                     </span>
+                    ${clienteActual.estadoPago ? `<div style="margin-top:4px;">${renderChipEtiqueta(clienteActual.estadoPago)}</div>` : ''}
                 </div>
                 <div class="kanban-estilos-actions">
+                    ${deps.onEditarContacto ? `
+                    <button class="kanban-estilos-btn" id="kanban-editar-contacto" title="Editar nombre, teléfono o email del cliente">
+                        <i class="fas fa-address-book"></i><span class="kanban-estilos-txt"> Editar contacto</span>
+                    </button>` : ''}
                     <button class="kanban-estilos-btn" id="kanban-guardar-estilo" title="Guardar estas listas como estilo reutilizable en otros clientes">
                         <i class="fas fa-save"></i><span class="kanban-estilos-txt"> Guardar estilo</span>
                     </button>
@@ -153,6 +176,8 @@ function renderBoardModal() {
     bindListas();
     bindDnD();
     bindEstilos();
+    const editarContactoBtn = document.getElementById('kanban-editar-contacto');
+    if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
 }
 
 // ========== ESTILOS DE LISTAS (plantillas reutilizables) ==========
@@ -200,13 +225,13 @@ async function abrirModalGuardarEstilo() {
         const nombre = input.value.trim();
         if (!nombre) { mostrarToast('Poné un nombre al estilo', 'warning'); return; }
         try {
-            const tenantId = await getCurrentTenantId();
+            const tenantId = await deps.getCurrentTenantId();
             const listasPlantilla = lists.map(l => ({
                 titulo: l.titulo,
                 posicion: l.posicion,
                 tarjetas: (l.cards || []).map(c => ({ titulo: c.titulo, descripcion: c.descripcion || '' }))
             }));
-            await kanbanApi.saveEstilo(tenantId, nombre, listasPlantilla);
+            await deps.kanbanApi.saveEstilo(tenantId, nombre, listasPlantilla);
             overlay.remove();
             mostrarToast(`Estilo "${nombre}" guardado`, 'success');
         } catch (err) {
@@ -221,10 +246,10 @@ async function abrirModalGuardarEstilo() {
 
 /** Panel con los estilos guardados del tenant para aplicar a este cliente y/o a todos. */
 async function abrirPanelUsarEstilo() {
-    const tenantId = await getCurrentTenantId();
+    const tenantId = await deps.getCurrentTenantId();
     let estilos = [];
     try {
-        estilos = await kanbanApi.listEstilos(tenantId);
+        estilos = await deps.kanbanApi.listEstilos(tenantId);
     } catch (err) {
         console.error('[ClientBoard] Error listando estilos:', err);
         mostrarToast('No se pudieron cargar los estilos', 'error');
@@ -302,7 +327,7 @@ async function abrirPanelUsarEstilo() {
                 if (!est) return;
                 if (!window.confirm(`¿Eliminar el estilo "${est.nombre}"?`)) return;
                 try {
-                    await kanbanApi.deleteEstilo(est.id);
+                    await deps.kanbanApi.deleteEstilo(est.id);
                     mostrarToast('Estilo eliminado', 'success');
                     overlay.remove();
                     abrirPanelUsarEstilo();
@@ -319,10 +344,10 @@ async function abrirPanelUsarEstilo() {
 async function crearListasDePlantilla(boardId, listasPlantilla) {
     const creadas = [];
     for (const l of (listasPlantilla || [])) {
-        const nueva = await kanbanApi.createList(boardId, l.titulo, l.posicion);
+        const nueva = await deps.kanbanApi.createList(boardId, l.titulo, l.posicion);
         const tarjetas = l.tarjetas || [];
         for (let i = 0; i < tarjetas.length; i++) {
-            await kanbanApi.createCard(nueva.id, { titulo: tarjetas[i].titulo, descripcion: tarjetas[i].descripcion || '', posicion: i });
+            await deps.kanbanApi.createCard(nueva.id, { titulo: tarjetas[i].titulo, descripcion: tarjetas[i].descripcion || '', posicion: i });
         }
         creadas.push(nueva);
     }
@@ -330,11 +355,11 @@ async function crearListasDePlantilla(boardId, listasPlantilla) {
 }
 
 async function aplicarEstilo(estilo, aTodos) {
-    const tenantId = await getCurrentTenantId();
+    const tenantId = await deps.getCurrentTenantId();
     try {
         let aplicados = 0;
         // 1. Cliente actual
-        const actuales = await kanbanApi.getBoardData(board.id);
+        const actuales = await deps.kanbanApi.getBoardData(board.id);
         if (!actuales.lists.length) {
             await crearListasDePlantilla(board.id, estilo.listas);
             aplicados++;
@@ -347,8 +372,8 @@ async function aplicarEstilo(estilo, aTodos) {
             for (const cl of clientesDelTenant) {
                 if (!cl.email || cl.email === clienteActual.email) continue;
                 try {
-                    const b = await kanbanApi.getOrCreateBoard(tenantId, cl.email, cl.nombre || '');
-                    const datos = await kanbanApi.getBoardData(b.id);
+                    const b = await deps.kanbanApi.getOrCreateBoard(tenantId, cl.email, cl.nombre || '');
+                    const datos = await deps.kanbanApi.getBoardData(b.id);
                     if (datos.lists.length) continue; // no tocar clientes ya trabajados
                     await crearListasDePlantilla(b.id, estilo.listas);
                     aplicados++;
@@ -359,7 +384,7 @@ async function aplicarEstilo(estilo, aTodos) {
         }
 
         // Recargar board actual
-        const datos = await kanbanApi.getBoardData(board.id);
+        const datos = await deps.kanbanApi.getBoardData(board.id);
         lists = datos.lists || [];
         renderBoardModal();
         mostrarToast(aTodos
@@ -402,10 +427,6 @@ function renderListasHtml() {
 }
 
 function renderCardHtml(card) {
-    const chips = (card.etiquetas || []).map(et =>
-        `<span class="kanban-chip" style="background:${escapeHtml(et.color || '#888')}">${escapeHtml(et.nombre || et.clave || '')}</span>`
-    ).join('');
-
     let badges = '';
     const totalCheck = (card.checklists || []).reduce((acc, ch) => acc + (ch.items || []).length, 0);
     const hechosCheck = (card.checklists || []).reduce((acc, ch) => acc + (ch.items || []).filter(i => i.completado).length, 0);
@@ -426,7 +447,6 @@ function renderCardHtml(card) {
                 <i class="fas fa-check"></i>
             </button>
             <div class="kanban-card-body">
-                ${chips ? `<div class="kanban-card-chips">${chips}</div>` : ''}
                 <div class="kanban-card-titulo">${escapeHtml(card.titulo)}</div>
                 ${badges ? `<div class="kanban-card-badges">${badges}</div>` : ''}
             </div>
@@ -455,6 +475,7 @@ function cerrarModal() {
     lists = [];
     clienteActual = null;
     citasCliente = [];
+    if (deps.onCerrarBoard) deps.onCerrarBoard();
 }
 
 function cerrarCardModal() {
@@ -479,6 +500,7 @@ function actualizarCardEnBoard(card) {
     if (!nuevo) return;
     cardEl.replaceWith(nuevo);
     nuevo.addEventListener('click', () => abrirCardModal(card.id));
+    bindCheckTarjeta(nuevo);
 }
 
 // ========== LISTAS: crear / editar / eliminar ==========
@@ -502,7 +524,7 @@ function bindAddLista() {
             const titulo = input.value.trim();
             if (!titulo) return;
             try {
-                const nueva = await kanbanApi.createList(board.id, titulo, lists.length);
+                const nueva = await deps.kanbanApi.createList(board.id, titulo, lists.length);
                 lists.push({ ...nueva, cards: [] });
                 renderBoardModal();
             } catch (e) {
@@ -540,7 +562,7 @@ function bindListas() {
                 const titulo = input.value.trim();
                 if (!titulo) return;
                 try {
-                    const actualizada = await kanbanApi.updateList(listaId, { titulo });
+                    const actualizada = await deps.kanbanApi.updateList(listaId, { titulo });
                     lista.titulo = actualizada.titulo;
                 } catch (e) {
                     console.error('[ClientBoard] Error renombrando lista:', e);
@@ -569,7 +591,7 @@ function bindListas() {
                 : `¿Eliminar la lista "${lista.titulo}"?`;
             if (!window.confirm(msg)) return;
             try {
-                await kanbanApi.deleteList(listaId);
+                await deps.kanbanApi.deleteList(listaId);
                 lists = lists.filter(l => l.id !== listaId);
                 renderBoardModal();
                 mostrarToast('Lista eliminada', 'success');
@@ -633,7 +655,7 @@ function bindListas() {
                     if (lineas.length > 1 && modoMulti === 'multiples') {
                         // Trello-style: una tarjeta por línea
                         for (let i = 0; i < lineas.length; i++) {
-                            const nueva = await kanbanApi.createCard(listaId, { titulo: lineas[i], posicion: lista.cards.length + i });
+                            const nueva = await deps.kanbanApi.createCard(listaId, { titulo: lineas[i], posicion: lista.cards.length + i });
                             lista.cards.push({ ...nueva, etiquetas: [], checklists: [], adjuntos: [] });
                         }
                         renderBoardModal();
@@ -642,7 +664,7 @@ function bindListas() {
                         // Una tarjeta: primera línea = título, resto = descripción
                         const titulo = lineas[0];
                         const descripcion = lineas.slice(1).join('\n');
-                        const nueva = await kanbanApi.createCard(listaId, { titulo, descripcion, posicion: lista.cards.length });
+                        const nueva = await deps.kanbanApi.createCard(listaId, { titulo, descripcion, posicion: lista.cards.length });
                         lista.cards.push({ ...nueva, etiquetas: nueva.etiquetas || [], checklists: [], adjuntos: [] });
                         renderBoardModal();
                         abrirCardModal(nueva.id);
@@ -671,24 +693,33 @@ function bindListas() {
             if (e.target.closest('.kanban-card-check')) return;
             abrirCardModal(cardEl.dataset.cardId);
         });
-        const checkBtn = cardEl.querySelector('.kanban-card-check');
-        if (checkBtn) {
-            checkBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const cardId = checkBtn.dataset.cardId;
-                const found = buscarCard(cardId);
-                if (!found) return;
-                const card = found.card;
-                card.completado = !card.completado;
-                try {
-                    await kanbanApi.updateCard(cardId, { completado: card.completado });
-                    actualizarCardEnBoard(card);
-                } catch (err) {
-                    card.completado = !card.completado;
-                    console.error('[ClientBoard] Error marcando tarjeta:', err);
-                    mostrarToast('No se pudo actualizar la tarjeta', 'error');
-                }
-            });
+        bindCheckTarjeta(cardEl);
+    });
+}
+
+/**
+ * Bind del checkbox "hecha" de una tarjeta. Se usa tanto en
+ * renderBoardModal como en actualizarCardEnBoard (fix: el elemento
+ * reemplazado perdía el listener y no se podía desmarcar sin
+ * recargar el board).
+ */
+function bindCheckTarjeta(cardEl) {
+    const checkBtn = cardEl.querySelector('.kanban-card-check');
+    if (!checkBtn) return;
+    checkBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const cardId = checkBtn.dataset.cardId;
+        const found = buscarCard(cardId);
+        if (!found) return;
+        const card = found.card;
+        card.completado = !card.completado;
+        try {
+            await deps.kanbanApi.updateCard(cardId, { completado: card.completado });
+            actualizarCardEnBoard(card);
+        } catch (err) {
+            card.completado = !card.completado;
+            console.error('[ClientBoard] Error marcando tarjeta:', err);
+            mostrarToast('No se pudo actualizar la tarjeta', 'error');
         }
     });
 }
@@ -766,7 +797,7 @@ async function persistirOrden(listaId) {
     if (!cont) return;
     const els = [...cont.querySelectorAll('.kanban-card')];
     const updates = els.map((el, i) => ({ id: el.dataset.cardId, list_id: listaId, posicion: i }));
-    if (updates.length) await kanbanApi.reordenarCards(updates);
+    if (updates.length) await deps.kanbanApi.reordenarCards(updates);
 }
 
 function syncStateDesdeDOM() {
@@ -804,8 +835,6 @@ function abrirCardModal(cardId) {
     if (!found) return;
     const { lista, card } = found;
 
-    const etiquetaActual = (card.etiquetas && card.etiquetas[0]) || null;
-
     // Opciones de citas del cliente
     const citaOptions = citasCliente
         .map(c => {
@@ -825,16 +854,10 @@ function abrirCardModal(cardId) {
         .map(l => `<option value="${l.id}" ${l.id === lista.id ? 'selected' : ''}>${escapeHtml(l.titulo)}</option>`)
         .join('');
 
-    const chips = ETIQUETAS_PAGO.map(et => `
-        <button type="button" class="kanban-chip-btn ${etiquetaActual && etiquetaActual.clave === et.clave ? 'activa' : ''}"
-                data-clave="${et.clave}" style="--chip-color:${et.color}">
-            <span class="kanban-chip-dot" style="background:${et.color}"></span> ${et.nombre}
-        </button>
-    `).join('');
-
+    const soloLectura = deps.adjuntosSoloLectura === true;
     const adjuntosHtml = card.adjuntos.length
-        ? card.adjuntos.map(a => renderAdjuntoHtml(a)).join('')
-        : '<p class="kanban-adjuntos-vacio">Sin documentos. Podés subir imágenes, PDF, Word, Excel, PowerPoint, etc.</p>';
+        ? card.adjuntos.map(a => renderAdjuntoHtml(a, soloLectura)).join('')
+        : `<p class="kanban-adjuntos-vacio">Sin documentos${soloLectura ? '' : '. Podés subir imágenes, PDF, Word, Excel, PowerPoint, etc.'}</p>`;
 
     const overlay = document.createElement('div');
     overlay.id = 'kanban-card-overlay';
@@ -852,9 +875,6 @@ function abrirCardModal(cardId) {
                 <label class="kanban-seccion-label"><i class="fas fa-align-left"></i> Descripción</label>
                 <textarea id="kcard-descripcion" rows="3" placeholder="Notas, detalles, seguimiento...">${escapeHtml(card.descripcion || '')}</textarea>
 
-                <label class="kanban-seccion-label"><i class="fas fa-tag"></i> Etiqueta de pago <span class="kanban-label-hint">(una por tarjeta — estado del pago)</span></label>
-                <div class="kanban-etiquetas">${chips}</div>
-
                 <div class="kanban-form-row">
                     <div>
                         <label class="kanban-seccion-label"><i class="fas fa-columns"></i> Lista</label>
@@ -865,7 +885,7 @@ function abrirCardModal(cardId) {
                         ${citaSelect}
                     </div>
                 </div>
-                <p class="kanban-hint"><i class="fas fa-info-circle"></i> Si vinculás una cita y elegís una etiqueta de pago, el estado aparecerá en <strong>Citas Programadas</strong> apenas lo guardes.</p>
+                <p class="kanban-hint"><i class="fas fa-info-circle"></i> Vinculá una cita programada para relacionar esta tarjeta con la reserva del cliente.</p>
 
                 <div class="kanban-seccion">
                     <div class="kanban-seccion-header">
@@ -881,11 +901,13 @@ function abrirCardModal(cardId) {
                     <label class="kanban-seccion-label"><i class="fas fa-paperclip"></i> Documentos adjuntos</label>
                     <div class="kanban-adjuntos">
                         <div class="kanban-adjuntos-list" id="kadjuntos-list">${adjuntosHtml}</div>
+                        ${soloLectura ? `
+                        <p class="kanban-hint"><i class="fas fa-info-circle"></i> Solo lectura desde este portal: los documentos los gestiona el administrador.</p>` : `
                         <label class="kanban-upload-btn">
                             <i class="fas fa-cloud-upload-alt"></i> Subir archivo
                             <input type="file" id="kadjuntos-file" multiple accept="${ACCEPT_ADJUNTOS}">
                         </label>
-                        <p class="kanban-upload-limit"><i class="fas fa-info-circle"></i> Máximo 100 MB por archivo. Formatos: imágenes, PDF, Word, Excel, PowerPoint, texto, ZIP, video y audio.</p>
+                        <p class="kanban-upload-limit"><i class="fas fa-info-circle"></i> Máximo 100 MB por archivo. Formatos: imágenes, PDF, Word, Excel, PowerPoint, texto, ZIP, video y audio.</p>`}
                     </div>
                 </div>
 
@@ -905,23 +927,13 @@ function abrirCardModal(cardId) {
     document.getElementById('kcard-cerrar').addEventListener('click', cerrarCon);
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrarCon(); });
 
-    // Etiquetas (excluyentes: elegir una quita las demás)
-    let etiquetaSel = etiquetaActual ? etiquetaActual.clave : null;
-    overlay.querySelectorAll('.kanban-chip-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const clave = btn.dataset.clave;
-            etiquetaSel = (etiquetaSel === clave) ? null : clave;
-            overlay.querySelectorAll('.kanban-chip-btn').forEach(b => b.classList.toggle('activa', b.dataset.clave === etiquetaSel));
-        });
-    });
-
     // Checklists
     bindChecklistsUI(overlay, card);
 
     // Nuevo checklist
     document.getElementById('kcheck-nuevo').addEventListener('click', async () => {
         try {
-            const nuevo = await kanbanApi.createChecklist(card.id, 'Checklist', card.checklists.length);
+            const nuevo = await deps.kanbanApi.createChecklist(card.id, 'Checklist', card.checklists.length);
             card.checklists.push(nuevo);
             renderChecklistsSection(overlay, card);
             bindChecklistsUI(overlay, card);
@@ -931,30 +943,29 @@ function abrirCardModal(cardId) {
         }
     });
 
-    // Adjuntos: ver / descargar / eliminar / subir
-    overlay.querySelectorAll('.kanban-adjunto-ver').forEach(btn => {
-        btn.addEventListener('click', () => verAdjunto(btn.closest('.kanban-adjunto-item')));
-    });
-    overlay.querySelectorAll('.kanban-adjunto-descargar').forEach(btn => {
-        btn.addEventListener('click', () => descargarAdjunto(btn.closest('.kanban-adjunto-item')));
-    });
-    overlay.querySelectorAll('.kanban-adjunto-del').forEach(btn => {
-        btn.addEventListener('click', () => eliminarAdjunto(btn.closest('.kanban-adjunto-item'), card));
-    });
-    document.getElementById('kadjuntos-file').addEventListener('change', (e) => {
-        subirAdjuntos(e.target.files, card);
-        e.target.value = '';
-    });
+    // Adjuntos: ver / descargar / eliminar / subir (solo admin;
+    // en el portal del trabajador son solo lectura)
+    if (!soloLectura) {
+        overlay.querySelectorAll('.kanban-adjunto-ver').forEach(btn => {
+            btn.addEventListener('click', () => verAdjunto(btn.closest('.kanban-adjunto-item')));
+        });
+        overlay.querySelectorAll('.kanban-adjunto-descargar').forEach(btn => {
+            btn.addEventListener('click', () => descargarAdjunto(btn.closest('.kanban-adjunto-item')));
+        });
+        overlay.querySelectorAll('.kanban-adjunto-del').forEach(btn => {
+            btn.addEventListener('click', () => eliminarAdjunto(btn.closest('.kanban-adjunto-item'), card));
+        });
+        document.getElementById('kadjuntos-file').addEventListener('change', (e) => {
+            subirAdjuntos(e.target.files, card);
+            e.target.value = '';
+        });
+    }
 
     // Eliminar tarjeta
     document.getElementById('kcard-eliminar').addEventListener('click', async () => {
         if (!window.confirm(`¿Eliminar la tarjeta "${card.titulo}"?`)) return;
         try {
-            // Si tenía cita vinculada y etiqueta de pago, limpiar el estado de la cita
-            if (card.cita_id && card.etiquetas && card.etiquetas.length) {
-                await updateCita(card.cita_id, { estado_pago: null, estado_pago_actualizado_en: null }).catch(() => {});
-            }
-            await kanbanApi.deleteCard(card.id);
+            await deps.kanbanApi.deleteCard(card.id);
             lista.cards = lista.cards.filter(c => c.id !== card.id);
             cerrarCardModal();
             renderBoardModal();
@@ -966,7 +977,7 @@ function abrirCardModal(cardId) {
     });
 
     // Guardar
-    document.getElementById('kcard-guardar').addEventListener('click', () => guardarCard(card, lista, overlay, etiquetaSel));
+    document.getElementById('kcard-guardar').addEventListener('click', () => guardarCard(card, lista, overlay));
 }
 
 // ========== CHECKLISTS (múltiples, estilo Trello) ==========
@@ -1038,7 +1049,7 @@ function bindChecklistsUI(overlay, card) {
                 const titulo = input.value.trim();
                 if (!titulo) return;
                 try {
-                    const actualizado = await kanbanApi.updateChecklist(checklistId, { titulo });
+                    const actualizado = await deps.kanbanApi.updateChecklist(checklistId, { titulo });
                     checklist.titulo = actualizado.titulo;
                 } catch (e) {
                     console.error('[ClientBoard] Error renombrando checklist:', e);
@@ -1058,7 +1069,7 @@ function bindChecklistsUI(overlay, card) {
         chEl.querySelector('.kanban-checklist-del').addEventListener('click', async () => {
             if (!window.confirm(`¿Eliminar el checklist "${checklist.titulo}" y sus ${checklist.items.length} elemento${checklist.items.length !== 1 ? 's' : ''}?`)) return;
             try {
-                await kanbanApi.deleteChecklist(checklistId);
+                await deps.kanbanApi.deleteChecklist(checklistId);
                 card.checklists = card.checklists.filter(c => c.id !== checklistId);
                 renderChecklistsSection(overlay, card);
                 bindChecklistsUI(overlay, card);
@@ -1080,7 +1091,7 @@ function bindChecklistsUI(overlay, card) {
                 itemEl.querySelector('.kanban-item-texto').classList.toggle('hecho', cb.checked);
                 actualizarProgresoChecklist(chEl);
                 try {
-                    await kanbanApi.updateChecklistItem(itemId, { completado: cb.checked });
+                    await deps.kanbanApi.updateChecklistItem(itemId, { completado: cb.checked });
                 } catch (err) {
                     console.error('[ClientBoard] Error actualizando checklist:', err);
                     mostrarToast('No se pudo actualizar el elemento', 'error');
@@ -1094,7 +1105,7 @@ function bindChecklistsUI(overlay, card) {
                 const itemEl = btn.closest('.kanban-checklist-item');
                 const itemId = itemEl.dataset.itemId;
                 try {
-                    await kanbanApi.deleteChecklistItem(itemId);
+                    await deps.kanbanApi.deleteChecklistItem(itemId);
                     checklist.items = checklist.items.filter(i => i.id !== itemId);
                     itemEl.remove();
                     actualizarProgresoChecklist(chEl);
@@ -1113,7 +1124,7 @@ function bindChecklistsUI(overlay, card) {
             const texto = input.value.trim();
             if (!texto) return;
             try {
-                const nuevo = await kanbanApi.addChecklistItem(checklistId, card.id, texto, checklist.items.length);
+                const nuevo = await deps.kanbanApi.addChecklistItem(checklistId, card.id, texto, checklist.items.length);
                 checklist.items.push(nuevo);
                 input.value = '';
                 renderChecklistsSection(overlay, card);
@@ -1148,7 +1159,7 @@ function actualizarContadorChecklist(chEl, checklist) {
 
 // ========== GUARDAR TARJETA ==========
 
-async function guardarCard(card, lista, overlay, etiquetaSel) {
+async function guardarCard(card, lista, overlay) {
     const titulo = document.getElementById('kcard-titulo').value.trim();
     if (!titulo) {
         mostrarToast('El título es obligatorio', 'warning');
@@ -1158,31 +1169,17 @@ async function guardarCard(card, lista, overlay, etiquetaSel) {
     const nuevaListaId = document.getElementById('kcard-lista').value;
     const citaId = document.getElementById('kcard-cita').value || null;
 
-    const etiquetas = etiquetaSel
-        ? [ETIQUETAS_PAGO.find(e => e.clave === etiquetaSel)].filter(Boolean).map(e => ({ clave: e.clave, nombre: e.nombre, color: e.color }))
-        : [];
-
     try {
         let posicion = card.posicion;
         if (nuevaListaId && nuevaListaId !== lista.id) {
             const destino = lists.find(l => l.id === nuevaListaId);
             posicion = destino ? destino.cards.length : 0;
         }
-        await kanbanApi.updateCard(card.id, { titulo, descripcion, etiquetas, cita_id: citaId, posicion });
-
-        // Sincronizar estado de pago en la cita vinculada (aparece en Citas Programadas)
-        if (citaId) {
-            const etiqueta = etiquetas[0] || null;
-            await updateCita(citaId, {
-                estado_pago: etiqueta ? etiqueta.clave : null,
-                estado_pago_actualizado_en: etiqueta ? new Date().toISOString() : null
-            });
-        }
+        await deps.kanbanApi.updateCard(card.id, { titulo, descripcion, cita_id: citaId, posicion });
 
         // Actualizar estado local
         card.titulo = titulo;
         card.descripcion = descripcion;
-        card.etiquetas = etiquetas;
         card.cita_id = citaId;
         card.posicion = posicion;
         if (nuevaListaId && nuevaListaId !== lista.id) {
@@ -1205,7 +1202,11 @@ async function guardarCard(card, lista, overlay, etiquetaSel) {
 
 // ========== ADJUNTOS ==========
 
-function renderAdjuntoHtml(a) {
+function renderAdjuntoHtml(a, soloLectura) {
+    const acciones = soloLectura ? '' : `
+            <button class="btn-small kanban-adjunto-ver" title="Ver en pantalla"><i class="fas fa-eye"></i> <span class="kanban-btn-texto">Ver</span></button>
+            <button class="btn-small kanban-adjunto-descargar" title="Descargar"><i class="fas fa-download"></i> <span class="kanban-btn-texto">Descargar</span></button>
+            <button class="btn-small kanban-adjunto-del" title="Eliminar"><i class="fas fa-trash"></i> <span class="kanban-btn-texto">Eliminar</span></button>`;
     return `
         <div class="kanban-adjunto-item" data-adjunto-id="${a.id}">
             <span class="kanban-adjunto-icono ${claseIconoMime(a.tipo_mime)}"><i class="fas ${iconoParaMime(a.tipo_mime)}"></i></span>
@@ -1213,9 +1214,7 @@ function renderAdjuntoHtml(a) {
                 <strong>${escapeHtml(a.nombre)}</strong>
                 <span>${formatTamano(a.tamano)}</span>
             </div>
-            <button class="btn-small kanban-adjunto-ver" title="Ver en pantalla"><i class="fas fa-eye"></i> <span class="kanban-btn-texto">Ver</span></button>
-            <button class="btn-small kanban-adjunto-descargar" title="Descargar"><i class="fas fa-download"></i> <span class="kanban-btn-texto">Descargar</span></button>
-            <button class="btn-small kanban-adjunto-del" title="Eliminar"><i class="fas fa-trash"></i> <span class="kanban-btn-texto">Eliminar</span></button>
+            ${acciones}
         </div>
     `;
 }
@@ -1290,7 +1289,7 @@ async function subirAdjuntos(files, card) {
         let ultimoLoaded = 0;
 
         try {
-            const storagePath = await kanbanApi.uploadAttachment(file, board.id, card.id, (p) => {
+            const storagePath = await deps.kanbanApi.uploadAttachment(file, board.id, card.id, (p) => {
                 if (!filaEl) return;
                 const ahora = Date.now();
                 if (ahora - ultimaActualizacion < 120) return; // throttle UI
@@ -1315,7 +1314,7 @@ async function subirAdjuntos(files, card) {
                 if (pctEl) pctEl.textContent = pct + '%';
             });
 
-            const meta = await kanbanApi.addAttachment(card.id, {
+            const meta = await deps.kanbanApi.addAttachment(card.id, {
                 nombre: file.name,
                 tipo_mime: file.type || 'application/octet-stream',
                 tamano: file.size,
@@ -1390,7 +1389,7 @@ async function verAdjunto(el) {
     const adjunto = await obtenerAdjunto(el);
     if (!adjunto) return;
     try {
-        const url = await kanbanApi.getAttachmentUrl(adjunto.storage_path);
+        const url = await deps.kanbanApi.getAttachmentUrl(adjunto.storage_path);
         if (!url) throw new Error('URL no disponible');
         const esImagen = (adjunto.tipo_mime || '').includes('image');
 
@@ -1438,7 +1437,7 @@ async function descargarAdjunto(el) {
     const adjunto = await obtenerAdjunto(el);
     if (!adjunto) return;
     try {
-        const url = await kanbanApi.getAttachmentUrl(adjunto.storage_path);
+        const url = await deps.kanbanApi.getAttachmentUrl(adjunto.storage_path);
         if (!url) throw new Error('URL no disponible');
         const link = document.createElement('a');
         link.href = url;
@@ -1459,7 +1458,7 @@ async function eliminarAdjunto(el, card) {
     if (!adjunto) return;
     if (!window.confirm(`¿Eliminar "${adjunto.nombre}"?`)) return;
     try {
-        await kanbanApi.deleteAttachment(adjunto.id, adjunto.storage_path);
+        await deps.kanbanApi.deleteAttachment(adjunto.id, adjunto.storage_path);
         card.adjuntos = card.adjuntos.filter(a => a.id !== adjunto.id);
         el.remove();
         mostrarToast('Documento eliminado', 'success');

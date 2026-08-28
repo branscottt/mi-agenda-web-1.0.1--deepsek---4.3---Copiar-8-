@@ -5,13 +5,16 @@ import { getAllCitas } from '../../appointments/application/AppointmentService.j
 import { getVentasArchivadas } from '../../api/appointmentsApi.js';
 import { getAllServicios } from '../../api/serviciosApi.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { formatearDinero, formatDate, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { abrirMenuEtiquetas, renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
 
 // ========== DATOS ==========
 
 function deduplicarClientes(citas) {
     const mapa = new Map();
+    const hoy = formatDate(new Date());
     citas.forEach(c => {
         const email = (c.contacto?.email || '').toLowerCase().trim();
         if (!email) return;
@@ -24,6 +27,7 @@ function deduplicarClientes(citas) {
                 visitas: 0,
                 primeraVisita: c.fecha,
                 ultimaVisita: c.fecha,
+                estadoPago: null,
                 citas: []
             });
         }
@@ -34,7 +38,15 @@ function deduplicarClientes(citas) {
         if (c.fecha > cl.ultimaVisita) cl.ultimaVisita = c.fecha;
         cl.citas.push(c);
     });
-    return Array.from(mapa.values()).sort((a, b) => b.ultimaVisita.localeCompare(a.ultimaVisita));
+    return Array.from(mapa.values()).map(cl => {
+        // Estado de pago del cliente = el de su próxima cita; si no hay, el de la última
+        const futuras = cl.citas
+            .filter(c => c.fecha >= hoy)
+            .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora));
+        const ultima = [...cl.citas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.hora.localeCompare(a.hora))[0];
+        cl.estadoPago = (futuras[0] && futuras[0].estadoPago) || (ultima && ultima.estadoPago) || null;
+        return cl;
+    }).sort((a, b) => b.ultimaVisita.localeCompare(a.ultimaVisita));
 }
 
 /**
@@ -62,6 +74,8 @@ function mapearVenta(v) {
 let clientesCache = [];
 let filtroActual = '';
 let mapaServicios = {};
+// Permiso de etiquetas de pago para trabajadores (master + lista blanca)
+let permisoEtiquetas = { permitir: false, trabajadores: [], trabajadoresLista: [] };
 
 export async function renderClientListView(containerId = 'clientes-list-container') {
     const container = document.getElementById(containerId);
@@ -71,6 +85,20 @@ export async function renderClientListView(containerId = 'clientes-list-containe
 
     try {
         const tenantId = await getCurrentTenantId();
+
+        // Permiso de etiquetas de pago para trabajadores (master + lista blanca)
+        try {
+            const { data: permisoData } = await getSupabase().rpc('admin_get_permiso_etiquetas', { p_tenant_id: tenantId });
+            if (permisoData && permisoData.ok) {
+                permisoEtiquetas = {
+                    permitir: permisoData.permitir === true,
+                    trabajadores: permisoData.trabajadores || [],
+                    trabajadoresLista: permisoData.trabajadores_lista || []
+                };
+            }
+        } catch (e) {
+            console.warn('[ClientListView] No se pudo leer el permiso de etiquetas:', e);
+        }
 
         // Histórico completo = citas vigentes (hoy/futuro) + ventas archivadas (pasado).
         // La limpieza automática borra las citas con fecha pasada y el trigger
@@ -143,6 +171,9 @@ function renderLista(container) {
                 <i class="fas fa-search"></i>
                 <input type="text" id="clientes-search-input" placeholder="Buscar por nombre, email o teléfono..." value="${escapeHtml(filtroActual)}">
             </div>
+            <button class="btn-secondary btn-small" id="toggle-permiso-etiquetas" title="Permitir que los trabajadores pongan etiquetas de pago a sus clientes (el estado aparece en Citas Programadas)">
+                <i class="fas fa-tags"></i> Etiquetas: ${textoPermisoEtiquetas()}
+            </button>
             <button class="btn-secondary btn-small" id="export-clientes-csv" title="Exportar todos los clientes a CSV">
                 <i class="fas fa-download"></i> Exportar CSV
             </button>
@@ -160,8 +191,15 @@ function renderLista(container) {
 
     bindSearch(container);
     bindExport(container);
+    bindTogglePermisoEtiquetas(container);
     bindHistorialButtons(container);
     bindClienteCards(container);
+}
+
+function textoPermisoEtiquetas() {
+    if (!permisoEtiquetas.permitir) return 'Desactivadas';
+    if (permisoEtiquetas.trabajadores.length) return `${permisoEtiquetas.trabajadores.length} trabajador(es)`;
+    return 'Todos los trabajadores';
 }
 
 function renderGridHtml(filtrados) {
@@ -198,6 +236,9 @@ function renderGridHtml(filtrados) {
                         ${cl.telefono ? `<span><i class="fas fa-phone"></i> ${escapeHtml(cl.telefono)}</span>` : ''}
                         <span><i class="fas fa-clock"></i> Última: ${formatFechaCorta(cl.ultimaVisita)}</span>
                         ${proxCita ? `<span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: ${formatFechaCorta(proxCita.fecha)} ${formatTimeDisplay(proxCita.hora)}</span>` : ''}
+                    </div>
+                    <div class="cliente-etiqueta-fila" data-email="${escapeHtml(cl.email)}" title="Cambiar el estado de pago del cliente (aparece en Citas Programadas)">
+                        ${renderChipEtiqueta(cl.estadoPago, { clickeable: true, vacioTexto: '<i class="fas fa-tag"></i> Marcar pago' })}
                     </div>
                     <div class="cliente-actions-row">
                         ${cl.telefono ? `<a href="https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}" target="_blank" class="btn-small" style="background:#25D366;color:#fff;" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></a>` : ''}
@@ -302,6 +343,160 @@ function bindClienteCards(container) {
             const cliente = clientesCache.find(c => c.email.toLowerCase() === card.dataset.email.toLowerCase());
             if (cliente) abrirInformacion(cliente);
         });
+    });
+
+    // Chip de etiqueta de pago del cliente (no abre la información)
+    container.querySelectorAll('.cliente-etiqueta-fila').forEach(fila => {
+        fila.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cambiarEtiquetaCliente(fila);
+        });
+        fila.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cambiarEtiquetaCliente(fila); }
+        });
+    });
+}
+
+/** Menú de etiqueta de pago del cliente → RPC admin (todas sus citas). */
+async function cambiarEtiquetaCliente(fila) {
+    const email = fila.dataset.email;
+    const cl = clientesCache.find(c => c.email.toLowerCase() === email.toLowerCase());
+    if (!cl) return;
+    abrirMenuEtiquetas(cl.estadoPago, async (clave) => {
+        try {
+            const { data, error } = await getSupabase().rpc('admin_set_estado_pago_cliente', {
+                p_tenant_id: await getCurrentTenantId(),
+                p_cliente_email: email,
+                p_estado: clave || ''
+            });
+            if (error || !data || data.ok !== true) {
+                mostrarToast((data && data.error) || 'No se pudo actualizar el estado de pago', 'error');
+                return;
+            }
+            cl.estadoPago = clave;
+            cl.citas.forEach(c => { c.estadoPago = clave; });
+            const grid = document.getElementById('clientes-grid');
+            if (grid) {
+                grid.innerHTML = renderGridHtml(getFiltrados());
+                const container = document.getElementById('clientes-list-container');
+                if (container) {
+                    bindHistorialButtons(container);
+                    bindClienteCards(container);
+                }
+            }
+            mostrarToast(`Estado de pago actualizado (${data.citas_actualizadas || 0} reserva(s))`, 'success');
+        } catch (err) {
+            console.error('[ClientListView] Error actualizando etiqueta:', err);
+            mostrarToast('No se pudo actualizar el estado de pago', 'error');
+        }
+    });
+}
+
+// ========== PERMISO DE ETIQUETAS PARA TRABAJADORES ==========
+
+function bindTogglePermisoEtiquetas(container) {
+    const btn = document.getElementById('toggle-permiso-etiquetas');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        if (permisoEtiquetas.permitir) {
+            if (!window.confirm('¿Desactivar las etiquetas de pago para los trabajadores? El administrador siempre podrá ponerlas.')) return;
+            aplicarPermisoEtiquetas(false, null);
+        } else {
+            abrirPanelPermisoEtiquetas();
+        }
+    });
+}
+
+async function aplicarPermisoEtiquetas(permitir, trabajadoresIds) {
+    try {
+        const { data, error } = await getSupabase().rpc('admin_set_permiso_etiquetas', {
+            p_tenant_id: await getCurrentTenantId(),
+            p_permitir: permitir,
+            p_trabajadores: trabajadoresIds
+        });
+        if (error || !data || data.ok !== true) {
+            mostrarToast((data && data.error) || 'No se pudo guardar el permiso', 'error');
+            return;
+        }
+        permisoEtiquetas.permitir = data.permitir === true;
+        if (trabajadoresIds !== null) {
+            permisoEtiquetas.trabajadores = (trabajadoresIds || []).map(String);
+        }
+        const container = document.getElementById('clientes-list-container');
+        if (container) renderLista(container);
+        mostrarToast(permitir
+            ? (trabajadoresIds && trabajadoresIds.length ? `Permiso activado para ${trabajadoresIds.length} trabajador(es)` : 'Permiso activado para todos los trabajadores')
+            : 'Permiso desactivado', 'success');
+    } catch (err) {
+        console.error('[ClientListView] Error guardando permiso:', err);
+        mostrarToast('No se pudo guardar el permiso', 'error');
+    }
+}
+
+/** Panel con las opciones al activar: todos o elegir trabajadores. */
+function abrirPanelPermisoEtiquetas() {
+    const overlay = document.createElement('div');
+    overlay.className = 'kanban-card-overlay';
+    overlay.style.zIndex = '2300';
+    overlay.innerHTML = `
+        <div class="etiquetas-menu" style="max-width:420px;">
+            <header class="etiquetas-menu-header">
+                <h4><i class="fas fa-user-check"></i> Etiquetas de pago de trabajadores</h4>
+                <button class="kanban-btn-close" id="permiso-cerrar" title="Cerrar">&times;</button>
+            </header>
+            <div class="etiquetas-menu-body">
+                <p class="kanban-hint" style="margin:0 4px 10px;">Los trabajadores podrán marcar el estado de pago de sus clientes y aparecerá en Citas Programadas. El administrador siempre puede.</p>
+                <button type="button" class="etiquetas-menu-opcion" id="permiso-todos"><i class="fas fa-users"></i> Permitir a todos los trabajadores</button>
+                <button type="button" class="etiquetas-menu-opcion" id="permiso-elegir"><i class="fas fa-user-cog"></i> Elegir trabajadores...</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const cerrar = () => overlay.remove();
+    document.getElementById('permiso-cerrar').addEventListener('click', cerrar);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrar(); });
+    document.getElementById('permiso-todos').addEventListener('click', () => { cerrar(); aplicarPermisoEtiquetas(true, []); });
+    document.getElementById('permiso-elegir').addEventListener('click', () => { cerrar(); abrirSelectorTrabajadores(); });
+}
+
+/** Selector de trabajadores (lista blanca) al elegir "algunos". */
+function abrirSelectorTrabajadores() {
+    const lista = permisoEtiquetas.trabajadoresLista || [];
+    if (!lista.length) {
+        mostrarToast('No hay trabajadores activos para elegir', 'warning');
+        return;
+    }
+    const seleccionados = new Set(permisoEtiquetas.trabajadores.map(String));
+
+    const overlay = document.createElement('div');
+    overlay.className = 'kanban-card-overlay';
+    overlay.style.zIndex = '2300';
+    overlay.innerHTML = `
+        <div class="etiquetas-menu" style="max-width:420px;">
+            <header class="etiquetas-menu-header">
+                <h4><i class="fas fa-user-cog"></i> ¿Quiénes pueden poner etiquetas?</h4>
+                <button class="kanban-btn-close" id="selector-cerrar" title="Cerrar">&times;</button>
+            </header>
+            <div class="etiquetas-menu-body">
+                <p class="kanban-hint" style="margin:0 4px 10px;">Solo los trabajadores seleccionados podrán marcar el estado de pago de sus clientes.</p>
+                ${lista.map(t => `
+                    <label class="etiquetas-menu-opcion" style="cursor:pointer;">
+                        <input type="checkbox" data-trabajador-id="${t.id}" ${seleccionados.has(String(t.id)) ? 'checked' : ''} style="accent-color:#9d4edd;width:16px;height:16px;">
+                        <span style="flex:1;">${escapeHtml(t.nombre)}</span>
+                    </label>
+                `).join('')}
+                <button type="button" class="btn-primary" id="selector-guardar" style="margin-top:8px;padding:10px;"><i class="fas fa-save"></i> Guardar selección</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const cerrar = () => overlay.remove();
+    document.getElementById('selector-cerrar').addEventListener('click', cerrar);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrar(); });
+    document.getElementById('selector-guardar').addEventListener('click', () => {
+        const ids = [...overlay.querySelectorAll('input[data-trabajador-id]:checked')].map(cb => cb.dataset.trabajadorId);
+        cerrar();
+        aplicarPermisoEtiquetas(true, ids);
     });
 }
 
