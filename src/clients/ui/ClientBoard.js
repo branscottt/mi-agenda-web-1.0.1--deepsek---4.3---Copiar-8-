@@ -63,6 +63,7 @@ let board = null;          // board actual
 let lists = [];            // [{ id, titulo, posicion, cards: [...] }]
 let citasCliente = [];     // [{ id, fecha, hora, servicio, precio }]
 let clienteActual = null;
+let clientesDelTenant = []; // [{ nombre, email, ... }] para aplicar estilos a todos
 let cardModalAbierto = false;
 let cardModalCard = null;  // card cuyo modal está abierto (para refrescar badges al cerrar)
 let dragCardId = null;
@@ -73,8 +74,9 @@ let dragCardId = null;
  * Abre el modal full-screen de información del cliente.
  * @param {object} cliente  { nombre, email, telefono, ... } (shape de ClientListView)
  * @param {Array}  citas    citas del cliente enriquecidas con nombre de servicio
+ * @param {Array}  clientes lista de clientes del tenant (para aplicar estilos a todos)
  */
-export async function abrirInformacionCliente(cliente, citas) {
+export async function abrirInformacionCliente(cliente, citas, clientes) {
     if (!cliente || !cliente.email) {
         mostrarToast('El cliente no tiene email para abrir su información', 'warning');
         return;
@@ -87,6 +89,7 @@ export async function abrirInformacionCliente(cliente, citas) {
 
     clienteActual = cliente;
     citasCliente = Array.isArray(citas) ? citas : [];
+    clientesDelTenant = Array.isArray(clientes) ? clientes : [];
     board = await kanbanApi.getOrCreateBoard(tenantId, cliente.email, cliente.nombre || '');
     const datos = await kanbanApi.getBoardData(board.id);
     lists = datos.lists || [];
@@ -120,6 +123,14 @@ function renderBoardModal() {
                         ${clienteActual.telefono ? ` · <i class="fas fa-phone"></i> ${escapeHtml(clienteActual.telefono)}` : ''}
                     </span>
                 </div>
+                <div class="kanban-estilos-actions">
+                    <button class="kanban-estilos-btn" id="kanban-guardar-estilo" title="Guardar estas listas como estilo reutilizable en otros clientes">
+                        <i class="fas fa-save"></i><span class="kanban-estilos-txt"> Guardar estilo</span>
+                    </button>
+                    <button class="kanban-estilos-btn" id="kanban-usar-estilo" title="Aplicar un estilo de listas guardado">
+                        <i class="fas fa-layer-group"></i><span class="kanban-estilos-txt"> Usar estilo</span>
+                    </button>
+                </div>
                 <button class="kanban-btn-close" id="kanban-cerrar" title="Cerrar"><i class="fas fa-times"></i></button>
             </header>
             <div class="kanban-board" id="kanban-board">
@@ -141,6 +152,223 @@ function renderBoardModal() {
     bindAddLista();
     bindListas();
     bindDnD();
+    bindEstilos();
+}
+
+// ========== ESTILOS DE LISTAS (plantillas reutilizables) ==========
+
+function bindEstilos() {
+    const guardarBtn = document.getElementById('kanban-guardar-estilo');
+    const usarBtn = document.getElementById('kanban-usar-estilo');
+    if (guardarBtn) guardarBtn.addEventListener('click', abrirModalGuardarEstilo);
+    if (usarBtn) usarBtn.addEventListener('click', abrirPanelUsarEstilo);
+}
+
+/** Modal chico para ponerle nombre al estilo antes de guardarlo. */
+async function abrirModalGuardarEstilo() {
+    if (!lists.length) {
+        mostrarToast('No hay listas para guardar. Creá algunas primero.', 'warning');
+        return;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'kanban-card-overlay';
+    overlay.innerHTML = `
+        <div class="kanban-estilos-modal">
+            <header class="kanban-card-modal-header">
+                <h4><i class="fas fa-save"></i> Guardar estilo de listas</h4>
+                <button class="kanban-btn-close" id="kestilo-cerrar"><i class="fas fa-times"></i></button>
+            </header>
+            <div class="kanban-card-form">
+                <p class="kanban-hint">Guardá la estructura de estas <strong>${lists.length} lista${lists.length !== 1 ? 's' : ''}</strong> como plantilla para reutilizarla en otros clientes con un clic.</p>
+                <label class="kanban-seccion-label"><i class="fas fa-heading"></i> Nombre del estilo</label>
+                <input type="text" id="kestilo-nombre" placeholder="Ej: Ficha de nuevo cliente, Seguimiento de pagos..." maxlength="80" autofocus>
+                <div class="kanban-card-actions">
+                    <button class="btn-secondary" id="kestilo-cancelar">Cancelar</button>
+                    <button class="btn-primary" id="kestilo-guardar"><i class="fas fa-save"></i> Guardar estilo</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const cerrar = () => overlay.remove();
+    document.getElementById('kestilo-cerrar').addEventListener('click', cerrar);
+    document.getElementById('kestilo-cancelar').addEventListener('click', cerrar);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrar(); });
+
+    const input = document.getElementById('kestilo-nombre');
+    const confirmar = async () => {
+        const nombre = input.value.trim();
+        if (!nombre) { mostrarToast('Poné un nombre al estilo', 'warning'); return; }
+        try {
+            const tenantId = await getCurrentTenantId();
+            const listasPlantilla = lists.map(l => ({
+                titulo: l.titulo,
+                posicion: l.posicion,
+                tarjetas: (l.cards || []).map(c => ({ titulo: c.titulo, descripcion: c.descripcion || '' }))
+            }));
+            await kanbanApi.saveEstilo(tenantId, nombre, listasPlantilla);
+            overlay.remove();
+            mostrarToast(`Estilo "${nombre}" guardado`, 'success');
+        } catch (err) {
+            console.error('[ClientBoard] Error guardando estilo:', err);
+            mostrarToast('No se pudo guardar el estilo', 'error');
+        }
+    };
+    document.getElementById('kestilo-guardar').addEventListener('click', confirmar);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmar(); });
+    input.focus();
+}
+
+/** Panel con los estilos guardados del tenant para aplicar a este cliente y/o a todos. */
+async function abrirPanelUsarEstilo() {
+    const tenantId = await getCurrentTenantId();
+    let estilos = [];
+    try {
+        estilos = await kanbanApi.listEstilos(tenantId);
+    } catch (err) {
+        console.error('[ClientBoard] Error listando estilos:', err);
+        mostrarToast('No se pudieron cargar los estilos', 'error');
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'kanban-card-overlay';
+    overlay.innerHTML = `
+        <div class="kanban-estilos-modal kanban-estilos-modal-lg">
+            <header class="kanban-card-modal-header">
+                <h4><i class="fas fa-layer-group"></i> Usar estilo de listas</h4>
+                <button class="kanban-btn-close" id="kestilo-usar-cerrar"><i class="fas fa-times"></i></button>
+            </header>
+            <div class="kanban-card-form">
+                ${estilos.length === 0 ? `
+                    <div class="kanban-estilos-vacio">
+                        <i class="fas fa-layer-group"></i>
+                        <h4>Todavía no hay estilos guardados</h4>
+                        <p>En cualquier cliente podés armar las listas y tocar <strong>"Guardar estilo"</strong> arriba para reutilizarlas después en otros clientes con un clic.</p>
+                    </div>
+                ` : `
+                    <p class="kanban-hint">Elegí un estilo guardado para aplicarlo a <strong>${escapeHtml(clienteActual.nombre || 'este cliente')}</strong>${clientesDelTenant.length ? ' y/o a todos tus clientes' : ''}.</p>
+                    <div class="kanban-estilos-lista">
+                        ${estilos.map(est => {
+                            const nListas = (est.listas || []).length;
+                            const nTarjetas = (est.listas || []).reduce((acc, l) => acc + (l.tarjetas || []).length, 0);
+                            const fecha = new Date(est.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                            return `
+                                <div class="kanban-estilo-item" data-estilo-id="${est.id}">
+                                    <div class="kanban-estilo-info">
+                                        <strong>${escapeHtml(est.nombre)}</strong>
+                                        <span>${nListas} lista${nListas !== 1 ? 's' : ''} · ${nTarjetas} tarjeta${nTarjetas !== 1 ? 's' : ''} de ejemplo · guardado el ${fecha}</span>
+                                    </div>
+                                    <div class="kanban-estilo-acciones">
+                                        <button class="btn-small kanban-estilo-aplicar" data-estilo-id="${est.id}" title="Aplicar a este cliente"><i class="fas fa-arrow-right"></i> Aplicar</button>
+                                        ${clientesDelTenant.length > 1 ? `<button class="btn-small kanban-estilo-todos" data-estilo-id="${est.id}" title="Aplicar a este cliente y a todos los demás"><i class="fas fa-users"></i> A todos</button>` : ''}
+                                        <button class="btn-small kanban-estilo-del" data-estilo-id="${est.id}" title="Eliminar estilo"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const cerrar = () => overlay.remove();
+    document.getElementById('kestilo-usar-cerrar').addEventListener('click', cerrar);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrar(); });
+
+    if (estilos.length) {
+        overlay.querySelectorAll('.kanban-estilo-aplicar').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const est = estilos.find(x => x.id === btn.dataset.estiloId);
+                if (!est) return;
+                overlay.remove();
+                await aplicarEstilo(est, false);
+            });
+        });
+        overlay.querySelectorAll('.kanban-estilo-todos').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const est = estilos.find(x => x.id === btn.dataset.estiloId);
+                if (!est) return;
+                const otros = clientesDelTenant.filter(c => c.email !== clienteActual.email).length;
+                if (!window.confirm(`¿Aplicar el estilo "${est.nombre}" a este cliente y a los otros ${otros} cliente${otros !== 1 ? 's' : ''}? Solo se aplicará a clientes que todavía no tienen listas.`)) return;
+                overlay.remove();
+                await aplicarEstilo(est, true);
+            });
+        });
+        overlay.querySelectorAll('.kanban-estilo-del').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const est = estilos.find(x => x.id === btn.dataset.estiloId);
+                if (!est) return;
+                if (!window.confirm(`¿Eliminar el estilo "${est.nombre}"?`)) return;
+                try {
+                    await kanbanApi.deleteEstilo(est.id);
+                    mostrarToast('Estilo eliminado', 'success');
+                    overlay.remove();
+                    abrirPanelUsarEstilo();
+                } catch (err) {
+                    console.error('[ClientBoard] Error eliminando estilo:', err);
+                    mostrarToast('No se pudo eliminar el estilo', 'error');
+                }
+            });
+        });
+    }
+}
+
+/** Crea las listas (y tarjetas de ejemplo) de la plantilla en el board. */
+async function crearListasDePlantilla(boardId, listasPlantilla) {
+    const creadas = [];
+    for (const l of (listasPlantilla || [])) {
+        const nueva = await kanbanApi.createList(boardId, l.titulo, l.posicion);
+        const tarjetas = l.tarjetas || [];
+        for (let i = 0; i < tarjetas.length; i++) {
+            await kanbanApi.createCard(nueva.id, { titulo: tarjetas[i].titulo, descripcion: tarjetas[i].descripcion || '', posicion: i });
+        }
+        creadas.push(nueva);
+    }
+    return creadas;
+}
+
+async function aplicarEstilo(estilo, aTodos) {
+    const tenantId = await getCurrentTenantId();
+    try {
+        let aplicados = 0;
+        // 1. Cliente actual
+        const actuales = await kanbanApi.getBoardData(board.id);
+        if (!actuales.lists.length) {
+            await crearListasDePlantilla(board.id, estilo.listas);
+            aplicados++;
+        } else {
+            mostrarToast('Este cliente ya tiene listas — no se aplicó para no duplicar', 'warning');
+        }
+
+        // 2. (Opcional) Todos los demás clientes sin listas todavía
+        if (aTodos && tenantId) {
+            for (const cl of clientesDelTenant) {
+                if (!cl.email || cl.email === clienteActual.email) continue;
+                try {
+                    const b = await kanbanApi.getOrCreateBoard(tenantId, cl.email, cl.nombre || '');
+                    const datos = await kanbanApi.getBoardData(b.id);
+                    if (datos.lists.length) continue; // no tocar clientes ya trabajados
+                    await crearListasDePlantilla(b.id, estilo.listas);
+                    aplicados++;
+                } catch (e) {
+                    console.warn('[ClientBoard] No se pudo aplicar a', cl.email, e);
+                }
+            }
+        }
+
+        // Recargar board actual
+        const datos = await kanbanApi.getBoardData(board.id);
+        lists = datos.lists || [];
+        renderBoardModal();
+        mostrarToast(aTodos
+            ? `Estilo "${estilo.nombre}" aplicado a ${aplicados} cliente${aplicados !== 1 ? 's' : ''}`
+            : `Estilo "${estilo.nombre}" aplicado`, 'success');
+    } catch (err) {
+        console.error('[ClientBoard] Error aplicando estilo:', err);
+        mostrarToast('No se pudo aplicar el estilo', 'error');
+    }
 }
 
 function renderListasHtml() {

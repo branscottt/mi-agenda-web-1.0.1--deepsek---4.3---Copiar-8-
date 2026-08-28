@@ -317,7 +317,9 @@ async function abrirInformacion(cliente) {
             servicio: mapaServicios[c.servicioId] || 'Servicio'
         }));
         const { abrirInformacionCliente } = await import('./ClientBoard.js');
-        await abrirInformacionCliente(cliente, citasConServicio);
+        // Pasa también la lista de clientes del tenant para poder
+        // aplicar un "estilo de listas" guardado a todos con un clic.
+        await abrirInformacionCliente(cliente, citasConServicio, clientesCache);
     } catch (err) {
         console.error('[ClientListView] Error abriendo información del cliente:', err);
         mostrarToast('No se pudo abrir la información del cliente', 'error');

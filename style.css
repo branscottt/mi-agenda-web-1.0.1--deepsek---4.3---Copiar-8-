@@ -16499,3 +16499,192 @@ textarea.kanban-nueva-card-input {
     background: rgba(255, 255, 255, 0.14);
     color: var(--text-light);
 }
+
+/* ============================================================
+   ESTILOS DE LISTAS (plantillas reutilizables por tenant)
+   ============================================================ */
+
+/* --- Botones del header del board --- */
+.kanban-estilos-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.kanban-estilos-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(157, 78, 221, 0.14);
+    border: 1px solid rgba(157, 78, 221, 0.35);
+    color: var(--primary-light);
+    border-radius: 999px;
+    padding: 7px 13px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.kanban-estilos-btn:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+/* --- Modal de guardar/usar estilo --- */
+.kanban-estilos-modal {
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background:
+        radial-gradient(600px 240px at 100% 0%, rgba(157, 78, 221, 0.12), transparent 60%),
+        var(--glass-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.kanban-estilos-modal-lg {
+    max-width: 560px;
+}
+
+.kanban-estilos-vacio {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 24px 10px;
+}
+
+.kanban-estilos-vacio i {
+    font-size: 2.6rem;
+    display: block;
+    margin-bottom: 12px;
+    color: var(--primary-light);
+    opacity: 0.8;
+}
+
+.kanban-estilos-vacio h4 {
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+
+.kanban-estilos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.kanban-estilo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.kanban-estilo-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(157, 78, 221, 0.4);
+}
+
+.kanban-estilo-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.kanban-estilo-info strong {
+    display: block;
+    font-size: 0.92rem;
+    color: var(--text-light);
+    margin-bottom: 3px;
+}
+
+.kanban-estilo-info span {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.kanban-estilo-acciones {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.kanban-estilo-aplicar {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+
+.kanban-estilo-aplicar:hover {
+    filter: brightness(1.12);
+}
+
+.kanban-estilo-todos {
+    background: rgba(0, 184, 148, 0.14);
+    border: 1px solid rgba(0, 184, 148, 0.35);
+    color: var(--success-color);
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.kanban-estilo-todos:hover {
+    background: var(--success-color);
+    color: #fff;
+}
+
+.kanban-estilo-del {
+    background: rgba(231, 76, 60, 0.12);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    color: var(--danger-color);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.kanban-estilo-del:hover {
+    background: var(--danger-color);
+    color: #fff;
+}
+
+/* --- Responsive --- */
+@media (max-width: 640px) {
+    .kanban-estilos-actions .kanban-estilos-txt {
+        display: none;
+    }
+
+    .kanban-estilos-btn {
+        padding: 7px 10px;
+    }
+
+    .kanban-estilo-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .kanban-estilo-acciones {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .kanban-estilos-modal {
+        max-width: 100%;
+    }
+}

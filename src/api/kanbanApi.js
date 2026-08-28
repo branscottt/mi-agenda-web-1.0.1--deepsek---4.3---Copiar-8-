@@ -192,6 +192,38 @@ export async function reordenarCards(updates) {
     return true;
 }
 
+// ========== ESTILOS DE LISTAS (plantillas por tenant) ==========
+
+/** Guarda la estructura de listas actual como plantilla reutilizable. */
+export async function saveEstilo(tenantId, nombre, listas) {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('kanban_estilos')
+        .insert({ tenant_id: tenantId, nombre, listas })
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+export async function listEstilos(tenantId) {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('kanban_estilos')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+}
+
+export async function deleteEstilo(id) {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('kanban_estilos').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+}
+
 // ========== CHECKLISTS (múltiples por tarjeta, estilo Trello) ==========
 
 export async function createChecklist(cardId, titulo = 'Checklist', posicion = 0) {
