@@ -11,7 +11,7 @@ const _PLANES = (typeof window !== 'undefined' && window.planesData) ? window.pl
         nombre: 'Freemium',
         precio: 'Gratis',
         periodo: 'siempre',
-        features: ['Hasta 10 servicios', 'Hasta 50 citas/mes', 'Soporte email'],
+        features: ['Acceso completo a todas las funciones', 'Sin límite de servicios ni citas', 'Personalización de diseño incluida', 'Soporte email'],
         color: '#00b894',
         soloSuperAdmin: true
     },

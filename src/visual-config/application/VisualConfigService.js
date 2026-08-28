@@ -175,7 +175,7 @@ async function _verificarPlan() {
         if (error) throw error;
 
         const suscripcion = data?.[0];
-        if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual')) {
+        if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual' && suscripcion.plan !== 'freemium')) {
             throw new Error('Personalización visual solo disponible en planes Pro y Premium Anual. <a href="planes.html" style="color:#ffc107;">Ver planes</a>');
         }
     } catch (e) {

@@ -1706,7 +1706,7 @@ const VisualConfigManager = {
     async saveConfig(config) {
         try {
             const suscripcion = await SuscripcionManager.getCurrent();
-            if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual')) {
+            if (!suscripcion || (suscripcion.plan !== 'pro' && suscripcion.plan !== 'premium_anual' && suscripcion.plan !== 'freemium')) {
                 mostrarToast('No tienes permisos para personalizar. Actualiza a un plan de pago.', 'error');
                 return false;
             }
@@ -2530,7 +2530,7 @@ const planesData = {
         nombre: 'Freemium', 
         precio: 'Gratis', 
         periodo: 'siempre', 
-        features: ['Hasta 10 servicios', 'Hasta 50 citas/mes', 'Soporte email'], 
+        features: ['Acceso completo a todas las funciones', 'Sin límite de servicios ni citas', 'Personalización de diseño incluida', 'Soporte email'], 
         color: '#00b894',
         soloSuperAdmin: true
     },
@@ -4519,7 +4519,7 @@ async function iniciarAdmin() {
     let esPlanPago = false;
     try {
         suscripcion = await SuscripcionManager.getCurrent();
-        esPlanPago = suscripcion && (suscripcion.plan === 'pro' || suscripcion.plan === 'premium_anual');
+        esPlanPago = suscripcion && (suscripcion.plan === 'pro' || suscripcion.plan === 'premium_anual' || suscripcion.plan === 'freemium');
     } catch(e) {
         console.warn('Error obteniendo suscripción:', e);
     }
