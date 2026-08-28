@@ -139,7 +139,7 @@ function renderBoardModal() {
                     <span class="kanban-cliente-meta">
                         ${escapeHtml(clienteActual.email || '')}
                         ${clienteActual.telefono ? ` · <i class="fas fa-phone"></i> ${escapeHtml(clienteActual.telefono)}` : ''}
-                        ${clienteActual.direccion ? `<br><i class="fas fa-map-marker-alt"></i> ${escapeHtml(clienteActual.direccion)}` : ''}
+                        ${clienteActual.direccion ? `<br><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(clienteActual.direccion)}" target="_blank" rel="noopener noreferrer" style="color:inherit;" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(clienteActual.direccion)}</a>` : ''}
                     </span>
                     ${clienteActual.estadoPago ? `<div style="margin-top:4px;">${renderChipEtiqueta(clienteActual.estadoPago)}</div>` : ''}
                 </div>

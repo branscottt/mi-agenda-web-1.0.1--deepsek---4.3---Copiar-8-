@@ -10124,7 +10124,7 @@ async function renderAdminAppointments() {
                     <span><i class="fas fa-clock"></i> ${hora}</span>
                     <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
                 </div>
-                ${direccionCliente ? `<div class="apt-direccion" title="Dirección del cliente"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccionCliente)}</div>` : ''}
+                ${direccionCliente ? `<a class="apt-direccion" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccionCliente)}" target="_blank" rel="noopener noreferrer" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccionCliente)}</a>` : ''}
                 ${estadoPago ? `<div class="apt-estado-pago" title="Estado de pago"><span class="apt-estado-dot" style="background:${estadoPago.color}"></span> ${estadoPago.nombre}</div>` : ''}
                 <div class="apt-actions">
                     ${telefono ? `<button class="btn-small btn-whatsapp" data-phone="${escapeHtml(telefono)}" data-nombre="${escapeHtml(nombre)}" data-servicio="${escapeHtml(servicio)}" data-fecha="${escapeHtml(fechaDisplay)}" title="Contactar por WhatsApp"><i class="fab fa-whatsapp"></i></button>` : ''}
@@ -10281,9 +10281,9 @@ async function renderUbicacion(containerId) {
                 <span class="ubicacion-label"><i class="fas fa-map-marker-alt"></i> Nuestra ubicación</span>
                 <span class="ubicacion-direccion">${escapeHtml(direccion)}</span>
             </div>
-            <div class="ubicacion-mapa">
+            <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="ubicacion-mapa" title="Abrir en Google Maps y Cómo llegar">
                 <iframe src="${embedUrl}" loading="lazy" title="Mapa de ${escapeHtml(direccion)}" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
-            </div>
+            </a>
             <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="ubicacion-btn">
                 <i class="fas fa-directions"></i> Cómo llegar (Google Maps)
             </a>

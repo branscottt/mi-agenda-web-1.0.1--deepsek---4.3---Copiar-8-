@@ -236,7 +236,7 @@ function renderGridHtml(filtrados) {
                 <div class="cliente-card-body">
                     <div class="cliente-meta">
                         ${cl.telefono ? `<span><i class="fas fa-phone"></i> ${escapeHtml(cl.telefono)}</span>` : ''}
-                        ${cl.direccion ? `<span title="Dirección"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(cl.direccion)}</span>` : ''}
+                        ${cl.direccion ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cl.direccion)}" target="_blank" rel="noopener noreferrer" class="cliente-direccion-link" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(cl.direccion)}</a>` : ''}
                         <span><i class="fas fa-clock"></i> Última: ${formatFechaCorta(cl.ultimaVisita)}</span>
                         ${proxCita ? `<span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: ${formatFechaCorta(proxCita.fecha)} ${formatTimeDisplay(proxCita.hora)}</span>` : ''}
                     </div>
