@@ -16989,3 +16989,55 @@ textarea.kanban-nueva-card-input {
 @media (max-width: 480px) {
     .ubicacion-mapa iframe { height: 150px; }
 }
+
+/* ============================================================
+   AUTOCOMPLETADO DE DIRECCIONES (Nominatim / OpenStreetMap)
+   ============================================================ */
+.direccion-ac {
+    position: relative;
+}
+
+.direccion-ac-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 2000;
+    background: #1a1a2e;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    overflow-y: auto;
+    max-height: 240px;
+    padding: 4px;
+}
+
+.direccion-ac-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: var(--text-color, #e0e0e0);
+    font-size: 0.82rem;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    line-height: 1.35;
+    transition: background .12s ease;
+}
+
+.direccion-ac-item:hover,
+.direccion-ac-item.activa {
+    background: rgba(157, 78, 221, 0.18);
+}
+
+.direccion-ac-item i {
+    color: var(--primary-color, #9d4edd);
+    margin-top: 2px;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}

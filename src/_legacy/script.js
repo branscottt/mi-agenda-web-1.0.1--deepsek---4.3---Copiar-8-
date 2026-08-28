@@ -2,6 +2,7 @@
 // CONFIGURACIÓN DE SUPABASE - VERSIÓN CORREGIDA
 // ============================================
 // Prioridad: window.__APP_CONFIG (server.py lo inyecta) > hardcoded dev defaults
+import { initDireccionAutocomplete } from '../shared/ui/direccionAutocomplete.js';
 const _cfg = window.__APP_CONFIG || {
     supabaseUrl: 'https://dfcfimipkfhitlsyixqu.supabase.co',
     supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0',
@@ -11496,6 +11497,9 @@ async function abrirModalReserva(serviceId) {
     const clienteEmailEl = document.getElementById('cliente-email');
     const clienteDireccionEl = document.getElementById('cliente-direccion');
     [clienteNombreEl, clienteTelEl, clienteEmailEl, clienteDireccionEl].forEach(el => { if(el) el.addEventListener('input', validarFormularioReserva); });
+
+    // Autocompletado de direcciones (modo domicilio) — sugerencias precisas
+    if (exigeDireccion && clienteDireccionEl) initDireccionAutocomplete(clienteDireccionEl);
 
     aplicarSesionAModal(popupRef);
 

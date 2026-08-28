@@ -5,6 +5,7 @@
 import { getVisualConfig, saveVisualConfig, aplicarConfigVisual, TEMAS_PREDEFINIDOS } from '../application/VisualConfigService.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import { initDireccionAutocomplete } from '../../shared/ui/direccionAutocomplete.js';
 
 // Snapshot de la config cargada: conserva valores de campos ya no editables
 // (tipografía, CSS personalizado) para que guardar NO los borre.
@@ -163,7 +164,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 <div class="input-with-label" id="cfg-ubicacion-direccion-wrap" style="margin-top:12px;${config.ubicacion_tipo === 'local' ? '' : 'display:none;'}">
                     <label><i class="fas fa-map-pin"></i> Dirección de mi local</label>
                     <input type="text" id="cfg-direccion" class="config-input" value="${escapeAttr(config.direccion || '')}" placeholder="Ej: Av. Siempre Viva 123, Santiago" style="flex:1;">
-                    <span class="field-hint">Se mostrará en la vista de tus clientes con un mapa pequeño y un botón "Cómo llegar" que abre Google Maps.</span>
+                    <span class="field-hint">Se mostrará en la vista de tus clientes con un mapa pequeño y un botón "Cómo llegar" que abre Google Maps. Escribe y elige de las sugerencias para una dirección más precisa (ciudad, región, país).</span>
                 </div>
             </div>
 
@@ -280,6 +281,10 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             }
         });
     });
+
+    // Autocompletado de direcciones (Nominatim/OSM) — sugerencias precisas
+    const direccionInput = document.getElementById('cfg-direccion');
+    if (direccionInput) initDireccionAutocomplete(direccionInput);
 
     // File upload para logo
     const logoFileInput = document.getElementById('cfg-logo-file');
