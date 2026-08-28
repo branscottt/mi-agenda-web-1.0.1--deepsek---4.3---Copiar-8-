@@ -11128,6 +11128,91 @@ function configurarBotonesExportacion() {
 // ============================================
 // RESERVA Y REPROGRAMACIÓN (modificadas para async)
 // ============================================
+// --- Helpers de disponibilidad de trabajadores para la reserva ---
+// (espejo de src/workers/domain/horarioValidation.js: excepción de
+// semana ISO > plantilla semanal; día 1=Lun..7=Dom)
+function getSemanaISOKey(fechaStr) {
+    const d = new Date(Date.UTC(
+        parseInt(fechaStr.slice(0, 4), 10),
+        parseInt(fechaStr.slice(5, 7), 10) - 1,
+        parseInt(fechaStr.slice(8, 10), 10)
+    ));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return d.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
+}
+
+function horaAMinutos(hhmm) {
+    if (!hhmm) return 0;
+    const p = String(hhmm).split(':');
+    return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+}
+
+function normalizarHoraReserva(h) {
+    const p = String(h || '').split(':');
+    if (p.length < 2) return String(h || '');
+    return String(parseInt(p[0], 10) || 0).padStart(2, '0') + ':' + String(parseInt(p[1], 10) || 0).padStart(2, '0');
+}
+
+// Devuelve el día de horario aplicable al trabajador en esa fecha
+// ({activo, inicio, fin, colacion_inicio, colacion_fin}) o null.
+function getHorarioTrabajadorParaFecha(worker, fechaStr) {
+    if (!worker) return null;
+    const weekKey = getSemanaISOKey(fechaStr);
+    const excepciones = worker.horario_excepciones || {};
+    const horario = (excepciones[weekKey] && Object.keys(excepciones[weekKey]).length > 0)
+        ? excepciones[weekKey]
+        : (worker.horario_semanal || {});
+    const d = new Date(fechaStr + 'T12:00:00');
+    const dk = String(d.getDay() === 0 ? 7 : d.getDay());
+    return horario[dk] || null;
+}
+
+function trabajadorTrabajaEn(worker, fechaStr) {
+    const dia = getHorarioTrabajadorParaFecha(worker, fechaStr);
+    return Boolean(dia && dia.activo);
+}
+
+async function getHorasOcupadasTrabajador(trabajadorId, fecha) {
+    try {
+        if (!supabaseClient) return [];
+        // RPC SECURITY DEFINER: no depende del GUC de sesión (bug 20260916)
+        const { data, error } = await supabaseClient
+            .rpc('get_horas_ocupadas_trabajador_publico', {
+                p_trabajador_id: trabajadorId
+            });
+        if (error) throw error;
+        const lista = Array.isArray(data) ? data : [];
+        return lista
+            .filter(c => String(c.fecha) === String(fecha))
+            .map(c => normalizarHoraReserva(c.hora))
+            .filter(Boolean);
+    } catch (e) {
+        console.error('Error getHorasOcupadasTrabajador:', e);
+        return [];
+    }
+}
+
+// ¿El trabajador puede atender en esa fecha a esa hora (HH:MM 24h)?
+// Considera: horario del día (inicio/fin/colación) + citas ya agendadas.
+async function trabajadorDisponibleEnHora(worker, fechaStr, horaRaw) {
+    if (!worker || !horaRaw) return false;
+    const dia = getHorarioTrabajadorParaFecha(worker, fechaStr);
+    if (!dia || !dia.activo) return false;
+
+    const hMin = horaAMinutos(horaRaw);
+    if (hMin < horaAMinutos(dia.inicio) || hMin >= horaAMinutos(dia.fin)) return false;
+
+    const ci = horaAMinutos(dia.colacion_inicio);
+    const cf = horaAMinutos(dia.colacion_fin);
+    if (ci > 0 && cf > 0 && ci < cf && hMin >= ci && hMin < cf) return false;
+
+    const ocupadas = await getHorasOcupadasTrabajador(worker.id, fechaStr);
+    return !ocupadas.includes(normalizarHoraReserva(horaRaw));
+}
+
 async function abrirModalReserva(serviceId) {
     const servicios = await ServiciosManager.getAll();
     const servicio = servicios.find(s => String(s.id) === String(serviceId));
@@ -11151,9 +11236,37 @@ async function abrirModalReserva(serviceId) {
         return `<option value="${f}" ${todosAgotadosEnFecha ? 'disabled' : ''}>${formatFechaConDiaSemana(f)}${todosAgotadosEnFecha ? ' (Agotada)' : ''}</option>`;
     }).join('');
 
+    // Cargar trabajadores asignados al servicio (selector opcional de reserva)
+    // Vía RPC SECURITY DEFINER: no depende del GUC de sesión app.tenant_id
+    // (bug 20260916: el pooler transaccional pierde el GUC entre requests).
+    let workersServicio = [];
+    try {
+        if (supabaseClient) {
+            const { data: wsData, error: wsError } = await supabaseClient
+                .rpc('get_trabajadores_servicio_publico', {
+                    p_servicio_id: servicio.id,
+                    p_tenant_id: window.currentTenantId || null
+                });
+            if (!wsError && Array.isArray(wsData)) workersServicio = wsData;
+        }
+    } catch (e) {
+        console.warn('Error cargando trabajadores del servicio:', e);
+        workersServicio = [];
+    }
+
     detallesDiv.innerHTML = `
         <p><strong>Servicio:</strong> <span id="servicio-nombre">—</span></p>
         <p><strong>Precio:</strong> <span id="servicio-precio">—</span></p>
+
+        ${workersServicio.length ? `
+        <div style="margin-top:10px;">
+            <label style="display:block; color:#fff; font-size:13px; margin-bottom:6px;">Trabajador (opcional)</label>
+            <select id="select-trabajador" style="width:100%; padding:8px; background:rgba(255,255,255,0.04); color:#fff; border:1px solid rgba(255,255,255,0.06); border-radius:8px;">
+                <option value="">Sin preferencia</option>
+                ${workersServicio.map(w => `<option value="${w.id}">${escapeHtml(w.nombre)}</option>`).join('')}
+            </select>
+        </div>
+        ` : ''}
 
         <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
             <div style="display:flex; gap:8px;">
@@ -11262,19 +11375,31 @@ async function abrirModalReserva(serviceId) {
         if(btnConfirm){ btnConfirm.disabled = !enable; btnConfirm.style.cursor = enable ? 'pointer' : 'not-allowed'; }
     }
 
-    function populateHorasForFecha(fecha){
+    async function populateHorasForFecha(fecha, trabajadorId){
         if(!selectHora) return;
-        if(!fecha){ 
-            selectHora.innerHTML = '<option value="">Seleccione hora</option>'; 
-            selectHora.disabled = true; 
-            return; 
+        if(!fecha){
+            selectHora.innerHTML = '<option value="">Seleccione hora</option>';
+            selectHora.disabled = true;
+            return;
         }
         const modulosForDate = (servicio.disponibilidad && servicio.disponibilidad[fecha]) ? servicio.disponibilidad[fecha] : [];
         const esHoy = fecha === hoyLocalStr;
         const ahoraLocal = new Date();
+
+        // Trabajador seleccionado: filtrar por su horario laboral y citas ocupadas
+        let trabajadorSel = null;
+        let horasOcupadas = [];
+        if (trabajadorId) {
+            trabajadorSel = workersServicio.find(w => String(w.id) === String(trabajadorId)) || null;
+            if (trabajadorSel) {
+                horasOcupadas = await getHorasOcupadasTrabajador(trabajadorSel.id, fecha);
+            }
+        }
+
         let options = '<option value="">Seleccione hora</option>';
         modulosForDate.forEach((m, index) => {
-            const horaText = formatTimeDisplay(m.hora || m.startTime || '00:00');
+            const horaRaw = normalizarHoraReserva(m.hora || m.startTime || '00:00');
+            const horaText = formatTimeDisplay(horaRaw);
             const cupos = Number(m.cupos || 0);
             if(cupos <= 0) return;
             // Si es hoy, ocultar horas que ya pasaron
@@ -11286,22 +11411,73 @@ async function abrirModalReserva(serviceId) {
                     if(fh <= ahoraLocal) return;
                 }
             }
+            // Con trabajador seleccionado: debe laborar esa hora y no estar ocupado
+            if (trabajadorSel) {
+                const dia = getHorarioTrabajadorParaFecha(trabajadorSel, fecha);
+                if (!dia || !dia.activo) return;
+                const hMin = horaAMinutos(horaRaw);
+                if (hMin < horaAMinutos(dia.inicio) || hMin >= horaAMinutos(dia.fin)) return;
+                const ci = horaAMinutos(dia.colacion_inicio);
+                const cf = horaAMinutos(dia.colacion_fin);
+                if (ci > 0 && cf > 0 && ci < cf && hMin >= ci && hMin < cf) return;
+                if (horasOcupadas.includes(horaRaw)) return;
+            }
             options += `<option value="${index}" data-hora="${horaText}" data-cupos="${cupos}">${horaText} - ${cupos} cupos</option>`;
         });
+        if (trabajadorSel && options === '<option value="">Seleccione hora</option>') {
+            options += '<option value="" disabled>Sin horarios disponibles para este trabajador</option>';
+        }
         selectHora.innerHTML = options;
-        selectHora.disabled = false;
+        selectHora.disabled = options === '<option value="">Seleccione hora</option>';
+    }
+
+    // Marca los trabajadores que no laboran en la fecha elegida y
+    // deselecciona el trabajador actual si dejó de estar disponible.
+    function actualizarDisponibilidadTrabajadoresFecha(fecha) {
+        const selTrab = document.getElementById('select-trabajador');
+        if (!selTrab) return;
+        Array.from(selTrab.options).forEach(opt => {
+            if (!opt.value) return; // "Sin preferencia"
+            const w = workersServicio.find(x => String(x.id) === String(opt.value));
+            if (!w) return;
+            const trabaja = trabajadorTrabajaEn(w, fecha);
+            opt.disabled = !trabaja;
+            opt.textContent = trabaja ? w.nombre : `${w.nombre} (no labora)`;
+        });
+        // Si el trabajador seleccionado dejó de estar disponible, volver a "Sin preferencia"
+        const selOpt = selTrab.selectedOptions && selTrab.selectedOptions[0];
+        if (selTrab.value && selOpt && selOpt.disabled) {
+            selTrab.value = '';
+            populateHorasForFecha(fecha, '');
+        }
     }
 
     if(selectFecha){
         selectFecha.addEventListener('change', function(){
             const spanFecha = document.getElementById('servicio-fecha'); if(spanFecha) spanFecha.textContent = this.value || '—';
             if(this.value){
-                populateHorasForFecha(this.value);
+                const selTrab = document.getElementById('select-trabajador');
+                const wid = selTrab ? selTrab.value : '';
+                populateHorasForFecha(this.value, wid);
+                actualizarDisponibilidadTrabajadoresFecha(this.value);
             } else {
                 if(selectHora){ selectHora.innerHTML = '<option value="">Seleccione hora</option>'; selectHora.disabled = true; }
                 const spanHora = document.getElementById('servicio-hora'); if(spanHora) spanHora.textContent = '—';
             }
             checkEnableConfirm();
+        });
+    }
+
+    const selectTrabajador = document.getElementById('select-trabajador');
+    if (selectTrabajador && workersServicio.length) {
+        selectTrabajador.addEventListener('change', function(){
+            const wid = this.value;
+            const fechaSel = selectFecha ? selectFecha.value : '';
+            if (fechaSel) populateHorasForFecha(fechaSel, wid);
+            if (selectHora) selectHora.value = '';
+            const spanHora = document.getElementById('servicio-hora'); if(spanHora) spanHora.textContent = '—';
+            checkEnableConfirm();
+            validarFormularioReserva();
         });
     }
 
@@ -11645,11 +11821,15 @@ async function confirmarReserva(e) {
         return;
     }
 
+    const selTrabajador = document.getElementById('select-trabajador');
+    const trabajadorIdReserva = (selTrabajador && selTrabajador.value) ? selTrabajador.value : null;
+
     const { data: reserva, error: rpcError } = await supabaseClient.rpc('reservar_cita', {
         p_tenant_id: tenantIdReserva,
         p_servicio_id: servicio.id,
         p_fecha: fecha,
         p_hora: horaTexto,
+        p_trabajador_id: trabajadorIdReserva,
         p_contacto: {
             nombre: clienteNombre || session?.nombre || '',
             telefono: clienteTel || '',
