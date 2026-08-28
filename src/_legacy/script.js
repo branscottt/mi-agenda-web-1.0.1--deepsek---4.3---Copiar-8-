@@ -10249,6 +10249,11 @@ async function renderUbicacion(containerId) {
         const cached = localStorage.getItem(`tenant_config_${tenantId}`);
         if (cached) {
             config = JSON.parse(cached);
+            // Cache antiguo (creado antes de la feature ubicación): recargar desde
+            // BD para tener los campos nuevos (ubicacion_tipo/direccion).
+            if (!config || config.ubicacion_tipo === undefined) {
+                config = await VisualConfigManager.loadConfig();
+            }
         } else {
             config = await VisualConfigManager.loadConfig();
         }
@@ -11333,7 +11338,14 @@ async function abrirModalReserva(serviceId) {
         if (tenantCfgId) {
             const cachedCfg = localStorage.getItem(`tenant_config_${tenantCfgId}`);
             if (cachedCfg) {
-                modoUbicacion = (JSON.parse(cachedCfg).ubicacion_tipo || '');
+                const parsedCfg = JSON.parse(cachedCfg);
+                if (parsedCfg && parsedCfg.ubicacion_tipo !== undefined) {
+                    modoUbicacion = parsedCfg.ubicacion_tipo || '';
+                } else {
+                    // Cache antiguo (pre-ubicación): recargar desde BD
+                    const cfg = await VisualConfigManager.loadConfig();
+                    modoUbicacion = cfg.ubicacion_tipo || '';
+                }
             } else {
                 const cfg = await VisualConfigManager.loadConfig();
                 modoUbicacion = cfg.ubicacion_tipo || '';
