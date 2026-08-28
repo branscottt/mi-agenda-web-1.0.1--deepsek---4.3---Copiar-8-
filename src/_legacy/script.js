@@ -464,7 +464,8 @@ const CitasManager = {
                     precio: c.precio,
                     contacto: c.contacto || {},
                     notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
-                    creadoEn: c.created_at
+                    creadoEn: c.created_at,
+                    estado_pago: c.estado_pago
                 }));
             }
             // Fallback legacy
@@ -483,7 +484,7 @@ const CitasManager = {
 
             const { data, error } = await supabaseClient
                 .from('citas')
-                .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at')
+                .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, estado_pago')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
 
@@ -503,7 +504,8 @@ const CitasManager = {
                 precio: c.precio,
                 contacto: c.contacto || {},
                 notificaciones: c.notificaciones || { emailEnviado: false, whatsappEnviado: false },
-                creadoEn: c.created_at
+                creadoEn: c.created_at,
+                estado_pago: c.estado_pago
             }));
         } catch (e) {
             console.error('Error en getAll citas:', e);
@@ -10013,6 +10015,15 @@ window.abrirModalEdicionCitaAdmin = abrirModalEdicionCitaAdmin;
 // ============================================
 // RENDER ADMIN APPOINTMENTS - Versión cards con botones
 // ============================================
+// Estados de pago sincronizados desde la tarjeta de "Información
+// del cliente" (kanban_cards.etiquetas -> citas.estado_pago).
+const ESTADOS_PAGO = {
+    pagado:    { nombre: 'Pagado',        color: '#2ecc71' },
+    abonado:   { nombre: 'Abonado',       color: '#3498db' },
+    parcial:   { nombre: 'Se pagó algo',  color: '#f1c40f' },
+    no_pagado: { nombre: 'No pagado',     color: '#e74c3c' }
+};
+
 async function renderAdminAppointments() {
     const container = document.getElementById('upcoming-appointments');
     if (!container) return;
@@ -10058,6 +10069,7 @@ async function renderAdminAppointments() {
         const precio = c.precio ? `$${Number(c.precio).toLocaleString('es-ES')}` : '';
         const esHoy = c.fecha && new Date(c.fecha.split('T')[0]) <= new Date() && new Date(c.fecha.split('T')[0]) >= new Date(new Date().toDateString());
         const estadoUrgencia = typeof UrgenciaManager?.calcularEstado === 'function' ? UrgenciaManager.calcularEstado(c.fecha, c.hora) : 'normal';
+        const estadoPago = ESTADOS_PAGO[c.estado_pago] || null;
 
         html += `
             <div class="appointment-card ${esHoy ? 'today-card' : ''} ${estadoUrgencia === 'urgent-now' ? 'urgent-now' : ''} ${estadoUrgencia === 'urgent-soon' ? 'urgent-soon' : ''}" data-id="${c.id}">
@@ -10070,6 +10082,7 @@ async function renderAdminAppointments() {
                     <span><i class="fas fa-clock"></i> ${hora}</span>
                     <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
                 </div>
+                ${estadoPago ? `<div class="apt-estado-pago" title="Estado de pago"><span class="apt-estado-dot" style="background:${estadoPago.color}"></span> ${estadoPago.nombre}</div>` : ''}
                 <div class="apt-actions">
                     ${telefono ? `<button class="btn-small btn-whatsapp" data-phone="${escapeHtml(telefono)}" data-nombre="${escapeHtml(nombre)}" data-servicio="${escapeHtml(servicio)}" data-fecha="${escapeHtml(fechaDisplay)}" title="Contactar por WhatsApp"><i class="fab fa-whatsapp"></i></button>` : ''}
                     <button class="btn-small btn-edit-admin" data-id="${c.id}" title="Editar fecha/hora"><i class="fas fa-pen"></i></button>

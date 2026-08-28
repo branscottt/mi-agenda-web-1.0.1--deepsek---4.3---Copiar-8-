@@ -15,7 +15,7 @@ export async function getAllCitas(tenantId) {
     return cacheWrapper(CACHE_PREFIX, async (tid) => {
         const { data, error } = await getSupabase()
             .from(TABLE)
-            .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color)')
+            .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color), estado_pago, estado_pago_actualizado_en')
             .eq('tenant_id', String(tid).trim())
             .order('created_at', { ascending: false });
         if (error) throw error;

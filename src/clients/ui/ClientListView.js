@@ -161,6 +161,7 @@ function renderLista(container) {
     bindSearch(container);
     bindExport(container);
     bindHistorialButtons(container);
+    bindClienteCards(container);
 }
 
 function renderGridHtml(filtrados) {
@@ -172,7 +173,7 @@ function renderGridHtml(filtrados) {
             .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
 
         html += `
-            <div class="cliente-card glass-panel">
+            <div class="cliente-card glass-panel cliente-card-clickable" data-email="${escapeHtml(cl.email)}" title="Clic para ver la información del cliente">
                 <div class="cliente-card-header">
                     <div class="cliente-avatar">
                         <i class="fas fa-user-circle"></i>
@@ -202,6 +203,9 @@ function renderGridHtml(filtrados) {
                         ${cl.telefono ? `<a href="https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}" target="_blank" class="btn-small" style="background:#25D366;color:#fff;" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></a>` : ''}
                         ${cl.email ? `<a href="mailto:${encodeURIComponent(cl.email)}" class="btn-small" style="background:var(--primary-color);color:#fff;" title="Enviar Email"><i class="fas fa-envelope"></i></a>` : ''}
                         ${cl.telefono ? `<a href="tel:${escapeHtml(cl.telefono)}" class="btn-small" style="background:var(--secondary-color);color:#fff;" title="Llamar"><i class="fas fa-phone"></i></a>` : ''}
+                        <button class="btn-small btn-info-cliente" data-email="${escapeHtml(cl.email)}" title="Ver información, documentos y estado de pago del cliente">
+                            <i class="fas fa-id-card"></i> Información
+                        </button>
                         <button class="btn-small btn-ver-historial" data-email="${escapeHtml(cl.email)}" style="margin-left:auto;">
                             <i class="fas fa-history"></i> Historial
                         </button>
@@ -230,6 +234,7 @@ function bindSearch(container) {
                 grid.innerHTML = renderGridHtml(getFiltrados());
                 actualizarContador(container);
                 bindHistorialButtons(container);
+                bindClienteCards(container);
             } else {
                 renderLista(container);
             }
@@ -274,6 +279,49 @@ function bindHistorialButtons(container) {
             renderHistorial(historialEl, cliente);
         });
     });
+}
+
+/**
+ * Click en la tarjeta del cliente o en su botón "Información" →
+ * abre el modal full-screen con listas/tarjetas/documentos del
+ * cliente (ClientBoard.js). Los clicks en botones/enlaces internos
+ * (WhatsApp, email, Historial...) no disparan la apertura.
+ */
+function bindClienteCards(container) {
+    container.querySelectorAll('.btn-info-cliente').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const cliente = clientesCache.find(c => c.email.toLowerCase() === btn.dataset.email.toLowerCase());
+            if (cliente) abrirInformacion(cliente);
+        });
+    });
+
+    container.querySelectorAll('.cliente-card-clickable').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('button, a, input, textarea, select')) return;
+            const cliente = clientesCache.find(c => c.email.toLowerCase() === card.dataset.email.toLowerCase());
+            if (cliente) abrirInformacion(cliente);
+        });
+    });
+}
+
+async function abrirInformacion(cliente) {
+    try {
+        // Citas del cliente enriquecidas con el nombre real del servicio
+        // (la cita solo guarda servicio_id; el modal las muestra en el selector).
+        const citasConServicio = (cliente.citas || []).map(c => ({
+            id: c.id,
+            fecha: c.fecha,
+            hora: c.hora,
+            precio: c.precio,
+            servicio: mapaServicios[c.servicioId] || 'Servicio'
+        }));
+        const { abrirInformacionCliente } = await import('./ClientBoard.js');
+        await abrirInformacionCliente(cliente, citasConServicio);
+    } catch (err) {
+        console.error('[ClientListView] Error abriendo información del cliente:', err);
+        mostrarToast('No se pudo abrir la información del cliente', 'error');
+    }
 }
 
 function renderHistorial(container, cliente) {
