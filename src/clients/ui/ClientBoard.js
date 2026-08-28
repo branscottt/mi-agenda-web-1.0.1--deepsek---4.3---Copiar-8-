@@ -139,6 +139,7 @@ function renderBoardModal() {
                     <span class="kanban-cliente-meta">
                         ${escapeHtml(clienteActual.email || '')}
                         ${clienteActual.telefono ? ` · <i class="fas fa-phone"></i> ${escapeHtml(clienteActual.telefono)}` : ''}
+                        ${clienteActual.direccion ? `<br><i class="fas fa-map-marker-alt"></i> ${escapeHtml(clienteActual.direccion)}` : ''}
                     </span>
                     ${clienteActual.estadoPago ? `<div style="margin-top:4px;">${renderChipEtiqueta(clienteActual.estadoPago)}</div>` : ''}
                 </div>

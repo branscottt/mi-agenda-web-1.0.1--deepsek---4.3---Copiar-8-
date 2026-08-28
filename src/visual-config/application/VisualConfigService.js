@@ -29,6 +29,8 @@ const CONFIG_DEFAULT = {
     cover_url: '',
     instagram_url: '',
     tiktok_url: '',
+    ubicacion_tipo: '',
+    direccion: '',
     custom_css: ''
 };
 
@@ -138,6 +140,8 @@ export async function getVisualConfig(optionalTenantId) {
             config.cover_url = dbData.cover_url || '';
             config.instagram_url = dbData.instagram_url || '';
             config.tiktok_url = dbData.tiktok_url || '';
+            config.ubicacion_tipo = dbData.ubicacion_tipo || '';
+            config.direccion = dbData.direccion || '';
             config.custom_css = dbData.custom_css || '';
         }
 
@@ -219,7 +223,7 @@ export async function saveVisualConfig(config) {
 
     // Columnas base (siempre existen en tenant_config) y opcionales (pueden faltar según migraciones)
     const CORE_COLUMNS = ['primary_color', 'secondary_color', 'logo_url', 'custom_css'];
-    const OPTIONAL_COLUMNS = ['favicon_url', 'cover_url', 'instagram_url', 'tiktok_url'];
+    const OPTIONAL_COLUMNS = ['favicon_url', 'cover_url', 'instagram_url', 'tiktok_url', 'ubicacion_tipo', 'direccion'];
 
     // Construir payload empezando solo con columnas core
     const buildPayload = (includeOptionals) => {
@@ -235,6 +239,8 @@ export async function saveVisualConfig(config) {
             p.cover_url = full.cover_url || null;
             p.instagram_url = full.instagram_url || null;
             p.tiktok_url = full.tiktok_url || null;
+            p.ubicacion_tipo = full.ubicacion_tipo || null;
+            p.direccion = full.direccion || null;
         }
         return p;
     };

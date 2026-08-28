@@ -369,7 +369,7 @@ class SecureHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             "img-src 'self' data: https: https://http2.mlstatic.com; "
             "media-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co; "
             "connect-src 'self' https://dfcfimipkfhitlsyixqu.supabase.co https://challenges.cloudflare.com https://api.mercadopago.com https://app.posthog.com https://api.qrserver.com; "
-            "frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li; "
+            "frame-src https://challenges.cloudflare.com https://www.mercadopago.com https://mercadopago.com https://mpago.li https://www.google.com; "
             "form-action 'self'; "
             "base-uri 'self'; "
             "object-src 'none'; "

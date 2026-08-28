@@ -1610,6 +1610,8 @@ const VisualConfigManager = {
             cover_url: '',
             instagram_url: '',
             tiktok_url: '',
+            ubicacion_tipo: '',
+            direccion: '',
             custom_css: ''
         };
     },
@@ -1649,7 +1651,7 @@ const VisualConfigManager = {
             try {
                 const res = await supabaseClient
                     .from('tenant_config')
-                    .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, instagram_url, tiktok_url, custom_css')
+                    .select('primary_color, secondary_color, logo_url, favicon_url, cover_url, instagram_url, tiktok_url, ubicacion_tipo, direccion, custom_css')
                     .eq('tenant_id', tenantId)
                     .maybeSingle();
                 dbData = res.data;
@@ -1690,6 +1692,8 @@ const VisualConfigManager = {
                 config.cover_url = dbData.cover_url || '';
                 config.instagram_url = dbData.instagram_url || '';
                 config.tiktok_url = dbData.tiktok_url || '';
+                config.ubicacion_tipo = dbData.ubicacion_tipo || '';
+                config.direccion = dbData.direccion || '';
                 config.custom_css = dbData.custom_css || '';
             }
 
@@ -1730,7 +1734,9 @@ const VisualConfigManager = {
                 favicon_url: full.favicon_url || null,
                 cover_url: full.cover_url || null,
                 instagram_url: full.instagram_url || null,
-                tiktok_url: full.tiktok_url || null
+                tiktok_url: full.tiktok_url || null,
+                ubicacion_tipo: full.ubicacion_tipo || null,
+                direccion: full.direccion || null
             };
 
             // Intentar con todas las columnas
@@ -2442,7 +2448,9 @@ input, select, textarea {
                 favicon_url: full.favicon_url || null,
                 cover_url: full.cover_url || null,
                 instagram_url: full.instagram_url || null,
-                tiktok_url: full.tiktok_url || null
+                tiktok_url: full.tiktok_url || null,
+                ubicacion_tipo: full.ubicacion_tipo || null,
+                direccion: full.direccion || null
             };
 
             // Intentar con todas las columnas
@@ -10090,6 +10098,7 @@ async function renderAdminAppointments() {
     ordenadas.slice(0, 50).forEach(c => {
         const nombre = c.contacto?.nombre || c.nombreCliente || '—';
         const telefono = c.contacto?.telefono || c.telefonoCliente || '';
+        const direccionCliente = c.contacto?.direccion || '';
         const servicio = mapaServicios[c.servicioId] || c.servicioNombre || c.nombre || '—';
         const fechaDisplay = c.fecha ? (() => {
             try {
@@ -10114,6 +10123,7 @@ async function renderAdminAppointments() {
                     <span><i class="fas fa-clock"></i> ${hora}</span>
                     <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
                 </div>
+                ${direccionCliente ? `<div class="apt-direccion" title="Dirección del cliente"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccionCliente)}</div>` : ''}
                 ${estadoPago ? `<div class="apt-estado-pago" title="Estado de pago"><span class="apt-estado-dot" style="background:${estadoPago.color}"></span> ${estadoPago.nombre}</div>` : ''}
                 <div class="apt-actions">
                     ${telefono ? `<button class="btn-small btn-whatsapp" data-phone="${escapeHtml(telefono)}" data-nombre="${escapeHtml(nombre)}" data-servicio="${escapeHtml(servicio)}" data-fecha="${escapeHtml(fechaDisplay)}" title="Contactar por WhatsApp"><i class="fab fa-whatsapp"></i></button>` : ''}
@@ -10220,6 +10230,61 @@ async function renderSocialLinks(containerId) {
     container.style.display = 'block';
 }
 window.renderSocialLinks = renderSocialLinks;
+
+/**
+ * Renderiza la ubicación de la pyme en la vista cliente (modo 'local').
+ * Lee desde la configuración visual cargada (localStorage tenant_config_<id>
+ * o VisualConfigManager.loadConfig). Muestra dirección + mapa pequeño de
+ * Google Maps (sin API key) + botón "Cómo llegar" que abre Google Maps.
+ * Si el modo no es 'local' o no hay dirección, oculta el contenedor.
+ */
+async function renderUbicacion(containerId) {
+    const container = document.getElementById(containerId || 'ubicacion-banner');
+    if (!container) return;
+
+    let config;
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (!tenantId) { container.style.display = 'none'; return; }
+        const cached = localStorage.getItem(`tenant_config_${tenantId}`);
+        if (cached) {
+            config = JSON.parse(cached);
+        } else {
+            config = await VisualConfigManager.loadConfig();
+        }
+    } catch (e) {
+        console.warn('[ubicacion] Error cargando config:', e);
+        container.style.display = 'none';
+        return;
+    }
+
+    const modo = config.ubicacion_tipo || '';
+    const direccion = (config.direccion || '').trim();
+    if (modo !== 'local' || !direccion) {
+        container.style.display = 'none';
+        return;
+    }
+
+    const q = encodeURIComponent(direccion);
+    const embedUrl = `https://www.google.com/maps?q=${q}&output=embed`;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${q}`;
+
+    container.innerHTML = `
+        <div class="ubicacion-banner-inner">
+            <div class="ubicacion-info">
+                <span class="ubicacion-label"><i class="fas fa-map-marker-alt"></i> Nuestra ubicación</span>
+                <span class="ubicacion-direccion">${escapeHtml(direccion)}</span>
+            </div>
+            <div class="ubicacion-mapa">
+                <iframe src="${embedUrl}" loading="lazy" title="Mapa de ${escapeHtml(direccion)}" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+            </div>
+            <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="ubicacion-btn">
+                <i class="fas fa-directions"></i> Cómo llegar (Google Maps)
+            </a>
+        </div>`;
+    container.style.display = 'block';
+}
+window.renderUbicacion = renderUbicacion;
 
 // ============================================
 // FUNCIONES DE CLIENTE (modificadas para async)
@@ -10421,6 +10486,7 @@ async function iniciarCliente() {
         const visualConfig = await VisualConfigManager.loadConfig();
         VisualConfigManager.applyStyles(visualConfig);
         renderSocialLinks('social-links-banner');
+        renderUbicacion('ubicacion-banner');
     } catch (e) {
         console.warn('[iniciarCliente] Error cargando config visual:', e);
     }
@@ -10487,6 +10553,7 @@ async function iniciarCliente() {
             if (typeof renderMisReservas === 'function') renderMisReservas();
             if (typeof renderCarrito === 'function') renderCarrito();
             if (typeof renderSocialLinks === 'function') renderSocialLinks('social-links-banner');
+            if (typeof renderUbicacion === 'function') renderUbicacion('ubicacion-banner');
         });
         return;
     }
@@ -11259,6 +11326,24 @@ async function abrirModalReserva(serviceId) {
     const detallesDiv = document.querySelector('#popup-reserva .detalles-servicio');
     if(!detallesDiv){ mostrarMensaje('Contenedor de popup no encontrado','error'); return; }
 
+    // Modo ubicación del negocio: 'domicilio' => el cliente DEBE escribir su dirección
+    let modoUbicacion = '';
+    try {
+        const tenantCfgId = await getCurrentTenantId();
+        if (tenantCfgId) {
+            const cachedCfg = localStorage.getItem(`tenant_config_${tenantCfgId}`);
+            if (cachedCfg) {
+                modoUbicacion = (JSON.parse(cachedCfg).ubicacion_tipo || '');
+            } else {
+                const cfg = await VisualConfigManager.loadConfig();
+                modoUbicacion = cfg.ubicacion_tipo || '';
+            }
+        }
+    } catch (e) {
+        console.warn('[reserva] Error leyendo modo ubicación:', e);
+    }
+    const exigeDireccion = modoUbicacion === 'domicilio';
+
     // Solo fechas desde hoy en adelante (no permitir reservar en fechas pasadas)
     const hoyLocalStr = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
     const fechas = Object.keys(servicio.disponibilidad || {}).sort().filter(f => f >= hoyLocalStr);
@@ -11327,6 +11412,11 @@ async function abrirModalReserva(serviceId) {
 
                 <label style="display:block; color:#fff; font-size:13px; margin-bottom:6px;">Correo electrónico <span style='color:#ff4949;'>*</span></label>
                 <input id="cliente-email" type="email" required placeholder="correo@ejemplo.com" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); color:#fff;" />
+
+                ${exigeDireccion ? `
+                <label style="display:block; color:#fff; font-size:13px; margin-bottom:6px;">Dirección del domicilio <span style='color:#ff4949;'>*</span></label>
+                <input id="cliente-direccion" type="text" placeholder="Calle, número, ciudad, referencia" style="width:100%; padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); color:#fff;" />
+                <span style="display:block; font-size:0.75rem; color:rgba(255,255,255,0.45); margin-top:4px;">El negocio va a tu domicilio: escribe la dirección donde quieres recibir el servicio.</span>` : ''}
             </div>
         </div>
     `;
@@ -11392,7 +11482,8 @@ async function abrirModalReserva(serviceId) {
     const clienteNombreEl = document.getElementById('cliente-nombre');
     const clienteTelEl = document.getElementById('cliente-tel');
     const clienteEmailEl = document.getElementById('cliente-email');
-    [clienteNombreEl, clienteTelEl, clienteEmailEl].forEach(el => { if(el) el.addEventListener('input', validarFormularioReserva); });
+    const clienteDireccionEl = document.getElementById('cliente-direccion');
+    [clienteNombreEl, clienteTelEl, clienteEmailEl, clienteDireccionEl].forEach(el => { if(el) el.addEventListener('input', validarFormularioReserva); });
 
     aplicarSesionAModal(popupRef);
 
@@ -11586,11 +11677,18 @@ function validarFormularioReserva() {
         emailOk = emailPattern.test(emailRaw);
     }
 
+    // Modo domicilio: la dirección es obligatoria para completar la reserva
+    const dirEl = document.getElementById('cliente-direccion');
+    let direccionOk = true;
+    if (dirEl && dirEl.style.display !== 'none') {
+        direccionOk = (dirEl.value.trim() !== '');
+    }
+
     if (idCitaEnEdicion) {
         // En reprogramación, no exigimos datos de contacto
     }
 
-    let enable = Boolean(selF && selH && acepto && nombreOk && clientPhoneOk && emailOk);
+    let enable = Boolean(selF && selH && acepto && nombreOk && clientPhoneOk && emailOk && direccionOk);
 
     if (idCitaEnEdicion && enable) {
         const origF = reprogramInfo.citaActual?.fecha || '';
@@ -11621,6 +11719,8 @@ async function aplicarSesionAModal(popupRef) {
             if(nombreEl){ nombreEl.value = window.__clienteSession.nombre || ''; nombreEl.readOnly = false; nombreEl.style.opacity = '1'; }
             if(emailEl){ emailEl.value = window.__clienteSession.email || ''; emailEl.readOnly = false; emailEl.style.opacity = '1'; emailEl.required = true; }
             if(telEl){ telEl.value = window.__clienteSession.whatsapp || ''; telEl.readOnly = false; telEl.style.opacity = '1'; }
+            const direccionLocalEl = document.getElementById('cliente-direccion');
+            if(direccionLocalEl){ direccionLocalEl.value = window.__clienteSession.direccion || ''; direccionLocalEl.readOnly = false; direccionLocalEl.style.opacity = '1'; }
             if(popupRef) delete popupRef.dataset.userId;
             return;
         }
@@ -11673,6 +11773,8 @@ async function aplicarSesionAModal(popupRef) {
                     telEl.readOnly = false;
                     telEl.style.opacity = '1';
                 }
+                const direccionLocalEl2 = document.getElementById('cliente-direccion');
+                if(direccionLocalEl2){ direccionLocalEl2.value = window.__clienteSession.direccion || ''; direccionLocalEl2.readOnly = false; direccionLocalEl2.style.opacity = '1'; }
             } else {
                 if(nombreEl){ const rnd = Math.floor(Math.random()*9000) + 1000; nombreEl.value = `Invitado #${rnd}`; nombreEl.readOnly = false; nombreEl.style.opacity = '1'; }
                 if(emailEl){ emailEl.value = ''; emailEl.readOnly = false; emailEl.style.opacity = '1'; emailEl.required = true; }
@@ -11806,6 +11908,18 @@ async function confirmarReserva(e) {
         }
     }
 
+    // Modo domicilio: la dirección es obligatoria para completar la reserva
+    const dirEl = document.getElementById('cliente-direccion');
+    if (dirEl && dirEl.style.display !== 'none') {
+        const dirRaw = dirEl.value.trim();
+        if (!dirRaw) {
+            mostrarToast('Debes ingresar tu dirección para completar la reserva', 'error');
+            popup.dataset.reserving = '0';
+            if (confirmBtnImmediate) { confirmBtnImmediate.disabled = false; confirmBtnImmediate.style.cursor = 'pointer'; }
+            return;
+        }
+    }
+
     const servicios = await ServiciosManager.getAll();
     const idx = servicios.findIndex(s => String(s.id) === String(serviceId));
     if(idx === -1){ mostrarMensaje('Servicio no encontrado','error'); return; }
@@ -11837,6 +11951,7 @@ async function confirmarReserva(e) {
     const clienteNombre = document.getElementById('cliente-nombre')?.value?.trim() || (window.__clienteSession?.nombre || '');
     const clienteTel = document.getElementById('cliente-tel')?.value?.trim() || (window.__clienteSession?.whatsapp || '');
     const clienteEmail = document.getElementById('cliente-email')?.value?.trim() || (window.__clienteSession?.email || '');
+    const clienteDireccion = document.getElementById('cliente-direccion')?.value?.trim() || (window.__clienteSession?.direccion || '');
     const session = await getSession();
     const userId = session?.id || null;
 
@@ -11866,6 +11981,7 @@ async function confirmarReserva(e) {
             nombre: clienteNombre || session?.nombre || '',
             telefono: clienteTel || '',
             email: clienteEmail || session?.email || '',
+            direccion: clienteDireccion || '',
             userId: userId || null
         }
     });

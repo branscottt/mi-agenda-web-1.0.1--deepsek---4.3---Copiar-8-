@@ -23,6 +23,7 @@ function deduplicarClientes(citas) {
                 email,
                 nombre: c.contacto?.nombre || 'Sin nombre',
                 telefono: c.contacto?.telefono || '',
+                direccion: c.contacto?.direccion || '',
                 totalGastado: 0,
                 visitas: 0,
                 primeraVisita: c.fecha,
@@ -32,6 +33,7 @@ function deduplicarClientes(citas) {
             });
         }
         const cl = mapa.get(email);
+        if (c.contacto?.direccion) cl.direccion = c.contacto.direccion;
         cl.visitas++;
         cl.totalGastado += Number(c.precio) || 0;
         if (c.fecha < cl.primeraVisita) cl.primeraVisita = c.fecha;
@@ -234,6 +236,7 @@ function renderGridHtml(filtrados) {
                 <div class="cliente-card-body">
                     <div class="cliente-meta">
                         ${cl.telefono ? `<span><i class="fas fa-phone"></i> ${escapeHtml(cl.telefono)}</span>` : ''}
+                        ${cl.direccion ? `<span title="Dirección"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(cl.direccion)}</span>` : ''}
                         <span><i class="fas fa-clock"></i> Última: ${formatFechaCorta(cl.ultimaVisita)}</span>
                         ${proxCita ? `<span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: ${formatFechaCorta(proxCita.fecha)} ${formatTimeDisplay(proxCita.hora)}</span>` : ''}
                     </div>

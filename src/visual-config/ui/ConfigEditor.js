@@ -140,6 +140,33 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
+            <!-- PASO 6: UBICACIÓN DE LA PYME -->
+            <div class="config-section">
+                <h4 class="config-section-title"><i class="fas fa-map-marker-alt"></i> 6. Ubicación de tu negocio</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Elige cómo funciona tu pyme: si tus clientes vienen a tu local, muestra tu ubicación con un mapa; si tú llevas el servicio al domicilio del cliente, pídele su dirección al reservar.</p>
+                <div class="ubicacion-opciones">
+                    <label class="ubicacion-option">
+                        <input type="radio" name="cfg-ubicacion-tipo" value="local" ${config.ubicacion_tipo === 'local' ? 'checked' : ''}>
+                        <span class="ubicacion-option-content">
+                            <strong><i class="fas fa-store"></i> Muestro mi ubicación</strong>
+                            <small>Los clientes vienen a mi local. En la vista cliente se mostrará la dirección con un mapa y un enlace a Google Maps.</small>
+                        </span>
+                    </label>
+                    <label class="ubicacion-option">
+                        <input type="radio" name="cfg-ubicacion-tipo" value="domicilio" ${config.ubicacion_tipo === 'domicilio' ? 'checked' : ''}>
+                        <span class="ubicacion-option-content">
+                            <strong><i class="fas fa-truck"></i> Voy al domicilio del cliente</strong>
+                            <small>El cliente debe escribir su dirección para completar la reserva y la verás en tus citas (ideal para plomeros, técnicos, delivery, etc.).</small>
+                        </span>
+                    </label>
+                </div>
+                <div class="input-with-label" id="cfg-ubicacion-direccion-wrap" style="margin-top:12px;${config.ubicacion_tipo === 'local' ? '' : 'display:none;'}">
+                    <label><i class="fas fa-map-pin"></i> Dirección de mi local</label>
+                    <input type="text" id="cfg-direccion" class="config-input" value="${escapeAttr(config.direccion || '')}" placeholder="Ej: Av. Siempre Viva 123, Santiago" style="flex:1;">
+                    <span class="field-hint">Se mostrará en la vista de tus clientes con un mapa pequeño y un botón "Cómo llegar" que abre Google Maps.</span>
+                </div>
+            </div>
+
             <!-- FINALIZAR -->
             <div class="config-section finalizar">
                 <h4 class="config-section-title"><i class="fas fa-check-circle"></i> Finalizar</h4>
@@ -201,6 +228,8 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             cover_url: '',
             instagram_url: '',
             tiktok_url: '',
+            ubicacion_tipo: '',
+            direccion: '',
             border_radius: 12,
             animation_speed: 0.3,
             custom_css: ''
@@ -241,6 +270,16 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             aplicarConfigVisual(leerConfigForm());
         });
     }
+
+    // Toggle del campo dirección según la opción de ubicación elegida
+    const direccionWrap = document.getElementById('cfg-ubicacion-direccion-wrap');
+    document.querySelectorAll('input[name="cfg-ubicacion-tipo"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (direccionWrap) {
+                direccionWrap.style.display = (radio.value === 'local' && radio.checked) ? '' : 'none';
+            }
+        });
+    });
 
     // File upload para logo
     const logoFileInput = document.getElementById('cfg-logo-file');
@@ -446,6 +485,8 @@ function leerConfigForm() {
         cover_url: document.getElementById('cfg-cover')?.value || '',
         instagram_url: document.getElementById('cfg-instagram')?.value || '',
         tiktok_url: document.getElementById('cfg-tiktok')?.value || '',
+        ubicacion_tipo: document.querySelector('input[name="cfg-ubicacion-tipo"]:checked')?.value || '',
+        direccion: document.getElementById('cfg-direccion')?.value || '',
         border_radius: parseInt(document.getElementById('cfg-radius')?.value) || _configSnapshot?.border_radius || 12,
         animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || _configSnapshot?.animation_speed || 0.3,
         custom_css: document.getElementById('custom-css')?.value || _configSnapshot?.custom_css || ''
