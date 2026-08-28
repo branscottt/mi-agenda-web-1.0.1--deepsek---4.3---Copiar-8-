@@ -13319,6 +13319,8 @@ window.iniciarSuperAdmin = async function() {
     inyectarTabFeedback();
     // Tab de Pagos Mercado Pago (inyectado por JS, sin tocar HTML)
     inyectarTabPagos();
+    // Tab de Directorio Público de PYMEs (inyectado por JS, sin tocar HTML)
+    inyectarTabDirectorio();
     setupSuperAdminTabs();
 };
 
@@ -14430,6 +14432,212 @@ async function cargarPagosSuper() {
         console.error('[PagosSuper] Error cargando pagos:', e);
         tbody.innerHTML = '<tr><td colspan="7">Error al cargar pagos: ' + escapeHtml(e.message) + '</td></tr>';
     }
+}
+
+// ---------- Tab Directorio (superadmin): ordenar pymes del Directorio Público ----------
+// Inyecta la tab por JS (patrón inyectarTabPagos) sin tocar HTML.
+// El orden se guarda en tenant_config.directorio_posicion (política superadmin).
+const DIRECTORIO_CATEGORIAS_SUPER = {
+    salud: 'Salud y Bienestar Clínico',
+    estetica: 'Estética, Belleza y Cuidado Personal',
+    deporte: 'Deporte, Actividad Física y Clases',
+    profesionales: 'Servicios Profesionales y Creativos',
+    tecnicos: 'Servicios Técnicos, Hogar y Terreno'
+};
+const PLANES_DIRECTORIO_VISIBLES = ['pro', 'premium_anual', 'freemium'];
+let _directorioSuperFiltro = { cat: 'todas', termino: '' };
+let _directorioSuperFilas = [];
+
+function inyectarTabDirectorio() {
+    if (document.querySelector('.tab-btn[data-tab="directorio"]') && document.getElementById('tab-directorio')) return;
+    const tabsBar = document.querySelector('.superadmin-tabs');
+    if (!tabsBar) return;
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn';
+    btn.dataset.tab = 'directorio';
+    btn.innerHTML = '<i class="fas fa-store"></i> Directorio';
+    tabsBar.appendChild(btn);
+
+    const panel = document.querySelector('.superadmin-screen .glass-panel');
+    if (!panel) return;
+    const cont = document.createElement('div');
+    cont.id = 'tab-directorio';
+    cont.className = 'tab-content';
+    cont.style.display = 'none';
+    cont.innerHTML = `
+        <div class="panel-header">
+            <h3><i class="fas fa-store"></i> Directorio Público de PYMEs</h3>
+            <button type="button" class="btn-grad" id="btn-refresh-directorio"><i class="fas fa-sync"></i> Refrescar</button>
+        </div>
+        <p class="muted" style="margin-top:6px;">Ordena quién aparece primero en la página de inicio. Usa las flechas para subir o bajar cada pyme; el orden se guarda al instante.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+            <input type="text" id="directorio-super-buscar" placeholder="Buscar pyme..." style="flex:1;min-width:200px;padding:8px 12px;border-radius:8px;border:1px solid #ced4da;">
+            <select id="directorio-super-cat" style="padding:8px 12px;border-radius:8px;border:1px solid #ced4da;">
+                <option value="todas">Todas las categorías</option>
+            </select>
+        </div>
+        <div class="appointments-table-container" style="margin-top:16px;">
+            <table class="appointments-table" id="directorio-super-table">
+                <thead><tr><th>Orden</th><th>Pyme</th><th>Categoría</th><th>Tipo</th><th>Reseñas</th><th>Plan</th><th>Público</th></tr></thead>
+                <tbody id="directorio-super-body"><tr><td colspan="7">Cargando directorio...</td></tr></tbody>
+            </table>
+        </div>
+    `;
+    const footer = panel.querySelector('.admin-footer');
+    if (footer) footer.parentNode.insertBefore(cont, footer);
+    else panel.appendChild(cont);
+
+    document.getElementById('btn-refresh-directorio')?.addEventListener('click', cargarDirectorioSuper);
+    document.getElementById('directorio-super-buscar')?.addEventListener('input', (e) => {
+        _directorioSuperFiltro.termino = e.target.value;
+        renderDirectorioSuper();
+    });
+    document.getElementById('directorio-super-cat')?.addEventListener('change', (e) => {
+        _directorioSuperFiltro.cat = e.target.value;
+        renderDirectorioSuper();
+    });
+}
+
+async function cargarDirectorioSuper() {
+    const tbody = document.getElementById('directorio-super-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7">Cargando directorio...</td></tr>';
+    const client = supabaseClient || window.supabaseClient;
+    if (!client) {
+        tbody.innerHTML = '<tr><td colspan="7">Error de conexión.</td></tr>';
+        return;
+    }
+    try {
+        const [tenantsRes, configsRes, subsRes] = await Promise.all([
+            client.from('tenants').select('id, nombre_negocio, plan, estado').order('fecha_registro', { ascending: false }),
+            client.from('tenant_config').select('tenant_id, directorio_activo, directorio_categoria, directorio_tipo_pyme, directorio_posicion, directorio_estrellas, directorio_comentarios'),
+            client.from('subscriptions').select('tenant_id, plan, status')
+        ]);
+        if (tenantsRes.error) throw tenantsRes.error;
+        if (configsRes.error) throw configsRes.error;
+
+        const subMap = {};
+        (subsRes.data || []).forEach(s => {
+            if (!subMap[s.tenant_id] || s.status === 'active') subMap[s.tenant_id] = s;
+        });
+
+        const configMap = {};
+        (configsRes.data || []).forEach(c => { configMap[c.tenant_id] = c; });
+
+        const filas = [];
+        (tenantsRes.data || []).forEach(t => {
+            const cfg = configMap[t.id];
+            if (!cfg || cfg.directorio_activo !== true) return;
+            const sub = subMap[t.id];
+            const planActivo = (sub && sub.status === 'active') ? sub.plan : null;
+            filas.push({
+                tenant_id: t.id,
+                nombre: t.nombre_negocio || 'Sin nombre',
+                plan: planActivo || t.plan || '—',
+                estadoTenant: t.estado,
+                categoria: cfg.directorio_categoria || '',
+                tipo: cfg.directorio_tipo_pyme || '',
+                estrellas: cfg.directorio_estrellas === true,
+                comentarios: cfg.directorio_comentarios === true,
+                posicion: Number(cfg.directorio_posicion) || 0,
+                visiblePublico: Boolean(planActivo && PLANES_DIRECTORIO_VISIBLES.includes(planActivo))
+            });
+        });
+        filas.sort((a, b) => (a.posicion - b.posicion) || a.nombre.localeCompare(b.nombre));
+        _directorioSuperFilas = filas;
+
+        // Poblar filtro de categorías con las presentes en el directorio
+        const catSelect = document.getElementById('directorio-super-cat');
+        if (catSelect) {
+            const cats = [...new Set(filas.map(f => f.categoria).filter(Boolean))];
+            catSelect.innerHTML = '<option value="todas">Todas las categorías</option>' +
+                cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(DIRECTORIO_CATEGORIAS_SUPER[c] || c)}</option>`).join('');
+            catSelect.value = _directorioSuperFiltro.cat;
+        }
+        renderDirectorioSuper();
+    } catch (e) {
+        console.error('[DirectorioSuper] Error cargando:', e);
+        tbody.innerHTML = '<tr><td colspan="7">Error al cargar directorio: ' + escapeHtml(e.message) + '</td></tr>';
+    }
+}
+
+function renderDirectorioSuper() {
+    const tbody = document.getElementById('directorio-super-body');
+    if (!tbody) return;
+    const term = _directorioSuperFiltro.termino.trim().toLowerCase();
+    const visibles = _directorioSuperFilas.filter(f => {
+        if (_directorioSuperFiltro.cat !== 'todas' && f.categoria !== _directorioSuperFiltro.cat) return false;
+        if (term && !((f.nombre || '').toLowerCase().includes(term) || (f.tipo || '').toLowerCase().includes(term))) return false;
+        return true;
+    });
+
+    if (!visibles.length) {
+        tbody.innerHTML = '<tr><td colspan="7">No hay pymes en el directorio con ese filtro.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = visibles.map((f, i) => `
+        <tr>
+            <td>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-weight:700;min-width:26px;">${i + 1}</span>
+                    <button type="button" class="btn-small" data-dir-mover="up" data-idx="${i}" title="Subir" ${i === 0 ? 'disabled style="opacity:0.4"' : ''}><i class="fas fa-arrow-up"></i></button>
+                    <button type="button" class="btn-small" data-dir-mover="down" data-idx="${i}" title="Bajar" ${i === visibles.length - 1 ? 'disabled style="opacity:0.4"' : ''}><i class="fas fa-arrow-down"></i></button>
+                </div>
+            </td>
+            <td><strong>${escapeHtml(f.nombre)}</strong></td>
+            <td>${escapeHtml(DIRECTORIO_CATEGORIAS_SUPER[f.categoria] || f.categoria || '—')}</td>
+            <td>${escapeHtml(f.tipo || '—')}</td>
+            <td style="white-space:nowrap;">
+                ${f.estrellas ? '<i class="fas fa-star" style="color:#f1c40f;" title="Estrellas"></i>' : '<span class="muted">—</span>'}
+                ${f.comentarios ? '<i class="fas fa-comment-dots" style="color:#3498db;margin-left:6px;" title="Comentarios"></i>' : ''}
+            </td>
+            <td><span class="badge" style="background:${f.plan === 'premium_anual' ? '#ffd700' : f.plan === 'pro' ? '#b300ff' : '#666'};color:${f.plan === 'premium_anual' ? '#000' : '#fff'};padding:2px 10px;border-radius:20px;font-size:0.72rem;">${escapeHtml(f.plan)}</span></td>
+            <td>${f.visiblePublico
+                ? '<span style="color:#2ecc71;font-weight:600;"><i class="fas fa-eye"></i> Visible</span>'
+                : '<span style="color:#e67e22;"><i class="fas fa-eye-slash"></i> Oculto (plan)</span>'}</td>
+        </tr>
+    `).join('');
+
+    tbody.querySelectorAll('[data-dir-mover]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = Number(btn.dataset.idx);
+            const dir = btn.dataset.dirMover;
+            const objetivo = dir === 'up' ? idx - 1 : idx + 1;
+            if (objetivo < 0 || objetivo >= visibles.length) return;
+            const a = visibles[idx];
+            const b = visibles[objetivo];
+            const ia = _directorioSuperFilas.indexOf(a);
+            const ib = _directorioSuperFilas.indexOf(b);
+            if (ia === -1 || ib === -1) return;
+            [_directorioSuperFilas[ia], _directorioSuperFilas[ib]] = [_directorioSuperFilas[ib], _directorioSuperFilas[ia]];
+            guardarOrdenDirectorio();
+        });
+    });
+}
+
+async function guardarOrdenDirectorio() {
+    const client = supabaseClient || window.supabaseClient;
+    if (!client) return;
+    for (let i = 0; i < _directorioSuperFilas.length; i++) {
+        const f = _directorioSuperFilas[i];
+        const nueva = i + 1;
+        if (f.posicion === nueva) continue;
+        try {
+            if (window.__tenantConfigApi?.upsert) {
+                await window.__tenantConfigApi.upsert(f.tenant_id, { directorio_posicion: nueva });
+            } else {
+                await client.from('tenant_config').upsert({ tenant_id: f.tenant_id, directorio_posicion: nueva });
+            }
+            f.posicion = nueva;
+        } catch (e) {
+            console.warn('[DirectorioSuper] Error guardando posición de', f.tenant_id, e);
+            mostrarToast('⚠️ No se pudo guardar el orden: ' + (e.message || 'error'), 'error');
+            break;
+        }
+    }
+    renderDirectorioSuper();
+    mostrarToast('✅ Orden del directorio actualizado', 'success');
 }
 
 async function cargarFeedbackSuper() {

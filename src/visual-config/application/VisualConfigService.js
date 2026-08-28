@@ -31,6 +31,13 @@ const CONFIG_DEFAULT = {
     tiktok_url: '',
     ubicacion_tipo: '',
     direccion: '',
+    directorio_activo: false,
+    directorio_categoria: '',
+    directorio_tipo_pyme: '',
+    directorio_fotos: [],
+    directorio_estrellas: false,
+    directorio_comentarios: false,
+    directorio_posicion: 0,
     custom_css: ''
 };
 
@@ -142,6 +149,13 @@ export async function getVisualConfig(optionalTenantId) {
             config.tiktok_url = dbData.tiktok_url || '';
             config.ubicacion_tipo = dbData.ubicacion_tipo || '';
             config.direccion = dbData.direccion || '';
+            config.directorio_activo = dbData.directorio_activo === true;
+            config.directorio_categoria = dbData.directorio_categoria || '';
+            config.directorio_tipo_pyme = dbData.directorio_tipo_pyme || '';
+            config.directorio_fotos = Array.isArray(dbData.directorio_fotos) ? dbData.directorio_fotos : [];
+            config.directorio_estrellas = dbData.directorio_estrellas === true;
+            config.directorio_comentarios = dbData.directorio_comentarios === true;
+            config.directorio_posicion = dbData.directorio_posicion || 0;
             config.custom_css = dbData.custom_css || '';
         }
 
@@ -241,6 +255,12 @@ export async function saveVisualConfig(config) {
             p.tiktok_url = full.tiktok_url || null;
             p.ubicacion_tipo = full.ubicacion_tipo || null;
             p.direccion = full.direccion || null;
+            p.directorio_activo = full.directorio_activo === true;
+            p.directorio_categoria = full.directorio_categoria || null;
+            p.directorio_tipo_pyme = full.directorio_tipo_pyme || null;
+            p.directorio_fotos = Array.isArray(full.directorio_fotos) ? full.directorio_fotos : [];
+            p.directorio_estrellas = full.directorio_estrellas === true;
+            p.directorio_comentarios = full.directorio_comentarios === true;
         }
         return p;
     };

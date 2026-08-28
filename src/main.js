@@ -170,6 +170,14 @@ async function syncJwtSession() {
             } catch (e) {
                 console.warn('[main.js] Error cargando LoginPage.js:', e.message);
             }
+
+            // Directorio Público de PYMEs (sección de reseñas bajo el login)
+            try {
+                const { initDirectorio } = await import('./directory/ui/DirectoryView.js');
+                initDirectorio();
+            } catch (e) {
+                console.warn('[main.js] Error cargando DirectoryView.js:', e.message);
+            }
         }
 
         if (esAdmin) {

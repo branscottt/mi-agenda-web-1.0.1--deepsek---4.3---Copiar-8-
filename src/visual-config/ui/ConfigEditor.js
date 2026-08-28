@@ -6,10 +6,15 @@ import { getVisualConfig, saveVisualConfig, aplicarConfigVisual, TEMAS_PREDEFINI
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { initDireccionAutocomplete } from '../../shared/ui/direccionAutocomplete.js';
+import { CATEGORIAS_DIRECTORIO, getTiposDeCategoria, TIPO_PYME_OTRO } from '../../directory/domain/categorias.js';
+import { getResenasAdmin, moderarResena } from '../../directory/application/DirectoryService.js';
 
 // Snapshot de la config cargada: conserva valores de campos ya no editables
 // (tipografía, CSS personalizado) para que guardar NO los borre.
 let _configSnapshot = null;
+
+// Fotos elegidas para la tarjeta del directorio (URLs públicas)
+let _fotosDirectorio = [];
 
 export async function initConfigEditor(containerId = 'visual-config-editor') {
     const container = document.getElementById(containerId);
@@ -168,6 +173,84 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
 
+            <!-- PASO 7: DIRECTORIO PÚBLICO Y RESEÑAS -->
+            <div class="config-section">
+                <h4 class="config-section-title"><i class="fas fa-store"></i> 7. Directorio Público y Reseñas</h4>
+                <p class="field-hint" style="margin-bottom:10px;">Aparece en la página de inicio junto a otras pymes para que nuevos clientes te descubran y reserven contigo. Disponible en planes <strong>Pro, Premium Anual y Freemium</strong>.</p>
+
+                <label class="directorio-switch">
+                    <input type="checkbox" id="cfg-directorio-activo" ${config.directorio_activo ? 'checked' : ''}>
+                    <span class="directorio-switch-slider"></span>
+                    <span class="directorio-switch-label">
+                        <strong>Quiero aparecer en el Directorio Público de Organify</strong>
+                        <small>para que nuevos clientes me descubran</small>
+                    </span>
+                </label>
+
+                <div id="cfg-directorio-opciones" style="margin-top:14px;${config.directorio_activo ? '' : 'display:none;'}">
+                    <div class="form-row two-cols">
+                        <div class="input-with-label">
+                            <label><i class="fas fa-th-large"></i> Categoría de mi negocio</label>
+                            <select id="cfg-directorio-categoria" class="config-input">
+                                <option value="">Selecciona una categoría...</option>
+                                ${CATEGORIAS_DIRECTORIO.map(c => `
+                                    <option value="${c.id}" ${config.directorio_categoria === c.id ? 'selected' : ''}>${c.nombre}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="input-with-label">
+                            <label><i class="fas fa-tag"></i> Tipo de pyme</label>
+                            <select id="cfg-directorio-tipo" class="config-input">
+                                ${renderOpcionesTipo(config.directorio_categoria, config.directorio_tipo_pyme)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="input-with-label" style="margin-top:12px;">
+                        <label><i class="fas fa-images"></i> Fotos para tu tarjeta (elige hasta 3)</label>
+                        <p class="field-hint" style="font-size:0.75rem;">Se mostrarán en tu tarjeta del directorio. Si no subes fotos, se usará tu logo.</p>
+                        <div class="directorio-fotos-row">
+                            <div class="directorio-fotos-preview" id="directorio-fotos-preview"></div>
+                            <div class="file-upload-wrapper logo-file-upload">
+                                <input type="file" id="cfg-directorio-fotos-file" accept="image/jpeg,image/png,image/webp" multiple>
+                                <label for="cfg-directorio-fotos-file" class="file-upload-btn logo-upload-btn" title="Subir fotos">
+                                    <i class="fas fa-upload"></i>
+                                </label>
+                            </div>
+                        </div>
+                        <span class="field-hint" id="directorio-fotos-hint" style="font-size:0.75rem;"></span>
+                    </div>
+
+                    <div class="form-row two-cols" style="margin-top:12px;">
+                        <label class="directorio-switch">
+                            <input type="checkbox" id="cfg-directorio-estrellas" ${config.directorio_estrellas ? 'checked' : ''}>
+                            <span class="directorio-switch-slider"></span>
+                            <span class="directorio-switch-label">
+                                <strong><i class="fas fa-star"></i> Puntuación con estrellas</strong>
+                                <small>Los clientes califican del 1 al 5</small>
+                            </span>
+                        </label>
+                        <label class="directorio-switch">
+                            <input type="checkbox" id="cfg-directorio-comentarios" ${config.directorio_comentarios ? 'checked' : ''}>
+                            <span class="directorio-switch-slider"></span>
+                            <span class="directorio-switch-label">
+                                <strong><i class="fas fa-comment-dots"></i> Comentarios públicos</strong>
+                                <small>Los clientes dejan su opinión (moderada)</small>
+                            </span>
+                        </label>
+                    </div>
+
+                    <!-- Moderación de reseñas -->
+                    <div class="input-with-label" style="margin-top:14px;">
+                        <label><i class="fas fa-shield-alt"></i> Moderación de reseñas</label>
+                        <p class="field-hint" style="font-size:0.75rem;">Las reseñas llegan como "pendientes" y solo se publican cuando las apruebas.</p>
+                        <div id="directorio-moderacion">
+                            <p class="muted small"><i class="fas fa-spinner fa-spin"></i> Cargando reseñas...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- FINALIZAR -->
             <div class="config-section finalizar">
                 <h4 class="config-section-title"><i class="fas fa-check-circle"></i> Finalizar</h4>
@@ -187,6 +270,11 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
     // Mostrar preview de logo y cover si ya hay URLs guardadas
     mostrarPreviewGuardado('logo-preview', 'logo-preview-img', config.logo_url);
     mostrarPreviewCover(config.cover_url);
+
+    // --- DIRECTORIO: estado inicial ---
+    _fotosDirectorio = Array.isArray(config.directorio_fotos) ? config.directorio_fotos.filter(Boolean) : [];
+    renderFotosDirectorio();
+    cargarModeracion();
 
     // Event listeners
     document.getElementById('temas-grid')?.addEventListener('click', (e) => {
@@ -231,6 +319,12 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             tiktok_url: '',
             ubicacion_tipo: '',
             direccion: '',
+            directorio_activo: false,
+            directorio_categoria: '',
+            directorio_tipo_pyme: '',
+            directorio_fotos: [],
+            directorio_estrellas: false,
+            directorio_comentarios: false,
             border_radius: 12,
             animation_speed: 0.3,
             custom_css: ''
@@ -321,6 +415,184 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             await subirImagenStorage(file, 'cover', 'cover');
         });
     }
+
+    // --- DIRECTORIO: listeners ---
+    const directorioActivo = document.getElementById('cfg-directorio-activo');
+    const directorioOpciones = document.getElementById('cfg-directorio-opciones');
+    if (directorioActivo && directorioOpciones) {
+        directorioActivo.addEventListener('change', () => {
+            directorioOpciones.style.display = directorioActivo.checked ? '' : 'none';
+            if (directorioActivo.checked) cargarModeracion();
+        });
+    }
+
+    const catSelect = document.getElementById('cfg-directorio-categoria');
+    const tipoSelect = document.getElementById('cfg-directorio-tipo');
+    if (catSelect && tipoSelect) {
+        catSelect.addEventListener('change', () => {
+            const seleccionado = tipoSelect.value;
+            tipoSelect.innerHTML = renderOpcionesTipo(catSelect.value, seleccionado);
+        });
+    }
+
+    const fotosFileInput = document.getElementById('cfg-directorio-fotos-file');
+    if (fotosFileInput) {
+        fotosFileInput.addEventListener('change', async function() {
+            const files = Array.from(this.files || []);
+            this.value = '';
+            const disponibles = Math.max(0, 3 - _fotosDirectorio.length);
+            if (!files.length) return;
+            if (_fotosDirectorio.length + files.length > 3) {
+                mostrarToast(`❌ Máximo 3 fotos para tu tarjeta (te quedan ${disponibles} espacio${disponibles === 1 ? '' : 's'}).`, 'warning');
+            }
+            const aSubir = files.slice(0, disponibles);
+            for (const file of aSubir) {
+                await subirFotoDirectorio(file);
+            }
+            renderFotosDirectorio();
+        });
+    }
+
+    const fotosPreview = document.getElementById('directorio-fotos-preview');
+    if (fotosPreview) {
+        fotosPreview.addEventListener('click', (e) => {
+            const btn = e.target.closest('.directorio-foto-remove');
+            if (!btn) return;
+            const idx = Number(btn.dataset.idx);
+            if (!Number.isNaN(idx) && _fotosDirectorio[idx]) {
+                _fotosDirectorio.splice(idx, 1);
+                renderFotosDirectorio();
+            }
+        });
+    }
+}
+
+// ============================================================
+// DIRECTORIO: helpers (opciones de tipo, fotos, moderación)
+// ============================================================
+function renderOpcionesTipo(categoriaId, seleccionado) {
+    if (!categoriaId) return '<option value="">Primero elige una categoría...</option>';
+    return getTiposDeCategoria(categoriaId).map(t =>
+        `<option value="${escapeAttr(t)}" ${seleccionado === t ? 'selected' : ''}>${escapeHtml(t)}</option>`
+    ).join('');
+}
+
+function renderFotosDirectorio() {
+    const preview = document.getElementById('directorio-fotos-preview');
+    const hint = document.getElementById('directorio-fotos-hint');
+    if (preview) {
+        preview.innerHTML = _fotosDirectorio.map((url, i) => `
+            <div class="directorio-foto">
+                <img src="${escapeAttr(url)}" alt="Foto ${i + 1}" loading="lazy">
+                <button type="button" class="directorio-foto-remove" data-idx="${i}" title="Quitar foto" aria-label="Quitar foto">&times;</button>
+            </div>
+        `).join('');
+    }
+    if (hint) {
+        hint.textContent = _fotosDirectorio.length
+            ? `${_fotosDirectorio.length}/3 fotos elegidas.`
+            : 'Sin fotos todavía.';
+    }
+}
+
+async function subirFotoDirectorio(file) {
+    if (!file || !file.type) { mostrarToast('❌ No se pudo leer el archivo', 'error'); return; }
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!ALLOWED.includes(file.type)) { mostrarToast('❌ Formato no permitido. Usa JPG, PNG o WebP', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { mostrarToast('❌ La imagen excede 5MB', 'error'); return; }
+
+    try {
+        const imagen = await optimizarImagen(file, 800, 0.82);
+        let tenantId = null;
+        try {
+            if (window.supabaseClient) {
+                const { data: t } = await window.supabaseClient.rpc('get_user_tenant_id');
+                tenantId = t || null;
+            }
+        } catch (e) {
+            console.warn('[Directorio] tenant canónico no disponible:', e);
+        }
+        tenantId = tenantId || window.currentTenantId || window.__clientTenantId || (await getCurrentTenantId()) || 'public';
+        const filePath = `${tenantId}/directorio/foto-${Date.now()}.jpg`;
+        const supabase = window.supabaseClient;
+        if (!supabase) throw new Error('Cliente no disponible');
+
+        const { error } = await supabase.storage
+            .from('service-images')
+            .upload(filePath, imagen, { contentType: 'image/jpeg', upsert: true });
+        if (error) throw error;
+
+        const { data: urlData } = supabase.storage
+            .from('service-images')
+            .getPublicUrl(filePath);
+        if (urlData?.publicUrl) {
+            _fotosDirectorio.push(urlData.publicUrl);
+            mostrarToast('✅ Foto agregada a tu tarjeta', 'success');
+        }
+    } catch (e) {
+        console.error('[Directorio] Error subiendo foto:', e);
+        mostrarToast('❌ Error al subir foto: ' + (e.message || 'Desconocido'), 'error');
+    }
+}
+
+async function cargarModeracion() {
+    const cont = document.getElementById('directorio-moderacion');
+    if (!cont) return;
+    let resenas = [];
+    try {
+        resenas = await getResenasAdmin();
+    } catch (e) {
+        console.warn('[Directorio] No se pudieron cargar las reseñas:', e.message);
+        cont.innerHTML = '<p class="muted small">No se pudieron cargar las reseñas.</p>';
+        return;
+    }
+    cont.innerHTML = renderModeracion(resenas);
+    cont.querySelectorAll('[data-moderar]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.moderar;
+            const estado = btn.dataset.accion;
+            btn.disabled = true;
+            try {
+                await moderarResena(id, estado);
+                mostrarToast(estado === 'aprobado' ? '✅ Reseña aprobada y publicada' : 'Reseña rechazada', estado === 'aprobado' ? 'success' : 'info');
+                cargarModeracion();
+            } catch (e) {
+                mostrarToast('❌ ' + (e.message || 'No se pudo moderar'), 'error');
+                btn.disabled = false;
+            }
+        });
+    });
+}
+
+function renderModeracion(resenas) {
+    if (!resenas.length) {
+        return '<p class="muted small"><i class="fas fa-inbox"></i> Aún no hay reseñas.</p>';
+    }
+    const pendientes = resenas.filter(r => r.estado === 'pendiente');
+    const aprobadas = resenas.filter(r => r.estado === 'aprobado').length;
+    const rechazadas = resenas.filter(r => r.estado === 'rechazado').length;
+    const header = `<p class="muted small" style="margin-bottom:8px;">Pendientes: <strong>${pendientes.length}</strong> · Publicadas: ${aprobadas} · Rechazadas: ${rechazadas}</p>`;
+    if (!pendientes.length) {
+        return header + '<p class="muted small"><i class="fas fa-check-circle"></i> Sin reseñas pendientes de moderar.</p>';
+    }
+    return header + pendientes.map(r => `
+        <div class="directorio-resena-admin">
+            <div class="directorio-resena-admin-head">
+                <strong>${escapeHtml(r.nombre_cliente)}</strong>
+                ${r.puntuacion ? `<span class="pyme-card-stars small">${[1,2,3,4,5].map(i => `<i class="${i <= r.puntuacion ? 'fas' : 'far'} fa-star"></i>`).join('')}</span>` : ''}
+                <span class="muted small">${r.creado_en ? new Date(r.creado_en).toLocaleString('es-ES') : ''}</span>
+            </div>
+            ${r.comentario ? `<p class="directorio-resena-texto">${escapeHtml(r.comentario)}</p>` : ''}
+            <div class="directorio-resena-admin-acciones">
+                <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="aprobado" style="background:rgba(0,184,148,0.15);border:1px solid rgba(0,184,148,0.4);color:#00b894;">
+                    <i class="fas fa-check"></i> Aprobar
+                </button>
+                <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="rechazado" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);color:#e74c3c;">
+                    <i class="fas fa-times"></i> Rechazar
+                </button>
+            </div>
+        </div>
+    `).join('');
 }
 
 async function subirImagenStorage(file, tipo, inputId) {
@@ -492,6 +764,13 @@ function leerConfigForm() {
         tiktok_url: document.getElementById('cfg-tiktok')?.value || '',
         ubicacion_tipo: document.querySelector('input[name="cfg-ubicacion-tipo"]:checked')?.value || '',
         direccion: document.getElementById('cfg-direccion')?.value || '',
+        // Directorio público y reseñas
+        directorio_activo: document.getElementById('cfg-directorio-activo')?.checked || false,
+        directorio_categoria: document.getElementById('cfg-directorio-categoria')?.value || '',
+        directorio_tipo_pyme: document.getElementById('cfg-directorio-tipo')?.value || '',
+        directorio_fotos: Array.isArray(_fotosDirectorio) ? _fotosDirectorio : [],
+        directorio_estrellas: document.getElementById('cfg-directorio-estrellas')?.checked || false,
+        directorio_comentarios: document.getElementById('cfg-directorio-comentarios')?.checked || false,
         border_radius: parseInt(document.getElementById('cfg-radius')?.value) || _configSnapshot?.border_radius || 12,
         animation_speed: parseFloat(document.getElementById('cfg-anim-speed')?.value) || _configSnapshot?.animation_speed || 0.3,
         custom_css: document.getElementById('custom-css')?.value || _configSnapshot?.custom_css || ''
