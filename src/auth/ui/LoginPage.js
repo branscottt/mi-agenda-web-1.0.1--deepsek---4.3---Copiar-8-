@@ -27,6 +27,7 @@ export function iniciarLogin() {
     const loginErrorDiv = document.getElementById('login-error-message');
     const registerErrorDiv = document.getElementById('register-error-message');
     const googleBtn = document.getElementById('google-login-btn');
+    const googleBtnRegister = document.getElementById('google-login-btn-register');
     const forgotLink = document.getElementById('forgot-password-link');
 
     function showLogin() {
@@ -263,14 +264,20 @@ export function iniciarLogin() {
         });
     }
 
-    // --- GOOGLE LOGIN ---
-    if (googleBtn) {
-        googleBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            console.log('[LoginPage] Botón Google clickeado, llamando a loginWithGoogle()');
-            await loginWithGoogle();
-        });
-    }
+    // --- GOOGLE LOGIN (login y registro comparten el mismo flujo OAuth) ---
+    // El onboarding de usuario nuevo lo resuelve el AuthGuard legacy (iniciarAdmin,
+    // CASO A): crea el tenant, redirige a planes.html?pending_whatsapp=true.
+    const handleGoogleLogin = async (e) => {
+        e.preventDefault();
+        console.log('[LoginPage] Botón Google clickeado, llamando a loginWithGoogle()');
+        const result = await loginWithGoogle();
+        if (result && !result.success) {
+            const msg = result.error || 'Error al iniciar con Google. Intenta nuevamente.';
+            mostrarToast(msg, 'error');
+        }
+    };
+    if (googleBtn) googleBtn.addEventListener('click', handleGoogleLogin);
+    if (googleBtnRegister) googleBtnRegister.addEventListener('click', handleGoogleLogin);
 
     // --- RECUPERAR CONTRASEÑA ---
     if (forgotLink) {

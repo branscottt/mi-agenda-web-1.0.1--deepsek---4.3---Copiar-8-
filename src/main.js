@@ -94,6 +94,16 @@ async function syncJwtSession() {
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         if (existingSession) {
             console.log('[main] Sesion ya activa, no se fuerza setSession');
+
+            // Sincronizar JwtManager si está vacío (caso OAuth redirect: loginWithGoogle
+            // limpió el storage antes de salir a Google). Sin esto, el sistema moderno
+            // (getSession/getCurrentTenantId vía JwtManager) queda sin sesión hasta que
+            // el AuthGuard legacy haga setTokens — frágil si legacy.js falla.
+            if (!JwtManager.getAccessToken()) {
+                JwtManager.setTokens(existingSession.access_token, existingSession.refresh_token);
+                console.log('[main] JwtManager sincronizado con sesión OAuth detectada');
+            }
+
             JwtManager.startAutoRefresh(supabase);
 
             // Interceptor de sesion (onAuthStateChange) solo si hay sesion activa

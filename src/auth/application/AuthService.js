@@ -52,7 +52,7 @@ export async function loginWithGoogle() {
     const supabase = getSupabase();
     if (!supabase) {
         console.error('[AuthService] Supabase no disponible');
-        return;
+        return { success: false, error: 'Supabase no inicializado' };
     }
     try {
         console.log('[AuthService] Limpiando sesión previa');
@@ -63,9 +63,11 @@ export async function loginWithGoogle() {
             provider: 'google',
             options: { redirectTo: window.location.origin + '/admin.html' }
         });
-        console.log('[AuthService] OAuth iniciado (popup abierto)');
+        console.log('[AuthService] OAuth iniciado, redirigiendo a Google');
+        return { success: true };
     } catch (e) {
         console.error('[AuthService] Error:', e);
+        return { success: false, error: e.message || 'Error al iniciar con Google' };
     }
 }
 
