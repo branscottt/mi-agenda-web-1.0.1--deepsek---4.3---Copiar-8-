@@ -88,30 +88,63 @@ export async function initWorkerPortal() {
             }
         }
 
-        // Reservas de HOY (devueltas por la RPC)
+        // Reservas: HOY + próximas (14 días, devueltas por la RPC)
         if (reservationsEl) {
-            if (!citas.length) {
-                reservationsEl.innerHTML = `
+            const hoyStr = (() => {
+                const d = new Date();
+                return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            })();
+            const proximas = (data.citas_proximas || []).filter(c => String(c.fecha) !== hoyStr);
+
+            const h3 = reservationsEl.closest('.wp-section')?.querySelector('h3');
+            if (h3) h3.textContent = 'Reservas';
+
+            const tarjeta = (c) => `
+                <div class="worker-cita-card">
+                    <span class="cita-hora">${formatTime(c.hora)}</span>
+                    <div class="cita-info">
+                        <strong>${escapeHtml(c.servicio || 'Servicio')}</strong>
+                        <span>${escapeHtml(c.cliente || 'Cliente')}</span>
+                    </div>
+                </div>
+            `;
+
+            let html = '';
+
+            // Reservas de hoy
+            if (citas.length) {
+                html += `<div class="worker-citas-list">${citas.map(tarjeta).join('')}</div>`;
+            }
+
+            // Próximas reservas (excluyendo hoy para no duplicar)
+            if (proximas.length) {
+                const grupos = {};
+                proximas.forEach(c => {
+                    const f = String(c.fecha);
+                    if (!grupos[f]) grupos[f] = [];
+                    grupos[f].push(c);
+                });
+                html += '<div style="margin-top:16px;">';
+                html += '<h4 style="font-size:0.9rem;margin:0 0 4px;color:rgba(255,255,255,0.75);"><i class="fas fa-calendar-alt"></i> Próximas reservas</h4>';
+                Object.keys(grupos).sort().forEach(f => {
+                    html += `<div style="margin-top:10px;">`;
+                    html += `<div style="font-size:0.72rem;font-weight:600;color:#ffd700;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.4px;">${formatFechaReserva(f)}</div>`;
+                    html += `<div class="worker-citas-list">${grupos[f].map(tarjeta).join('')}</div>`;
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            if (!citas.length && !proximas.length) {
+                html = `
                     <div class="empty-state" style="padding:20px;">
                         <i class="fas fa-calendar-check" style="font-size:1.5rem;opacity:0.3;"></i>
-                        <p style="margin-top:8px;">No tienes reservas para hoy</p>
-                    </div>
-                `;
-            } else {
-                reservationsEl.innerHTML = `
-                    <div class="worker-citas-list">
-                        ${citas.map(c => `
-                            <div class="worker-cita-card">
-                                <span class="cita-hora">${formatTime(c.hora)}</span>
-                                <div class="cita-info">
-                                    <strong>${escapeHtml(c.servicio || 'Servicio')}</strong>
-                                    <span>${escapeHtml(c.cliente || 'Cliente')}</span>
-                                </div>
-                            </div>
-                        `).join('')}
+                        <p style="margin-top:8px;">No tienes reservas próximas</p>
                     </div>
                 `;
             }
+
+            reservationsEl.innerHTML = html;
         }
 
     } catch (e) {
@@ -128,7 +161,20 @@ function formatTime(hora) {
     return `${partes[0]}:${partes[1]}`;
 }
 
+// Local: trabajador.html NO carga legacy.js, así que escapeHtml no existe
+// como global aquí (evita ReferenceError al renderizar citas).
 function escapeHtml(str) {
     if (!str && str !== 0) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatFechaReserva(fechaStr) {
+    const hoy = new Date();
+    const hoyStr = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+    const manana = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1);
+    const mananaStr = manana.getFullYear() + '-' + String(manana.getMonth() + 1).padStart(2, '0') + '-' + String(manana.getDate()).padStart(2, '0');
+    if (fechaStr === hoyStr) return 'Hoy';
+    if (fechaStr === mananaStr) return 'Mañana';
+    const d = new Date(fechaStr + 'T12:00:00');
+    return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 }

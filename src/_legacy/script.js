@@ -6018,6 +6018,16 @@ async function crearServicio() {
 
     const disponibilidad = buildDisponibilidadFromForm();
 
+    // Validar cobertura: si seleccionó trabajadores pero ninguno cubre los
+    // horarios, avisa con opciones (otro trabajador o continuar sin asignación).
+    if (window.__validarCoberturaWorkersServicio) {
+        const cov = window.__validarCoberturaWorkersServicio(disponibilidad);
+        if (cov && !cov.valido) {
+            mostrarMensaje(cov.mensaje, 'warning');
+            return;
+        }
+    }
+
     const nuevoServicio = {
         nombre: nombre,
         precio: parseFloat(precio),
@@ -6970,6 +6980,13 @@ async function editarServicio(id) {
 
     // --- Establecer modo edición ---
     editServiceId = id;
+    const formEdit = document.getElementById('service-form');
+    if (formEdit) formEdit.dataset.editId = id;
+    // Refrescar checkboxes de trabajadores: preselecciona los asignados y
+    // marca cobertura según la disponibilidad cargada del servicio.
+    if (typeof window.__refrescarWorkersServicio === 'function') {
+        window.__refrescarWorkersServicio().catch(() => {});
+    }
 
     // === UX: navegar a la sección del formulario ===
     if (typeof navigateTo === 'function') {
@@ -7053,6 +7070,16 @@ async function actualizarServicio() {
     const duracion = getServiceDuration();
 
     const disponibilidadNueva = buildDisponibilidadFromForm();
+
+    // Validar cobertura: si seleccionó trabajadores pero ninguno cubre los
+    // horarios, avisa con opciones (otro trabajador o continuar sin asignación).
+    if (window.__validarCoberturaWorkersServicio) {
+        const cov = window.__validarCoberturaWorkersServicio(disponibilidadNueva);
+        if (cov && !cov.valido) {
+            mostrarMensaje(cov.mensaje, 'warning');
+            return;
+        }
+    }
 
     const servicioActualizado = {
         id: id,
@@ -8104,6 +8131,7 @@ function limpiarEstadoEdicion() {
     editServiceId = null;
     const form = document.getElementById('service-form');
     if (form) {
+        delete form.dataset.editId;
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> CREAR SERVICIO';
@@ -8134,6 +8162,8 @@ function limpiarEstadoEdicion() {
     if (titleEl) {
         titleEl.innerHTML = '<i class="fas fa-plus-circle"></i> Crear Nuevo Servicio';
     }
+    // Refrescar checkboxes de trabajadores (form vacío → sin marcas de cobertura)
+    window.dispatchEvent(new CustomEvent('servicio-modulos-actualizados'));
 }
 window.limpiarEstadoEdicion = limpiarEstadoEdicion;
 
@@ -9191,6 +9221,8 @@ function confirmarModulos() {
     saveModulesToHiddenField();
     // Refrescar la matriz de cupos
     if (typeof renderModulesList === 'function') renderModulesList();
+    // Avisar a ServiceForm para recalcular la cobertura de trabajadores
+    window.dispatchEvent(new CustomEvent('servicio-modulos-actualizados'));
     mostrarMensaje("✅ Módulos confirmados y asignación guardada", "success");
 }
 

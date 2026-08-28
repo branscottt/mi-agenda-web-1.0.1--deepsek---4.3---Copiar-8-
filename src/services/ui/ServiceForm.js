@@ -2,7 +2,46 @@
 // Formulario de creacion/edicion de servicio en admin.html
 
 import { getAllTrabajadores, getTrabajadoresDelServicio, asignarTrabajadoresAlServicio } from '../../workers/application/WorkersService.js';
-import { calcularHorasEfectivas, getSemanaISO } from '../../workers/domain/horarioValidation.js';
+import { calcularHorasEfectivas, getSemanaISO, getHorarioParaSemana } from '../../workers/domain/horarioValidation.js';
+
+// --- Cobertura trabajador ↔ horarios del servicio ---
+function horaAMin(hhmm) {
+    if (!hhmm) return 0;
+    const p = String(hhmm).split(':');
+    return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+}
+
+// ¿El trabajador puede atender esa fecha a esa hora (HH:MM 24h)?
+// Considera excepción de semana ISO > plantilla semanal, [inicio, fin) y colación.
+function trabajadorCubreSlot(worker, fecha, horaRaw) {
+    if (!worker || !horaRaw) return false;
+    const d = new Date(fecha + 'T12:00:00');
+    const hrInfo = getHorarioParaSemana(worker, getSemanaISO(d));
+    const dk = String(d.getDay() === 0 ? 7 : d.getDay());
+    const dia = (hrInfo.horario || {})[dk];
+    if (!dia || !dia.activo) return false;
+    const h = horaAMin(horaRaw);
+    if (h < horaAMin(dia.inicio) || h >= horaAMin(dia.fin)) return false;
+    const ci = horaAMin(dia.colacion_inicio);
+    const cf = horaAMin(dia.colacion_fin);
+    if (ci > 0 && cf > 0 && ci < cf && h >= ci && h < cf) return false;
+    return true;
+}
+
+// ¿El trabajador cubre al menos un (fecha, hora con cupos) del servicio?
+function trabajadorCubreDisponibilidad(worker, disponibilidad) {
+    if (!worker || !disponibilidad) return false;
+    for (const fecha of Object.keys(disponibilidad)) {
+        const modulos = disponibilidad[fecha];
+        if (!Array.isArray(modulos)) continue;
+        for (const m of modulos) {
+            if (Number(m.cupos ?? 0) <= 0) continue; // slots agotados no cuentan
+            const hora = m.hora || m.startTime;
+            if (hora && trabajadorCubreSlot(worker, fecha, String(hora))) return true;
+        }
+    }
+    return false;
+}
 
 /**
  * Un trabajador "tiene tiempo disponible" si tiene al menos un día activo
@@ -62,6 +101,13 @@ export function configurarFormularioServicio() {
 
     // Cargar checkboxes de trabajadores
     cargarWorkersCheckboxes();
+
+    // Refrescar cobertura de trabajadores cuando cambian los módulos del
+    // servicio (legacy script.js dispara 'servicio-modulos-actualizados'
+    // tras confirmar/limpiar módulos) y al abrir/cerrar edición.
+    window.addEventListener('servicio-modulos-actualizados', () => {
+        refrescarWorkersServicio().catch(() => {});
+    });
 }
 
 // Expuesta globalmente para que script.js legacy pueda llamarla al crear/editar
@@ -75,6 +121,8 @@ export async function guardarWorkersDelServicio(servicioId) {
     }
 }
 
+let _workersCache = [];
+
 async function cargarWorkersCheckboxes() {
     const container = document.getElementById('service-workers-list');
     if (!container) return;
@@ -85,87 +133,159 @@ async function cargarWorkersCheckboxes() {
 
     try {
         const workers = await getAllTrabajadores();
-        const activos = workers.filter(w => w.activo);
-
-        if (!activos.length) {
-            container.innerHTML = '';
-            container.dataset.requiereTrabajador = '0';
-            if (paso) paso.style.display = 'none';
-            return;
-        }
-        if (paso) paso.style.display = '';
-
-        // Determinar workers ya seleccionados (modo edición)
-        const editId = document.getElementById('service-form')?.dataset?.editId;
-        let selectedIds = [];
-        if (editId) {
-            try {
-                const existing = await getTrabajadoresDelServicio(editId);
-                selectedIds = (existing || []).map(w => w.id);
-            } catch (e) {
-                // Silencioso
-            }
-        }
-
-        // Separar: solo los que tienen horario configurado son seleccionables
-        const disponibles = activos.filter(tieneDisponibilidad);
-        const sinHorario = activos.filter(w => !tieneDisponibilidad(w));
-        // En edición, los ya asignados se mantienen habilitados aunque no tengan horario
-        const sinHorarioYaAsignados = sinHorario.filter(w => selectedIds.includes(w.id));
-        const sinHorarioBloqueados = sinHorario.filter(w => !selectedIds.includes(w.id));
-
-        container.dataset.requiereTrabajador = disponibles.length > 0 ? '1' : '0';
-
-        const renderWorker = (w, bloqueado) => {
-            const checked = selectedIds.includes(w.id);
-            const disabled = bloqueado ? 'disabled' : '';
-            const cls = `worker-checkbox-label ${checked ? 'checked' : ''} ${bloqueado ? 'worker-checkbox-disabled' : ''}`;
-            return `
-                <label class="${cls}" title="${bloqueado ? 'Sin horario configurado — define su horario en la sección Horarios antes de asignarlo' : ''}">
-                    <input type="checkbox" value="${w.id}" ${checked ? 'checked' : ''} ${disabled}>
-                    <span class="worker-check-avatar" style="background:${w.color || '#9d4edd'};${bloqueado ? 'filter:grayscale(1);opacity:0.5;' : ''}">
-                        ${w.nombre.charAt(0).toUpperCase()}
-                    </span>
-                    <span class="worker-check-name">${escapeHtml(w.nombre)}</span>
-                    <span class="worker-check-skills">
-                        ${bloqueado
-                            ? '<span style="color:#ff9f43;">⛔ Sin horario</span>'
-                            : (w.habilidades ? escapeHtml(w.habilidades) : 'Disponible')}
-                    </span>
-                </label>
-            `;
-        };
-
-        container.innerHTML = `
-            <div class="workers-checkbox-grid">
-                ${disponibles.map(w => renderWorker(w, false)).join('')}
-                ${sinHorarioYaAsignados.map(w => renderWorker(w, false)).join('')}
-                ${sinHorarioBloqueados.map(w => renderWorker(w, true)).join('')}
-            </div>
-            ${disponibles.length > 0 ? `
-                <p class="field-hint" style="margin-top:6px;color:#ffd700;">
-                    <i class="fas fa-exclamation-triangle"></i> Obligatorio: selecciona al menos un trabajador con disponibilidad para este servicio.
-                </p>
-            ` : `
-                <p class="field-hint" style="margin-top:6px;">
-                    Ningún trabajador tiene horario configurado aún. Puedes crear el servicio sin asignar trabajadores, o configurar horarios en la sección Horarios.
-                </p>
-            `}
-        `;
-
-        // Event listeners para toggle class
-        container.querySelectorAll('.worker-checkbox-label input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('change', () => {
-                cb.closest('.worker-checkbox-label').classList.toggle('checked', cb.checked);
-            });
-        });
-
+        _workersCache = workers;
+        await renderWorkersCheckboxes();
     } catch (e) {
         console.error('Error cargando workers checkboxes:', e);
         container.innerHTML = '';
         container.dataset.requiereTrabajador = '0';
         if (paso) paso.style.display = 'none';
     }
+}
+
+// Expuesta para que legacy script.js la llame al abrir/cerrar edición y
+// cuando cambian los módulos del servicio (evento 'servicio-modulos-actualizados').
+export async function refrescarWorkersServicio() {
+    if (!_workersCache.length) return;
+    await renderWorkersCheckboxes();
+}
+
+async function renderWorkersCheckboxes() {
+    const container = document.getElementById('service-workers-list');
+    if (!container) return;
+    const paso = container.closest('details.form-step') || container.closest('details');
+
+    const workers = _workersCache;
+    const activos = workers.filter(w => w.activo);
+
+    if (!activos.length) {
+        container.innerHTML = '';
+        container.dataset.requiereTrabajador = '0';
+        if (paso) paso.style.display = 'none';
+        return;
+    }
+    if (paso) paso.style.display = '';
+
+    // Workers ya seleccionados (modo edición)
+    const editId = document.getElementById('service-form')?.dataset?.editId;
+    let selectedIds = [];
+    if (editId) {
+        try {
+            const existing = await getTrabajadoresDelServicio(editId);
+            selectedIds = (existing || []).map(w => w.id);
+        } catch (e) {
+            // Silencioso
+        }
+    }
+
+    // Disponibilidad actual del formulario (misma fuente que el guardado).
+    // Si aún no hay horarios configurados no se puede calcular cobertura.
+    let disponibilidadRef = null;
+    if (typeof window.buildDisponibilidadFromForm === 'function') {
+        try {
+            const d = window.buildDisponibilidadFromForm();
+            if (d && Object.keys(d).length > 0) disponibilidadRef = d;
+        } catch (e) {
+            // Silencioso: el form aún no está inicializado
+        }
+    }
+    const tieneRef = !!disponibilidadRef;
+
+    // Grupos:
+    // - cubren: con horario y (sin disponibilidad de referencia → todos) o que cubren ≥1 slot
+    // - conHorarioSinCubrir: con horario pero que NO cubren ningún slot del servicio
+    // - sinHorario: sin horario configurado
+    const cubren = activos.filter(w => tieneDisponibilidad(w) && (!tieneRef || trabajadorCubreDisponibilidad(w, disponibilidadRef)));
+    const conHorarioSinCubrir = activos.filter(w => tieneDisponibilidad(w) && tieneRef && !trabajadorCubreDisponibilidad(w, disponibilidadRef));
+    const sinHorario = activos.filter(w => !tieneDisponibilidad(w));
+
+    // En edición, los ya asignados se mantienen habilitados (con advertencia)
+    const sinHorarioYaAsignados = sinHorario.filter(w => selectedIds.includes(w.id));
+    const sinHorarioBloqueados = sinHorario.filter(w => !selectedIds.includes(w.id));
+    const sinCubrirYaAsignados = conHorarioSinCubrir.filter(w => selectedIds.includes(w.id));
+    const sinCubrirBloqueados = conHorarioSinCubrir.filter(w => !selectedIds.includes(w.id));
+
+    container.dataset.requiereTrabajador = cubren.length > 0 ? '1' : '0';
+
+    const renderWorker = (w, bloqueado, badgeHtml) => {
+        const checked = selectedIds.includes(w.id);
+        const disabled = bloqueado ? 'disabled' : '';
+        const cls = `worker-checkbox-label ${checked ? 'checked' : ''} ${bloqueado ? 'worker-checkbox-disabled' : ''}`;
+        return `
+            <label class="${cls}" title="${bloqueado ? 'No puede atender los horarios configurados para este servicio' : ''}">
+                <input type="checkbox" value="${w.id}" ${checked ? 'checked' : ''} ${disabled}>
+                <span class="worker-check-avatar" style="background:${w.color || '#9d4edd'};${bloqueado ? 'filter:grayscale(1);opacity:0.5;' : ''}">
+                    ${w.nombre.charAt(0).toUpperCase()}
+                </span>
+                <span class="worker-check-name">${escapeHtml(w.nombre)}</span>
+                <span class="worker-check-skills">${badgeHtml}</span>
+            </label>
+        `;
+    };
+
+    container.innerHTML = `
+        <div class="workers-checkbox-grid">
+            ${cubren.map(w => renderWorker(w, false, w.habilidades ? escapeHtml(w.habilidades) : '<span style="color:#4ade80;">Disponible</span>')).join('')}
+            ${sinCubrirYaAsignados.map(w => renderWorker(w, false, '<span style="color:#ff9f43;">⚠️ No cubre los horarios (ya asignado)</span>')).join('')}
+            ${sinCubrirBloqueados.map(w => renderWorker(w, true, '<span style="color:#ff9f43;">⛔ No cubre los horarios</span>')).join('')}
+            ${sinHorarioYaAsignados.map(w => renderWorker(w, false, '<span style="color:#ff9f43;">⛔ Sin horario (ya asignado)</span>')).join('')}
+            ${sinHorarioBloqueados.map(w => renderWorker(w, true, '<span style="color:#ff9f43;">⛔ Sin horario</span>')).join('')}
+        </div>
+        ${cubren.length > 0 ? `
+            <p class="field-hint" style="margin-top:6px;color:#ffd700;">
+                <i class="fas fa-exclamation-triangle"></i> Obligatorio: selecciona al menos un trabajador con disponibilidad para este servicio.
+            </p>
+        ` : (activos.length > 0 ? `
+            <p class="field-hint" style="margin-top:6px;">
+                ⚠️ Ningún trabajador cubre los horarios configurados para este servicio. Puedes crear el servicio sin trabajador (las reservas se registrarán sin asignación y las gestionarás tú), o ajustar los horarios del equipo en la sección Horarios.
+            </p>
+        ` : `
+            <p class="field-hint" style="margin-top:6px;">
+                Ningún trabajador tiene horario configurado aún. Puedes crear el servicio sin asignar trabajadores, o configurar horarios en la sección Horarios.
+            </p>
+        `)}
+    `;
+
+    // Event listeners para toggle class
+    container.querySelectorAll('.worker-checkbox-label input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            cb.closest('.worker-checkbox-label').classList.toggle('checked', cb.checked);
+        });
+    });
+}
+
+/**
+ * Validación de cobertura usada por legacy script.js al GUARDAR (crear/editar),
+ * con la disponibilidad final ya construida. Si el admin seleccionó trabajadores
+ * pero NINGUNO cubre los horarios del servicio, avisa con opciones:
+ * (a) asignar un trabajador que los cubra, o (b) continuar sin trabajador
+ * (reservas sin asignación — el admin las gestiona).
+ * @param {object} disponibilidad - disponibilidad final del formulario
+ * @returns {{valido: boolean, mensaje: string}}
+ */
+export function validarCoberturaWorkersServicio(disponibilidad) {
+    const container = document.getElementById('service-workers-list');
+    if (!container) return { valido: true, mensaje: '' };
+    if (!disponibilidad || Object.keys(disponibilidad).length === 0) return { valido: true, mensaje: '' };
+
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+    if (!checkboxes.length) return { valido: true, mensaje: '' }; // sin trabajador: permitido (fallback del admin)
+
+    const cubreAlguno = Array.from(checkboxes).some(cb => {
+        const w = _workersCache.find(x => String(x.id) === String(cb.value));
+        return w ? trabajadorCubreDisponibilidad(w, disponibilidad) : true;
+    });
+    if (cubreAlguno) return { valido: true, mensaje: '' };
+
+    const nombres = Array.from(checkboxes).map(cb => {
+        const w = _workersCache.find(x => String(x.id) === String(cb.value));
+        return w ? w.nombre : cb.value;
+    }).join(', ');
+
+    const mensaje = `⚠️ Ninguno de los trabajadores seleccionados (${nombres}) cubre los horarios de este servicio. Opciones: (a) selecciona un trabajador cuyo horario coincida con las fechas y horas del servicio, o (b) continúa sin trabajador — las reservas se crearán sin asignación y las gestionarás tú.`;
+    const continuar = window.confirm(mensaje + '\n\n¿Continuar creando el servicio sin trabajador asignado?');
+    if (continuar) return { valido: true, mensaje: '' };
+    return { valido: false, mensaje };
 }
 
 /**

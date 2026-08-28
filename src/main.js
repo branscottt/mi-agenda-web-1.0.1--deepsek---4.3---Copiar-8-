@@ -204,9 +204,11 @@ async function syncJwtSession() {
                 window.__initWorkerShare = () => renderWorkerShare('workers-share-container');
                 exposeShareGlobals();
 
-                const { guardarWorkersDelServicio, validarWorkersServicio } = await import('./services/ui/ServiceForm.js');
+                const { guardarWorkersDelServicio, validarWorkersServicio, refrescarWorkersServicio, validarCoberturaWorkersServicio } = await import('./services/ui/ServiceForm.js');
                 window.__guardarWorkersDelServicio = guardarWorkersDelServicio;
                 window.__validarWorkersServicio = validarWorkersServicio;
+                window.__refrescarWorkersServicio = refrescarWorkersServicio;
+                window.__validarCoberturaWorkersServicio = validarCoberturaWorkersServicio;
 
                 // Tutorial en video — sección Compartir con Clientes (mismo patrón que Crear Servicio)
                 const { initTutorialCompartir } = await import('./share/ui/ShareTutorial.js');
