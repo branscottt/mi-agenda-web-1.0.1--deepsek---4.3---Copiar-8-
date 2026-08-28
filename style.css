@@ -11601,18 +11601,9 @@ input:-moz-autofill {
     /* ── Tabs de navegación ── */
     .superadmin-screen .superadmin-tabs {
         gap: 6px;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        -webkit-overflow-scrolling: touch;
+        flex-wrap: wrap;
         padding-bottom: 8px;
         margin-bottom: 16px;
-    }
-    .superadmin-screen .superadmin-tabs::-webkit-scrollbar {
-        height: 3px;
-    }
-    .superadmin-screen .superadmin-tabs::-webkit-scrollbar-thumb {
-        background: rgba(179,0,255,0.3);
-        border-radius: 10px;
     }
     .superadmin-screen .tab-btn {
         padding: 8px 14px;
@@ -11621,6 +11612,17 @@ input:-moz-autofill {
     }
     .superadmin-screen .tab-btn i {
         font-size: 0.85rem;
+    }
+
+    /* ── Tarjetas de sugerencias (solicitud-item) en móvil ── */
+    .superadmin-screen .solicitud-item .solicitud-header {
+        flex-wrap: wrap;
+        gap: 6px 10px;
+    }
+    .superadmin-screen .solicitud-item .solicitud-fecha {
+        margin-left: 0 !important;
+        width: 100%;
+        font-size: 0.72rem;
     }
 
     /* ── Panel headers ── */
@@ -11730,7 +11732,7 @@ input:-moz-autofill {
         text-align: center;
     }
 
-    /* ── Solicitudes CSS ── */
+    /* ── Sugerencias/Feedback de tenants ── */
     .superadmin-screen .solicitudes-container {
         margin-top: 12px !important;
     }

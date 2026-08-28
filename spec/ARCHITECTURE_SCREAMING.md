@@ -262,7 +262,7 @@ aplicarTema(tenantId, temaId)  → ok
 6. Pestaña "Usuarios": tabla con todos los usuarios, puede cambiar roles
 7. Pestaña "Servicios": todos los servicios de todos los tenants
 8. Pestaña "Citas": todas las citas de la plataforma
-9. Pestaña "Solicitudes CSS": solicitudes de personalización de admins
+9. Pestañas inyectadas por JS: Sugerencias (feedback), Pagos (Mercado Pago), Auditoría
 ```
 
 ---
@@ -375,7 +375,7 @@ superadmin.html
 ├── Estadísticas globales (tenants, servicios, citas, usuarios, suscripciones)
 ├── MRR y desglose por plan
 ├── Gráfico evolución tenants (Chart.js)
-├── 5 tabs: Tenants | Usuarios | Servicios | Citas | Solicitudes CSS
+├── Tabs: Tenants | Usuarios | Servicios | Citas (+ Sugerencias, Pagos, Auditoría inyectadas por JS)
 └── Modal gestión suscripción (plan, estado, fechas, Stripe ID)
 
 planes.html

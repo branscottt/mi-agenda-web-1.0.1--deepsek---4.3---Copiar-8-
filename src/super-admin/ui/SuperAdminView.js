@@ -1,6 +1,6 @@
 // src/super-admin/ui/SuperAdminView.js
 // Vista de super-administrador
-// Extraida de script.js (funciones: iniciarSuperAdmin, cargarTenants, renderTenants, cargarUsuarios, renderUsuarios, cargarServiciosExistentes, setupSuperAdminTabs, cargarEstadisticasGlobales, cargarMetricasGlobales, cargarUsuariosSuper, cargarServiciosGlobales, cargarCitasGlobales, cargarSolicitudesCSS, abrirModalAplicarCSS)
+// Extraida de script.js (funciones: iniciarSuperAdmin, cargarTenants, renderTenants, cargarUsuarios, renderUsuarios, cargarServiciosExistentes, setupSuperAdminTabs, cargarEstadisticasGlobales, cargarMetricasGlobales, cargarUsuariosSuper, cargarServiciosGlobales, cargarCitasGlobales)
 
 /**
  * Renderiza la vista completa de super-admin
@@ -18,7 +18,6 @@ export async function renderSuperAdmin(container, apis) {
                 <li class="nav-item"><a class="nav-link" data-tab="tenants" href="#"><i class="fas fa-building"></i> Tenants</a></li>
                 <li class="nav-item"><a class="nav-link" data-tab="servicios" href="#"><i class="fas fa-concierge-bell"></i> Servicios</a></li>
                 <li class="nav-item"><a class="nav-link" data-tab="citas" href="#"><i class="fas fa-calendar-alt"></i> Citas</a></li>
-                <li class="nav-item"><a class="nav-link" data-tab="solicitudes" href="#"><i class="fas fa-envelope"></i> Solicitudes CSS</a></li>
                 <li class="nav-item"><a class="nav-link" data-tab="promociones" href="#"><i class="fas fa-video"></i> Promociones Video <span id="promo-pending-badge" class="promo-pending-badge" style="display:none;background:#e74c3c;color:#fff;font-size:0.65rem;padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:700;vertical-align:middle;">0</span></a></li>
             </ul>
             <div id="superAdminContent" class="tab-content mt-3"></div>
@@ -54,9 +53,6 @@ async function cargarVista(vista, content, apis) {
             break;
         case 'citas':
             await cargarCitasGlobales(content, apis);
-            break;
-        case 'solicitudes':
-            await cargarSolicitudesCSS(content, apis);
             break;
         case 'promociones':
             await cargarPromocionesVideo(content, apis);
@@ -212,38 +208,6 @@ async function cargarCitasGlobales(content, apis) {
         `;
     } catch (e) {
         content.innerHTML = `<p class="text-danger">Error cargando citas: ${e.message}</p>`;
-    }
-}
-
-async function cargarSolicitudesCSS(content, apis) {
-    content.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Cargando solicitudes CSS...</p>';
-    try {
-        const solicitudes = await apis.notificaciones.getAll();
-        const filtradas = (solicitudes || []).filter(n => n.tipo === 'personalizacion_css' || n.title?.includes('CSS'));
-        content.innerHTML = `
-            <h3>Solicitudes de Personalización CSS</h3>
-            ${filtradas.length === 0
-                ? '<p class="text-muted">No hay solicitudes pendientes.</p>'
-                : `<div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead><tr><th>ID</th><th>Mensaje</th><th>Tenant</th><th>Fecha</th><th>Acción</th></tr></thead>
-                        <tbody>
-                            ${filtradas.map(n => `
-                                <tr>
-                                    <td>${n.id?.substring(0,8) || ''}</td>
-                                    <td>${n.message || n.title || 'Sin mensaje'}</td>
-                                    <td>${n.tenant_id?.substring(0,8) || ''}</td>
-                                    <td>${n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}</td>
-                                    <td><button class="btn btn-sm btn-primary" onclick="abrirModalAplicarCSS('${n.id}', '${n.tenant_id}')"><i class="fas fa-paint-brush"></i> Aplicar</button></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>`
-            }
-        `;
-    } catch (e) {
-        content.innerHTML = `<p class="text-danger">Error cargando solicitudes: ${e.message}</p>`;
     }
 }
 

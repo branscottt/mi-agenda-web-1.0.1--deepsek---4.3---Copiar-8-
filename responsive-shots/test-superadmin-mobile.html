@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test superadmin mobile</title>
+<link rel="stylesheet" href="/dist/style.css">
+<style>
+  body { background: #0f0f1a; color: #fff; font-family: sans-serif; margin: 0; padding: 12px; }
+  .superadmin-screen { max-width: 1200px; margin: 0 auto; }
+</style>
+</head>
+<body class="superadmin-screen">
+  <div class="superadmin-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+    <button class="tab-btn active" data-tab="tenants" style="background: none; border: none; color: white; padding: 10px 20px; cursor: pointer; border-radius: 30px;"><i class="fas fa-building"></i> Tenants</button>
+    <button class="tab-btn" data-tab="usuarios"><i class="fas fa-users"></i> Usuarios</button>
+    <button class="tab-btn" data-tab="servicios"><i class="fas fa-concierge-bell"></i> Servicios (global)</button>
+    <button class="tab-btn" data-tab="citas"><i class="fas fa-calendar-alt"></i> Citas (global)</button>
+    <button class="tab-btn" data-tab="feedback"><i class="fas fa-comments"></i> Sugerencias</button>
+    <button class="tab-btn" data-tab="pagos"><i class="fas fa-credit-card"></i> Pagos</button>
+    <button class="tab-btn" data-tab="auditoria"><i class="fas fa-history"></i> Auditoría</button>
+  </div>
+
+  <div class="solicitudes-container" style="margin-top:20px;">
+    <div class="solicitud-item">
+      <div class="solicitud-header">
+        <span class="solicitud-tenant"><i class="fas fa-building"></i> Barbería El Corte de Oro</span>
+        <span style="margin-left:10px;background:#f39c1222;color:#f39c12;border:1px solid #f39c1255;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;">Sugerencia</span>
+        <span class="solicitud-fecha" style="margin-left:auto;">26/08/2026, 14:30:45</span>
+      </div>
+      <div class="solicitud-descripcion" style="white-space:pre-wrap;">Sería genial poder exportar la agenda del mes en PDF para imprimirla y tenerla en el local.</div>
+      <div class="solicitud-actions">
+        <button type="button" class="btn-secondary btn-small eliminar-feedback" data-id="abc" data-tenant="Barbería"><i class="fas fa-trash"></i> Eliminar</button>
+      </div>
+    </div>
+    <div class="solicitud-item">
+      <div class="solicitud-header">
+        <span class="solicitud-tenant"><i class="fas fa-building"></i> Estética Divine</span>
+        <span style="margin-left:10px;background:#2ecc7122;color:#2ecc71;border:1px solid #2ecc7155;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;">Mejora</span>
+        <span class="solicitud-fecha" style="margin-left:auto;">26/08/2026, 09:12:03</span>
+      </div>
+      <div class="solicitud-descripcion" style="white-space:pre-wrap;">Recordatorios por WhatsApp automáticos 24h antes de cada turno.</div>
+      <div class="solicitud-actions">
+        <button type="button" class="btn-secondary btn-small eliminar-feedback" data-id="xyz" data-tenant="Estética"><i class="fas fa-trash"></i> Eliminar</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
