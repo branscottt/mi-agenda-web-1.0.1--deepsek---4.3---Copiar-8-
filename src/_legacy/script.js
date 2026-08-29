@@ -730,10 +730,13 @@ const VentasManager = {
             // Histórico archivado: la limpieza borra las citas con fecha
             // pasada, pero el trigger trg_archivar_venta las conserva en
             // `ventas` para que el dashboard no pierda el acumulado.
+            // Las "No Asistió" se conservan en la tabla pero NO cuentan
+            // como ingreso (resultado <> 'no_asistio').
             const { data: archivadas, error: errArchivadas } = await supabaseClient
                 .from('ventas')
                 .select('cita_id, servicio_id, precio, contacto, fecha, hora, fecha_venta')
                 .eq('tenant_id', String(tenantId).trim())
+                .neq('resultado', 'no_asistio')
                 .order('fecha_venta', { ascending: false });
 
             if (errArchivadas) {
@@ -3671,6 +3674,26 @@ async function sanearBaseDeDatos() {
 }
 window.sanearBaseDeDatos = sanearBaseDeDatos;
 
+/**
+ * Finaliza una cita vía RPC `finalizar_cita`: archiva la venta en `ventas`
+ * con el resultado ('completada' | 'no_asistio') SIEMPRE (cualquier fecha,
+ * incluso hoy) y borra la cita. El check ✓ confirma la venta hecha; el X
+ * (No Asistió) conserva el registro sin contar como ingreso.
+ */
+async function finalizarCitaConResultado(citaId, resultado) {
+    try {
+        const { data, error } = await supabaseClient.rpc('finalizar_cita', {
+            p_cita_id: String(citaId),
+            p_resultado: resultado
+        });
+        if (error) throw error;
+        return !!(data && data.ok === true);
+    } catch (e) {
+        console.error('Error al finalizar la cita:', e);
+        return false;
+    }
+}
+
 async function finalizarCita(citaId) {
     const citas = await CitasManager.getAll();
     const cita = citas.find(c => String(c.id) === String(citaId));
@@ -3685,10 +3708,11 @@ async function finalizarCita(citaId) {
         return;
     }
 
-    if (await CitasManager.finalizar(citaId)) {
-        // La venta queda archivada server-side por el trigger trg_archivar_venta
-        // (tabla ventas) — no se escribe localStorage (guardarVentaLocal era
-        // basura: VentasManager.getAll nunca lee 'agendapro_ventas').
+    if (await finalizarCitaConResultado(citaId, 'completada')) {
+        // El RPC finalizar_cita archivó la venta en `ventas` (resultado
+        // 'completada') ANTES de borrar la cita — cualquier fecha, incluso
+        // hoy. El trigger trg_archivar_venta ya no la duplica (guard de
+        // idempotencia por cita_id).
         if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
         if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
         if (typeof actualizarDashboardFinanzas === 'function') actualizarDashboardFinanzas();
@@ -3740,10 +3764,12 @@ async function noAsistioCita(citaId) {
         console.warn('No se pudo devolver cupo al servicio', e); 
     }
 
-    if (await CitasManager.finalizar(citaId)) {
+    if (await finalizarCitaConResultado(citaId, 'no_asistio')) {
         if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
         if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
         if (typeof renderCarrito === 'function') renderCarrito();
+        // El registro queda archivado en `ventas` como 'no_asistio'
+        // (conservado, pero NO cuenta como ingreso en el dashboard).
         
         mostrarToast('Cita marcada como No Asistió. Cupo liberado.', 'info');
     }
