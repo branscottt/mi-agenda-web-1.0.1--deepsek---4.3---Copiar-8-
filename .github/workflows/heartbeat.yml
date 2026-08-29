@@ -1,0 +1,26 @@
+name: Heartbeat Supabase
+
+# Mantiene viva la BD de Supabase en el plan Free:
+# el proyecto se PAUSA tras 7 dias sin actividad de API.
+# Un GET al REST cada 24h reinicia el contador de inactividad.
+# Corre en la nube de GitHub (gratis) - no depende de ninguna PC.
+
+on:
+  schedule:
+    # Todos los dias a las 09:15 UTC (05:15 Chile) - despues del horario de actividad
+    - cron: '15 9 * * *'
+  workflow_dispatch: # permite ejecutarlo a mano desde la pestana Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping a Supabase REST (mantiene BD activa)
+        run: |
+          CODE=$(curl -s -o /dev/null -w "%%{http_code}" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0" \
+            "https://dfcfimipkfhitlsyixqu.supabase.co/rest/v1/tenants?select=id&limit=1")
+          echo "HTTP $CODE"
+          # 200 = la API respondio -> actividad registrada. 000 = sin conexion (error real).
+          if [ "$CODE" = "000" ]; then echo "::error::Sin respuesta de Supabase"; exit 1; fi
