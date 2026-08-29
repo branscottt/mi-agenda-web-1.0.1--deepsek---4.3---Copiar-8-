@@ -2920,12 +2920,17 @@ async function cargarPlanes() {
 
                     mostrarToast('WhatsApp guardado correctamente', 'success');
 
+                    // Preservar new=true si venía en la URL (cuenta nueva vía Google:
+                    // CASO A pasó planes.html?...&new=true). Sin esto, el Free Trial
+                    // (soloNuevos) desaparecería al recargar tras guardar WhatsApp.
+                    const esNuevo = urlParams.get('new') === 'true';
+
                     if (tienePlan) {
                         // Ya tiene plan → dashboard
                         window.location.replace('admin.html');
                     } else if (tenantIdFinal) {
                         // Tiene tenant pero no plan → elegir plan
-                        window.location.replace(`planes.html?tenant_id=${tenantIdFinal}`);
+                        window.location.replace(`planes.html?tenant_id=${tenantIdFinal}${esNuevo ? '&new=true' : ''}`);
                     } else {
                         // Sin tenant conocido → admin.html (iniciarAdmin manejará)
                         window.location.replace('admin.html');
@@ -4752,7 +4757,11 @@ async function iniciarAdmin() {
         if (freshS && window.JwtManager) window.JwtManager.setTokens(freshS.access_token, freshS.refresh_token);
 
         console.log('[AuthGuard] CASO A → redirect a planes.html (WhatsApp)');
-        window.location.href = `planes.html?tenant_id=${newTenant.id}&pending_whatsapp=true`;
+        // new=true es OBLIGATORIO: cargarPlanes oculta el Free Trial (soloNuevos)
+        // si la URL no trae new=true. El registro normal lo pasa; el retorno OAuth
+        // de Google (cuenta nueva) debe pasarlo también para que el usuario vea
+        // el plan Free Trial (14 días) y no solo los planes de pago.
+        window.location.href = `planes.html?tenant_id=${newTenant.id}&pending_whatsapp=true&new=true`;
         return;
     }
 
