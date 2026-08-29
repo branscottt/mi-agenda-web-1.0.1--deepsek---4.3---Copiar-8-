@@ -2654,11 +2654,32 @@ async function cargarPlanes() {
         }
     }
 
-    // "Nuevo admin" = vino con new=true (registro normal o Google CASO A) O no tiene
-    // suscripción ACTIVA. Esto último cubre el tenant creado por OAuth cuyo único
-    // registro es la sub 'freemium/inactive' que crea el trigger automáticamente:
-    // sin esto, el Free Trial (soloNuevos) no se mostraría y solo vería planes de pago.
-    const isNewAdmin = urlParams.get('new') === 'true' || !suscripcionActual;
+    // ¿Este tenant tuvo ALGUNA VEZ un plan real (no freemium)? Se mira el HISTORIAL
+    // completo (cualquier status), no solo la sub activa. Motivo: la sub freemium/inactive
+    // que crea el trigger al registrar el tenant no cuenta (es el estado inicial), pero un
+    // free_trial o pro ANTERIOR (aunque ya esté vencido/inactive) SÍ debe impedir un nuevo
+    // Free Trial. Sin esto, cualquiera podría dejar vencer su trial y tomarlo otra vez.
+    let tuvoPlanAlgunaVez = false;
+    if (rol === 'admin' && tenantId) {
+        try {
+            const { data: historial } = await supabaseClient
+                .from('subscriptions')
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .neq('plan', 'freemium')
+                .limit(1);
+            tuvoPlanAlgunaVez = !!(historial && historial.length > 0);
+            console.log('[Planes] historial de plan no-freemium:', tuvoPlanAlgunaVez ? 'SÍ (no es primerizo)' : 'no (primerizo)');
+        } catch (e) {
+            console.warn('[cargarPlanes] Error verificando historial de plan:', e.message);
+        }
+    }
+
+    // "Nuevo admin" (ve Free Trial) = vino con new=true (registro normal o Google CASO A)
+    // O es PRIMERIZO de verdad: sin suscripción activa Y sin historial de plan no-freemium.
+    // Un tenant que ya tuvo free_trial/pro/premium (aunque vencido) NO es nuevo → solo ve
+    // planes de pago. El Free Trial es una única oportunidad por negocio.
+    const isNewAdmin = urlParams.get('new') === 'true' || (!suscripcionActual && !tuvoPlanAlgunaVez);
 
     // Ocultar navegación para nuevos registros
     if (isNewAdmin) {
@@ -3061,7 +3082,11 @@ async function crearSuscripcionInicial(planKey, tenantId) {
         return;
     }
     
-    // ========== VALIDACIÓN ANTIFRAUDE: verificar que no tenga suscripción previa ==========
+    // ========== VALIDACIÓN ANTIFRAUDE: verificar que NO haya tenido plan NUNCA ==========
+    // Se mira el HISTORIAL COMPLETO (cualquier status): un free_trial o plan pagado
+    // ANTERIOR, aunque esté vencido/inactive, impide un nuevo Free Trial. Solo se
+    // excluye la sub 'freemium/inactive' que crea el trigger al registrar el tenant
+    // (estado inicial, no es un plan elegido por el usuario).
     if (planKey === 'free_trial') {
         try {
             const { data: existingSubs } = await supabaseClient
@@ -3069,10 +3094,9 @@ async function crearSuscripcionInicial(planKey, tenantId) {
                 .select('id, plan, status')
                 .eq('tenant_id', tenantId)
                 .neq('plan', 'freemium')
-                .neq('status', 'inactive')
                 .limit(1);
             if (existingSubs && existingSubs.length > 0) {
-                mostrarToast('Este negocio ya tiene un plan asignado. No puede obtener otro Free Trial.', 'error');
+                mostrarToast('Este negocio ya tuvo un plan anteriormente. El Free Trial es solo para negocios nuevos.', 'error');
                 return;
             }
         } catch (e) {

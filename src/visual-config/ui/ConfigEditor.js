@@ -13,8 +13,16 @@ import { getResenasAdmin, moderarResena } from '../../directory/application/Dire
 // (tipografía, CSS personalizado) para que guardar NO los borre.
 let _configSnapshot = null;
 
+// Datos del tenant (nombre del negocio + fecha del último cambio de nombre)
+let _tenantData = null;
+
 // Fotos elegidas para la tarjeta del directorio (URLs públicas)
 let _fotosDirectorio = [];
+
+// Días mínimos entre cambios de nombre del negocio (anti-abuso: el nombre se
+// muestra en la vista cliente y en el directorio; Google OAuth deja el prefijo
+// del email como nombre, así que el admin puede corregirlo, pero no spam).
+const DIAS_MIN_CAMBIO_NOMBRE = 14;
 
 export async function initConfigEditor(containerId = 'visual-config-editor') {
     const container = document.getElementById(containerId);
@@ -23,6 +31,28 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
     const config = await getVisualConfig();
     _configSnapshot = config;
 
+    // Cargar datos del tenant (nombre_negocio + configuracion jsonb para el límite)
+    try {
+        const tenantId = await getCurrentTenantId();
+        if (tenantId && window.supabaseClient) {
+            const { data: tenantRow } = await window.supabaseClient
+                .from('tenants')
+                .select('id, nombre_negocio, configuracion')
+                .eq('id', tenantId)
+                .maybeSingle();
+            if (tenantRow) _tenantData = tenantRow;
+        }
+    } catch (e) {
+        console.warn('[ConfigEditor] No se pudo cargar datos del tenant:', e.message);
+    }
+
+    const nombreActual = _tenantData?.nombre_negocio || '';
+    const ultimoCambio = _tenantData?.configuracion?.admin_nombre_updated_at || null;
+    const diasRestantes = ultimoCambio
+        ? Math.ceil((DIAS_MIN_CAMBIO_NOMBRE * 24 * 60 * 60 * 1000 - (Date.now() - new Date(ultimoCambio).getTime())) / (24 * 60 * 60 * 1000))
+        : 0;
+    const nombreBloqueado = diasRestantes > 0;
+
     container.innerHTML = `
         <div class="config-editor">
 
@@ -30,6 +60,22 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <div class="step-guide">
                 <i class="fas fa-info-circle"></i>
                 <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
+            </div>
+
+            <!-- PASO 0: DATOS DEL NEGOCIO (nombre editable con límite anti-abuso) -->
+            <div class="config-section">
+                <h4 class="config-section-title"><i class="fas fa-store"></i> 0. Datos del Negocio</h4>
+                <p class="field-hint" style="margin-bottom:10px;">El nombre aparece en la vista de tus clientes y en el Directorio Público. Si te registraste con Google, aquí puedes corregir el nombre automático (prefijo de tu email).</p>
+                <div class="input-with-label">
+                    <label><i class="fas fa-tag"></i> Nombre del negocio</label>
+                    <input type="text" id="cfg-nombre-negocio" class="config-input" value="${escapeAttr(nombreActual)}" maxlength="60" placeholder="Ej: Peluquería Estilo" ${nombreBloqueado ? 'disabled' : ''}>
+                    ${nombreBloqueado
+                        ? `<p class="field-hint" style="color:#ffc107;margin-top:6px;"><i class="fas fa-clock"></i> Podrás cambiar el nombre en ${diasRestantes} día(s).</p>`
+                        : `<p class="field-hint" style="margin-top:6px;">Puedes cambiarlo una vez cada ${DIAS_MIN_CAMBIO_NOMBRE} días.</p>`}
+                    <button id="cfg-guardar-nombre-btn" class="btn-save-primary" style="margin-top:10px;${nombreBloqueado ? 'opacity:0.5;pointer-events:none;' : ''}">
+                        <i class="fas fa-save"></i> Guardar Nombre
+                    </button>
+                </div>
             </div>
 
             <!-- PASO 1: TEMAS RÁPIDOS -->
@@ -283,6 +329,59 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         const tema = TEMAS_PREDEFINIDOS[btn.dataset.tema];
         if (!tema) return;
         aplicarTema(tema);
+    });
+
+    // --- GUARDAR NOMBRE DEL NEGOCIO (con límite de 14 días) ---
+    document.getElementById('cfg-guardar-nombre-btn')?.addEventListener('click', async () => {
+        const input = document.getElementById('cfg-nombre-negocio');
+        const btn = document.getElementById('cfg-guardar-nombre-btn');
+        const nuevoNombre = (input?.value || '').trim();
+        if (!nuevoNombre) {
+            mostrarToast('Escribe el nombre del negocio', 'error');
+            return;
+        }
+        if (nuevoNombre.length > 60) {
+            mostrarToast('El nombre no puede superar los 60 caracteres', 'error');
+            return;
+        }
+
+        // Re-verificar límite en cliente (defensa en profundidad; la BD también lo protege)
+        const ultimoCambio = _tenantData?.configuracion?.admin_nombre_updated_at || null;
+        if (ultimoCambio) {
+            const dias = (Date.now() - new Date(ultimoCambio).getTime()) / (24 * 60 * 60 * 1000);
+            if (dias < DIAS_MIN_CAMBIO_NOMBRE) {
+                mostrarToast(`Puedes cambiar el nombre cada ${DIAS_MIN_CAMBIO_NOMBRE} días. Intenta más tarde.`, 'error');
+                return;
+            }
+        }
+
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...'; }
+        try {
+            const tenantId = await getCurrentTenantId();
+            if (!tenantId) throw new Error('No tenant ID');
+
+            // Guardar nombre + fecha del cambio en la columna configuracion (jsonb)
+            const configActual = (_tenantData?.configuracion) || {};
+            const { error } = await window.supabaseClient
+                .from('tenants')
+                .update({
+                    nombre_negocio: nuevoNombre,
+                    configuracion: { ...configActual, admin_nombre_updated_at: new Date().toISOString() }
+                })
+                .eq('id', tenantId);
+            if (error) throw error;
+
+            _tenantData = { ..._tenantData, nombre_negocio: nuevoNombre, configuracion: { ...configActual, admin_nombre_updated_at: new Date().toISOString() } };
+            mostrarToast('✅ Nombre del negocio actualizado', 'success');
+
+            // Refrescar UI: bloquear el campo por 14 días
+            setTimeout(() => initConfigEditor(), 800);
+        } catch (err) {
+            console.error('[ConfigEditor] Error guardando nombre:', err);
+            mostrarToast('⚠️ Error al guardar el nombre: ' + (err.message || 'Desconocido'), 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar Nombre'; }
+        }
     });
 
     document.getElementById('cfg-preview-btn')?.addEventListener('click', async () => {
