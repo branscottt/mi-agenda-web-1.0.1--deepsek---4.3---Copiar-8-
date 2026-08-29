@@ -2862,6 +2862,10 @@ async function cargarPlanes() {
                             .from('tenants')
                             .select('id')
                             .eq('email_contacto', userEmail)
+                            // Mismo fix de duplicados: con 2+ tenants del mismo email,
+                            // maybeSingle() fallaría; tomar el más reciente.
+                            .order('fecha_registro', { ascending: false })
+                            .limit(1)
                             .maybeSingle();
 
                         if (tenantPorEmail) {
@@ -4731,6 +4735,11 @@ async function iniciarAdmin() {
             .from('tenants')
             .select('id, whatsapp, nombre_negocio')
             .eq('email_contacto', session.email)
+            // Si hay tenants duplicados del mismo email (pruebas/errores), tomar el
+            // más reciente en vez de fallar: maybeSingle() con 2+ filas devuelve error
+            // 406 y el usuario ve "Error al verificar tu cuenta" sin poder entrar.
+            .order('fecha_registro', { ascending: false })
+            .limit(1)
             .maybeSingle();
         tenantBD = result.data;
         tenantError = result.error;
