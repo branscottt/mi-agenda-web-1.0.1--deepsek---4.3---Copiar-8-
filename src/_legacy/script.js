@@ -2593,7 +2593,6 @@ async function cargarPlanes() {
 
     // Obtener parámetros de URL
     const urlParams = new URLSearchParams(window.location.search);
-    const isNewAdmin = urlParams.get('new') === 'true';
     const tenantIdFromUrl = urlParams.get('tenant_id');
 
     // Manejar retorno de Mercado Pago (planes.html?status=success|failure|pending)
@@ -2617,11 +2616,7 @@ async function cargarPlanes() {
         mostrarToast('El pago está pendiente. Te notificaremos cuando se confirme.', 'warning');
     }
 
-    // Ocultar navegación para nuevos registros
-    if (isNewAdmin) {
-        const nav = document.querySelector('.screen-navigation');
-        if (nav) nav.style.display = 'none';
-    }
+    // Ocultar navegación para nuevos registros (se evalúa tras calcular isNewAdmin)
 
     // Obtener sesión fresca con retry (similar a iniciarAdmin)
     let sessionData = null;
@@ -2657,6 +2652,18 @@ async function cargarPlanes() {
         } catch (e) {
             console.warn('[cargarPlanes] Error obteniendo suscripción:', e.message);
         }
+    }
+
+    // "Nuevo admin" = vino con new=true (registro normal o Google CASO A) O no tiene
+    // suscripción ACTIVA. Esto último cubre el tenant creado por OAuth cuyo único
+    // registro es la sub 'freemium/inactive' que crea el trigger automáticamente:
+    // sin esto, el Free Trial (soloNuevos) no se mostraría y solo vería planes de pago.
+    const isNewAdmin = urlParams.get('new') === 'true' || !suscripcionActual;
+
+    // Ocultar navegación para nuevos registros
+    if (isNewAdmin) {
+        const nav = document.querySelector('.screen-navigation');
+        if (nav) nav.style.display = 'none';
     }
 
     let html = '<div class="step-guide" style="margin-bottom:20px;"><i class="fas fa-info-circle"></i><span><strong>Compara los planes:</strong> Todos los planes incluyen servicios ilimitados y citas ilimitadas. La diferencia es la <strong>forma de pago</strong>: Pro es mensual ($15.000/mes), Premium Anual es un solo pago por 12 meses con descuento incluido ($140.000/año = ahorras $40.000).</span></div>';
