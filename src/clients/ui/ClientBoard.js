@@ -12,6 +12,7 @@
 import * as kanbanApi from '../../api/kanbanApi.js';
 import { updateCita } from '../../api/appointmentsApi.js';
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
@@ -154,6 +155,10 @@ function renderBoardModal() {
                     <button class="kanban-estilos-btn" id="kanban-usar-estilo" title="Aplicar un estilo de listas guardado">
                         <i class="fas fa-layer-group"></i><span class="kanban-estilos-txt"> Usar estilo</span>
                     </button>
+                    ${!deps.adjuntosSoloLectura ? `
+                    <button class="kanban-estilos-btn" id="kanban-eliminar-cliente" style="color:#ff6b6b;" title="Eliminar este cliente de Mis Clientes: borra sus citas, historial de ventas y tablero (no se puede deshacer)">
+                        <i class="fas fa-trash"></i><span class="kanban-estilos-txt"> Eliminar cliente</span>
+                    </button>` : ''}
                 </div>
                 <button class="kanban-btn-close" id="kanban-cerrar" title="Cerrar"><i class="fas fa-times"></i></button>
             </header>
@@ -177,8 +182,58 @@ function renderBoardModal() {
     bindListas();
     bindDnD();
     bindEstilos();
+    bindEliminarCliente();
     const editarContactoBtn = document.getElementById('kanban-editar-contacto');
     if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
+}
+
+// ========== ELIMINAR CLIENTE (solo admin) ==========
+
+/**
+ * "Eliminar cliente" (botón rojo del header, solo visible en la vista
+ * admin): borra TODO el rastro del cliente del tenant vía el RPC
+ * admin_eliminar_cliente (citas + ventas archivadas + tablero kanban).
+ * Doble confirmación: es una acción destructiva e irreversible.
+ */
+function bindEliminarCliente() {
+    const btn = document.getElementById('kanban-eliminar-cliente');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        if (!clienteActual || !clienteActual.email) return;
+        const nombre = clienteActual.nombre || 'Este cliente';
+        const nCitas = (citasCliente || []).length;
+        if (!window.confirm(
+            `¿Eliminar a "${nombre}" de Mis Clientes?\n\n` +
+            `Se borrarán ${nCitas} cita(s), su historial de ventas y su tablero (listas, tarjetas, archivos). ` +
+            'Esta acción no se puede deshacer.'
+        )) return;
+        if (!window.confirm(`Última confirmación: ¿ELIMINAR DEFINITIVAMENTE a "${nombre}"?`)) return;
+
+        try {
+            const tenantId = await deps.getCurrentTenantId();
+            const { data, error } = await getSupabase().rpc('admin_eliminar_cliente', {
+                p_tenant_id: tenantId,
+                p_cliente_email: clienteActual.email
+            });
+            if (error || !data || data.ok !== true) {
+                mostrarToast((data && data.error) || 'No se pudo eliminar el cliente', 'error');
+                return;
+            }
+            const email = clienteActual.email;
+            cerrarModal();
+            // Refresca la lista de Mis Clientes (expuesta por main.js en admin).
+            if (typeof window.renderClientListView === 'function') {
+                try { window.renderClientListView(); } catch (e) { console.warn('[ClientBoard] Error refrescando Mis Clientes:', e); }
+            }
+            mostrarToast(
+                `Cliente "${email}" eliminado (${data.citas_eliminadas || 0} cita(s), ${data.ventas_eliminadas || 0} venta(s), ${data.tableros_eliminados || 0} tablero(s))`,
+                'success'
+            );
+        } catch (err) {
+            console.error('[ClientBoard] Error eliminando cliente:', err);
+            mostrarToast('No se pudo eliminar el cliente', 'error');
+        }
+    });
 }
 
 // ========== ESTILOS DE LISTAS (plantillas reutilizables) ==========

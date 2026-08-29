@@ -10,11 +10,26 @@ import { formatearDinero, formatDate, formatFechaCorta, formatTimeDisplay } from
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { abrirMenuEtiquetas, renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
 
+// ========== POLÍTICA DE RETENCIÓN ==========
+// Un cliente solo sale de "Mis Clientes" cuando:
+//   a) el admin lo elimina explícitamente (botón en ClientBoard), o
+//   b) pasan MESES_SIN_RESERVAR_PARA_ELIMINAR meses sin una nueva
+//      reserva (filtro de vista; sus datos quedan en `ventas` para
+//      el dashboard y si vuelve a reservar, reaparece).
+const MESES_SIN_RESERVAR_PARA_ELIMINAR = 3;
+
+function fechaCorteInactividad() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - MESES_SIN_RESERVAR_PARA_ELIMINAR);
+    return formatDate(d);
+}
+
 // ========== DATOS ==========
 
 function deduplicarClientes(citas) {
     const mapa = new Map();
     const hoy = formatDate(new Date());
+    const corteInactividad = fechaCorteInactividad();
     citas.forEach(c => {
         const email = (c.contacto?.email || '').toLowerCase().trim();
         if (!email) return;
@@ -48,7 +63,13 @@ function deduplicarClientes(citas) {
         const ultima = [...cl.citas].sort((a, b) => b.fecha.localeCompare(a.fecha) || b.hora.localeCompare(a.hora))[0];
         cl.estadoPago = (futuras[0] && futuras[0].estadoPago) || (ultima && ultima.estadoPago) || null;
         return cl;
-    }).sort((a, b) => b.ultimaVisita.localeCompare(a.ultimaVisita));
+    })
+    // Retención: un cliente solo sale de la lista tras
+    // MESES_SIN_RESERVAR_PARA_ELIMINAR sin reservar (su última visita
+    // anterior al corte). Con citas futuras/hoy la última visita es
+    // >= hoy, así que nunca se filtra por error.
+    .filter(cl => cl.ultimaVisita >= corteInactividad)
+    .sort((a, b) => b.ultimaVisita.localeCompare(a.ultimaVisita));
 }
 
 /**
@@ -184,6 +205,9 @@ function renderLista(container) {
                 ${filtroActual ? `(mostrando ${filtrados.length})` : ''}
             </span>
         </div>
+        <p style="color:var(--text-muted);font-size:0.78rem;margin:-8px 0 14px;">
+            <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar.
+        </p>
         <div class="clientes-grid" id="clientes-grid">
             ${renderGridHtml(filtrados)}
         </div>
