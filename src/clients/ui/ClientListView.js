@@ -296,6 +296,7 @@ function renderLista(container) {
         <p style="color:var(--text-muted);font-size:0.78rem;margin:-8px 0 14px;">
             <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar. Los clientes que agregas manualmente se conservan hasta que tú los borres.
         </p>
+        ${renderHelpBanner()}
         <div class="clientes-grid" id="clientes-grid">
             ${renderGridHtml(filtrados)}
         </div>
@@ -306,9 +307,54 @@ function renderLista(container) {
     bindSearch(container);
     bindExport(container);
     bindAgregarCliente(container);
+    bindHelpToggle(container);
     bindTogglePermisoEtiquetas(container);
     bindHistorialButtons(container);
     bindClienteCards(container);
+}
+
+/**
+ * Banner "¿Cómo usar Mis Clientes?" — hace evidente todo lo que se puede
+ * hacer en la sección (tablero del cliente: notas, datos, archivos, pago).
+ * Colapsable; el estado se recuerda en localStorage (visible por defecto).
+ */
+function renderHelpBanner() {
+    let visible = true;
+    try { visible = localStorage.getItem('mis_clientes_help_visible') !== '0'; } catch (e) { /* sin almacenamiento */ }
+    return `
+        <div class="clientes-help" style="border:1px solid rgba(157,78,221,0.28);border-radius:12px;background:linear-gradient(135deg, rgba(157,78,221,0.10), rgba(0,184,148,0.05));margin-bottom:14px;overflow:hidden;">
+            <button id="toggle-clientes-help" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:none;color:var(--text-color,#e0e0e0);cursor:pointer;font-size:0.88rem;text-align:left;">
+                <i class="fas fa-lightbulb" style="color:#ffd166;"></i>
+                <strong style="flex:1;">¿Cómo usar Mis Clientes? — todo lo que puedes hacer</strong>
+                <i class="fas fa-chevron-down" id="clientes-help-chevron" style="transition:transform .2s;${visible ? 'transform:rotate(180deg);' : ''}"></i>
+            </button>
+            <div id="clientes-help-body" style="display:${visible ? 'block' : 'none'};padding:2px 16px 14px;font-size:0.83rem;color:var(--text-muted,#bbb);line-height:1.6;">
+                <ul style="margin:0;padding-left:18px;">
+                    <li><strong>Información</strong> (botón de la tarjeta o clic en ella): abre el tablero completo del cliente. Ahí puedes <strong>guardar datos y escribir información</strong> (listas y tarjetas, ej. "Historia clínica", "Seguimiento", "Notas"), crear <strong>checklists</strong>, <strong>subir archivos</strong> (fotos, PDF, Word, Excel… hasta 100 MB), marcar el <strong>estado de pago</strong>, guardar plantillas de listas, editar su contacto y eliminarlo.</li>
+                    <li><strong>Historial</strong>: muestra todas sus citas (servicio, fecha, hora, precio y totales).</li>
+                    <li><strong>Agregar cliente</strong>: importa clientes que ya tenías antes de la web, con reserva opcional.</li>
+                    <li><strong>WhatsApp / Email / Llamar</strong>: contacto directo desde la tarjeta.</li>
+                    <li><strong>Marcar pago</strong>: estado de pago del cliente con un clic.</li>
+                    <li><strong>Exportar CSV</strong>: descarga todos tus clientes.</li>
+                </ul>
+                <p style="margin:10px 0 0;"><i class="fas fa-shield-alt" style="margin-right:4px;"></i> Los clientes solo se borran si tú los eliminas o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar. Los que agregas a mano se conservan siempre.</p>
+            </div>
+        </div>
+    `;
+}
+
+function bindHelpToggle(container) {
+    const btn = document.getElementById('toggle-clientes-help');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const body = document.getElementById('clientes-help-body');
+        const chevron = document.getElementById('clientes-help-chevron');
+        if (!body) return;
+        const visible = body.style.display !== 'none';
+        body.style.display = visible ? 'none' : 'block';
+        if (chevron) chevron.style.transform = visible ? '' : 'rotate(180deg)';
+        try { localStorage.setItem('mis_clientes_help_visible', visible ? '0' : '1'); } catch (e) { /* sin almacenamiento */ }
+    });
 }
 
 function textoPermisoEtiquetas() {
@@ -326,7 +372,7 @@ function renderGridHtml(filtrados) {
             .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
 
         html += `
-            <div class="cliente-card glass-panel cliente-card-clickable" data-email="${escapeHtml(cl.email)}" title="Clic para ver la información del cliente">
+            <div class="cliente-card glass-panel cliente-card-clickable" data-email="${escapeHtml(cl.email)}" title="Clic para abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
                 <div class="cliente-card-header">
                     <div class="cliente-avatar">
                         <i class="fas fa-user-circle"></i>
@@ -362,7 +408,7 @@ function renderGridHtml(filtrados) {
                         ${cl.telefono ? `<a href="https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}" target="_blank" class="btn-small" style="background:#25D366;color:#fff;" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></a>` : ''}
                         ${cl.email ? `<a href="mailto:${encodeURIComponent(cl.email)}" class="btn-small" style="background:var(--primary-color);color:#fff;" title="Enviar Email"><i class="fas fa-envelope"></i></a>` : ''}
                         ${cl.telefono ? `<a href="tel:${escapeHtml(cl.telefono)}" class="btn-small" style="background:var(--secondary-color);color:#fff;" title="Llamar"><i class="fas fa-phone"></i></a>` : ''}
-                        <button class="btn-small btn-info-cliente" data-email="${escapeHtml(cl.email)}" title="Ver información, documentos y estado de pago del cliente">
+                        <button class="btn-small btn-info-cliente" data-email="${escapeHtml(cl.email)}" title="Abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
                             <i class="fas fa-id-card"></i> Información
                         </button>
                         <button class="btn-small btn-ver-historial" data-email="${escapeHtml(cl.email)}" style="margin-left:auto;">

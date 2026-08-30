@@ -458,7 +458,7 @@ function renderListasHtml() {
             <div class="kanban-empty">
                 <i class="fas fa-folder-open"></i>
                 <h4>Sin secciones todavía</h4>
-                <p>Organizá la información de este cliente creando listas (ej: "Pendientes", "Pagos", "Documentos") y tarjetas dentro de ellas.</p>
+                <p>Guardá aquí la información de este cliente: creá listas (ej. "Historia clínica", "Seguimiento", "Documentos") y tarjetas con notas y checklists, y adjuntá archivos (fotos, PDF, Word, Excel… hasta 100 MB). También podés marcar su estado de pago y vincular tarjetas a sus citas.</p>
             </div>
         `;
     }
