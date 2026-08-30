@@ -226,7 +226,7 @@ function bindEliminarCliente() {
                 try { window.renderClientListView(); } catch (e) { console.warn('[ClientBoard] Error refrescando Mis Clientes:', e); }
             }
             mostrarToast(
-                `Cliente "${email}" eliminado (${data.citas_eliminadas || 0} cita(s), ${data.ventas_eliminadas || 0} venta(s), ${data.tableros_eliminados || 0} tablero(s))`,
+                `Cliente "${email}" eliminado (${data.citas_eliminadas || 0} cita(s), ${data.ventas_eliminadas || 0} venta(s), ${data.tableros_eliminados || 0} tablero(s)${data.clientes_manuales_eliminados ? `, ${data.clientes_manuales_eliminados} registro(s) manual(es)` : ''})`,
                 'success'
             );
         } catch (err) {

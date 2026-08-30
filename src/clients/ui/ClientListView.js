@@ -92,6 +92,71 @@ function mapearVenta(v) {
     };
 }
 
+// ========== CLIENTES MANUALES (alta del admin) ==========
+
+/**
+ * Fusiona los clientes manuales (tabla clientes_manuales) con los
+ * clientes derivados de citas/ventas. Dedup por email:
+ * - Email ya existente (cliente derivado): el registro manual aporta
+ *   datos de contacto (nombre/teléfono/dirección) cuando faltan.
+ * - Email nuevo: se agrega como cliente manual, SIEMPRE visible hasta
+ *   que el admin lo borre (se fusiona DESPUÉS del filtro de inactividad
+ *   de deduplicarClientes, por eso queda exento de los 3 meses).
+ */
+function fusionarClientesManuales(manuales) {
+    if (!Array.isArray(manuales) || !manuales.length) return;
+    const mapa = new Map(clientesCache.map(c => [c.email.toLowerCase(), c]));
+    manuales.forEach(m => {
+        const email = (m.email || '').toLowerCase().trim();
+        if (!email) return;
+        const existente = mapa.get(email);
+        if (existente) {
+            if (m.nombre && (!existente.nombre || existente.nombre === 'Sin nombre')) existente.nombre = m.nombre;
+            if (m.telefono && !existente.telefono) existente.telefono = m.telefono;
+            if (m.direccion && !existente.direccion) existente.direccion = m.direccion;
+        } else {
+            mapa.set(email, {
+                email,
+                nombre: m.nombre || 'Sin nombre',
+                telefono: m.telefono || '',
+                direccion: m.direccion || '',
+                totalGastado: 0,
+                visitas: 0,
+                primeraVisita: null,
+                ultimaVisita: null,
+                estadoPago: null,
+                citas: [],
+                origen: 'manual',
+                creadoEn: m.creado_en
+            });
+        }
+    });
+    // Orden: última visita (o fecha de alta para manuales) descendente.
+    clientesCache = Array.from(mapa.values()).sort((a, b) => {
+        const aFecha = a.ultimaVisita || a.creadoEn || '';
+        const bFecha = b.ultimaVisita || b.creadoEn || '';
+        return bFecha.localeCompare(aFecha);
+    });
+}
+
+/** Botón "Agregar cliente" → modal de alta (AgregarClienteModal.js). */
+function bindAgregarCliente(container) {
+    const btns = container.querySelectorAll('#agregar-cliente-btn, #agregar-cliente-btn-empty');
+    btns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            try {
+                const { abrirModalAgregarCliente } = await import('./AgregarClienteModal.js');
+                await abrirModalAgregarCliente({
+                    onGuardado: () => renderClientListView()
+                });
+            } catch (err) {
+                console.error('[ClientListView] Error abriendo modal agregar cliente:', err);
+                mostrarToast('No se pudo abrir el formulario de alta', 'error');
+            }
+        });
+    });
+}
+
 // ========== RENDER ==========
 
 let clientesCache = [];
@@ -155,6 +220,22 @@ export async function renderClientListView(containerId = 'clientes-list-containe
         ];
 
         clientesCache = deduplicarClientes(todas);
+
+        // Clientes agregados manualmente por el admin (tabla clientes_manuales):
+        // se fusionan DESPUÉS del filtro de inactividad → siempre visibles hasta
+        // que el admin los borre (política de retención del producto).
+        let manuales = [];
+        try {
+            const { data: manualesData, error: manualesError } = await getSupabase()
+                .from('clientes_manuales')
+                .select('id, tenant_id, nombre, telefono, email, direccion, creado_en')
+                .eq('tenant_id', tenantId);
+            if (!manualesError) manuales = manualesData || [];
+        } catch (e) {
+            console.warn('[ClientListView] No se pudieron cargar clientes manuales:', e);
+        }
+        fusionarClientesManuales(manuales);
+
         renderLista(container);
     } catch (e) {
         console.error('[ClientListView] Error cargando clientes:', e);
@@ -180,9 +261,13 @@ function renderLista(container) {
             <div class="empty-state">
                 <i class="fas fa-users"></i>
                 <h4>No hay clientes registrados</h4>
-                <p>Aún no tienes citas agendadas. Cuando los clientes reserven servicios, aparecerán aquí.</p>
+                <p>Aún no tienes citas agendadas ni clientes agregados. Cuando los clientes reserven servicios aparecerán aquí, o agrega a los que ya tenías antes de la web.</p>
+                <button class="btn-primary btn-small" id="agregar-cliente-btn-empty" style="margin-top:12px;">
+                    <i class="fas fa-user-plus"></i> Agregar cliente
+                </button>
             </div>
         `;
+        bindAgregarCliente(container);
         return;
     }
 
@@ -194,6 +279,9 @@ function renderLista(container) {
                 <i class="fas fa-search"></i>
                 <input type="text" id="clientes-search-input" placeholder="Buscar por nombre, email o teléfono..." value="${escapeHtml(filtroActual)}">
             </div>
+            <button class="btn-primary btn-small" id="agregar-cliente-btn" title="Agregar un cliente que ya tenías antes de la web y asignarle una reserva si quieres">
+                <i class="fas fa-user-plus"></i> Agregar cliente
+            </button>
             <button class="btn-secondary btn-small" id="toggle-permiso-etiquetas" title="Permitir que los trabajadores pongan etiquetas de pago a sus clientes (el estado aparece en Citas Programadas)">
                 <i class="fas fa-tags"></i> Etiquetas: ${textoPermisoEtiquetas()}
             </button>
@@ -206,7 +294,7 @@ function renderLista(container) {
             </span>
         </div>
         <p style="color:var(--text-muted);font-size:0.78rem;margin:-8px 0 14px;">
-            <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar.
+            <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar. Los clientes que agregas manualmente se conservan hasta que tú los borres.
         </p>
         <div class="clientes-grid" id="clientes-grid">
             ${renderGridHtml(filtrados)}
@@ -217,6 +305,7 @@ function renderLista(container) {
 
     bindSearch(container);
     bindExport(container);
+    bindAgregarCliente(container);
     bindTogglePermisoEtiquetas(container);
     bindHistorialButtons(container);
     bindClienteCards(container);
@@ -261,7 +350,9 @@ function renderGridHtml(filtrados) {
                     <div class="cliente-meta">
                         ${cl.telefono ? `<span><i class="fas fa-phone"></i> ${escapeHtml(cl.telefono)}</span>` : ''}
                         ${cl.direccion ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cl.direccion)}" target="_blank" rel="noopener noreferrer" class="cliente-direccion-link" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(cl.direccion)}</a>` : ''}
-                        <span><i class="fas fa-clock"></i> Última: ${formatFechaCorta(cl.ultimaVisita)}</span>
+                        ${cl.ultimaVisita
+                            ? `<span><i class="fas fa-clock"></i> Última: ${formatFechaCorta(cl.ultimaVisita)}</span>`
+                            : `<span><i class="fas fa-user-plus"></i> Agregado: ${formatFechaCorta(cl.creadoEn)}</span>`}
                         ${proxCita ? `<span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: ${formatFechaCorta(proxCita.fecha)} ${formatTimeDisplay(proxCita.hora)}</span>` : ''}
                     </div>
                     <div class="cliente-etiqueta-fila" data-email="${escapeHtml(cl.email)}" title="Cambiar el estado de pago del cliente (aparece en Citas Programadas)">
@@ -606,7 +697,7 @@ function exportarClientesCSV() {
         const nombre = `"${(cl.nombre || '').replace(/"/g, '""')}"`;
         const email = `"${(cl.email || '').replace(/"/g, '""')}"`;
         const telefono = `"${(cl.telefono || '').replace(/"/g, '""')}"`;
-        csv += `${nombre},${email},${telefono},${cl.visitas},${cl.totalGastado},${cl.ultimaVisita},${cl.primeraVisita}\n`;
+        csv += `${nombre},${email},${telefono},${cl.visitas},${cl.totalGastado},${cl.ultimaVisita || cl.creadoEn || ''},${cl.primeraVisita || ''}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
