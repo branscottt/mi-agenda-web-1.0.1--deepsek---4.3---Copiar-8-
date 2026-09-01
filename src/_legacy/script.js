@@ -5269,6 +5269,20 @@ async function cargarTenants() {
         };
         
         let html = '';
+
+        // Actividad real de cada tenant (citas 7 días, última cita, último acceso)
+        let actividad = {};
+        try {
+            const { data: actData, error: actError } = await supabaseClient.rpc('get_tenant_activity');
+            if (!actError && Array.isArray(actData)) {
+                actData.forEach(a => { actividad[a.tenant_id] = a; });
+            } else if (actError) {
+                console.warn('[SuperAdmin] Error cargando actividad:', actError.message);
+            }
+        } catch (e) {
+            console.warn('[SuperAdmin] Excepción cargando actividad:', e);
+        }
+
         visibles.forEach(t => {
             let activeSub = t.subscriptions?.find(sub => sub.status === 'active') || t.subscriptions?.[0];
             const planKey = activeSub ? activeSub.plan : (t.plan || 'freemium');
@@ -5291,6 +5305,18 @@ async function cargarTenants() {
                     <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
                     <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
                     <p><i class="fas fa-ticket-alt"></i> Suscripción: <strong style="color:${subStatusColor}">${subStatusLabel}</strong> ${endDate !== 'N/A' ? `(hasta ${endDate})` : ''}</p>
+                    ${actividad[t.id] ? `
+                    <p style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);"><i class="fas fa-chart-line"></i> Actividad: <strong style="color:#c77dff;">${actividad[t.id].citas_7d} citas</strong> en los últimos 7 días</p>
+                    ${actividad[t.id].ultima_cita ? `<p><i class="fas fa-calendar-check"></i> Última cita: ${new Date(actividad[t.id].ultima_cita).toLocaleDateString()}</p>` : ''}
+                    ${actividad[t.id].ultimo_login
+                        ? `<p><i class="fas fa-sign-in-alt"></i> Último acceso: ${new Date(actividad[t.id].ultimo_login).toLocaleDateString()}</p>`
+                        : '<p><i class="fas fa-sign-in-alt"></i> Sin accesos registrados</p>'}
+                    ` : ''}
+                    <div style="margin-top:12px;">
+                        <button type="button" class="btn-ver-resumen" data-id="${t.id}" data-nombre="${escapeHtml(t.nombre_negocio)}" style="width:100%;background:rgba(157,78,221,0.15);border:1px solid rgba(199,125,255,0.4);color:#c77dff;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all .15s ease;">
+                            <i class="fas fa-chart-bar"></i> Ver resumen de uso
+                        </button>
+                    </div>
                     <div class="tenant-actions" style="margin-top:15px;">
                         <i class="fas fa-edit edit-tenant" data-id="${t.id}" style="cursor:pointer; color:#ffc107; margin-right:10px;" title="Editar"></i>
                         ${activo
@@ -5319,6 +5345,9 @@ async function cargarTenants() {
         document.querySelectorAll('.manage-sub').forEach(icon => {
             icon.addEventListener('click', () => abrirModalGestionSuscripcion(icon.dataset.id));
         });
+        document.querySelectorAll('.btn-ver-resumen').forEach(btn => {
+            btn.addEventListener('click', () => abrirResumenTenant(btn.dataset.id, btn.dataset.nombre));
+        });
         
     } catch (error) {
         console.error('Error en cargarTenants:', error);
@@ -5327,6 +5356,76 @@ async function cargarTenants() {
 
 // Asegurar que la función sea global
 window.cargarTenants = cargarTenants;
+
+/**
+ * Modal de RESumen de USO de un tenant (superadmin): servicios creados,
+ * citas (totales y 7 días), notificaciones (totales y leídas), último
+ * acceso, última actividad registrada y un veredicto de uso.
+ */
+async function abrirResumenTenant(tenantId, nombreNegocio) {
+    let data;
+    try {
+        const { data: res, error } = await supabaseClient.rpc('get_tenant_resumen', { p_tenant_id: tenantId });
+        if (error) throw error;
+        data = Array.isArray(res) ? res[0] : res;
+    } catch (e) {
+        alert('Error cargando el resumen: ' + (e.message || 'intenta de nuevo'));
+        return;
+    }
+    if (!data) { alert('Sin datos para este tenant'); return; }
+
+    const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—';
+    const r = data;
+
+    // Veredicto de uso (simple y claro)
+    let veredicto, vColor;
+    if (r.citas_7d > 0) { veredicto = `SÍ lo está usando: ${r.citas_7d} cita(s) esta semana`; vColor = '#2ecc71'; }
+    else if (r.citas_count > 0) { veredicto = 'Ha agendado citas, pero ninguna esta semana'; vColor = '#f39c12'; }
+    else if (r.servicios_count > 0) { veredicto = 'Configuró servicios, aún sin citas'; vColor = '#f39c12'; }
+    else { veredicto = 'Sin uso registrado (no ha creado nada todavía)'; vColor = '#e74c3c'; }
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(5,5,8,0.85);backdrop-filter:blur(4px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+        <div style="background:rgba(20,20,30,0.95);border:1px solid rgba(199,125,255,0.35);border-radius:16px;max-width:480px;width:100%;padding:26px;box-shadow:0 24px 70px rgba(0,0,0,0.6);max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;font-size:1.1rem;"><i class="fas fa-chart-bar" style="color:#c77dff;"></i> ${escapeHtml(nombreNegocio || 'Tenant')}</h3>
+                <button type="button" class="btn-cerrar-resumen" style="background:transparent;border:none;color:#adb5bd;font-size:1.4rem;cursor:pointer;line-height:1;">×</button>
+            </div>
+            <div style="background:${vColor}1a;border:1px solid ${vColor}55;color:${vColor};border-radius:10px;padding:10px 14px;font-weight:700;font-size:0.9rem;margin-bottom:16px;">
+                <i class="fas ${r.citas_7d > 0 ? 'fa-check-circle' : (r.servicios_count > 0 || r.citas_count > 0 ? 'fa-exclamation-circle' : 'fa-times-circle')}"></i> ${veredicto}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:0.88rem;">
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+                    <div style="color:#8b8fa3;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Servicios creados</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:#c77dff;">${r.servicios_count}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+                    <div style="color:#8b8fa3;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Citas totales</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:#c77dff;">${r.citas_count}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+                    <div style="color:#8b8fa3;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Citas (7 días)</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:${r.citas_7d > 0 ? '#2ecc71' : '#8b8fa3'};">${r.citas_7d}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+                    <div style="color:#8b8fa3;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Notificaciones</div>
+                    <div style="font-size:1.3rem;font-weight:800;color:#c77dff;">${r.notif_count} <span style="font-size:0.75rem;color:#8b8fa3;font-weight:500;">(${r.notif_leidas} leídas)</span></div>
+                </div>
+            </div>
+            <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;font-size:0.85rem;color:#adb5bd;line-height:1.9;">
+                <div><i class="fas fa-sign-in-alt" style="width:18px;color:#c77dff;"></i> Último acceso: <strong style="color:#f8f9fa;">${fmt(r.ultimo_login)}</strong></div>
+                <div><i class="fas fa-calendar-check" style="width:18px;color:#c77dff;"></i> Última cita: <strong style="color:#f8f9fa;">${fmt(r.ultima_cita)}</strong></div>
+                <div><i class="fas fa-history" style="width:18px;color:#c77dff;"></i> Última actividad registrada: <strong style="color:#f8f9fa;">${fmt(r.ultima_actividad)}</strong></div>
+                <div><i class="fas fa-calendar" style="width:18px;color:#c77dff;"></i> Registrado: <strong style="color:#f8f9fa;">${fmt(r.registrado)}</strong></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.btn-cerrar-resumen').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+window.abrirResumenTenant = abrirResumenTenant;
 
 // Variable global para el modal
 let currentSubTenantId = null;
@@ -13408,12 +13507,14 @@ window.iniciarSuperAdmin = async function() {
     await cargarEstadisticasGlobales();
     await cargarMetricasGlobales();
     // Tab de Sugerencias/Feedback de tenants (inyectado por JS, sin tocar HTML)
-    inyectarTabFeedback();
+    // Cada inyección va en try/catch: si una falla no debe bloquear las demás
+    // (antes un error en feedback impedía que pagos/directorio/tabs se montaran).
+    try { inyectarTabFeedback(); } catch (e) { console.warn('[SuperAdmin] fallo inyectarTabFeedback:', e); }
     // Tab de Pagos Mercado Pago (inyectado por JS, sin tocar HTML)
-    inyectarTabPagos();
+    try { inyectarTabPagos(); } catch (e) { console.warn('[SuperAdmin] fallo inyectarTabPagos:', e); }
     // Tab de Directorio Público de PYMEs (inyectado por JS, sin tocar HTML)
-    inyectarTabDirectorio();
-    setupSuperAdminTabs();
+    try { inyectarTabDirectorio(); } catch (e) { console.warn('[SuperAdmin] fallo inyectarTabDirectorio:', e); }
+    try { setupSuperAdminTabs(); } catch (e) { console.warn('[SuperAdmin] fallo setupSuperAdminTabs:', e); }
 };
 
 // --- Configuración de Tabs (fallback si modulos no cargan) ---
@@ -13437,12 +13538,37 @@ function setupSuperAdminTabs() {
                     else if (targetId === 'citas') await cargarCitasGlobales();
                     else if (targetId === 'feedback') await cargarFeedbackSuper();
                     else if (targetId === 'pagos') await cargarPagosSuper();
+                    else if (targetId === 'directorio') await cargarDirectorioSuper();
+                    else if (targetId === 'tenants') await cargarTenants();
                 } catch(e) {
                     console.warn(`Error cargando tab ${targetId}:`, e);
                 }
             }
         });
     });
+
+    // === Botones "Refrescar" de los tabs estáticos (superadmin.html) ===
+    // Antes no tenían listener: el botón no hacía nada. Se bindean aquí.
+    const bindRefresh = (id, fn) => {
+        const btn = document.getElementById(id);
+        if (btn && typeof fn === 'function') btn.addEventListener('click', fn);
+    };
+    bindRefresh('btn-refresh-users', cargarUsuariosSuper);
+    bindRefresh('btn-refresh-servicios', cargarServiciosGlobales);
+    bindRefresh('btn-refresh-citas', cargarCitasGlobales);
+
+    // === Botón "Refrescar" en el tab Tenants (inyectado por JS, sin tocar HTML) ===
+    // Permite recargar la actividad (citas 7d, último acceso) sin recargar la página.
+    const tenantsHeader = document.querySelector('#tab-tenants .panel-header');
+    if (tenantsHeader && !document.getElementById('btn-refresh-tenants')) {
+        const btn = document.createElement('button');
+        btn.className = 'btn-grad';
+        btn.id = 'btn-refresh-tenants';
+        btn.type = 'button';
+        btn.innerHTML = '<i class="fas fa-sync"></i> Refrescar';
+        btn.addEventListener('click', () => cargarTenants());
+        tenantsHeader.appendChild(btn);
+    }
 }
 
 // --- Estadísticas globales (fallback completo con supabaseClient directo) ---
