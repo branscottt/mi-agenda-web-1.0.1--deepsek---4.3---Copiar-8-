@@ -10611,6 +10611,7 @@ async function iniciarCliente() {
 
     // 1. Obtener tenant_id (prioridad: currentTenantId > URL > slug pathname > sesion > primer tenant)
     let tenantId = window.currentTenantId || null;
+    let nombreTenant = null; // nombre real desde el RPC slug (anon no puede leer tenants por RLS)
     const urlParams = new URLSearchParams(window.location.search);
     if (!tenantId) {
         tenantId = urlParams.get('tenant_id') || urlParams.get('tenant');
@@ -10670,6 +10671,7 @@ async function iniciarCliente() {
                 return;
             }
             tenantId = filaSlug.id;
+            nombreTenant = filaSlug.nombre_negocio || null;
             console.log('[iniciarCliente] Slug resuelto → tenant:', tenantId);
         } catch (e) {
             mostrarToast('Enlace inválido: negocio no encontrado', 'error');
@@ -10691,14 +10693,16 @@ async function iniciarCliente() {
     window.currentTenantId = tenantId;
 
     // SEO: título de la pestaña con el nombre del negocio
+    // (anon no puede SELECT directo a tenants por RLS → fallback al nombre del RPC)
     try {
         const { data: tData } = await supabaseClient
             .from('tenants')
             .select('nombre_negocio')
             .eq('id', tenantId)
             .maybeSingle();
-        if (tData?.nombre_negocio) {
-            document.title = `${tData.nombre_negocio} - Organify | Reserva online`;
+        const nombreFinal = tData?.nombre_negocio || nombreTenant;
+        if (nombreFinal) {
+            document.title = `${nombreFinal} - Organify | Reserva online`;
         }
     } catch (e) {
         console.warn('[iniciarCliente] Error seteando title SEO:', e);
@@ -10723,12 +10727,12 @@ async function iniciarCliente() {
             .maybeSingle();
         const tenantNameEl = document.getElementById('tenant-name-display');
         if (tenantNameEl) {
-            tenantNameEl.textContent = tenantInfo?.nombre_negocio || 'Mi Negocio';
+            tenantNameEl.textContent = tenantInfo?.nombre_negocio || nombreTenant || 'Mi Negocio';
         }
     } catch (e) {
         console.warn('[iniciarCliente] Error cargando nombre del tenant:', e);
         const tenantNameEl = document.getElementById('tenant-name-display');
-        if (tenantNameEl) tenantNameEl.textContent = 'Mi Negocio';
+        if (tenantNameEl) tenantNameEl.textContent = nombreTenant || 'Mi Negocio';
     }
 
     // Cargar servicios (funciona con o sin sesión)
