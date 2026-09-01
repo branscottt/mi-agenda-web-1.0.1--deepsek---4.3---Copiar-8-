@@ -10655,12 +10655,15 @@ async function iniciarCliente() {
     if (!uuidRegex.test(tenantId.trim())) {
         try {
             const { data: slugTenant, error: slugError } = await supabaseClient.rpc('get_tenant_by_slug', { p_slug: tenantId.trim().toLowerCase() });
-            if (slugError || !slugTenant) {
+            // PostgREST devuelve un ARRAY para funciones RETURNS TABLE
+            // (ej. [{id, nombre_negocio, slug}]) — no un objeto único.
+            const filaSlug = Array.isArray(slugTenant) ? slugTenant[0] : slugTenant;
+            if (slugError || !filaSlug?.id) {
                 mostrarToast('Negocio no encontrado', 'error');
                 console.error('❌ Slug no resuelto:', tenantId, slugError?.message || '');
                 return;
             }
-            tenantId = slugTenant.id;
+            tenantId = filaSlug.id;
             console.log('[iniciarCliente] Slug resuelto → tenant:', tenantId);
         } catch (e) {
             mostrarToast('Enlace inválido: negocio no encontrado', 'error');
