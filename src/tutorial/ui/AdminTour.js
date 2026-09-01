@@ -30,12 +30,25 @@ import { getCurrentTenantId } from '../../shared/domain/session.js';
 
 const STORAGE_PREFIX = 'agendapro_tour_';
 
-const PASOS = [
+// Videos tutoriales por sección (bucket público 'tutoriales' en Supabase).
+// Mismas URLs que usan los tutoriales embebidos de cada sección
+// (NotificationsTutorial.js, ServiceForm.js, CitasTutorial.js,
+// EquipoTutorial.js, ShareTutorial.js).
+const VIDEOS_TUTORIAL = {
+    notif: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-notificaciones-hd.mp4?v=2',
+    'crear-servicio': 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-crear-servicio.mp4?v=1',
+    citas: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-citas-programadas.mp4?v=1',
+    equipo: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-mi-equipo.mp4?v=1',
+    compartir: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-compartir-clientes.mp4?v=1'
+};
+
+const PASOS_BASE = [
     // ── 1. NOTIFICACIONES (campanita) — la más importante ─────
     {
         selector: '#notif-bell-btn',
         abrirSidebar: false,
         icono: 'fa-bell',
+        videoUrl: VIDEOS_TUTORIAL.notif,
         titulo: 'Campanita de notificaciones',
         descripcion: 'Es la <strong>secci\u00f3n m\u00e1s importante del panel</strong>: ac\u00e1 recib\u00eds los avisos de tus clientes.<br><br>\u2022 <strong>Morada \u2014 Confirmaci\u00f3n de reserva:</strong> cada vez que un cliente reserva, aparece para que confirmes: presion\u00e1 "Correo" y se abre el mensaje ya escrito, solo dale enviar.<br>\u2022 <strong>Verde \u2014 Recordatorio:</strong> cuando falta 1 d\u00eda para la cita, aparece un recordatorio por WhatsApp ya armado para avisarle al cliente.<br><br>Revisala todos los d\u00edas: <strong>cada aviso es un cliente que espera tu confirmaci\u00f3n</strong>. Sin notificaciones pendientes = reservas al d\u00eda.'
     },
@@ -54,6 +67,7 @@ const PASOS = [
         selector: '.sidebar-item[data-section="crear-servicio"]',
         abrirSidebar: true,
         icono: 'fa-plus-circle',
+        videoUrl: VIDEOS_TUTORIAL['crear-servicio'],
         titulo: 'Crear Servicio',
         descripcion: 'Ac\u00e1 cre\u00e1s los servicios que ofrecer\u00e1s, paso a paso:<br>\u2022 <strong>Nombre y precio</strong>: ej. "Corte de cabello" $12.000.<br>\u2022 <strong>Duraci\u00f3n</strong>: cu\u00e1ntos minutos dura cada sesi\u00f3n.<br>\u2022 <strong>Imagen y descripci\u00f3n</strong> (opcional): para que el servicio se vea m\u00e1s atractivo.<br>\u2022 <strong>Fechas y cupos</strong>: eleg\u00eds qu\u00e9 d\u00edas est\u00e1 disponible (por rango de fechas o marcando d\u00edas en el calendario: lun, mar, mi\u00e9\u2026).<br>\u2022 <strong>Horarios</strong>: cu\u00e1ntas veces por d\u00eda tiene disponibilidad (ej. 10:00, 11:00, 12:00) y los cupos por horario.<br><br>Al final marc\u00e1s si va <strong>destacado en el cat\u00e1logo</strong> y si est\u00e1 <strong>activo</strong> para que los clientes puedan reservarlo.'
     },
@@ -72,6 +86,7 @@ const PASOS = [
         selector: '.sidebar-item[data-section="citas"]',
         abrirSidebar: true,
         icono: 'fa-calendar-check',
+        videoUrl: VIDEOS_TUTORIAL.citas,
         titulo: 'Citas Programadas',
         descripcion: 'Ac\u00e1 est\u00e1n todas las reservas de tus clientes, ordenadas por fecha. Para cada cita pod\u00e9s: <strong>contactar por WhatsApp</strong>, <strong>editar</strong> fecha/hora, marcar que <strong>asisti\u00f3</strong> o que <strong>no asistió</strong>.<br><br>La campana de notificaciones te avisa las reservas nuevas (morado) y los recordatorios de 24 h (verde). Es el coraz\u00f3n de tu agenda diaria.'
     },
@@ -90,6 +105,7 @@ const PASOS = [
         selector: '.sidebar-item[data-section="equipo"]',
         abrirSidebar: true,
         icono: 'fa-user-friends',
+        videoUrl: VIDEOS_TUTORIAL.equipo,
         titulo: 'Mi Equipo',
         descripcion: 'Si trabaj\u00e1s con m\u00e1s personas, ac\u00e1 las agreg\u00e1s: nombre, servicio que realizan y WhatsApp. Cada trabajador puede tener <strong>su propio horario y su propia agenda</strong>, y los clientes podr\u00e1n elegir con qui\u00e9n reservar.'
     },
@@ -198,6 +214,7 @@ const PASOS = [
         selector: '.sidebar-item[data-section="compartir"]',
         abrirSidebar: true,
         icono: 'fa-share-alt',
+        videoUrl: VIDEOS_TUTORIAL.compartir,
         titulo: 'Compartir con Clientes',
         descripcion: 'Ac\u00e1 est\u00e1 el <strong>enlace de tu espacio de clientes</strong>: compartilo por WhatsApp, copi\u00e1 el enlace o gener\u00e1 un <strong>c\u00f3digo QR</strong> para imprimir y poner en tu local. Tus clientes entran, ven tu cat\u00e1logo y reservan solos.'
     },
@@ -220,6 +237,39 @@ const PASOS = [
     }
 ];
 
+// Tras cada secci\u00f3n que tiene video tutorial se intercala un paso PROPIO
+// y bien visible ("Video tutorial: <secci\u00f3n>") con bot\u00f3n para verlo,
+// antes de continuar con la siguiente secci\u00f3n del men\u00fa. El spotlight
+// enmarca el bot\u00f3n real "Ver tutorial" de esa secci\u00f3n (para la
+// campanita, la campanita misma: el bot\u00f3n vive dentro de su popover).
+const SELECTOR_BOTON_VIDEO = {
+    'crear-servicio': '#btn-ver-tutorial',
+    citas: '#btn-ver-tutorial-citas',
+    equipo: '#btn-ver-tutorial-equipo',
+    compartir: '#btn-ver-tutorial-share',
+    notif: '#notif-bell-btn'
+};
+const DESCRIPCION_VIDEO_SECCION = 'Este es el bot\u00f3n <strong>"Ver tutorial"</strong> de esta secci\u00f3n, con el que pod\u00e9s ver el video cuando quieras. Toc\u00e1 <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras complet\u00e1s los datos.';
+const DESCRIPCION_VIDEO_NOTIF = 'El bot\u00f3n <strong>"Ver tutorial"</strong> est\u00e1 adentro de la campanita: tocala y lo vas a ver arriba. Toc\u00e1 <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras complet\u00e1s los datos.';
+
+const PASOS = [];
+for (const p of PASOS_BASE) {
+    PASOS.push(p);
+    if (p.videoUrl) {
+        const esNotif = !p.section; // la campanita no navega a ninguna secci\u00f3n
+        PASOS.push({
+            esVideo: true,
+            icono: 'fa-play-circle',
+            videoUrl: p.videoUrl,
+            section: p.section,
+            selector: esNotif ? SELECTOR_BOTON_VIDEO.notif : SELECTOR_BOTON_VIDEO[p.section],
+            abrirSidebar: false,
+            titulo: 'Video tutorial: ' + p.titulo,
+            descripcion: esNotif ? DESCRIPCION_VIDEO_NOTIF : DESCRIPCION_VIDEO_SECCION
+        });
+    }
+}
+
 // Estado del tour
 let tenantId = null;
 let tourActivo = false;
@@ -230,6 +280,8 @@ let overlayEl = null;
 let spotlightEl = null;
 let cardEl = null;
 let welcomeEl = null;
+let videoTourEl = null;
+let videoTourVideo = null;
 
 function esMovil() {
     return window.matchMedia('(max-width: 768px)').matches;
@@ -381,6 +433,9 @@ async function irAPaso(i) {
     const paso = PASOS[i];
     if (!paso) return;
 
+    // Cerrar el reproductor del paso anterior (cada paso tiene su propio video)
+    cerrarVideoTour();
+
     // 1. Navegar a la sección del menú (si corresponde y no está visible)
     if (paso.section) {
         const sec = document.getElementById('section-' + paso.section);
@@ -454,13 +509,20 @@ function pintarCard(paso) {
             <h4 class="tour-card-title">${paso.titulo}</h4>
             <span class="tour-card-count">${pasoIdx + 1} / ${PASOS.length}</span>
         </div>
-        <div class="tour-card-body">${paso.descripcion}</div>
+        <div class="tour-card-body">
+            ${paso.esVideo ? `
+            <div class="tour-video-paso">
+                <div class="tour-video-paso-icono"><i class="fas fa-play-circle"></i></div>
+                <p>${paso.descripcion}</p>
+                <button type="button" class="tour-btn tour-btn-video-grande" data-accion="video"><i class="fas fa-play"></i> Ver video tutorial</button>
+            </div>` : paso.descripcion}
+        </div>
         <div class="tour-card-footer">
             ${pasoIdx > 0 ? '<button type="button" class="tour-btn tour-btn-volver" data-accion="volver"><i class="fas fa-arrow-left"></i> Volver</button>' : ''}
             <span class="tour-card-spacer"></span>
             <button type="button" class="tour-btn tour-btn-secundario" data-accion="omitir">Omitir</button>
             ${pasoIdx < PASOS.length - 1
-                ? '<button type="button" class="tour-btn tour-btn-primario" data-accion="siguiente">Siguiente <i class="fas fa-arrow-right"></i></button>'
+                ? `<button type="button" class="tour-btn tour-btn-primario" data-accion="siguiente">${paso.esVideo ? 'Continuar' : 'Siguiente'} <i class="fas fa-arrow-right"></i></button>`
                 : '<button type="button" class="tour-btn tour-btn-primario" data-accion="finalizar"><i class="fas fa-check"></i> Finalizar</button>'}
         </div>
     `;
@@ -470,6 +532,7 @@ function pintarCard(paso) {
             if (accion === 'siguiente') siguiente();
             else if (accion === 'volver') volver();
             else if (accion === 'omitir') cerrarTour();
+            else if (accion === 'video') abrirVideoTour(paso.videoUrl);
             else if (accion === 'finalizar') {
                 cerrarTour();
                 const { mostrarToast } = window.__toast || {};
@@ -485,6 +548,59 @@ function siguiente() {
 
 function volver() {
     if (pasoIdx > 0) irAPaso(pasoIdx - 1);
+}
+
+// ─────────────────────────────────────────────
+// REPRODUCTOR DE VIDEO TUTORIAL POR SECCIÓN
+// Reutiliza el patrón .tutorial-video-wrap.tutorial-fixed
+// (video 9:16 fijo arriba, visible mientras se completa la
+// sección). z-index 10005 (clase .tour-video-fixed en style.css):
+// por encima del overlay del tour (10000), su spotlight (10001)
+// y su tarjeta (10002). Al omitir/cerrar el tour el video SIGUE
+// abierto para poder verlo mientras se rellena la sección.
+// ─────────────────────────────────────────────
+function abrirVideoTour(url) {
+    if (!url) return;
+    if (!videoTourEl) {
+        videoTourEl = document.createElement('div');
+        videoTourEl.className = 'tutorial-video-wrap tutorial-open tutorial-fixed tour-video-fixed';
+        videoTourEl.id = 'tour-video-player';
+        videoTourEl.innerHTML = `
+            <div class="tutorial-bar">
+                <video id="tour-video" controls playsinline preload="metadata"></video>
+            </div>
+            <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Cerr\u00e1 el video (✕) para continuar el recorrido \u2014 u omit\u00ed el recorrido y segu\u00ed vi\u00e9ndolo mientras complet\u00e1s la secci\u00f3n</p>
+            <button type="button" class="tutorial-close-btn" id="tour-video-close" title="Cerrar tutorial" aria-label="Cerrar tutorial"><i class="fas fa-times"></i></button>
+        `;
+        videoTourVideo = videoTourEl.querySelector('video');
+        // El PiP nativo queda DETRÁS de la web; el modo flotante propio
+        // garantiza que el video siempre quede por encima al scrollear.
+        videoTourVideo.disablePictureInPicture = true;
+        videoTourEl.querySelector('.tutorial-close-btn').addEventListener('click', cerrarVideoTour);
+        document.body.appendChild(videoTourEl);
+    }
+    videoTourVideo.src = url;
+    videoTourVideo.play().catch(() => { /* autoplay bloqueado: el usuario pulsa play */ });
+    // El video ocupa la pantalla: ocultar la tarjeta del tour mientras se ve
+    // (al cerrar el video, la tarjeta vuelve con "Continuar").
+    if (tourActivo && cardEl) {
+        cardEl.style.display = 'none';
+    }
+}
+
+function cerrarVideoTour() {
+    if (!videoTourEl) return;
+    videoTourVideo.pause();
+    videoTourVideo.removeAttribute('src');
+    videoTourVideo.load();
+    videoTourEl.remove();
+    videoTourEl = null;
+    videoTourVideo = null;
+    // Restaurar la tarjeta del tour y reposicionarla
+    if (cardEl) {
+        cardEl.style.display = '';
+        reposicionar();
+    }
 }
 
 // Reposiciona spotlight + tarjeta según el rect actual del objetivo
@@ -532,6 +648,11 @@ function reposicionar() {
     let top = rect.bottom + 14;
     if (top + cardH > vh - 10) {
         top = rect.top - cardH - 14;
+    }
+    // Si el reproductor de video del tour está abierto, la tarjeta va SIEMPRE
+    // debajo del video (nunca tapada por él; el video es fijo arriba).
+    if (videoTourEl) {
+        top = Math.max(top, videoTourEl.offsetHeight + 10);
     }
     if (top < 10) top = Math.max(10, Math.min(top, vh - cardH - 10));
     let left = rect.left - 8;

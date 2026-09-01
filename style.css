@@ -17924,3 +17924,45 @@ textarea.kanban-nueva-card-input {
     .tour-card-body { max-height: 34vh !important; font-size: 0.82rem !important; }
     .tour-card-centrada { left: 12px !important; right: 12px !important; bottom: 12px !important; top: auto !important; transform: none !important; }
 }
+
+/* ============================================================
+   TOUR DE BIENVENIDA — paso propio "Video tutorial: <sección>"
+   (AdminTour.js). Tarjeta centrada con ícono, explicación y
+   botón grande; el reproductor flotante del tour va por ENCIMA
+   del overlay (10000), spotlight (10001) y tarjeta (10002):
+   z-index 10005.
+   ============================================================ */
+.tour-video-paso {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12px !important;
+    text-align: center !important;
+    padding: 6px 4px !important;
+}
+.tour-video-paso-icono {
+    font-size: 2.4rem !important;
+    color: #c77dff !important;
+    line-height: 1 !important;
+    text-shadow: 0 0 18px rgba(157, 78, 221, 0.6) !important;
+}
+.tour-video-paso p {
+    margin: 0 !important;
+    color: #e9d9ff !important;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+}
+.tour-btn-video-grande {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 12px 16px !important;
+    font-size: 0.95rem !important;
+    background: linear-gradient(135deg, #9d4edd, #7b2cbf) !important;
+    box-shadow: 0 4px 14px rgba(157, 78, 221, 0.45) !important;
+}
+.tour-btn-video-grande:hover {
+    box-shadow: 0 6px 18px rgba(157, 78, 221, 0.6) !important;
+}
+.tutorial-video-wrap.tutorial-fixed.tour-video-fixed {
+    z-index: 10005 !important;
+}
