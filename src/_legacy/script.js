@@ -4423,9 +4423,16 @@ async function verificarProteccionRutas() {
                 return;
             }
 
-            // Si es super_admin, solo puede ver superadmin.html
+            // Si es super_admin, solo puede ver superadmin.html — PERO las rutas
+            // públicas del cliente (cliente.html y /p/:slug) quedan accesibles:
+            // son la página que ven los clientes externos y el superadmin debe
+            // poder abrirla desde las cards del directorio/portada (botón
+            // "Reservar hora"). Sin esto, /p/:slug redirige a superadmin.html y
+            // el pathname ya cambiado hace que iniciarCliente lea "superadmin.html"
+            // como slug → "Negocio no encontrado".
             if (session.rol === 'super_admin') {
-                if (pathname !== 'superadmin.html' && pathname !== 'login.html') {
+                const esRutaPublicaCliente = pathname === 'cliente.html' || /^\/p\//.test(fullPath);
+                if (pathname !== 'superadmin.html' && pathname !== 'login.html' && !esRutaPublicaCliente) {
                     window.location.href = 'superadmin.html';
                 }
                 return;
