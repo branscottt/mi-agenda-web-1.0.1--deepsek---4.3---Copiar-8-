@@ -147,6 +147,7 @@
         .mock-row .d { font-size: 0.85rem; color: var(--muted); }
         .mock-row .v { font-size: 0.85rem; font-weight: 700; color: var(--text); }
         .mock-cta {
+            display: block; text-decoration: none;
             margin-top: 16px; text-align: center; padding: 12px; border-radius: 12px;
             background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
             font-weight: 700; font-size: 0.92rem;
@@ -324,6 +325,40 @@
         }
         .btn-white:hover { transform: translateY(-2px); }
 
+        /* Directorio en vivo: cards reales en la portada */
+        .home-directorio-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px; max-width: 1100px; margin: 0 auto;
+        }
+        .home-directorio-grid .empty { text-align: center; color: var(--muted); padding: 30px; grid-column: 1 / -1; }
+        .dir-card {
+            background: var(--glass); border: 1px solid var(--glass-border);
+            border-radius: 16px; overflow: hidden; backdrop-filter: blur(10px);
+            display: flex; flex-direction: column;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+        }
+        .dir-card:hover { transform: translateY(-4px); border-color: rgba(199, 125, 255, 0.4); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4); }
+        .dir-card-cover {
+            height: 120px;
+            background: linear-gradient(135deg, rgba(157, 78, 221, 0.25), rgba(199, 125, 255, 0.12));
+            display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
+        }
+        .dir-card-cover img { width: 100%; height: 100%; object-fit: cover; }
+        .dir-card-body { padding: 18px; display: flex; flex-direction: column; flex: 1; }
+        .dir-card-body h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 4px; }
+        .dir-card-cat { font-size: 0.8rem; color: var(--primary-light); font-weight: 600; margin-bottom: 6px; }
+        .dir-card-dir { font-size: 0.8rem; color: #8b8fa3; margin-bottom: 10px; }
+        .dir-card-stars { font-size: 0.88rem; color: #f5b301; letter-spacing: 2px; margin-bottom: 14px; }
+        .dir-card-stars .count { color: #8b8fa3; font-size: 0.78rem; letter-spacing: 0; margin-left: 6px; }
+        .dir-card .btn-reservar {
+            margin-top: auto; display: block; text-align: center; padding: 11px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
+            font-weight: 700; font-size: 0.92rem;
+            box-shadow: 0 6px 18px var(--primary-glow);
+            transition: transform .15s ease;
+        }
+        .dir-card .btn-reservar:hover { transform: translateY(-2px); }
+
         footer {
             padding: 36px 0; text-align: center; color: #8b8fa3; font-size: 0.85rem;
             border-top: 1px solid var(--glass-border); margin-top: 30px;
@@ -374,7 +409,7 @@
                     <div class="mock-row"><span class="d">Servicio</span><span class="v">Entrenador personal</span></div>
                     <div class="mock-row"><span class="d">Fecha</span><span class="v">Jueves 10 · 18:00</span></div>
                     <div class="mock-row"><span class="d">Duración</span><span class="v">60 min · $15.000</span></div>
-                    <div class="mock-cta">Reservar hora</div>
+                    <a class="mock-cta" href="/p/miu-street-workout-training">Reservar hora</a>
                     <span class="mock-tag">✓ Confirmación y recordatorio automáticos</span>
                 </div>
                 <div class="mock-float" style="top:-18px; right:-8px;">🔔 <strong>Recordatorio enviado</strong></div>
@@ -464,8 +499,23 @@
                 <div class="mock-row"><span class="d">Entrenador personal</span><span class="v">$15.000 · 60 min</span></div>
                 <div class="mock-row"><span class="d">Clase grupal</span><span class="v">$10.000 · 45 min</span></div>
                 <div class="mock-row"><span class="d">Plan mensual</span><span class="v">$45.000 · mes</span></div>
-                <div class="mock-cta">Agendar cita</div>
+                <a class="mock-cta" href="/p/miu-street-workout-training">Agendar cita</a>
                 <span class="mock-tag">✓ Carrito: agrega y agenda varios servicios</span>
+            </div>
+        </div>
+    </section>
+
+    <section id="directorio-vivo">
+        <div class="container">
+            <div class="sec-head">
+                <h2>Negocios reales que <em>ya reservan en línea</em></h2>
+                <p>Una muestra del directorio de Organify, con datos reales. Reserva directo con un clic.</p>
+            </div>
+            <div class="home-directorio-grid" id="home-directorio-grid">
+                <p class="empty">Cargando directorio...</p>
+            </div>
+            <div style="text-align:center; margin-top:28px;">
+                <a class="btn btn-ghost" href="directorio.html">Ver el directorio completo</a>
             </div>
         </div>
     </section>
@@ -636,5 +686,6 @@
         </div>
     </footer>
 
+    <script defer src="/dist/home-directorio.js"></script>
 </body>
 </html>

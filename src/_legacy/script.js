@@ -4363,7 +4363,8 @@ async function getSession() {
 async function verificarProteccionRutas() {
     try {
         const session = await getSession();
-        const pathname = (window.location.pathname || '').split('/').pop() || '';
+        const fullPath = window.location.pathname || '';
+        const pathname = fullPath.split('/').pop() || '';
 
         console.log('Verificando ruta:', pathname, 'Sesión:', session ? '✅' : '❌', 'Rol:', session?.rol);
 
@@ -4375,7 +4376,10 @@ async function verificarProteccionRutas() {
             // esté activo, y el RLS protege los datos. Antes se redirigía a login.html
             // y el catálogo + formulario de registro quedaban inalcanzables para
             // clientes externos (bug crítico verificado en prod).
-            if (pathname !== 'login.html' && pathname !== '' && pathname !== 'cliente.html') {
+            // También se permiten las URLs amigables SEO /p/:slug (rewrite de Vercel
+            // sirve cliente.html pero el navegador mantiene /p/<slug> en la barra).
+            const esRutaPublica = pathname === 'login.html' || pathname === '' || pathname === 'cliente.html' || /^\/p\//.test(fullPath);
+            if (!esRutaPublica) {
                 console.log('No hay sesión, redirigiendo a login');
                 window.location.href = 'login.html';
             }
@@ -10599,11 +10603,24 @@ function mostrarFormularioCliente(onCompletado) {
 async function iniciarCliente() {
     console.log('[iniciarCliente] Inicializando vista cliente...');
 
-    // 1. Obtener tenant_id (prioridad: currentTenantId > URL > sesion > primer tenant)
+    // 1. Obtener tenant_id (prioridad: currentTenantId > URL > slug pathname > sesion > primer tenant)
     let tenantId = window.currentTenantId || null;
     const urlParams = new URLSearchParams(window.location.search);
     if (!tenantId) {
         tenantId = urlParams.get('tenant_id') || urlParams.get('tenant');
+    }
+    if (!tenantId) {
+        // URL amigable SEO /p/:slug — el rewrite de Vercel sirve cliente.html pero el
+        // navegador NO ve el query string (?tenant=) porque el rewrite es server-side.
+        const pathMatch = (window.location.pathname || '').match(/^\/p\/([^/]+)\/?$/);
+        if (pathMatch) {
+            try {
+                tenantId = decodeURIComponent(pathMatch[1]);
+                console.log('[iniciarCliente] Slug desde pathname:', tenantId);
+            } catch (e) {
+                console.warn('[iniciarCliente] Slug inválido en pathname:', e);
+            }
+        }
     }
     if (!tenantId) {
         const session = await getSession();

@@ -114,6 +114,12 @@ if (fs.existsSync('directorio.js')) {
     console.log('   ✅ dist/directorio.js copied');
 }
 
+// 4a-bis. Copiar home-directorio.js (cards reales del directorio en la portada)
+if (fs.existsSync('home-directorio.js')) {
+    fs.copyFileSync('home-directorio.js', 'dist/home-directorio.js');
+    console.log('   ✅ dist/home-directorio.js copied');
+}
+
 // 4b. Copiar archivos de higiene web (robots, sitemap, security.txt)
 for (const f of ['robots.txt', 'sitemap.xml']) {
     if (fs.existsSync(f)) {
@@ -134,10 +140,14 @@ for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
         let content = fs.readFileSync(f, 'utf-8');
         // Reemplazar rutas de scripts en HTML
-        // Los HTML fuente ya tienen src="dist/...", los reemplazamos sin dist/
-        // porque en Vercel el outputDirectory=dist pone los archivos en la raiz
-        content = content.replace(/src="dist\/app\.js"/g, 'src="app.js"');
-        content = content.replace(/src="dist\/legacy\.js"/g, 'src="legacy.js"');
+        // Los HTML fuente ya tienen src="/dist/...", los reemplazamos sin dist/
+        // porque en Vercel el outputDirectory=dist pone los archivos en la raiz.
+        // La barra inicial (rutas absolutas) es OBLIGATORIA para páginas servidas
+        // bajo rewrites tipo /p/:slug → cliente.html (si no, los assets se resuelven
+        // contra /p/ y el rewrite los convierte en HTML rompiendo la página).
+        content = content.replace(/src="\/?dist\/app\.js"/g, 'src="/app.js"');
+        content = content.replace(/src="\/?dist\/legacy\.js"/g, 'src="/legacy.js"');
+        content = content.replace(/src="\/?dist\/home-directorio\.js"/g, 'src="/home-directorio.js"');
         fs.writeFileSync(path.join('dist', f), content);
         console.log(`   ✅ dist/${f} (paths updated)`);
     }
