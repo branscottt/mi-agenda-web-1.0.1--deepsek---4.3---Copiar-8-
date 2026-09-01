@@ -17722,3 +17722,205 @@ textarea.kanban-nueva-card-input {
     }
 }
 
+
+/* ============================================================
+   TOUR DE BIENVENIDA — onboarding interactivo del panel admin
+   Overrides al final: colores fijos + !important para resistir
+   <style id=tenant-custom-styles> (fondo opaco, header bg, etc.)
+   z-index: overlay 10000 > sidebar(1000) y modales(9999/10000);
+   spotlight 10001; tarjeta 10002 (por encima del video tutorial).
+   ============================================================ */
+.tour-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10000 !important;
+    background: rgba(8, 6, 16, 0.72) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 16px !important;
+}
+.tour-spotlight {
+    position: fixed !important;
+    z-index: 10001 !important;
+    border: 2px solid #b300ff !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    box-shadow: 0 0 0 4px rgba(179, 0, 255, 0.25), 0 0 26px rgba(179, 0, 255, 0.5) !important;
+    pointer-events: none !important;
+    /* SIN transition: el scrollIntoView es smooth y la transición haría que el
+       recuadro "persiga" al elemento con retraso (arrastre feo + posiciones
+       intermedias). El reposicionamiento por evento scroll lo mantiene pegado. */
+}
+.tour-card {
+    position: fixed !important;
+    z-index: 10002 !important;
+    width: 380px;
+    max-width: calc(100vw - 24px);
+    background: #14101f !important;
+    border: 1px solid rgba(179, 0, 255, 0.4) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65) !important;
+    color: #e9e4f2 !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    overflow: hidden !important;
+}
+.tour-card-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 14px 16px 0 !important;
+}
+.tour-icon {
+    width: 34px !important;
+    height: 34px !important;
+    flex-shrink: 0 !important;
+    background: linear-gradient(135deg, #9d4edd, #b300ff) !important;
+    border-radius: 9px !important;
+    color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 15px !important;
+}
+.tour-card-title {
+    flex: 1 !important;
+    margin: 0 !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    line-height: 1.25 !important;
+}
+.tour-card-count {
+    font-size: 0.72rem !important;
+    color: #a89bb8 !important;
+    white-space: nowrap !important;
+    font-weight: 600 !important;
+}
+.tour-card-body {
+    padding: 10px 16px 12px !important;
+    font-size: 0.86rem !important;
+    line-height: 1.55 !important;
+    color: #d9d2e6 !important;
+    max-height: 42vh !important;
+    overflow-y: auto !important;
+}
+.tour-card-body strong { color: #ffffff !important; }
+.tour-card-footer {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 0 16px 14px !important;
+}
+.tour-card-spacer { flex: 1 !important; }
+.tour-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border: none !important;
+    border-radius: 9px !important;
+    padding: 8px 14px !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    font-family: inherit !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+}
+.tour-btn:active { transform: scale(0.97) !important; }
+.tour-btn-primario {
+    background: linear-gradient(135deg, #9d4edd, #7b2cbf) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 14px rgba(157, 78, 221, 0.45) !important;
+}
+.tour-btn-primario:hover { box-shadow: 0 6px 18px rgba(157, 78, 221, 0.6) !important; }
+.tour-btn-secundario {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #cfc6de !important;
+}
+.tour-btn-secundario:hover { background: rgba(231, 76, 60, 0.25) !important; color: #ff9d94 !important; }
+.tour-btn-volver {
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #b8aecb !important;
+}
+.tour-btn-volver:hover { background: rgba(255, 255, 255, 0.12) !important; color: #fff !important; }
+
+/* Tarjeta centrada (paso final del tour) */
+.tour-card-centrada {
+    left: 50% !important;
+    top: 45% !important;
+    transform: translate(-50%, -50%) !important;
+    right: auto !important;
+    bottom: auto !important;
+}
+
+/* Modal de bienvenida */
+.tour-welcome-card {
+    background: #14101f !important;
+    border: 1px solid rgba(179, 0, 255, 0.4) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65) !important;
+    color: #e9e4f2 !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    max-width: 420px !important;
+    width: 100% !important;
+    padding: 26px 24px 22px !important;
+    text-align: center !important;
+}
+.tour-welcome-icon {
+    width: 58px !important;
+    height: 58px !important;
+    margin: 0 auto 14px !important;
+    background: linear-gradient(135deg, #9d4edd, #b300ff) !important;
+    border-radius: 16px !important;
+    color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 26px !important;
+    box-shadow: 0 8px 22px rgba(157, 78, 221, 0.45) !important;
+}
+.tour-welcome-title {
+    margin: 0 0 8px !important;
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+}
+.tour-welcome-text {
+    margin: 0 0 18px !important;
+    font-size: 0.88rem !important;
+    line-height: 1.55 !important;
+    color: #cfc6de !important;
+}
+.tour-welcome-actions {
+    display: flex !important;
+    gap: 10px !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+}
+
+/* Botón "Ver tutorial" en el footer del sidebar */
+.tour-reactivar-btn {
+    width: 100% !important;
+    margin-top: 8px !important;
+    background: rgba(179, 0, 255, 0.16) !important;
+    color: #d8b4ff !important;
+    border: 1px solid rgba(179, 0, 255, 0.35) !important;
+}
+.tour-reactivar-btn:hover {
+    background: rgba(179, 0, 255, 0.3) !important;
+    color: #fff !important;
+}
+
+/* Móvil: tarjeta del tour fija abajo, compacta */
+@media (max-width: 768px) {
+    .tour-card {
+        left: 12px !important;
+        right: 12px !important;
+        bottom: 12px !important;
+        top: auto !important;
+        width: auto !important;
+        transform: none !important;
+    }
+    .tour-card-body { max-height: 34vh !important; font-size: 0.82rem !important; }
+    .tour-card-centrada { left: 12px !important; right: 12px !important; bottom: 12px !important; top: auto !important; transform: none !important; }
+}

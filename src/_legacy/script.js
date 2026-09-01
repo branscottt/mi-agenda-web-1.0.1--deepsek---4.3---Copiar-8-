@@ -3042,7 +3042,7 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
 
     try {
         if (cuponAprobado) {
-            // Con cupón aprobado: pago único del mes con descuento
+            // Con cupón aprobado: pago único del mes con descuento (decisión de negocio explícita)
             const pref = await mp.createPreference({
                 plan: planKey,
                 tenantId: tenantId,
@@ -3051,8 +3051,23 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
                 monto: monto,
             });
             mp.redirect(pref.init_point || pref.sandbox_init_point);
-        } else if (typeof mp.createPreapproval === 'function') {
-            // Sin cupón: suscripción recurrente con cobro automático
+        } else {
+            // Sin cupón: SIEMPRE suscripción recurrente (cobro automático).
+            // Esperar hasta que main.js exponga el cliente moderno (carrera de carga
+            // main.js vs script.js). NUNCA degradar silenciosamente a pago único:
+            // el botón promete "cobro automático" y un pago único dejaría al usuario
+            // pagando sin suscripción recurrente (bug verificado 2026-08-31: el
+            // fallback creaba preferencias de pago único de $15.000).
+            let esperaMs = 0;
+            while (typeof mp.createPreapproval !== 'function' && esperaMs < 3000) {
+                await new Promise(r => setTimeout(r, 300));
+                esperaMs += 300;
+            }
+            if (typeof mp.createPreapproval !== 'function') {
+                console.error('[Planes] createPreapproval no disponible tras 3s — no se degrada a pago único');
+                mostrarToast('El módulo de suscripciones aún está cargando. Recarga la página e inténtalo de nuevo.', 'error');
+                return;
+            }
             const pref = await mp.createPreapproval({
                 plan: planKey,
                 tenantId: tenantId,
@@ -3060,15 +3075,6 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
                 nombre: email,
             });
             mp.redirect(pref.init_point);
-        } else {
-            // Fallback: pago único a precio normal
-            const pref = await mp.createPreference({
-                plan: planKey,
-                tenantId: tenantId,
-                email: email,
-                nombre: email,
-            });
-            mp.redirect(pref.init_point || pref.sandbox_init_point);
         }
     } catch (err) {
         console.error('[Planes] Error iniciando pago MP:', err);

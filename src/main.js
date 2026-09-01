@@ -244,6 +244,10 @@ async function syncJwtSession() {
                 const { initTutorialEquipo } = await import('./workers/ui/EquipoTutorial.js');
                 initTutorialEquipo();
 
+                // Tour de bienvenida — onboarding interactivo por pasos (enmarca el menú)
+                const { initAdminTour } = await import('./tutorial/ui/AdminTour.js');
+                initAdminTour();
+
                 // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
                 const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');
                 initMfaSetup();
