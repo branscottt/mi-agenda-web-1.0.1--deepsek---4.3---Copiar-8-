@@ -169,7 +169,7 @@ async function handle(req: Request): Promise<Response> {
     // $7.500 de UN cobro mensual (refund parcial) y el mes siguiente sigue
     // cobrando el precio normal.
     const amount = planInfo.amount;
-    const reason = `${planInfo.title} - Agenda Pro`;
+    const reason = `${planInfo.title} - Organify`;
 
     const accessToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
     if (!accessToken) {

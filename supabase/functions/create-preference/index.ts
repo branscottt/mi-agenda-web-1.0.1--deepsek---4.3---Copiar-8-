@@ -212,8 +212,8 @@ async function handle(req: Request): Promise<Response> {
       items: [
         {
           id: `plan_${plan}`,
-          title: `${planInfo.title}${titleSuffix} - Agenda Pro`,
-          description: `Suscripción ${plan === 'premium_anual' ? 'anual' : 'mensual'} a Agenda Pro${monto !== undefined ? ' (con descuento)' : ''}`,
+          title: `${planInfo.title}${titleSuffix} - Organify`,
+          description: `Suscripción ${plan === 'premium_anual' ? 'anual' : 'mensual'} a Organify${monto !== undefined ? ' (con descuento)' : ''}`,
           quantity: 1,
           currency_id: 'CLP',
           unit_price: unitPrice,

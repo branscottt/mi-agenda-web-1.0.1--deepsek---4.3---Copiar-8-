@@ -3922,7 +3922,7 @@ async function renderNotificaciones(lista, containerId, todasLasCitas) {
             const mensajeWhatsApp = encodeURIComponent(`Hola ${nombre}, te informamos que tu cita ha sido reprogramada por el administrador.\n\nNueva fecha: ${fechaNueva} a las ${horaNueva}\n\nSi tienes dudas, contáctanos.`);
             const waLink = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensajeWhatsApp}`;
 
-            const asuntoEmail = encodeURIComponent('Cambio en tu cita - Agenda Pro');
+            const asuntoEmail = encodeURIComponent('Cambio en tu cita - Organify');
             const cuerpoEmail = encodeURIComponent(`Hola ${nombre},\n\nTe informamos que tu cita ha sido reprogramada por el administrador.\n\n📅 Fecha anterior: ${fechaOrig} ${horaOrig}\n📅 Nueva fecha: ${fechaNueva} ${horaNueva}\n\nSi tienes dudas, contáctanos.\n\nSaludos cordiales.`);
             const mailtoLink = `mailto:${email}?subject=${asuntoEmail}&body=${cuerpoEmail}`;
 
@@ -5090,7 +5090,7 @@ function renderPromoForm(statusContainer, formContainer, tenantId, period) {
                 <label style="display:block;font-size:0.82rem;margin-bottom:4px;color:var(--text-color,#ccc);">
                     <i class="fas fa-store"></i> Descripción de tu negocio
                 </label>
-                <textarea id="promo-business-desc" class="config-input" rows="4" placeholder="Cuéntanos de qué trata tu negocio, qué servicios ofreces, cómo te ayudó Agenda Pro..." style="width:100%;resize:vertical;"></textarea>
+                <textarea id="promo-business-desc" class="config-input" rows="4" placeholder="Cuéntanos de qué trata tu negocio, qué servicios ofreces, cómo te ayudó Organify..." style="width:100%;resize:vertical;"></textarea>
             </div>
             <button id="promo-submit-btn" class="btn-save-primary" style="width:100%;">
                 <i class="fas fa-paper-plane"></i> Enviar para revisión
@@ -10534,12 +10534,23 @@ async function iniciarCliente() {
         return;
     }
 
-    // Validar formato UUID
+    // Validar formato UUID; si NO es UUID, resolver slug (URL amigable SEO /p/:slug)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(tenantId.trim())) {
-        mostrarToast('Formato de tenant inválido', 'error');
-        console.error('❌ tenant_id no tiene formato UUID:', tenantId);
-        return;
+        try {
+            const { data: slugTenant, error: slugError } = await supabaseClient.rpc('get_tenant_by_slug', { p_slug: tenantId.trim().toLowerCase() });
+            if (slugError || !slugTenant) {
+                mostrarToast('Negocio no encontrado', 'error');
+                console.error('❌ Slug no resuelto:', tenantId, slugError?.message || '');
+                return;
+            }
+            tenantId = slugTenant.id;
+            console.log('[iniciarCliente] Slug resuelto → tenant:', tenantId);
+        } catch (e) {
+            mostrarToast('Enlace inválido: negocio no encontrado', 'error');
+            console.error('❌ Excepción resolviendo slug:', e);
+            return;
+        }
     }
 
     // Establecer tenant en Supabase (para políticas anónimas RLS)
@@ -10553,6 +10564,20 @@ async function iniciarCliente() {
         console.error('[iniciarCliente] Excepción en set_tenant_anon:', e);
     }
     window.currentTenantId = tenantId;
+
+    // SEO: título de la pestaña con el nombre del negocio
+    try {
+        const { data: tData } = await supabaseClient
+            .from('tenants')
+            .select('nombre_negocio')
+            .eq('id', tenantId)
+            .maybeSingle();
+        if (tData?.nombre_negocio) {
+            document.title = `${tData.nombre_negocio} - Organify | Reserva online`;
+        }
+    } catch (e) {
+        console.warn('[iniciarCliente] Error seteando title SEO:', e);
+    }
 
     // Cargar configuración visual del tenant
     try {
@@ -13902,11 +13927,25 @@ function configurarCompartirEnlace() {
 
     if (!linkInput) return; // No está en esta página
 
-    // Generar enlace
-    getCurrentTenantId().then(tenantId => {
+    // Generar enlace (URL amigable /p/slug si el negocio tiene slug)
+    getCurrentTenantId().then(async tenantId => {
         if (tenantId) {
-            const baseUrl = window.location.origin + window.location.pathname.replace(/admin\.html.*/, 'cliente.html');
-            linkInput.value = `${baseUrl}?tenant=${tenantId}`;
+            try {
+                const { data: tData } = await supabaseClient
+                    .from('tenants')
+                    .select('slug')
+                    .eq('id', tenantId)
+                    .maybeSingle();
+                const origin = window.location.origin;
+                if (tData?.slug) {
+                    linkInput.value = `${origin}/p/${encodeURIComponent(tData.slug)}`;
+                } else {
+                    linkInput.value = `${origin}/cliente.html?tenant=${tenantId}`;
+                }
+            } catch (e) {
+                console.warn('[CompartirEnlace] Error obteniendo slug, usando fallback:', e);
+                linkInput.value = `${window.location.origin}/cliente.html?tenant=${tenantId}`;
+            }
         } else {
             linkInput.value = 'No se pudo generar el enlace (sin tenant)';
         }

@@ -6,11 +6,12 @@
 // La página cliente de cada pyme se abre en cliente.html?tenant_id=X
 // (misma URL que genera el botón "Compartir" del admin).
 
-import { getDirectorio, crearResena } from '../application/DirectoryService.js';
+import { getDirectorio, getSlugs, crearResena } from '../application/DirectoryService.js';
 import { CATEGORIAS_DIRECTORIO, getCategoria } from '../domain/categorias.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 
 let _pymes = [];
+let _slugs = {}; // mapa tenant_id → slug (URLs amigables /p/:slug)
 let _filtroCategoria = 'todas';
 let _terminoBusqueda = '';
 let _modalActivo = null; // pyme actual en el modal
@@ -26,6 +27,14 @@ export async function initDirectorio() {
         console.warn('[Directorio] No se pudo cargar:', e.message);
     }
     _pymes = Array.isArray(data) ? data : [];
+
+    // Resolver slugs para URLs amigables /p/:slug (fallback: ?tenant_id=UUID)
+    try {
+        _slugs = await getSlugs(_pymes.map(p => p.tenant_id).filter(Boolean));
+    } catch (e) {
+        console.warn('[Directorio] No se pudieron resolver slugs:', e.message);
+        _slugs = {};
+    }
 
     renderSeccion(container);
     bindEventos(container);
@@ -137,7 +146,9 @@ function renderCard(p) {
                     ${tieneResenas ? `<span class="pyme-card-count">${p.total_resenas} reseña${p.total_resenas === 1 ? '' : 's'}</span>` : ''}
                 </div>
                 <div class="pyme-card-actions">
-                    <a class="btn-grad btn-small pyme-btn-reservar" href="cliente.html?tenant_id=${encodeURIComponent(p.tenant_id)}" target="_blank" rel="noopener">
+                    <a class="btn-grad btn-small pyme-btn-reservar" href="${_slugs[p.tenant_id]
+                        ? `/p/${encodeURIComponent(_slugs[p.tenant_id])}`
+                        : `cliente.html?tenant_id=${encodeURIComponent(p.tenant_id)}`}" target="_blank" rel="noopener">
                         <i class="fas fa-calendar-check"></i> Reservar
                     </a>
                     <button type="button" class="btn-secondary btn-small pyme-btn-resenas" data-tenant="${escapeAttr(p.tenant_id)}">

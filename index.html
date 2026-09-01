@@ -3,10 +3,391 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agenda Pro</title>
-    <meta http-equiv="refresh" content="0;url=login.html">
+    <title>Organify — Agenda online para tu negocio</title>
+    <meta name="description" content="Organify: agenda online, página propia para tus clientes, recordatorios automáticos y directorio local. Prueba gratis por 14 días.">
+    <link rel="canonical" href="https://agenda-pro-red.vercel.app/">
+    <meta property="og:title" content="Organify — Agenda online para tu negocio">
+    <meta property="og:description" content="Agenda online, página propia para tus clientes, recordatorios automáticos y directorio local. Prueba gratis por 14 días.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://agenda-pro-red.vercel.app/">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Organify",
+        "description": "Agenda online para pymes y profesionales: reservas, recordatorios automáticos y directorio local.",
+        "url": "https://agenda-pro-red.vercel.app/"
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1e1b2e;
+            background: #faf9ff;
+            line-height: 1.6;
+        }
+        a { text-decoration: none; color: inherit; }
+
+        /* ---------- NAVBAR ---------- */
+        .nav {
+            position: sticky; top: 0; z-index: 50;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 5%;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #ece9f7;
+        }
+        .nav-logo { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.5px; }
+        .nav-logo span { color: #7c3aed; }
+        .nav-links { display: flex; gap: 26px; font-size: 0.92rem; color: #4b4563; font-weight: 500; }
+        .nav-links a:hover { color: #7c3aed; }
+        .nav-cta {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: #fff; font-weight: 600; font-size: 0.9rem;
+            padding: 9px 20px; border-radius: 999px;
+            box-shadow: 0 4px 14px rgba(124,58,237,0.35);
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,0.45); }
+        .nav-login { color: #4b4563; font-weight: 600; font-size: 0.9rem; padding: 9px 6px; }
+        .nav-login:hover { color: #7c3aed; }
+        @media (max-width: 720px) { .nav-links { display: none; } }
+
+        /* ---------- HERO ---------- */
+        .hero {
+            display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center;
+            padding: 72px 5% 84px;
+            background:
+                radial-gradient(900px 420px at 85% -10%, rgba(168,85,247,0.14), transparent 60%),
+                radial-gradient(700px 380px at -10% 30%, rgba(109,99,255,0.10), transparent 55%),
+                #faf9ff;
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: #fff; border: 1px solid #e6e0f7; color: #7c3aed;
+            font-size: 0.8rem; font-weight: 700; letter-spacing: 0.4px;
+            padding: 6px 14px; border-radius: 999px; margin-bottom: 20px;
+        }
+        .hero h1 { font-size: clamp(2.1rem, 4.6vw, 3.3rem); line-height: 1.12; letter-spacing: -1px; font-weight: 800; }
+        .hero h1 em { font-style: normal; background: linear-gradient(120deg, #7c3aed, #c084fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .hero p.sub { margin-top: 18px; font-size: 1.08rem; color: #5c5674; max-width: 520px; }
+        .hero-ctas { margin-top: 30px; display: flex; gap: 14px; flex-wrap: wrap; }
+        .btn {
+            display: inline-block; padding: 13px 28px; border-radius: 12px;
+            font-weight: 700; font-size: 0.98rem; transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff;
+            box-shadow: 0 6px 20px rgba(124,58,237,0.35);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(124,58,237,0.45); }
+        .btn-ghost { background: #fff; color: #4b4563; border: 1.5px solid #dcd6f0; }
+        .btn-ghost:hover { border-color: #7c3aed; color: #7c3aed; transform: translateY(-2px); }
+        .hero-note { margin-top: 16px; font-size: 0.85rem; color: #8a84a3; }
+        .hero-note strong { color: #4b4563; }
+
+        /* Mock de reserva (UI ficticia) */
+        .mock {
+            background: #fff; border-radius: 20px; padding: 26px;
+            box-shadow: 0 24px 60px rgba(60,30,110,0.14);
+            border: 1px solid #eee9fb; max-width: 400px; margin-left: auto;
+        }
+        .mock-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+        .mock-avatar {
+            width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
+            background: linear-gradient(135deg, #7c3aed, #c084fc);
+            display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 1.1rem;
+        }
+        .mock-head strong { display: block; font-size: 0.98rem; }
+        .mock-head small { color: #8a84a3; font-size: 0.8rem; }
+        .mock-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 14px; border-radius: 12px; background: #f7f5fe; margin-bottom: 10px;
+        }
+        .mock-row .d { font-size: 0.85rem; color: #5c5674; }
+        .mock-row .v { font-size: 0.85rem; font-weight: 700; color: #1e1b2e; }
+        .mock-cta {
+            margin-top: 16px; text-align: center; padding: 12px; border-radius: 12px;
+            background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; font-weight: 700; font-size: 0.92rem;
+            box-shadow: 0 6px 16px rgba(124,58,237,0.3);
+        }
+        .mock-tag {
+            display: inline-block; margin-top: 12px; font-size: 0.75rem; color: #0e9f6e;
+            background: #e7fbf2; border-radius: 999px; padding: 4px 12px; font-weight: 600;
+        }
+        @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding: 48px 5% 60px; } .mock { margin: 0 auto; } }
+
+        /* ---------- CATEGORÍAS ---------- */
+        .chips {
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+            padding: 0 5% 56px;
+        }
+        .chip {
+            background: #fff; border: 1px solid #e6e0f7; border-radius: 999px;
+            padding: 8px 18px; font-size: 0.85rem; font-weight: 600; color: #4b4563;
+        }
+        .chip:hover { border-color: #7c3aed; color: #7c3aed; }
+
+        /* ---------- SECCIONES ---------- */
+        section { padding: 64px 5%; }
+        .sec-head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
+        .sec-head h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); letter-spacing: -0.5px; font-weight: 800; }
+        .sec-head p { margin-top: 12px; color: #5c5674; }
+
+        /* Beneficios */
+        .benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .benefit {
+            background: #fff; border: 1px solid #eee9fb; border-radius: 16px; padding: 26px;
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .benefit:hover { transform: translateY(-4px); box-shadow: 0 14px 34px rgba(60,30,110,0.10); }
+        .benefit .ico {
+            width: 46px; height: 46px; border-radius: 12px; margin-bottom: 16px;
+            background: linear-gradient(135deg, #f3ebff, #e9ddfd);
+            display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+        }
+        .benefit h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
+        .benefit p { font-size: 0.9rem; color: #5c5674; }
+        @media (max-width: 900px) { .benefits { grid-template-columns: 1fr; } }
+
+        /* Pasos */
+        .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
+        .step { text-align: center; padding: 26px 18px; }
+        .step .num {
+            width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 50%;
+            background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff;
+            font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 20px rgba(124,58,237,0.3);
+        }
+        .step h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
+        .step p { font-size: 0.9rem; color: #5c5674; }
+        @media (max-width: 900px) { .steps { grid-template-columns: 1fr; } }
+
+        /* Planes */
+        .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 980px; margin: 0 auto; align-items: stretch; }
+        .plan {
+            background: #fff; border: 1.5px solid #eee9fb; border-radius: 18px; padding: 30px 26px;
+            display: flex; flex-direction: column;
+        }
+        .plan.featured {
+            border-color: #7c3aed;
+            box-shadow: 0 18px 44px rgba(124,58,237,0.16);
+            position: relative;
+        }
+        .plan .tag {
+            position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff;
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.4px;
+            padding: 5px 14px; border-radius: 999px; white-space: nowrap;
+        }
+        .plan h3 { font-size: 1.05rem; font-weight: 700; }
+        .plan .price { margin: 14px 0 4px; font-size: 2rem; font-weight: 800; letter-spacing: -1px; }
+        .plan .price small { font-size: 0.85rem; color: #8a84a3; font-weight: 500; }
+        .plan .per { font-size: 0.82rem; color: #8a84a3; margin-bottom: 18px; }
+        .plan ul { list-style: none; margin-bottom: 22px; flex: 1; }
+        .plan li { font-size: 0.88rem; color: #4b4563; padding: 5px 0; }
+        .plan li::before { content: "✓ "; color: #0e9f6e; font-weight: 800; }
+        .plan .btn { text-align: center; }
+        .plan.featured .btn-primary { width: 100%; }
+        @media (max-width: 900px) { .plans { grid-template-columns: 1fr; max-width: 420px; } }
+
+        /* CTA final */
+        .cta-final {
+            text-align: center; border-radius: 24px; max-width: 900px; margin: 0 auto;
+            padding: 60px 40px; color: #fff;
+            background: linear-gradient(135deg, #6d3ae0, #a855f7);
+            box-shadow: 0 24px 60px rgba(109,58,224,0.35);
+        }
+        .cta-final h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.5px; }
+        .cta-final p { margin: 14px auto 28px; opacity: 0.9; max-width: 480px; }
+        .btn-white {
+            background: #fff; color: #6d3ae0; padding: 14px 34px; border-radius: 12px;
+            font-weight: 800; font-size: 1rem; box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+        }
+        .btn-white:hover { transform: translateY(-2px); }
+
+        /* Footer */
+        footer {
+            padding: 34px 5%; text-align: center; color: #8a84a3; font-size: 0.85rem;
+            border-top: 1px solid #ece9f7;
+        }
+        footer a { color: #7c3aed; font-weight: 600; }
+    </style>
 </head>
 <body>
-    <p>Redirigiendo a <a href="login.html">inicio de sesión</a>...</p>
+
+    <nav class="nav">
+        <div class="nav-logo">Organi<span>fy</span></div>
+        <div class="nav-links">
+            <a href="#beneficios">Beneficios</a>
+            <a href="#como-funciona">Cómo funciona</a>
+            <a href="#planes">Planes</a>
+            <a href="login.html">Directorio</a>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <a class="nav-login" href="login.html">Iniciar sesión</a>
+            <a class="nav-cta" href="login.html">Probar gratis</a>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div>
+            <span class="hero-badge">✦ Agenda online para pymes y profesionales</span>
+            <h1>Tu negocio, <em>agendado</em> y organizado solo</h1>
+            <p class="sub">Organify te da una página propia para que tus clientes reserven en línea, con recordatorios automáticos, tu equipo conectado y presencia en el directorio local.</p>
+            <div class="hero-ctas">
+                <a class="btn btn-primary" href="login.html">Probar gratis 14 días</a>
+                <a class="btn btn-ghost" href="#planes">Ver planes</a>
+            </div>
+            <p class="hero-note">Sin tarjeta para empezar · Activa tu negocio en menos de 2 minutos · <strong>$15.000/mes</strong> cuando decidas seguir</p>
+        </div>
+        <div class="mock">
+            <div class="mock-head">
+                <div class="mock-avatar">M</div>
+                <div>
+                    <strong>Miu Street Workout</strong>
+                    <small>Entrenador personal · Ñuñoa</small>
+                </div>
+            </div>
+            <div class="mock-row"><span class="d">Servicio</span><span class="v">Entrenamiento funcional</span></div>
+            <div class="mock-row"><span class="d">Fecha</span><span class="v">Jueves 10 · 18:00</span></div>
+            <div class="mock-row"><span class="d">Duración</span><span class="v">60 min · $15.000</span></div>
+            <div class="mock-cta">Reservar hora</div>
+            <span class="mock-tag">✓ Confirmación y recordatorio automáticos</span>
+        </div>
+    </header>
+
+    <div class="chips">
+        <span class="chip">💆 Estética y belleza</span>
+        <span class="chip">🩺 Salud y bienestar</span>
+        <span class="chip">🏋️ Deporte y clases</span>
+        <span class="chip">✂️ Barberías y peluquerías</span>
+        <span class="chip">🔧 Servicios a domicilio</span>
+        <span class="chip">🎨 Profesionales y creativos</span>
+    </div>
+
+    <section id="beneficios">
+        <div class="sec-head">
+            <h2>Todo lo que tu negocio necesita para no perder clientes</h2>
+            <p>Deja de coordinar por WhatsApp y mensajes. Organify centraliza tus reservas, tus clientes y tu equipo.</p>
+        </div>
+        <div class="benefits">
+            <div class="benefit">
+                <div class="ico">📅</div>
+                <h3>Agenda online 24/7</h3>
+                <p>Tus clientes reservan solos, a cualquier hora, desde tu página. Tú ves los cupos por hora en tiempo real.</p>
+            </div>
+            <div class="benefit">
+                <div class="ico">🔗</div>
+                <h3>Página propia para tu negocio</h3>
+                <p>Un link para compartir en Instagram, WhatsApp y Google con tu catálogo, precios y reserva con carrito de servicios.</p>
+            </div>
+            <div class="benefit">
+                <div class="ico">🔔</div>
+                <h3>Recordatorios automáticos</h3>
+                <p>Menos ausencias: tus clientes reciben avisos de su cita y tú te enteras de cada reserva al instante.</p>
+            </div>
+            <div class="benefit">
+                <div class="ico">🗂️</div>
+                <h3>Tus clientes organizados</h3>
+                <p>Fichas por cliente, historial, etiquetas de pago y un tablero kanban para saber en qué está cada uno.</p>
+            </div>
+            <div class="benefit">
+                <div class="ico">📍</div>
+                <h3>Directorio local con reseñas</h3>
+                <p>Apareces en el directorio de Organify, con tu categoría, reseñas de clientes y botón de reserva directa.</p>
+            </div>
+            <div class="benefit">
+                <div class="ico">👥</div>
+                <h3>Tu equipo conectado</h3>
+                <p>Agrega trabajadores con su propio horario y acceso, y coordinen las citas sin duplicar ni pisarse.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="como-funciona" style="background:#f3effc;">
+        <div class="sec-head">
+            <h2>En 3 pasos estás recibiendo reservas</h2>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="num">1</div>
+                <h3>Crea tu cuenta</h3>
+                <p>Regístrate con tu correo, ponle nombre a tu negocio y activa tu prueba gratis de 14 días. Sin tarjeta.</p>
+            </div>
+            <div class="step">
+                <div class="num">2</div>
+                <h3>Configura tus servicios</h3>
+                <p>Agrega lo que ofreces, sus precios, duración y tus horarios. En minutos, no en días.</p>
+            </div>
+            <div class="step">
+                <div class="num">3</div>
+                <h3>Comparte tu link</h3>
+                <p>Pon tu página de Organify en tu bio y en tu WhatsApp. Tus clientes reservan solos y tú solo te dedicas a atender.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="planes">
+        <div class="sec-head">
+            <h2>Planes simples, sin letra chica</h2>
+            <p>Empieza gratis y paga solo cuando tu negocio esté funcionando con Organify.</p>
+        </div>
+        <div class="plans">
+            <div class="plan">
+                <h3>Prueba gratis</h3>
+                <div class="price">$0</div>
+                <div class="per">14 días · sin tarjeta</div>
+                <ul>
+                    <li>Todas las funciones de Organify</li>
+                    <li>Agenda y catálogo ilimitados</li>
+                    <li>Página para tus clientes</li>
+                    <li>Recordatorios automáticos</li>
+                </ul>
+                <a class="btn btn-ghost" href="login.html">Empezar gratis</a>
+            </div>
+            <div class="plan featured">
+                <span class="tag">MÁS ELEGIDO</span>
+                <h3>Pro</h3>
+                <div class="price">$15.000 <small>/mes</small></div>
+                <div class="per">cobro automático · cancela cuando quieras</div>
+                <ul>
+                    <li>Todo lo de la prueba gratis</li>
+                    <li>Estadísticas avanzadas</li>
+                    <li>Etiquetas de pago y kanban</li>
+                    <li>Portal para tu equipo</li>
+                    <li>Directorio local con reseñas</li>
+                    <li>Soporte prioritario</li>
+                </ul>
+                <a class="btn btn-primary" href="login.html">Empezar</a>
+            </div>
+            <div class="plan">
+                <h3>Premium Anual</h3>
+                <div class="price">$140.000 <small>/año</small></div>
+                <div class="per">ahorras $40.000 al año</div>
+                <ul>
+                    <li>Todo lo del plan Pro</li>
+                    <li>Un solo pago anual</li>
+                    <li>Precio preferente</li>
+                </ul>
+                <a class="btn btn-ghost" href="login.html">Empezar</a>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="cta-final">
+            <h2>¿Listo para organizar tu negocio?</h2>
+            <p>Únete a las pymes que ya reciben reservas en línea, reducen ausencias y se ven más profesionales con Organify.</p>
+            <a class="btn btn-white" href="login.html">Probar gratis 14 días</a>
+        </div>
+    </section>
+
+    <footer>
+        <p>© 2026 Organify · <a href="login.html">Iniciar sesión</a> · <a href="login.html">Crear cuenta</a> · <a href="login.html">Directorio de pymes</a></p>
+    </footer>
+
 </body>
 </html>

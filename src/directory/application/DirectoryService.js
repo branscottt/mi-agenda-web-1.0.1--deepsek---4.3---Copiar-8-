@@ -16,6 +16,20 @@ export async function getDirectorio() {
 }
 
 /**
+ * Slugs públicos de un conjunto de tenants (para URLs amigables /p/:slug).
+ * @param {string[]} tenantIds
+ * @returns {Promise<Record<string,string>>} mapa tenant_id → slug
+ */
+export async function getSlugs(tenantIds) {
+    if (!Array.isArray(tenantIds) || tenantIds.length === 0) return {};
+    const { data, error } = await getSupabase().rpc('get_slugs_by_ids', { p_ids: tenantIds });
+    if (error) throw error;
+    const mapa = {};
+    (data || []).forEach(fila => { if (fila?.tenant_id && fila?.slug) mapa[fila.tenant_id] = fila.slug; });
+    return mapa;
+}
+
+/**
  * Crea una reseña para una pyme (queda 'pendiente' hasta moderación).
  * @param {string} tenantId
  * @param {string} nombreCliente

@@ -3,8 +3,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/login.html"
+      "source": "/p/:slug",
+      "destination": "/cliente.html?tenant=:slug"
     },
     {
       "source": "/reset-pass.html",

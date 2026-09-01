@@ -108,6 +108,12 @@ if (fs.existsSync('sw.js')) {
     console.log('   ✅ dist/sw.js copied');
 }
 
+// 4a. Copiar directorio.js (página pública SEO del directorio)
+if (fs.existsSync('directorio.js')) {
+    fs.copyFileSync('directorio.js', 'dist/directorio.js');
+    console.log('   ✅ dist/directorio.js copied');
+}
+
 // 4b. Copiar archivos de higiene web (robots, sitemap, security.txt)
 for (const f of ['robots.txt', 'sitemap.xml']) {
     if (fs.existsSync(f)) {
@@ -123,7 +129,7 @@ if (fs.existsSync('.well-known/security.txt')) {
 }
 
 // 5. Copiar HTML files a dist/
-const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html'];
+const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html', 'directorio.html'];
 for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
         let content = fs.readFileSync(f, 'utf-8');
