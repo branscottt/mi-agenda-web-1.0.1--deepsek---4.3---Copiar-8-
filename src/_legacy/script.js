@@ -661,6 +661,12 @@ const CitasManager = {
 // CONFIGURAR LIMPIEZA AUTOMÁTICA
 // ============================================
 function configurarLimpiezaAutomatica() {
+    // La limpieza de citas expiradas es tarea del admin con sesión. En el flujo
+    // anónimo (cliente externo, /p/:slug) el RLS deniega el DELETE y solo genera
+    // errores 42501/401 en consola — mismo guard que usa NotificacionesAdminManager.
+    const accessToken = localStorage.getItem('agendapro_access_token');
+    if (!accessToken) return;
+
     setInterval(async () => {
         const eliminadas = await CitasManager.limpiarExpiradas();
         
