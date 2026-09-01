@@ -87,4 +87,52 @@ async function cargarDirectorioVivo() {
     grid.innerHTML = muestra.map(p => renderCard(p, slugs[p.tenant_id])).join('');
 }
 
-document.addEventListener('DOMContentLoaded', cargarDirectorioVivo);
+// ── Mocks de la portada con datos REALES del tenant (Miu) ──
+// El hero y el demo muestran "Miu Street Workout" como ejemplo; sus servicios
+// y precios se cargan desde la BD (nada hardcodeado/inventado).
+const MOCK_TENANT_ID = 'bee07bcd-6c45-469b-aaf1-bf0e3481a3ca'; // Miu Street workout training
+
+function formatearPrecio(valor) {
+    const n = Number(valor);
+    if (!isFinite(n) || n <= 0) return '';
+    return '$' + Math.round(n).toLocaleString('es-CL');
+}
+
+async function cargarMockReal() {
+    const heroNombre = document.getElementById('mock-servicio-nombre');
+    const heroPrecio = document.getElementById('mock-servicio-precio');
+    const demoLista = document.getElementById('mock-demo-list');
+    if (!heroNombre && !heroPrecio && !demoLista) return;
+
+    try {
+        // Contexto RLS anónimo para leer el catálogo del tenant
+        await rpc('set_tenant_anon', { p_tenant_id: MOCK_TENANT_ID });
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/servicios?tenant_id=eq.${MOCK_TENANT_ID}&select=nombre,precio,duracion,descripcion&activo=eq.true&order=precio.asc`, {
+            headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` },
+        });
+        if (!resp.ok) throw new Error(`servicios HTTP ${resp.status}`);
+        const servicios = await resp.json();
+        if (!Array.isArray(servicios) || servicios.length === 0) return;
+
+        const primero = servicios[0];
+        const precio1 = formatearPrecio(primero.precio);
+        if (heroNombre) heroNombre.textContent = primero.nombre || 'Entrenador personal';
+        if (heroPrecio) heroPrecio.textContent = precio1 || '…';
+
+        if (demoLista) {
+            demoLista.innerHTML = servicios.slice(0, 3).map(s => {
+                const p = formatearPrecio(s.precio);
+                const dur = Number(s.duracion) > 0 ? ` · ${s.duracion} min` : '';
+                return `<div class="mock-row"><span class="d">${escapeHtml(s.nombre)}</span><span class="v">${p}${dur}</span></div>`;
+            }).join('');
+        }
+    } catch (e) {
+        // Sin datos reales: dejar los placeholders neutrales (nada inventado)
+        console.warn('[home-mock] No se pudieron cargar servicios reales:', e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    cargarDirectorioVivo();
+    cargarMockReal();
+});
