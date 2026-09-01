@@ -133,6 +133,46 @@ export async function createMercadoPagoPreapproval({ plan, tenantId, email, nomb
 }
 
 /**
+ * CANCELA la suscripción recurrente de Mercado Pago del tenant y desactiva
+ * el plan en la base de datos. Llama a la Edge Function cancelar-suscripcion
+ * (verify_jwt=true), que hace PUT /preapproval/{id} { status: 'cancelled' }
+ * en MP — esto DETIENE los cobros automáticos mensuales/anuales.
+ * @param {Object} params
+ * @param {string} params.tenantId - tenant del cual cancelar la suscripción
+ * @param {string} [params.targetTenantId] - (solo super_admin) cancelar la de otro tenant
+ * @returns {Promise<{ok: boolean, mp_cancelled: boolean, preapproval_id: string|null}>}
+ */
+export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId }) {
+    if (!tenantId && !targetTenantId) {
+        throw new Error('tenantId es requerido');
+    }
+
+    const token = getAuthToken();
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    } else {
+        console.warn('[MP] No JWT disponible — la solicitud podría ser rechazada');
+    }
+
+    const response = await fetch(`${getEdgeFunctionUrl()}/cancelar-suscripcion`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(targetTenantId ? { tenant_id: targetTenantId } : { tenant_id: tenantId }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || `Error HTTP ${response.status}`);
+    }
+
+    return await response.json();
+}
+
+/**
  * Redirige al usuario al checkout de Mercado Pago
  * @param {string} initPoint - URL de checkout (init_point o sandbox_init_point)
  */

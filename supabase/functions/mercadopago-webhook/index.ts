@@ -471,6 +471,72 @@ async function handle(req: Request): Promise<Response> {
           } else {
             console.log(`[MP-Webhook] Suscripción activada para tenant ${tenantId}`);
           }
+
+          // Cupón 50% (aprobado por superadmin, cada 3 meses): si el tenant
+          // tiene un cupón aprobado sin usar, ESTE cobro mensual se descuenta
+          // automáticamente con un reembolso parcial de $7.500 (el tenant paga
+          // $7.500 netos sin volver a usar la tarjeta). El mes siguiente se
+          // cobra $15.000 normal. Solo aplica a cobros de suscripción
+          // (payment con preapproval_id) del plan Pro a precio completo.
+          if (plan === 'pro' && payment.preapproval_id && Number(payment.transaction_amount || 0) === 15000) {
+            try {
+              const promoResp = await fetch(
+                `${supabaseUrl}/rest/v1/rpc/can_use_promo_coupon`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'apikey': serviceRoleKey,
+                    'Authorization': `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ p_tenant_id: tenantId }),
+                }
+              );
+              if (promoResp.ok) {
+                const promoData = await promoResp.json();
+                const promo = Array.isArray(promoData) ? promoData[0] : promoData;
+                if (promo?.discount_available === true && promo?.existing_id) {
+                  // Reembolso parcial de $7.500 (50% de $15.000)
+                  const refundResp = await fetch(
+                    `https://api.mercadopago.com/v1/payments/${paymentId}/refunds`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        'X-Idempotency-Key': `${paymentId}-coupon50`,
+                      },
+                      body: JSON.stringify({ amount: 7500 }),
+                    }
+                  );
+                  if (refundResp.ok) {
+                    // Marcar el cupón como usado SOLO si el reembolso fue exitoso;
+                    // si falla, el próximo cobro mensual reintenta el descuento.
+                    await fetch(
+                      `${supabaseUrl}/rest/v1/promo_video_coupons?id=eq.${promo.existing_id}`,
+                      {
+                        method: 'PATCH',
+                        headers: {
+                          'apikey': serviceRoleKey,
+                          'Authorization': `Bearer ${serviceRoleKey}`,
+                          'Content-Type': 'application/json',
+                          'Prefer': 'return=minimal',
+                        },
+                        body: JSON.stringify({ discount_applied: true, used_at: new Date().toISOString() }),
+                      }
+                    );
+                    console.log(`[MP-Webhook] Cupón ${promo.existing_id} aplicado al payment ${paymentId}: reembolso parcial $7.500 — mes siguiente cobra $15.000 normal`);
+                  } else {
+                    console.error(`[MP-Webhook] Error reembolsando cupón del payment ${paymentId} (${refundResp.status}):`, (await refundResp.text().catch(() => '')).slice(0, 200));
+                  }
+                }
+              } else {
+                console.warn(`[MP-Webhook] Error consultando cupón para tenant ${tenantId}: ${promoResp.status}`);
+              }
+            } catch (e) {
+              console.error('[MP-Webhook] Error aplicando cupón (refund):', e);
+            }
+          }
         }
       } else if (ourStatus === 'approved' && tenantId && plan && yaProcesado) {
         console.log(`[MP-Webhook] Payment ${paymentId} ya procesado — omitiendo activación duplicada`);

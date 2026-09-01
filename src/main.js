@@ -420,6 +420,7 @@ async function syncJwtSession() {
             exposeGlobal('__mercadopago', {
                 createPreference: mercadopagoClient.createMercadoPagoPreference,
                 createPreapproval: mercadopagoClient.createMercadoPagoPreapproval,
+                cancelSuscripcion: mercadopagoClient.cancelarSuscripcionMercadoPago,
                 redirect: mercadopagoClient.redirectToMercadoPago,
                 checkStatus: mercadopagoClient.checkPaymentStatusFromUrl
             });

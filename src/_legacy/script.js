@@ -3021,61 +3021,29 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
         } catch (e) {}
     }
 
-    // Cupón promocional 50% (solo Pro mensual, pago único del mes)
-    let monto;
-    let cuponAprobado = false;
-    if (planKey === 'pro' && window.__subscriptionsApi?.checkPromoCoupon) {
-        try {
-            const promoStatus = await window.__subscriptionsApi.checkPromoCoupon(tenantId);
-            const data = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
-            if (data && data.discount_available) {
-                monto = 7500; // 50% de $15.000
-                cuponAprobado = true;
-                const cuponId = data.existing_id;
-                if (cuponId) sessionStorage.setItem('promo_coupon_used', cuponId);
-                console.log('[Planes] Cupón 50% aplicado. Monto: $7.500');
-            }
-        } catch (e) {
-            console.warn('[Planes] Error verificando cupón promocional:', e);
-        }
-    }
-
+    // SIEMPRE suscripción recurrente (cobro automático $15.000/mes). El cupón
+    // 50% (aprobado por superadmin, cada 3 meses) descuenta AUTOMÁTICAMENTE un
+    // cobro mensual vía reembolso parcial en el webhook — NO afecta este pago.
+    // NUNCA degradar a pago único (bug verificado 2026-08-31: el fallback
+    // creaba preferencias de pago único de $15.000 sin suscripción recurrente).
     try {
-        if (cuponAprobado) {
-            // Con cupón aprobado: pago único del mes con descuento (decisión de negocio explícita)
-            const pref = await mp.createPreference({
-                plan: planKey,
-                tenantId: tenantId,
-                email: email,
-                nombre: email,
-                monto: monto,
-            });
-            mp.redirect(pref.init_point || pref.sandbox_init_point);
-        } else {
-            // Sin cupón: SIEMPRE suscripción recurrente (cobro automático).
-            // Esperar hasta que main.js exponga el cliente moderno (carrera de carga
-            // main.js vs script.js). NUNCA degradar silenciosamente a pago único:
-            // el botón promete "cobro automático" y un pago único dejaría al usuario
-            // pagando sin suscripción recurrente (bug verificado 2026-08-31: el
-            // fallback creaba preferencias de pago único de $15.000).
-            let esperaMs = 0;
-            while (typeof mp.createPreapproval !== 'function' && esperaMs < 3000) {
-                await new Promise(r => setTimeout(r, 300));
-                esperaMs += 300;
-            }
-            if (typeof mp.createPreapproval !== 'function') {
-                console.error('[Planes] createPreapproval no disponible tras 3s — no se degrada a pago único');
-                mostrarToast('El módulo de suscripciones aún está cargando. Recarga la página e inténtalo de nuevo.', 'error');
-                return;
-            }
-            const pref = await mp.createPreapproval({
-                plan: planKey,
-                tenantId: tenantId,
-                email: email,
-                nombre: email,
-            });
-            mp.redirect(pref.init_point);
+        let esperaMs = 0;
+        while (typeof mp.createPreapproval !== 'function' && esperaMs < 3000) {
+            await new Promise(r => setTimeout(r, 300));
+            esperaMs += 300;
         }
+        if (typeof mp.createPreapproval !== 'function') {
+            console.error('[Planes] createPreapproval no disponible tras 3s — no se degrada a pago único');
+            mostrarToast('El módulo de suscripciones aún está cargando. Recarga la página e inténtalo de nuevo.', 'error');
+            return;
+        }
+        const pref = await mp.createPreapproval({
+            plan: planKey,
+            tenantId: tenantId,
+            email: email,
+            nombre: email,
+        });
+        mp.redirect(pref.init_point);
     } catch (err) {
         console.error('[Planes] Error iniciando pago MP:', err);
         mostrarToast('Error al iniciar pago: ' + err.message, 'error');
@@ -4941,25 +4909,43 @@ async function iniciarAdmin() {
     }
 
     // ========== BOTÓN CANCELAR SUSCRIPCIÓN (doble confirmación) ==========
+    // Cancela DE VERDAD en Mercado Pago (PUT /preapproval → detiene los
+    // cobros automáticos) y desactiva el plan en la base de datos, vía la
+    // Edge Function cancelar-suscripcion. El UPDATE directo anterior solo
+    // marcaba 'inactive' en la DB y los cobros mensuales seguían.
     const cancelBtn = document.getElementById('cancel-subscription-btn');
     if (cancelBtn) {
         cancelBtn.addEventListener('click', async () => {
             // Primera confirmación
             if (!confirm('¿Estás seguro de cancelar tu suscripción activa?')) return;
             // Segunda confirmación
-            if (!confirm('⚠️ Esta acción desactivará tu plan actual. ¿Confirmas la cancelación?\n\nTus datos se conservarán y podrás reactivar tu suscripción en cualquier momento desde "Cambiar plan".')) return;
+            if (!confirm('⚠️ Esta acción CANCELARÁ tu suscripción en Mercado Pago: se detendrán los cobros automáticos y tu plan pasará a inactivo. ¿Confirmas?\n\nTus datos se conservarán y podrás reactivar tu suscripción en cualquier momento desde "Cambiar plan".')) return;
             const suscripcion = await SuscripcionManager.getCurrent();
             if (!suscripcion) {
                 mostrarToast('No hay suscripción activa', 'error');
                 return;
             }
-            const ok = await SuscripcionManager.cancel(suscripcion.id);
-            if (ok) {
-                mostrarToast('Suscripción cancelada. Tu plan pasará a inactivo.', 'success');
-                await cargarSuscripcionTenant();
-                if (typeof cargarPlanes === 'function') cargarPlanes();
-            } else {
-                mostrarToast('Error al cancelar suscripción', 'error');
+            const mp = window.__mercadopago;
+            if (!mp || typeof mp.cancelSuscripcion !== 'function') {
+                mostrarToast('El módulo de cancelación aún está cargando. Recarga la página e inténtalo de nuevo.', 'error');
+                return;
+            }
+            try {
+                const result = await mp.cancelSuscripcion({ tenantId: suscripcion.tenant_id });
+                if (result && result.ok) {
+                    if (result.mp_cancelled) {
+                        mostrarToast('Suscripción cancelada. Cobros automáticos detenidos.', 'success');
+                    } else {
+                        mostrarToast('Suscripción cancelada. No había cobro automático activo.', 'success');
+                    }
+                    await cargarSuscripcionTenant();
+                    if (typeof cargarPlanes === 'function') cargarPlanes();
+                } else {
+                    mostrarToast('Error al cancelar suscripción', 'error');
+                }
+            } catch (e) {
+                console.error('[CancelarSuscripcion] Error:', e);
+                mostrarToast('Error al cancelar en Mercado Pago: ' + (e.message || 'intenta de nuevo'), 'error');
             }
         });
     }

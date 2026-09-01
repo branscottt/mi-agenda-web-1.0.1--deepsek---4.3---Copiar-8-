@@ -163,6 +163,14 @@ async function handle(req: Request): Promise<Response> {
       });
     }
 
+    // Nota: el cupón 50% NO afecta la creación de la suscripción. El precio
+    // SIEMPRE es el normal ($15.000/mes o $140.000/año). Cuando el superadmin
+    // aprueba el cupón (cada 3 meses), el webhook reembolsa automáticamente
+    // $7.500 de UN cobro mensual (refund parcial) y el mes siguiente sigue
+    // cobrando el precio normal.
+    const amount = planInfo.amount;
+    const reason = `${planInfo.title} - Agenda Pro`;
+
     const accessToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
     if (!accessToken) {
       console.error('MERCADOPAGO_ACCESS_TOKEN no configurado');
@@ -179,11 +187,11 @@ async function handle(req: Request): Promise<Response> {
 
     // Crear preapproval (suscripción recurrente) en Mercado Pago
     const preapprovalBody = {
-      reason: `${planInfo.title} - Agenda Pro`,
+      reason,
       auto_recurring: {
         frequency: planInfo.frequency,
         frequency_type: planInfo.frequency_type,
-        transaction_amount: planInfo.amount,
+        transaction_amount: amount,
         currency_id: 'CLP',
       },
       payer_email: email,

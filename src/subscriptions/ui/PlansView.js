@@ -102,7 +102,7 @@ export async function renderPlans(container, apis) {
             ${promoActiva ? `
             <div class="promo-activa" style="background:rgba(0,184,148,0.12);border:1px solid rgba(0,184,148,0.45);color:#7ff5d8;padding:12px 16px;border-radius:12px;margin:14px 0 18px;display:flex;align-items:center;gap:10px;">
                 <i class="fas fa-tags" style="font-size:18px;"></i>
-                <span><strong>¡Cupón 50% activado!</strong> Tu plan Pro cuesta <strong>$7.500/mes</strong> — el descuento se aplica al pagar.</span>
+                <span><strong>¡Cupón 50% activado!</strong> Tu <strong>próximo cobro mensual</strong> automático será de <strong>$7.500</strong> (50% de $15.000); los siguientes meses se cobran <strong>$15.000</strong> normales.</span>
             </div>` : ''}
             ${paymentMessage}
             ${expiredBanner}
@@ -112,15 +112,12 @@ export async function renderPlans(container, apis) {
                 ${plansVisibles.map(p => {
                     const isCurrent = currentPlan === p.key;
                     const canPay = p.key !== 'freemium' && !isCurrent;
-                    const conDescuento = p.key === 'pro' && promoActiva;
                     return `
                     <div class="plan-card" data-plan="${p.key}" style="border:2px solid ${isCurrent ? p.color : '#dee2e6'}; border-radius:12px; padding:24px; width:280px; text-align:center; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
                         <i class="fas ${p.icon}" style="font-size:48px; color:${p.color};"></i>
                         <h3 style="margin:12px 0 4px;">${p.name}</h3>
                         <p style="font-size:24px; font-weight:bold; color:${p.color};">
-                            ${conDescuento
-                                ? '<span style="text-decoration:line-through;opacity:0.55;font-size:16px;font-weight:600;">$15.000</span> $7.500/mes <span style="font-size:11px;background:#00b894;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px;">50% OFF</span>'
-                                : p.price}
+                            ${p.price}
                         </p>
                         <ul style="list-style:none; padding:0; margin:16px 0; text-align:left;">
                             <li><i class="fas fa-check text-success"></i> Catálogo de servicios</li>
@@ -138,18 +135,9 @@ export async function renderPlans(container, apis) {
                                 ? `<button class="btn btn-success btn-activar-trial" data-plan="${p.key}">
                                     <i class="fas fa-flask"></i> Activar prueba gratis
                                   </button>`
-                                : conDescuento
-                                    ? `<div style="display:flex;flex-direction:column;gap:8px;">
-                                        <button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-modo="pago" data-price="7500">
-                                            <i class="fas fa-tags"></i> Pagar $7.500 (50% dcto)
-                                        </button>
-                                        <button class="btn btn-outline-secondary btn-pagar-mp" data-plan="${p.key}" data-modo="suscripcion" data-price="${p.priceValue}" style="background:transparent;border:1px solid #ced4da;color:#495057;">
-                                            <i class="fas fa-sync-alt"></i> Cobro automático $15.000/mes
-                                        </button>
-                                      </div>`
-                                    : `<button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-modo="suscripcion" data-price="${p.priceValue}">
-                                        <i class="fas fa-sync-alt"></i> Suscribirme (cobro automático)
-                                      </button>`
+                                : `<button class="btn btn-primary btn-pagar-mp" data-plan="${p.key}" data-modo="suscripcion" data-price="${p.priceValue}">
+                                    <i class="fas fa-sync-alt"></i> Suscribirme (cobro automático)
+                                  </button>`
                         }
                     </div>`;
                 }).join('')}
@@ -175,23 +163,10 @@ export async function renderPlans(container, apis) {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
 
             try {
-                // Cupón 50% aprobado: SOLO aplica al pago único del mes (modo pago)
-                let monto = undefined;
-                let cuponId = null;
-                if (plan === 'pro' && modo === 'pago') {
-                    try {
-                        const promoStatus = await checkPromoCouponStatus(tenantId);
-                        const data = Array.isArray(promoStatus) ? promoStatus[0] : promoStatus;
-                        if (data && data.discount_available) {
-                            monto = 7500; // 50% de $15.000
-                            cuponId = data.existing_id;
-                            console.log('[PlansView] Cupón descuento 50% aplicado. Monto: $7.500');
-                        }
-                    } catch (e) {
-                        console.warn('[PlansView] Error verificando cupón promocional:', e);
-                    }
-                }
-
+                // El cupón 50% NO afecta el pago: la suscripción SIEMPRE es
+                // $15.000/mes (o $140.000/año) con cobro automático. Si el
+                // superadmin aprobó el cupón (cada 3 meses), el webhook
+                // reembolsa automáticamente $7.500 de UN cobro mensual.
                 if (modo === 'suscripcion') {
                     // Suscripción recurrente: cobro automático mensual/anual
                     const pref = await createMercadoPagoPreapproval({
@@ -202,19 +177,13 @@ export async function renderPlans(container, apis) {
                     });
                     redirectToMercadoPago(pref.init_point);
                 } else {
-                    // Pago único del mes (con o sin descuento)
+                    // Pago único del mes (flujo de respaldo)
                     const pref = await createMercadoPagoPreference({
                         plan: plan,
                         tenantId: tenantId,
                         email: userEmail,
                         nombre: userEmail,
-                        monto: monto,
                     });
-
-                    // Guardar cuponId en sessionStorage para marcarlo como usado cuando vuelva
-                    if (cuponId) {
-                        sessionStorage.setItem('promo_coupon_used', cuponId);
-                    }
 
                     redirectToMercadoPago(pref.init_point || pref.sandbox_init_point);
                 }
