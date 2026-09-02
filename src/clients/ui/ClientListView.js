@@ -9,6 +9,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { formatearDinero, formatDate, formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { abrirMenuEtiquetas, renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
+import * as kanbanApi from '../../api/kanbanApi.js';
 
 // ========== POLÍTICA DE RETENCIÓN ==========
 // Un cliente solo sale de "Mis Clientes" cuando:
@@ -164,6 +165,8 @@ let filtroActual = '';
 let mapaServicios = {};
 // Permiso de etiquetas de pago para trabajadores (master + lista blanca)
 let permisoEtiquetas = { permitir: false, trabajadores: [], trabajadoresLista: [] };
+// Resumen de contenido compartido por cliente: { email -> { board_id, token_compartido, listas_compartidas } }
+let compartidasPorEmail = {};
 
 export async function renderClientListView(containerId = 'clientes-list-container') {
     const container = document.getElementById(containerId);
@@ -235,6 +238,16 @@ export async function renderClientListView(containerId = 'clientes-list-containe
             console.warn('[ClientListView] No se pudieron cargar clientes manuales:', e);
         }
         fusionarClientesManuales(manuales);
+
+        // Qué listas comparte el admin con cada cliente (para el botón de
+        // "Enviar información por WhatsApp" y el chip en la card).
+        compartidasPorEmail = {};
+        try {
+            const resumen = await kanbanApi.getResumenCompartido(tenantId);
+            (resumen || []).forEach(r => { compartidasPorEmail[r.cliente_email] = r; });
+        } catch (e) {
+            console.warn('[ClientListView] No se pudo leer listas compartidas:', e);
+        }
 
         renderLista(container);
     } catch (e) {
@@ -331,6 +344,7 @@ function renderHelpBanner() {
             <div id="clientes-help-body" style="display:${visible ? 'block' : 'none'};padding:2px 16px 14px;font-size:0.83rem;color:var(--text-muted,#bbb);line-height:1.6;">
                 <ul style="margin:0;padding-left:18px;">
                     <li><strong>Información</strong> (botón de la tarjeta o clic en ella): abre el tablero completo del cliente. Ahí puedes <strong>guardar datos y escribir información</strong> (listas y tarjetas, ej. "Historia clínica", "Seguimiento", "Notas"), crear <strong>checklists</strong>, <strong>subir archivos</strong> (fotos, PDF, Word, Excel… hasta 100 MB), marcar el <strong>estado de pago</strong>, guardar plantillas de listas, editar su contacto y eliminarlo.</li>
+                    <li><strong>Compartir con el cliente</strong>: activá el <i class="fas fa-eye"></i> en las listas que quieras (o "Lo que ve el cliente" en el tablero) y en la tarjeta aparecerá <strong>"Enviar info"</strong>: le manda por WhatsApp un enlace donde el cliente ve <strong>solo esas listas</strong>, siempre actualizado.</li>
                     <li><strong>Historial</strong>: muestra todas sus citas (servicio, fecha, hora, precio y totales).</li>
                     <li><strong>Agregar cliente</strong>: importa clientes que ya tenías antes de la web, con reserva opcional.</li>
                     <li><strong>WhatsApp / Email / Llamar</strong>: contacto directo desde la tarjeta.</li>
@@ -371,6 +385,11 @@ function renderGridHtml(filtrados) {
             .filter(c => c.fecha >= hoyLocal)
             .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
 
+        // Información compartida con este cliente (botón WhatsApp / copiar enlace)
+        const comp = compartidasPorEmail[cl.email] || null;
+        const nComp = comp ? comp.listas_compartidas : 0;
+        const enlaceComp = (nComp > 0 && comp.token_compartido) ? kanbanApi.buildEnlaceCompartido(comp.token_compartido) : '';
+
         html += `
             <div class="cliente-card glass-panel cliente-card-clickable" data-email="${escapeHtml(cl.email)}" title="Clic para abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
                 <div class="cliente-card-header">
@@ -401,6 +420,10 @@ function renderGridHtml(filtrados) {
                             : `<span><i class="fas fa-user-plus"></i> Agregado: ${formatFechaCorta(cl.creadoEn)}</span>`}
                         ${proxCita ? `<span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: ${formatFechaCorta(proxCita.fecha)} ${formatTimeDisplay(proxCita.hora)}</span>` : ''}
                     </div>
+                    ${nComp > 0 ? `
+                    <div style="margin:4px 0 2px;">
+                        <span class="cliente-compartido-chip" title="Listas que este cliente ve a través de su enlace"><i class="fas fa-eye"></i> ${nComp} lista${nComp !== 1 ? 's' : ''} compartida${nComp !== 1 ? 's' : ''}</span>
+                    </div>` : ''}
                     <div class="cliente-etiqueta-fila" data-email="${escapeHtml(cl.email)}" title="Cambiar el estado de pago del cliente (aparece en Citas Programadas)">
                         ${renderChipEtiqueta(cl.estadoPago, { clickeable: true, vacioTexto: '<i class="fas fa-tag"></i> Marcar pago' })}
                     </div>
@@ -408,6 +431,14 @@ function renderGridHtml(filtrados) {
                         ${cl.telefono ? `<a href="https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}" target="_blank" class="btn-small" style="background:#25D366;color:#fff;" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></a>` : ''}
                         ${cl.email ? `<a href="mailto:${encodeURIComponent(cl.email)}" class="btn-small" style="background:var(--primary-color);color:#fff;" title="Enviar Email"><i class="fas fa-envelope"></i></a>` : ''}
                         ${cl.telefono ? `<a href="tel:${escapeHtml(cl.telefono)}" class="btn-small" style="background:var(--secondary-color);color:#fff;" title="Llamar"><i class="fas fa-phone"></i></a>` : ''}
+                        ${nComp > 0 && enlaceComp && cl.telefono ? `
+                        <a href="${buildWaInfoCliente(cl, enlaceComp)}" target="_blank" rel="noopener noreferrer" class="btn-small btn-enviar-info-cliente" style="background:#128C7E;color:#fff;font-weight:600;" title="Enviar por WhatsApp el enlace con la información que compartiste con este cliente">
+                            <i class="fab fa-whatsapp"></i> Enviar info
+                        </a>` : ''}
+                        ${nComp > 0 && !enlaceComp ? `
+                        <button class="btn-small btn-copiar-enlace-cliente" data-email="${escapeHtml(cl.email)}" style="background:rgba(46,230,168,0.15);color:#2ee6a8;border:1px solid rgba(46,230,168,0.3);" title="Copiar el enlace con la información compartida de este cliente">
+                            <i class="fas fa-link"></i> Copiar enlace
+                        </button>` : ''}
                         <button class="btn-small btn-info-cliente" data-email="${escapeHtml(cl.email)}" title="Abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
                             <i class="fas fa-id-card"></i> Información
                         </button>
@@ -517,6 +548,29 @@ function bindClienteCards(container) {
         });
         fila.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cambiarEtiquetaCliente(fila); }
+        });
+    });
+
+    // Copiar enlace de información compartida (cliente sin teléfono o token pendiente)
+    container.querySelectorAll('.btn-copiar-enlace-cliente').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const cl = clientesCache.find(c => c.email.toLowerCase() === btn.dataset.email.toLowerCase());
+            if (!cl) return;
+            const comp = compartidasPorEmail[cl.email];
+            if (!comp) return;
+            try {
+                let token = comp.token_compartido;
+                if (!token) {
+                    token = await kanbanApi.asegurarTokenCompartido(comp.board_id);
+                    comp.token_compartido = token;
+                }
+                const ok = await copiarAlPortapapeles(kanbanApi.buildEnlaceCompartido(token));
+                mostrarToast(ok ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace', ok ? 'success' : 'error');
+            } catch (err) {
+                console.error('[ClientListView] Error generando enlace compartido:', err);
+                mostrarToast('No se pudo generar el enlace', 'error');
+            }
         });
     });
 }
@@ -675,7 +729,10 @@ async function abrirInformacion(cliente) {
             precio: c.precio,
             servicio: mapaServicios[c.servicioId] || 'Servicio'
         }));
-        const { abrirInformacionCliente } = await import('./ClientBoard.js');
+        const { abrirInformacionCliente, configurarClientBoard } = await import('./ClientBoard.js');
+        // Al cerrar el tablero, refrescar Mis Clientes: así los cambios de
+        // "compartir con el cliente" se reflejan en la card al instante.
+        configurarClientBoard({ onCerrarBoard: () => { try { renderClientListView(); } catch (e) { /* sin listado */ } } });
         // Pasa también la lista de clientes del tenant para poder
         // aplicar un "estilo de listas" guardado a todos con un clic.
         await abrirInformacionCliente(cliente, citasConServicio, clientesCache);
@@ -760,6 +817,39 @@ function exportarClientesCSV() {
 }
 
 // ========== HELPERS ==========
+
+/** Enlace de WhatsApp con el mensaje de información compartida del cliente. */
+function buildWaInfoCliente(cl, enlace) {
+    const nombre = (cl.nombre && cl.nombre !== 'Sin nombre') ? cl.nombre.split(' ')[0] : '';
+    const saludo = nombre ? `Hola ${nombre}! 👋` : 'Hola! 👋';
+    const mensaje = `${saludo}\nTe compartí información a través de Organify. Abrí este enlace para verla:\n${enlace}\n\nEste enlace es solo para vos: cualquier cambio que haga se ve actualizado ahí.`;
+    return `https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`;
+}
+
+/** Copia texto al portapapeles (con fallback). Devuelve true/false. */
+async function copiarAlPortapapeles(texto) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texto);
+            return true;
+        }
+    } catch (e) { /* fallback */ }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, 99999);
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+    } catch (e) {
+        return false;
+    }
+}
 
 function escapeHtml(str) {
     if (!str && str !== 0) return '';

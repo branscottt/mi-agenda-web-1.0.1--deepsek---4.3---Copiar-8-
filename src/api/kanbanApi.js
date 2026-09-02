@@ -147,6 +147,62 @@ export async function deleteList(id) {
     return true;
 }
 
+// ========== COMPARTIR CON EL CLIENTE ==========
+
+/**
+ * Resumen del contenido compartido por cliente (para Mis Clientes):
+ * boards del tenant + cantidad de listas con compartida=true.
+ * Devuelve: [{ cliente_email, board_id, token_compartido, listas_compartidas }]
+ */
+export async function getResumenCompartido(tenantId) {
+    const supabase = getSupabase();
+    if (!tenantId) return [];
+
+    const { data: boards, error: errBoards } = await supabase
+        .from('kanban_boards')
+        .select('id, cliente_email, token_compartido')
+        .eq('tenant_id', tenantId);
+    if (errBoards) throw errBoards;
+    if (!boards || !boards.length) return [];
+
+    const boardIds = boards.map(b => b.id);
+    const { data: listas, error: errListas } = await supabase
+        .from('kanban_lists')
+        .select('board_id')
+        .in('board_id', boardIds)
+        .eq('compartida', true);
+    if (errListas) throw errListas;
+
+    const contador = {};
+    (listas || []).forEach(l => { contador[l.board_id] = (contador[l.board_id] || 0) + 1; });
+
+    return boards.map(b => ({
+        cliente_email: (b.cliente_email || '').toLowerCase(),
+        board_id: b.id,
+        token_compartido: b.token_compartido,
+        listas_compartidas: contador[b.id] || 0
+    }));
+}
+
+/**
+ * Asegura (crea si falta) y devuelve el token público del board.
+ * RPC admin_asegurar_token_compartido (SECURITY DEFINER + is_admin).
+ */
+export async function asegurarTokenCompartido(boardId) {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.rpc('admin_asegurar_token_compartido', {
+        p_board_id: boardId
+    });
+    if (error) throw error;
+    return data || null;
+}
+
+/** URL pública de la vista del cliente para un token. */
+export function buildEnlaceCompartido(token) {
+    const base = window.location.origin || `${window.location.protocol}//${window.location.host}`;
+    return `${base}/info-cliente.html?t=${encodeURIComponent(token)}`;
+}
+
 // ========== CARDS ==========
 
 export async function createCard(listId, { titulo, descripcion = '', posicion = 0, cita_id = null, etiquetas = [] }) {

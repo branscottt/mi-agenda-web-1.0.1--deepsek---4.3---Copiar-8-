@@ -50,6 +50,7 @@ export async function initWorkerPortal() {
         updateCita: async () => {},
         getCurrentTenantId: async () => tenantId,
         adjuntosSoloLectura: true,
+        compartirHabilitado: false, // solo el admin decide qué listas ve el cliente
         onEditarContacto: () => abrirModalEditarContacto(),
         onCerrarBoard: () => { cargarDatosPortal(); }
     });

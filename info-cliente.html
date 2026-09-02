@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi información - Organify</title>
+    <link rel="stylesheet" href="style.css?v=41">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="info-cliente-body">
+    <div class="info-cliente-wrap">
+        <div class="ic-card">
+            <div class="ic-header">
+                <div class="ic-avatar" id="ic-avatar"><span id="ic-inicial">—</span></div>
+                <div>
+                    <p class="ic-negocio-label">Información compartida por</p>
+                    <h2 class="ic-negocio" id="ic-negocio">Cargando...</h2>
+                </div>
+            </div>
+            <div id="ic-contenido">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Cargando tu información...</p>
+                </div>
+            </div>
+        </div>
+        <div class="ic-footer"><i class="fas fa-calendar-alt"></i> Organify</div>
+    </div>
+    <script type="module" src="dist/app.js"></script>
+</body>
+</html>

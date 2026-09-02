@@ -27,6 +27,7 @@ let deps = {
     updateCita,
     getCurrentTenantId,
     adjuntosSoloLectura: false,  // true = portal del trabajador (bucket privado)
+    compartirHabilitado: true,   // false = portal del trabajador (solo el admin decide qué ve el cliente)
     onEditarContacto: null,      // callback opcional → botón "Editar contacto"
     onCerrarBoard: null          // callback opcional al cerrar el modal
 };
@@ -37,6 +38,7 @@ export function configurarClientBoard(opts) {
     if (opts.updateCita) deps.updateCita = opts.updateCita;
     if (opts.getCurrentTenantId) deps.getCurrentTenantId = opts.getCurrentTenantId;
     if (typeof opts.adjuntosSoloLectura === 'boolean') deps.adjuntosSoloLectura = opts.adjuntosSoloLectura;
+    if (typeof opts.compartirHabilitado === 'boolean') deps.compartirHabilitado = opts.compartirHabilitado;
     if (typeof opts.onEditarContacto === 'function') deps.onEditarContacto = opts.onEditarContacto;
     if (typeof opts.onCerrarBoard === 'function') deps.onCerrarBoard = opts.onCerrarBoard;
 }
@@ -86,6 +88,7 @@ let clientesDelTenant = []; // [{ nombre, email, ... }] para aplicar estilos a t
 let cardModalAbierto = false;
 let cardModalCard = null;  // card cuyo modal está abierto (para refrescar badges al cerrar)
 let dragCardId = null;
+let tokenCompartido = null; // token público del board (enlace "lo que ve el cliente")
 
 // ========== APERTURA ==========
 
@@ -109,6 +112,7 @@ export async function abrirInformacionCliente(cliente, citas, clientes) {
     clienteActual = cliente;
     citasCliente = Array.isArray(citas) ? citas : [];
     clientesDelTenant = Array.isArray(clientes) ? clientes : [];
+    tokenCompartido = null;
     board = await deps.kanbanApi.getOrCreateBoard(tenantId, cliente.email, cliente.nombre || '');
     const datos = await deps.kanbanApi.getBoardData(board.id);
     lists = datos.lists || [];
@@ -155,6 +159,10 @@ function renderBoardModal() {
                     <button class="kanban-estilos-btn" id="kanban-usar-estilo" title="Aplicar un estilo de listas guardado">
                         <i class="fas fa-layer-group"></i><span class="kanban-estilos-txt"> Usar estilo</span>
                     </button>
+                    ${deps.compartirHabilitado ? `
+                    <button class="kanban-estilos-btn" id="kanban-compartir" title="Elegí qué listas ve el cliente (solo esas) y copiá su enlace para enviárselo por WhatsApp">
+                        <i class="fas fa-eye"></i><span class="kanban-estilos-txt"> Lo que ve el cliente</span>
+                    </button>` : ''}
                     ${!deps.adjuntosSoloLectura ? `
                     <button class="kanban-estilos-btn" id="kanban-eliminar-cliente" style="color:#ff6b6b;" title="Eliminar este cliente de Mis Clientes: borra sus citas, historial de ventas y tablero (no se puede deshacer)">
                         <i class="fas fa-trash"></i><span class="kanban-estilos-txt"> Eliminar cliente</span>
@@ -183,6 +191,7 @@ function renderBoardModal() {
     bindDnD();
     bindEstilos();
     bindEliminarCliente();
+    bindCompartir();
     const editarContactoBtn = document.getElementById('kanban-editar-contacto');
     if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
 }
@@ -469,6 +478,11 @@ function renderListasHtml() {
                 <div class="kanban-list-header">
                     <span class="kanban-list-titulo" title="Clic para editar el nombre">${escapeHtml(lista.titulo)}</span>
                     <span class="kanban-list-count" title="Tarjetas">${lista.cards.length}</span>
+                    ${deps.compartirHabilitado ? `
+                    <button class="kanban-list-share ${lista.compartida ? 'activa' : ''}" data-list-id="${lista.id}"
+                        title="${lista.compartida ? 'Visible para el cliente (clic para ocultarla)' : 'El cliente no ve esta lista (clic para compartirla)'}">
+                        <i class="fas fa-eye"></i>
+                    </button>` : ''}
                     <button class="kanban-list-del" data-list-id="${lista.id}" title="Eliminar lista"><i class="fas fa-trash"></i></button>
                 </div>
                 <div class="kanban-list-cards" data-list-id="${lista.id}">
@@ -510,6 +524,178 @@ function renderCardHtml(card) {
     `;
 }
 
+// ========== COMPARTIR CON EL CLIENTE (vista pública) ==========
+
+/** Botón del header del board → panel "Lo que ve el cliente". */
+function bindCompartir() {
+    const btn = document.getElementById('kanban-compartir');
+    if (btn) btn.addEventListener('click', abrirPanelCompartir);
+}
+
+/** Cambia compartida de una lista (desde el ojo del header o el panel). */
+async function toggleListaCompartida(lista, compartida) {
+    if (!board || !lista) return;
+    try {
+        if (compartida && !tokenCompartido) {
+            // Primera lista compartida → crea el enlace público del cliente
+            tokenCompartido = await deps.kanbanApi.asegurarTokenCompartido(board.id);
+        }
+        const actualizada = await deps.kanbanApi.updateList(lista.id, { compartida });
+        lista.compartida = actualizada.compartida === true;
+        refrescarEstadoListaEnBoard(lista.id);
+        mostrarToast(lista.compartida
+            ? `"${lista.titulo}" ahora es visible para el cliente`
+            : `"${lista.titulo}" ya no es visible para el cliente`, 'success');
+    } catch (err) {
+        console.error('[ClientBoard] Error al compartir lista:', err);
+        mostrarToast('No se pudo actualizar la lista compartida', 'error');
+    }
+}
+
+/** Refresca el ojo del header de la lista tras el toggle (sin re-render del board). */
+function refrescarEstadoListaEnBoard(listaId) {
+    const btn = document.querySelector(`.kanban-list-share[data-list-id="${listaId}"]`);
+    if (!btn) return;
+    const lista = lists.find(l => l.id === listaId);
+    const activa = !!(lista && lista.compartida);
+    btn.classList.toggle('activa', activa);
+    btn.title = activa
+        ? 'Visible para el cliente (clic para ocultarla)'
+        : 'El cliente no ve esta lista (clic para compartirla)';
+}
+
+/** Panel "Lo que ve el cliente": switches por lista + enlace para copiar/enviar. */
+async function abrirPanelCompartir() {
+    const overlay = document.createElement('div');
+    overlay.className = 'kanban-card-overlay';
+    overlay.id = 'kanban-share-overlay';
+    overlay.style.zIndex = '10100'; // sobre el board (10000) y el modal de tarjeta (10010)
+    overlay.innerHTML = `
+        <div class="kanban-share-panel">
+            <header class="kanban-card-modal-header">
+                <h4><i class="fas fa-eye"></i> Lo que ve el cliente</h4>
+                <button class="kanban-btn-close" id="kshare-cerrar" title="Cerrar"><i class="fas fa-times"></i></button>
+            </header>
+            <div class="kanban-share-body">
+                <p class="kanban-hint" style="margin:0 0 10px;">Activá las listas que querés que el cliente vea. Solo esas aparecen en su enlace; el resto del tablero sigue siendo privado.</p>
+                <div id="kshare-listas" class="kanban-share-listas">
+                    ${renderFilasCompartir()}
+                </div>
+                <div id="kshare-linkarea" class="kanban-share-linkarea"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('kshare-cerrar').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Toggles por lista
+    overlay.querySelectorAll('.kanban-share-check').forEach(cb => {
+        cb.addEventListener('change', async () => {
+            const lista = lists.find(l => l.id === cb.dataset.listId);
+            if (!lista) return;
+            cb.disabled = true;
+            await toggleListaCompartida(lista, cb.checked);
+            cb.disabled = false;
+            cb.checked = lista.compartida === true;
+            actualizarFilaCompartir(overlay, lista);
+            actualizarLinkarea(overlay);
+        });
+    });
+
+    actualizarLinkarea(overlay);
+}
+
+/** Refresca el texto/estado de una fila del panel tras el toggle. */
+function actualizarFilaCompartir(overlay, lista) {
+    if (!overlay || !lista) return;
+    const fila = overlay.querySelector(`.kanban-share-fila[data-list-id="${lista.id}"]`);
+    if (!fila) return;
+    const estadoEl = fila.querySelector('.kanban-share-estado');
+    const activa = lista.compartida === true;
+    if (estadoEl) {
+        estadoEl.textContent = activa ? 'visible' : 'oculta';
+        estadoEl.classList.toggle('on', activa);
+    }
+    fila.title = activa ? 'Quitar de lo que ve el cliente' : 'El cliente podrá ver esta lista';
+}
+
+function renderFilasCompartir() {
+    if (!lists.length) {
+        return '<p class="kanban-hint">Todavía no hay listas. Creá listas en el tablero y elegí cuáles compartir con el cliente.</p>';
+    }
+    return lists.map(lista => `
+        <label class="kanban-share-fila" data-list-id="${lista.id}" title="${lista.compartida ? 'Quitar de lo que ve el cliente' : 'El cliente podrá ver esta lista'}">
+            <input type="checkbox" class="kanban-share-check" data-list-id="${lista.id}" ${lista.compartida ? 'checked' : ''}>
+            <span class="kanban-share-nombre">${escapeHtml(lista.titulo)}</span>
+            <span class="kanban-share-count" title="Tarjetas">${lista.cards.length}</span>
+            <span class="kanban-share-estado ${lista.compartida ? 'on' : ''}">${lista.compartida ? 'visible' : 'oculta'}</span>
+        </label>
+    `).join('');
+}
+
+/** Zona del enlace (copiar / ver vista previa); depende de si hay listas activas. */
+async function actualizarLinkarea(overlay) {
+    const area = overlay.querySelector('#kshare-linkarea');
+    if (!area) return;
+    const activas = lists.filter(l => l.compartida);
+    if (!activas.length) {
+        area.innerHTML = '<p class="kanban-hint" style="margin:8px 0 0;">Cuando actives al menos una lista vas a poder copiar el enlace para enviárselo al cliente por WhatsApp.</p>';
+        return;
+    }
+    try {
+        if (!tokenCompartido) tokenCompartido = await deps.kanbanApi.asegurarTokenCompartido(board.id);
+    } catch (e) {
+        console.error('[ClientBoard] Error asegurando token:', e);
+        area.innerHTML = '<p class="kanban-hint">No se pudo generar el enlace. Intentalo de nuevo.</p>';
+        return;
+    }
+    const enlace = deps.kanbanApi.buildEnlaceCompartido(tokenCompartido);
+    area.innerHTML = `
+        <p class="kanban-hint" style="margin:10px 0 6px;"><i class="fas fa-share-alt"></i> El cliente ve ${activas.length} lista(s) con este enlace. Si editás contenido o cambiás las listas, él verá lo nuevo al abrirlo:</p>
+        <div class="kanban-share-enlace-row">
+            <input type="text" readonly value="${escapeHtml(enlace)}" class="kanban-share-enlace-input" aria-label="Enlace del cliente" onclick="this.select()">
+            <button type="button" class="btn-secondary btn-small" id="kshare-copiar" title="Copiar enlace"><i class="fas fa-copy"></i> Copiar</button>
+            <a class="btn-primary btn-small" id="kshare-preview" href="${escapeHtml(enlace)}" target="_blank" rel="noopener noreferrer" title="Ver qué ve el cliente"><i class="fas fa-external-link-alt"></i> Vista</a>
+        </div>
+    `;
+    const copiar = area.querySelector('#kshare-copiar');
+    if (copiar) copiar.addEventListener('click', () => copiarTexto(enlace, copiar));
+}
+
+/** Copia texto al portapapeles (con fallback) y avisa en el botón. */
+async function copiarTexto(texto, btn) {
+    let copiado = false;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texto);
+            copiado = true;
+        }
+    } catch (e) { /* fallback abajo */ }
+    if (!copiado) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            ta.setSelectionRange(0, 99999);
+            copiado = document.execCommand('copy');
+            document.body.removeChild(ta);
+        } catch (e) {
+            copiado = false;
+        }
+    }
+    if (copiado && btn) {
+        btn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copiar'; }, 2000);
+    }
+    mostrarToast(copiado ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace. Seleccionalo manualmente en el campo.', copiado ? 'success' : 'error');
+    return copiado;
+}
+
 // ========== CIERRE ==========
 
 function kanbanEscHandler(e) {
@@ -531,6 +717,7 @@ function cerrarModal() {
     lists = [];
     clienteActual = null;
     citasCliente = [];
+    tokenCompartido = null;
     if (deps.onCerrarBoard) deps.onCerrarBoard();
 }
 
@@ -631,6 +818,17 @@ function bindListas() {
                 if (e.key === 'Escape') renderBoardModal();
             });
             input.addEventListener('blur', guardar);
+        });
+    });
+
+    // Compartir/ocultar lista al cliente (ojo en el header de la lista)
+    document.querySelectorAll('.kanban-list-share').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const listaId = btn.dataset.listId;
+            const lista = lists.find(l => l.id === listaId);
+            if (!lista) return;
+            await toggleListaCompartida(lista, !lista.compartida);
         });
     });
 

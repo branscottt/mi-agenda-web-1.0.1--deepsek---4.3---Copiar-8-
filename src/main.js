@@ -172,6 +172,7 @@ async function syncJwtSession() {
         const esCliente = document.querySelector('.client-screen');
         const esPlanes = document.getElementById('planes-container');
         const esTrabajador = document.querySelector('.worker-portal-body');
+        const esInfoCliente = document.querySelector('.info-cliente-body');
 
         if (esLogin && !esPlanes) {
             try {
@@ -319,6 +320,17 @@ async function syncJwtSession() {
                 console.log('[main.js] Portal trabajador iniciado');
             } catch (e) {
                 console.warn('[main.js] WorkerPortal no disponible:', e.message);
+            }
+        }
+
+        if (esInfoCliente) {
+            try {
+                // Vista pública "lo que ve el cliente" (info-cliente.html?t=TOKEN)
+                const { initInfoCliente } = await import('./clients/ui/InfoClienteView.js');
+                initInfoCliente();
+                console.log('[main.js] Vista info compartida iniciada');
+            } catch (e) {
+                console.warn('[main.js] InfoClienteView no disponible:', e.message);
             }
         }
 

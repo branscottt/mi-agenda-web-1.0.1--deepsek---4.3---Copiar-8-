@@ -18190,3 +18190,325 @@ textarea.kanban-nueva-card-input {
         gap: 6px;
     }
 }
+
+/* ============================================================
+   COMPARTIR INFO CON EL CLIENTE (ClientBoard / ClientListView)
+   ============================================================ */
+.kanban-list-share {
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #999);
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    opacity: 0.55;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.kanban-list:hover .kanban-list-share,
+.kanban-list-share:hover {
+    opacity: 1;
+}
+.kanban-list-share.activa {
+    opacity: 1;
+    color: #2ee6a8;
+    background: rgba(46, 230, 168, 0.12);
+}
+.kanban-list-share.activa:hover {
+    background: rgba(255, 107, 107, 0.15);
+    color: #ff6b6b;
+}
+
+.kanban-share-panel {
+    max-width: 480px;
+    width: calc(100vw - 32px);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg, #1a1a24);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.kanban-share-body {
+    padding: 14px 16px 18px;
+    overflow-y: auto;
+}
+.kanban-share-listas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.kanban-share-fila {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.kanban-share-fila:hover {
+    border-color: rgba(157, 78, 221, 0.4);
+    background: rgba(157, 78, 221, 0.07);
+}
+.kanban-share-check {
+    width: 17px;
+    height: 17px;
+    accent-color: #9d4edd;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.kanban-share-nombre {
+    flex: 1;
+    font-size: 0.88rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kanban-share-count {
+    font-size: 0.75rem;
+    color: var(--text-muted, #999);
+    background: rgba(255, 255, 255, 0.07);
+    padding: 2px 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+.kanban-share-estado {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-muted, #999);
+    flex-shrink: 0;
+}
+.kanban-share-estado.on {
+    color: #2ee6a8;
+}
+.kanban-share-linkarea {
+    margin-top: 6px;
+}
+.kanban-share-enlace-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.kanban-share-enlace-input {
+    flex: 1;
+    min-width: 180px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-light, #e0e0e0);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    outline: none;
+}
+.kanban-share-enlace-row .btn-small {
+    white-space: nowrap;
+}
+@media (max-width: 640px) {
+    .kanban-share-enlace-row .btn-small {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+}
+
+/* Chip en la card de Mis Clientes cuando hay listas compartidas */
+.cliente-compartido-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    color: #2ee6a8;
+    background: rgba(46, 230, 168, 0.1);
+    border: 1px solid rgba(46, 230, 168, 0.25);
+    border-radius: 999px;
+    padding: 2px 9px;
+    margin-right: 6px;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   VISTA PÚBLICA DEL CLIENTE (info-cliente.html)
+   ============================================================ */
+.info-cliente-body {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px 40px;
+    background: var(--bg-color, #0d0d0d);
+}
+.info-cliente-wrap {
+    max-width: 680px;
+    width: 100%;
+}
+.ic-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 20px;
+    padding: 22px 20px;
+    backdrop-filter: blur(10px);
+}
+.ic-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 6px;
+}
+.ic-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+    flex-shrink: 0;
+}
+.ic-negocio-label {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: rgba(255, 255, 255, 0.45);
+}
+.ic-negocio {
+    margin: 2px 0 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+.ic-saludo {
+    margin: 14px 0 18px;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.75);
+}
+.ic-lista {
+    margin-bottom: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+}
+.ic-lista-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 16px;
+    background: rgba(157, 78, 221, 0.14);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.ic-lista-header i {
+    color: #c77dff;
+    font-size: 0.95rem;
+}
+.ic-lista-titulo {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0;
+}
+.ic-tarjeta {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.ic-tarjeta:last-child {
+    border-bottom: none;
+}
+.ic-tarjeta-titulo {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+.ic-tarjeta-titulo i {
+    margin-top: 3px;
+    color: #2ee6a8;
+    font-size: 0.85rem;
+}
+.ic-tarjeta.done .ic-tarjeta-titulo-text {
+    text-decoration: line-through;
+    opacity: 0.65;
+}
+.ic-tarjeta-descripcion {
+    margin: 0 0 2px 22px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: pre-line;
+    word-break: break-word;
+}
+.ic-checklist {
+    margin: 8px 0 0 22px;
+}
+.ic-checklist-titulo {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ic-checklist-progreso {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+.ic-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.83rem;
+    padding: 3px 0;
+    color: rgba(255, 255, 255, 0.85);
+}
+.ic-item i {
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+.ic-item.hecho {
+    color: rgba(255, 255, 255, 0.45);
+    text-decoration: line-through;
+}
+.ic-item.hecho i {
+    color: #2ee6a8;
+}
+.ic-vacio,
+.ic-error {
+    text-align: center;
+    padding: 30px 16px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+}
+.ic-vacio i,
+.ic-error i {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 10px;
+    color: rgba(255, 255, 255, 0.25);
+}
+.ic-footer {
+    text-align: center;
+    padding-top: 16px;
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+.ic-actualizar {
+    margin-top: 14px;
+    text-align: center;
+}

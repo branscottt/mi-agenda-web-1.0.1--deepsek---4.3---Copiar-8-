@@ -135,7 +135,7 @@ if (fs.existsSync('.well-known/security.txt')) {
 }
 
 // 5. Copiar HTML files a dist/
-const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html', 'directorio.html'];
+const htmlFiles = ['index.html', 'login.html', 'admin.html', 'cliente.html', 'superadmin.html', 'planes.html', 'trabajador.html', 'directorio.html', 'info-cliente.html'];
 for (const f of htmlFiles) {
     if (fs.existsSync(f)) {
         let content = fs.readFileSync(f, 'utf-8');
