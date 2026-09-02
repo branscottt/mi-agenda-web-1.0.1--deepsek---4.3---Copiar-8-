@@ -325,12 +325,37 @@
         }
         .btn-white:hover { transform: translateY(-2px); }
 
-        /* Directorio en vivo: cards reales en la portada */
+        /* Directorio en vivo: TODAS las pymes en carrusel infinito (marketing) */
         .home-directorio-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 20px; max-width: 1100px; margin: 0 auto;
+            max-width: 1100px; margin: 0 auto;
         }
-        .home-directorio-grid .empty { text-align: center; color: var(--muted); padding: 30px; grid-column: 1 / -1; }
+        .home-directorio-grid .empty { text-align: center; color: var(--muted); padding: 30px; }
+        .home-marquee {
+            overflow: hidden;
+            padding: 6px 0 10px;
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+        }
+        .home-marquee-track {
+            display: flex;
+            width: max-content;
+            animation: home-marquee-scroll var(--marquee-duration, 30s) linear infinite;
+            will-change: transform;
+        }
+        .home-marquee:hover .home-marquee-track { animation-play-state: paused; }
+        .home-marquee-group { display: flex; gap: 20px; margin-right: 20px; }
+        .home-marquee .dir-card { width: 280px; flex-shrink: 0; }
+        @keyframes home-marquee-scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(calc(-100% / var(--marquee-copies, 2))); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .home-marquee-track { animation: none; }
+            .home-marquee { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+        }
+        @media (max-width: 640px) {
+            .home-marquee .dir-card { width: 240px; }
+        }
         .dir-card {
             background: var(--glass); border: 1px solid var(--glass-border);
             border-radius: 16px; overflow: hidden; backdrop-filter: blur(10px);
@@ -509,7 +534,7 @@
         <div class="container">
             <div class="sec-head">
                 <h2>Negocios reales que <em>ya reservan en línea</em></h2>
-                <p>Una muestra del directorio de Organify, con datos reales. Reserva directo con un clic.</p>
+                <p>Todas las pymes del directorio de Organify, con datos reales. El carrusel se mueve solo; pasa el cursor para pausarlo.</p>
             </div>
             <div class="home-directorio-grid" id="home-directorio-grid">
                 <p class="empty">Cargando directorio...</p>

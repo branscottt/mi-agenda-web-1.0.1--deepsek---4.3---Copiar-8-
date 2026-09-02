@@ -82,9 +82,22 @@ async function cargarDirectorioVivo() {
         return;
     }
 
-    // Muestra aleatoria: cuando haya muchos, cada visita muestra otros
-    const muestra = [...pymes].sort(() => Math.random() - 0.5).slice(0, 6);
-    grid.innerHTML = muestra.map(p => renderCard(p, slugs[p.tenant_id])).join('');
+    // Carrusel infinito con TODAS las pymes del directorio (marketing para cada negocio).
+    // El track tiene N copias idénticas del grupo; animamos translateX(-100% / N),
+    // así el bucle es invisible porque cada copia es idéntica a la anterior.
+    const containerW = (grid.closest('.container') || grid).clientWidth || 1100;
+    const CARW = 280, GAP = 20;
+    const cards = pymes.map(p => renderCard(p, slugs[p.tenant_id]));
+    const groupW = cards.length * (CARW + GAP);
+    const copies = Math.max(2, Math.ceil((containerW * 2) / groupW));
+    const groups = Array.from({ length: copies }, (_, i) =>
+        `<div class="home-marquee-group"${i ? ' aria-hidden="true"' : ''}>${cards.join('')}</div>`
+    ).join('');
+    grid.innerHTML = `<div class="home-marquee"><div class="home-marquee-track">${groups}</div></div>`;
+    const track = grid.querySelector('.home-marquee-track');
+    // Velocidad constante ~45 px/s, ajustada al ancho real del contenido
+    track.style.setProperty('--marquee-copies', copies);
+    track.style.animationDuration = `${(groupW / 45).toFixed(2)}s`;
 }
 
 // ── Mocks de la portada con datos REALES del tenant (Miu) ──
