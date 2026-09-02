@@ -1094,7 +1094,7 @@ const ServiciosManager = {
 
             const { data, error } = await supabaseClient
                 .from('servicios')
-                .select('id, nombre, categoria, precio, duracion, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at, assignment_mode, weekday_modules, date_specific_modules, module_date_cupos')
+                .select('id, nombre, categoria, precio, duracion, descripcion, imagen, destacado, activo, disponibilidad, fechas, created_at, assignment_mode, weekday_modules, date_specific_modules, module_date_cupos, tipo_venta, precio_individual, num_sesiones, precio_promocion')
                 .eq('tenant_id', cleanTenantId)
                 .order('created_at', { ascending: false });
 
@@ -1122,7 +1122,12 @@ const ServiciosManager = {
                 assignment_mode: s.assignment_mode || 'all',
                 weekday_modules: s.weekday_modules || {},
                 date_specific_modules: s.date_specific_modules || {},
-                module_date_cupos: s.module_date_cupos || {}
+                module_date_cupos: s.module_date_cupos || {},
+                // Tipo de venta: por sesión / por promoción
+                tipo_venta: s.tipo_venta || 'sesion',
+                precio_individual: (typeof s.precio_individual !== 'undefined' && s.precio_individual !== null) ? s.precio_individual : s.precio,
+                num_sesiones: s.num_sesiones ?? null,
+                precio_promocion: s.precio_promocion ?? null
             }));
         } catch (e) {
             console.error('Error en getAll servicios:', e);
@@ -1166,7 +1171,12 @@ const ServiciosManager = {
                 assignment_mode: servicio.assignment_mode || 'all',
                 weekday_modules: servicio.weekday_modules || {},
                 date_specific_modules: servicio.date_specific_modules || {},
-                module_date_cupos: servicio.module_date_cupos || {}
+                module_date_cupos: servicio.module_date_cupos || {},
+                // Tipo de venta: por sesión / por promoción
+                tipo_venta: servicio.tipo_venta || 'sesion',
+                precio_individual: (typeof servicio.precio_individual !== 'undefined' ? servicio.precio_individual : servicio.precio) ?? null,
+                num_sesiones: servicio.num_sesiones ?? null,
+                precio_promocion: servicio.precio_promocion ?? null
             };
             
             let result;
@@ -6151,8 +6161,89 @@ function configurarFormulario() {
     }
     const capInput = document.getElementById('srv-capacity');
     if (capInput) capInput.disabled = false;
+
+    // === Tipo de venta: por sesión / por promoción ===
+    document.querySelectorAll('input[name="srv-tipo-venta"]').forEach(r => {
+        r.addEventListener('change', actualizarUIFormularioServicio);
+    });
+    ['srv-price', 'srv-promo-sesiones', 'srv-promo-precio'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', actualizarCalculoPromocion);
+    });
+    actualizarUIFormularioServicio();
 }
 window.configurarFormulario = configurarFormulario;
+
+// ============================================
+// TIPO DE VENTA: POR SESIÓN / POR PROMOCIÓN
+// ============================================
+// 'sesion' (actual): un precio por sesión, el cliente reserva 1 fecha.
+// 'promocion': el cliente elige 1 sesión (precio individual) o el
+// paquete de N sesiones (precio_promocion total).
+function getTipoVentaSeleccionado() {
+    const sel = document.querySelector('input[name="srv-tipo-venta"]:checked');
+    return sel ? sel.value : 'sesion';
+}
+
+function actualizarUIFormularioServicio() {
+    const tipo = getTipoVentaSeleccionado();
+    const promoFields = document.getElementById('promo-fields');
+    const priceInput = document.getElementById('srv-price');
+    document.querySelectorAll('.tipo-venta-option').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.tipo === tipo);
+    });
+    if (promoFields) promoFields.style.display = tipo === 'promocion' ? 'block' : 'none';
+    if (priceInput) {
+        priceInput.placeholder = tipo === 'promocion' ? 'Precio sesión individual ($)*' : 'Precio ($)*';
+    }
+    if (tipo === 'promocion') actualizarCalculoPromocion();
+}
+
+function actualizarCalculoPromocion() {
+    const ind = parseFloat(document.getElementById('srv-price')?.value) || 0;
+    const n = parseInt(document.getElementById('srv-promo-sesiones')?.value, 10) || 0;
+    const promo = parseFloat(document.getElementById('srv-promo-precio')?.value) || 0;
+    const calc = document.getElementById('promo-calc-hint');
+    if (!calc) return;
+    if (ind > 0 && n > 0 && promo > 0) {
+        const valorReal = ind * n;
+        const ahorro = valorReal - promo;
+        calc.innerHTML = `Valor real de ${n} sesiones: <strong>${formatearPeso(valorReal)}</strong> · Pagas: <strong>${formatearPeso(promo)}</strong> · `
+            + (ahorro > 0
+                ? `<span style="color:#4ade80;">Ahorras ${formatearPeso(ahorro)}</span>`
+                : ahorro === 0
+                    ? '<span style="color:#ff9f43;">Sin descuento</span>'
+                    : '<span style="color:#ff9f43;">⚠️ Mayor que el valor real (precio sesión × N)</span>');
+    } else if (ind > 0 && n > 0) {
+        calc.textContent = `El valor real de ${n} sesiones es ${formatearPeso(ind * n)}. Agrega el precio total del paquete para ver el ahorro.`;
+    } else {
+        calc.textContent = 'Completa los precios y el número de sesiones para ver el cálculo del ahorro.';
+    }
+}
+
+function leerCamposPromocion() {
+    const tipo = getTipoVentaSeleccionado();
+    if (tipo !== 'promocion') {
+        return { tipo_venta: 'sesion', num_sesiones: null, precio_promocion: null };
+    }
+    return {
+        tipo_venta: 'promocion',
+        num_sesiones: parseInt(document.getElementById('srv-promo-sesiones')?.value, 10) || null,
+        precio_promocion: parseFloat(document.getElementById('srv-promo-precio')?.value) || null
+    };
+}
+
+function validarCamposPromocion() {
+    const tipo = getTipoVentaSeleccionado();
+    if (tipo !== 'promocion') return null;
+    const ind = parseFloat(document.getElementById('srv-price')?.value) || 0;
+    const n = parseInt(document.getElementById('srv-promo-sesiones')?.value, 10) || 0;
+    const promo = parseFloat(document.getElementById('srv-promo-precio')?.value) || 0;
+    if (!n || n < 2) return '⚠️ La promoción debe incluir al menos 2 sesiones.';
+    if (!promo || promo <= 0) return '⚠️ Ingresa el precio total de la promoción.';
+    if (ind > 0 && promo > ind * n) return '⚠️ El precio de la promoción supera el valor real (precio sesión × N). Revisa los valores.';
+    return null;
+}
 
 async function crearServicio() {
     const submitBtn = document.querySelector('#service-form button[type="submit"]');
@@ -6220,6 +6311,15 @@ async function crearServicio() {
         }
     }
 
+    // Validar campos de promoción (si el tipo de venta es promoción)
+    const errPromo = validarCamposPromocion();
+    if (errPromo) {
+        mostrarMensaje(errPromo, 'warning');
+        document.getElementById('srv-promo-sesiones')?.focus();
+        return;
+    }
+    const camposPromo = leerCamposPromocion();
+
     const nuevoServicio = {
         nombre: nombre,
         precio: parseFloat(precio),
@@ -6229,7 +6329,12 @@ async function crearServicio() {
         destacado: document.getElementById('srv-featured').checked,
         activo: activo,
         disponibilidad: disponibilidad,
-        fechas: Object.keys(disponibilidad).sort()
+        fechas: Object.keys(disponibilidad).sort(),
+        // Tipo de venta: 'sesion' (default) | 'promocion' (paquete N sesiones)
+        tipo_venta: camposPromo.tipo_venta,
+        precio_individual: parseFloat(precio),
+        num_sesiones: camposPromo.num_sesiones,
+        precio_promocion: camposPromo.precio_promocion
     };
 
     try {
@@ -6627,8 +6732,12 @@ async function cargarServiciosExistentes() {
             
             <div class="service-card-body">
                 <div class="service-card-title">
-                    <h4>${servicio.nombre}</h4>
-                    <div class="service-card-price">${formatearPeso(servicio.precio)}</div>
+                    <h4>${servicio.nombre} ${servicio.tipo_venta === 'promocion' ? `<span class="badge-promo-servicio"><i class="fas fa-gift"></i> PROMO · ${servicio.num_sesiones || 'N'} sesiones</span>` : ''}</h4>
+                    <div class="service-card-price">
+                        ${servicio.tipo_venta === 'promocion'
+                            ? `${formatearPeso(servicio.precio)} <small style="font-size:0.72rem;color:rgba(255,255,255,0.55);font-weight:400;">sesión</small> · <span style="color:#4ade80;">${formatearPeso(servicio.precio_promocion)}</span> <small style="font-size:0.72rem;color:rgba(255,255,255,0.55);font-weight:400;">paquete ${servicio.num_sesiones || 'N'}</small>`
+                            : formatearPeso(servicio.precio)}
+                    </div>
                 </div>
                 
                 <p class="service-card-desc">${servicio.descripcion || 'Sin descripción'}</p>
@@ -7103,6 +7212,17 @@ async function editarServicio(id) {
     const durEl = document.getElementById('srv-duration');
     if (durEl) durEl.value = servicio.duracion || 60;
 
+    // === Tipo de venta (por sesión / por promoción) ===
+    // Permite convertir servicios antiguos (por sesión) a promoción y viceversa.
+    const tipoVentaEdit = servicio.tipo_venta === 'promocion' ? 'promocion' : 'sesion';
+    const radioTipo = document.querySelector(`input[name="srv-tipo-venta"][value="${tipoVentaEdit}"]`);
+    if (radioTipo) radioTipo.checked = true;
+    const srvPromoSes = document.getElementById('srv-promo-sesiones');
+    if (srvPromoSes) srvPromoSes.value = servicio.num_sesiones || '';
+    const srvPromoPrecio = document.getElementById('srv-promo-precio');
+    if (srvPromoPrecio) srvPromoPrecio.value = servicio.precio_promocion || '';
+    actualizarUIFormularioServicio();
+
     if (servicio.fechas && servicio.fechas.length > 0) {
         selectedDates = new Set(servicio.fechas);
     } else {
@@ -7273,6 +7393,15 @@ async function actualizarServicio() {
         }
     }
 
+    // Validar campos de promoción (si el tipo de venta es promoción)
+    const errPromo = validarCamposPromocion();
+    if (errPromo) {
+        mostrarMensaje(errPromo, 'warning');
+        document.getElementById('srv-promo-sesiones')?.focus();
+        return;
+    }
+    const camposPromo = leerCamposPromocion();
+
     const servicioActualizado = {
         id: id,
         nombre: nombre,
@@ -7290,7 +7419,12 @@ async function actualizarServicio() {
         assignment_mode: _assignmentMode,
         weekday_modules: _weekdayModules,
         date_specific_modules: _dateSpecificModules,
-        module_date_cupos: window.moduleDateCupos || {}
+        module_date_cupos: window.moduleDateCupos || {},
+        // Tipo de venta: 'sesion' (default) | 'promocion' (paquete N sesiones)
+        tipo_venta: camposPromo.tipo_venta,
+        precio_individual: parseFloat(precio),
+        num_sesiones: camposPromo.num_sesiones,
+        precio_promocion: camposPromo.precio_promocion
     };
 
     try {
@@ -8330,6 +8464,14 @@ function limpiarEstadoEdicion() {
             submitBtn.disabled = false;
         }
         form.reset();
+        // Resetear tipo de venta a "por sesión" (ocultar campos promo)
+        const promoFieldsReset = document.getElementById('promo-fields');
+        if (promoFieldsReset) promoFieldsReset.style.display = 'none';
+        const priceReset = document.getElementById('srv-price');
+        if (priceReset) priceReset.placeholder = 'Precio ($)*';
+        document.querySelectorAll('.tipo-venta-option').forEach(o => o.classList.toggle('active', o.dataset.tipo === 'sesion'));
+        const calcReset = document.getElementById('promo-calc-hint');
+        if (calcReset) calcReset.textContent = '';
     }
     // Resetear file input y display
     const fileInput = document.getElementById('srv-image-file');
@@ -10980,6 +11122,7 @@ function actualizarGridCliente(servicios) {
                     ${getCategoriaNombre(servicio.categoria)}
                 </span>
                 ${servicio.destacado ? '<span class="service-featured"><i class="fas fa-star"></i></span>' : ''}
+                ${servicio.tipo_venta === 'promocion' ? '<span class="badge-promo-card"><i class="fas fa-gift"></i> PROMO</span>' : ''}
             </div>
             
             <div class="service-content">
@@ -11007,7 +11150,11 @@ function actualizarGridCliente(servicios) {
                 </div>
                 
                 <div class="service-footer">
-                    <div class="price">${formatearPeso(servicio.precio)}</div>
+                    <div class="price">
+                        ${servicio.tipo_venta === 'promocion'
+                            ? `<span class="promo-card-price">${formatearPeso(servicio.precio_promocion)}</span> <small class="promo-card-ind">${formatearPeso(servicio.precio)} sesión · ${servicio.num_sesiones || 'N'} sesiones</small>`
+                            : formatearPeso(servicio.precio)}
+                    </div>
                     <button class="btn-grad btn-reservar" data-service-id="${servicio.id}" ${ totalCupos === 0 ? 'disabled style="opacity:0.6;cursor:not-allowed;"' : '' }>
                         <i class="fas fa-calendar-plus"></i> ${ totalCupos === 0 ? 'Agotado' : 'Reservar' }
                     </button>
@@ -11615,9 +11762,27 @@ async function abrirModalReserva(serviceId) {
         workersServicio = [];
     }
 
+    // Servicio por promoción: el cliente elige 1 sesión (precio individual)
+    // o el paquete completo de num_sesiones (precio_promocion).
+    const esPromo = servicio.tipo_venta === 'promocion' && Number(servicio.num_sesiones) >= 2 && Number(servicio.precio_promocion) > 0;
+    const promoAhorro = esPromo ? (Number(servicio.precio) * Number(servicio.num_sesiones)) - Number(servicio.precio_promocion) : 0;
+
     detallesDiv.innerHTML = `
         <p><strong>Servicio:</strong> <span id="servicio-nombre">—</span></p>
         <p><strong>Precio:</strong> <span id="servicio-precio">—</span></p>
+
+        ${esPromo ? `
+        <div class="modalidad-options" id="modalidad-options">
+            <button type="button" class="modalidad-option active" data-modalidad="sesion">
+                <span class="modalidad-icon"><i class="fas fa-calendar-check"></i></span>
+                <span class="modalidad-text"><strong>1 sesión</strong><small>${formatearPeso(servicio.precio)}</small></span>
+            </button>
+            <button type="button" class="modalidad-option" data-modalidad="promocion">
+                <span class="modalidad-icon"><i class="fas fa-gift"></i></span>
+                <span class="modalidad-text"><strong>Promoción ${servicio.num_sesiones} sesiones</strong><small>${formatearPeso(servicio.precio_promocion)}${promoAhorro > 0 ? ` · Ahorras ${formatearPeso(promoAhorro)}` : ''}</small></span>
+            </button>
+        </div>
+        ` : ''}
 
         ${workersServicio.length ? `
         <div style="margin-top:10px;">
@@ -11629,7 +11794,7 @@ async function abrirModalReserva(serviceId) {
         </div>
         ` : ''}
 
-        <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+        <div id="zona-sesion-unica"><div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
             <div style="display:flex; gap:8px;">
                 <label style="flex:1; display:block; color:#fff;">
                     Fecha:
@@ -11663,10 +11828,140 @@ async function abrirModalReserva(serviceId) {
                 <span style="display:block; font-size:0.75rem; color:rgba(255,255,255,0.45); margin-top:4px;">El negocio va a tu domicilio: escribe la dirección donde quieres recibir el servicio.</span>` : ''}
             </div>
         </div>
+        </div>
+
+        ${esPromo ? `
+        <div id="zona-promocion" style="display:none; margin-top:12px;">
+            <p class="promo-titulo"><i class="fas fa-gift"></i> Elige las ${servicio.num_sesiones} sesiones de tu promoción:</p>
+            <div id="promo-slots"></div>
+            <div id="promo-resumen"></div>
+        </div>
+        ` : ''}
     `;
 
     const nombreSpan = document.getElementById('servicio-nombre'); if(nombreSpan) nombreSpan.textContent = servicio.nombre || '—';
-    const precioSpan = document.getElementById('servicio-precio'); if(precioSpan) precioSpan.textContent = formatearPeso(servicio.precio);
+    const precioSpan = document.getElementById('servicio-precio');
+    if(precioSpan){
+        precioSpan.textContent = esPromo
+            ? `${formatearPeso(servicio.precio)} sesión · ${servicio.num_sesiones} sesiones: ${formatearPeso(servicio.precio_promocion)}${promoAhorro > 0 ? ` (ahorras ${formatearPeso(promoAhorro)})` : ''}`
+            : formatearPeso(servicio.precio);
+    }
+
+    // ================================================================
+    // PROMOCIÓN: selector 1 sesión vs paquete + slots de sesiones
+    // ================================================================
+    if (esPromo) {
+        const slotsContainer = document.getElementById('promo-slots');
+        let slotsHtml = '';
+        for (let i = 1; i <= Number(servicio.num_sesiones); i++) {
+            slotsHtml += `
+            <div class="promo-slot" data-slot="${i}">
+                <span class="promo-slot-num">Sesión ${i} de ${servicio.num_sesiones}</span>
+                <select class="promo-slot-fecha" id="promo-fecha-${i}" data-slot="${i}" ${i > 1 ? 'disabled' : ''}>
+                    <option value="">Seleccione fecha</option>
+                    ${fechasOptions}
+                </select>
+                <select class="promo-slot-hora" id="promo-hora-${i}" data-slot="${i}" disabled>
+                    <option value="">Seleccione hora</option>
+                </select>
+            </div>`;
+        }
+        slotsContainer.innerHTML = slotsHtml;
+
+        function actualizarResumenPromo() {
+            const resumenEl = document.getElementById('promo-resumen');
+            if (!resumenEl) return;
+            const elegidas = [];
+            slotsContainer.querySelectorAll('.promo-slot').forEach(s => {
+                const f = s.querySelector('.promo-slot-fecha')?.value;
+                const h = s.querySelector('.promo-slot-hora')?.value;
+                if (f && h !== '') {
+                    const mod = (servicio.disponibilidad[f] || [])[Number(h)];
+                    elegidas.push(`${formatFechaConDiaSemana(f)} ${formatTimeDisplay(mod?.hora || mod?.startTime || '00:00')}`);
+                }
+            });
+            resumenEl.innerHTML = elegidas.length === 0
+                ? `<div class="popup-summary">Elige fecha y hora para cada una de las ${servicio.num_sesiones} sesiones.</div>`
+                : `<div class="popup-summary"><strong>${elegidas.length} de ${servicio.num_sesiones} sesiones elegidas:</strong><br>${elegidas.map(e => `• ${escapeHtml(e)}`).join('<br>')}<br><strong>Total promoción: ${formatearPeso(servicio.precio_promocion)}</strong>${promoAhorro > 0 ? ` <span style="color:#4ade80;">(ahorras ${formatearPeso(promoAhorro)})</span>` : ''}</div>`;
+        }
+
+        // Selector de modalidad: 1 sesión ↔ promoción
+        document.querySelectorAll('#modalidad-options .modalidad-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                document.querySelectorAll('#modalidad-options .modalidad-option').forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                const mod = opt.dataset.modalidad;
+                const zonaUnica = document.getElementById('zona-sesion-unica');
+                const zonaPromo = document.getElementById('zona-promocion');
+                const resumenMain = document.getElementById('resumen-confirmacion');
+                if (zonaUnica) zonaUnica.style.display = mod === 'sesion' ? '' : 'none';
+                if (zonaPromo) zonaPromo.style.display = mod === 'promocion' ? '' : 'none';
+                if (resumenMain) resumenMain.style.display = mod === 'sesion' ? '' : 'none';
+                if (mod === 'promocion') actualizarResumenPromo();
+                checkEnableConfirm();
+                validarFormularioReserva();
+            });
+        });
+
+        // Fecha de un slot → poblar sus horas + habilitar el siguiente slot
+        slotsContainer.querySelectorAll('.promo-slot-fecha').forEach(sel => {
+            sel.addEventListener('change', function() {
+                const slot = Number(this.dataset.slot);
+                const fechaSel = this.value;
+                const horaSel = document.getElementById(`promo-hora-${slot}`);
+                if (!fechaSel) {
+                    if (horaSel) { horaSel.innerHTML = '<option value="">Seleccione hora</option>'; horaSel.disabled = true; }
+                    const nextSel = document.getElementById(`promo-fecha-${slot + 1}`);
+                    if (nextSel) nextSel.disabled = true;
+                    actualizarResumenPromo();
+                    checkEnableConfirm();
+                    validarFormularioReserva();
+                    return;
+                }
+                const modulosForDate = (servicio.disponibilidad && servicio.disponibilidad[fechaSel]) ? servicio.disponibilidad[fechaSel] : [];
+                const esHoySlot = fechaSel === hoyLocalStr;
+                const ahoraLocalSlot = new Date();
+                let options = '<option value="">Seleccione hora</option>';
+                modulosForDate.forEach((m, index) => {
+                    if (Number(m.cupos || 0) <= 0) return;
+                    const horaRaw = normalizarHoraReserva(m.hora || m.startTime || '00:00');
+                    const horaText = formatTimeDisplay(horaRaw);
+                    if (esHoySlot) {
+                        const hp = horaText.match(/(\d{1,2}):(\d{2})/);
+                        if (hp) {
+                            const fh = new Date();
+                            fh.setHours(parseInt(hp[1]), parseInt(hp[2]), 0, 0);
+                            if (fh <= ahoraLocalSlot) return;
+                        }
+                    }
+                    options += `<option value="${index}" data-hora="${horaText}" data-cupos="${Number(m.cupos)}">${horaText} - ${Number(m.cupos)} cupos</option>`;
+                });
+                if (horaSel) {
+                    horaSel.innerHTML = options;
+                    horaSel.disabled = options === '<option value="">Seleccione hora</option>';
+                    horaSel.value = '';
+                }
+                actualizarResumenPromo();
+                checkEnableConfirm();
+                validarFormularioReserva();
+            });
+        });
+
+        // Hora de un slot → habilitar el siguiente slot de fecha
+        slotsContainer.querySelectorAll('.promo-slot-hora').forEach(sel => {
+            sel.addEventListener('change', function() {
+                const slot = Number(this.dataset.slot);
+                const fSel = document.getElementById(`promo-fecha-${slot}`);
+                const nextSel = document.getElementById(`promo-fecha-${slot + 1}`);
+                if (nextSel) nextSel.disabled = !(fSel && fSel.value && this.value);
+                actualizarResumenPromo();
+                checkEnableConfirm();
+                validarFormularioReserva();
+            });
+        });
+
+        actualizarResumenPromo();
+    }
 
     const popupRef = popupEl || document.getElementById('popup-reserva');
     if(popupRef) popupRef.dataset.serviceId = String(serviceId);
@@ -11692,7 +11987,7 @@ async function abrirModalReserva(serviceId) {
         };
     }
 
-    if(window.abrirPopupReserva) window.abrirPopupReserva({ nombre: servicio.nombre, fecha:'—', hora:'—', precio: formatearPeso(servicio.precio) });
+    if(window.abrirPopupReserva) window.abrirPopupReserva({ nombre: servicio.nombre, fecha:'—', hora:'—', precio: esPromo ? `${formatearPeso(servicio.precio)} sesión · ${servicio.num_sesiones} sesiones: ${formatearPeso(servicio.precio_promocion)}${promoAhorro > 0 ? ` (ahorras ${formatearPeso(promoAhorro)})` : ''}` : formatearPeso(servicio.precio) });
     if(popupEl){
         popupEl.style.display = 'flex';
         popupEl.style.opacity = '1';
@@ -11701,6 +11996,8 @@ async function abrirModalReserva(serviceId) {
 
     const resumenEl = document.getElementById('resumen-confirmacion');
     function updateResumen(){
+        // En modo promoción el resumen de sesiones vive en #promo-resumen
+        if (document.querySelector('#modalidad-options .modalidad-option.active')?.dataset?.modalidad === 'promocion') return;
         const selF = document.getElementById('select-fecha')?.value || '';
         const selH = document.getElementById('select-hora')?.value || '';
         let horaTextoLocal = '';
@@ -11935,7 +12232,26 @@ function validarFormularioReserva() {
         // En reprogramación, no exigimos datos de contacto
     }
 
-    let enable = Boolean(selF && selH && acepto && nombreOk && clientPhoneOk && emailOk && direccionOk);
+    // Modalidad promoción: exige TODAS las sesiones del paquete completas
+    const modalidadActiva = document.querySelector('#modalidad-options .modalidad-option.active')?.dataset?.modalidad || 'sesion';
+    let sesionesOk;
+    if (modalidadActiva === 'promocion') {
+        sesionesOk = true;
+        const slotsPromo = document.querySelectorAll('.promo-slot');
+        if (!slotsPromo.length) {
+            sesionesOk = false;
+        } else {
+            slotsPromo.forEach(s => {
+                const f = s.querySelector('.promo-slot-fecha')?.value;
+                const h = s.querySelector('.promo-slot-hora')?.value;
+                if (!f || !h) sesionesOk = false;
+            });
+        }
+    } else {
+        sesionesOk = Boolean(selF && selH);
+    }
+
+    let enable = Boolean(sesionesOk && acepto && nombreOk && clientPhoneOk && emailOk && direccionOk);
 
     if (idCitaEnEdicion && enable) {
         const origF = reprogramInfo.citaActual?.fecha || '';
@@ -12113,6 +12429,10 @@ async function confirmarReserva(e) {
     const serviceId = Number(popup.dataset.serviceId);
     if(!serviceId){ mostrarMensaje('ID de servicio inválido','error'); return; }
 
+    // Modalidad de reserva: 'sesion' (1 fecha/hora) o 'promocion' (N sesiones)
+    const modalidadReserva = document.querySelector('#modalidad-options .modalidad-option.active')?.dataset?.modalidad || 'sesion';
+    const esPromoReserva = modalidadReserva === 'promocion';
+
     const selectFecha = document.getElementById('select-fecha');
     const selectHora = document.getElementById('select-hora');
     const acepto = document.getElementById('acepto-condiciones')?.checked;
@@ -12121,8 +12441,10 @@ async function confirmarReserva(e) {
     const horaIdx = selectHora ? selectHora.value : null;
 
     if(!acepto){ mostrarMensaje('Debes aceptar las condiciones','warning'); return; }
-    if(!fecha || fecha === ''){ mostrarMensaje('Selecciona una fecha','warning'); return; }
-    if(horaIdx === null || horaIdx === ''){ mostrarMensaje('Selecciona una hora','warning'); return; }
+    if (!esPromoReserva) {
+        if(!fecha || fecha === ''){ mostrarMensaje('Selecciona una fecha','warning'); return; }
+        if(horaIdx === null || horaIdx === ''){ mostrarMensaje('Selecciona una hora','warning'); return; }
+    }
 
     const nombreEl = document.getElementById('cliente-nombre');
     const nombre = nombreEl?.value?.trim() || '';
@@ -12174,26 +12496,33 @@ async function confirmarReserva(e) {
     const servicio = servicios[idx];
 
     const disponibilidad = servicio.disponibilidad || {};
-    if(!disponibilidad[fecha] || disponibilidad[fecha].length === 0){
-        mostrarMensaje('El servicio no tiene horarios configurados para la fecha seleccionada','error');
-        return;
+
+    // En modo promoción los checks de fecha/hora de sesión única NO aplican:
+    // el popup tiene los selects ocultos (vacíos) y las sesiones se validan
+    // y arman en el branch promo (reservar_citas_bulk). Saltarse este bloque
+    // evita el return temprano que dejaba el popup bloqueado (reserving='1').
+    if (!esPromoReserva) {
+        if(!disponibilidad[fecha] || disponibilidad[fecha].length === 0){
+            mostrarMensaje('El servicio no tiene horarios configurados para la fecha seleccionada','error');
+            return;
+        }
+
+        const moduloIndex = Number(horaIdx);
+        const modulo = disponibilidad[fecha][moduloIndex];
+        if(!modulo){ mostrarMensaje('Horario seleccionado inválido','error'); return; }
+
+        const cuposActuales = Number(modulo.cupos || 0);
+        if(cuposActuales <= 0){
+            mostrarMensaje('Lo sentimos, ese horario está agotado','error');
+            let anyLeft = false;
+            Object.keys(disponibilidad).forEach(f => { if(disponibilidad[f].some(m => Number(m.cupos || 0) > 0)) anyLeft = true; });
+            if(!anyLeft){ servicio.activo = false; servicios[idx] = servicio; await ServiciosManager.save(servicio); }
+            if (typeof aplicarFiltrosCombinados === 'function') aplicarFiltrosCombinados();
+            return;
+        }
+
+        var horaTexto = formatTimeDisplay(modulo.hora || modulo.startTime || '00:00');
     }
-
-    const moduloIndex = Number(horaIdx);
-    const modulo = disponibilidad[fecha][moduloIndex];
-    if(!modulo){ mostrarMensaje('Horario seleccionado inválido','error'); return; }
-
-    const cuposActuales = Number(modulo.cupos || 0);
-    if(cuposActuales <= 0){
-        mostrarMensaje('Lo sentimos, ese horario está agotado','error');
-        let anyLeft = false;
-        Object.keys(disponibilidad).forEach(f => { if(disponibilidad[f].some(m => Number(m.cupos || 0) > 0)) anyLeft = true; });
-        if(!anyLeft){ servicio.activo = false; servicios[idx] = servicio; await ServiciosManager.save(servicio); }
-        if (typeof aplicarFiltrosCombinados === 'function') aplicarFiltrosCombinados();
-        return;
-    }
-
-    const horaTexto = formatTimeDisplay(modulo.hora || modulo.startTime || '00:00');
 
     const clienteNombre = document.getElementById('cliente-nombre')?.value?.trim() || (window.__clienteSession?.nombre || '');
     const clienteTel = document.getElementById('cliente-tel')?.value?.trim() || (window.__clienteSession?.whatsapp || '');
@@ -12218,20 +12547,66 @@ async function confirmarReserva(e) {
     const selTrabajador = document.getElementById('select-trabajador');
     const trabajadorIdReserva = (selTrabajador && selTrabajador.value) ? selTrabajador.value : null;
 
-    const { data: reserva, error: rpcError } = await supabaseClient.rpc('reservar_cita', {
-        p_tenant_id: tenantIdReserva,
-        p_servicio_id: servicio.id,
-        p_fecha: fecha,
-        p_hora: horaTexto,
-        p_trabajador_id: trabajadorIdReserva,
-        p_contacto: {
-            nombre: clienteNombre || session?.nombre || '',
-            telefono: clienteTel || '',
-            email: clienteEmail || session?.email || '',
-            direccion: clienteDireccion || '',
-            userId: userId || null
+    const pContactoReserva = {
+        nombre: clienteNombre || session?.nombre || '',
+        telefono: clienteTel || '',
+        email: clienteEmail || session?.email || '',
+        direccion: clienteDireccion || '',
+        userId: userId || null
+    };
+
+    let reserva, rpcError;
+
+    if (esPromoReserva) {
+        // ================================================================
+        // RESERVA POR PROMOCIÓN: N sesiones en una sola operación atómica.
+        // El servidor valida cupos, descuenta y crea las N citas con precio
+        // = precio_promocion / num_sesiones (todo o nada).
+        // ================================================================
+        const itemsPromo = [];
+        const numSlots = Number(servicio.num_sesiones) || 0;
+        for (let i = 1; i <= numSlots; i++) {
+            const fSel = document.getElementById(`promo-fecha-${i}`);
+            const hSel = document.getElementById(`promo-hora-${i}`);
+            if (!fSel?.value || !hSel?.value) {
+                mostrarMensaje(`Completa la fecha y hora de la sesión ${i}`, 'warning');
+                popup.dataset.reserving = '0';
+                if (confirmBtnImmediate) { confirmBtnImmediate.disabled = false; confirmBtnImmediate.style.cursor = 'pointer'; }
+                return;
+            }
+            const mod = (servicio.disponibilidad[fSel.value] || [])[Number(hSel.value)];
+            itemsPromo.push({
+                servicio_id: servicio.id,
+                fecha: fSel.value,
+                hora: formatTimeDisplay(mod?.hora || mod?.startTime || '00:00'),
+                trabajador_id: trabajadorIdReserva || null,
+                modalidad: 'promocion'
+            });
         }
-    });
+        const r = await supabaseClient.rpc('reservar_citas_bulk', {
+            p_tenant_id: tenantIdReserva,
+            p_items: itemsPromo,
+            p_contacto: pContactoReserva
+        });
+        reserva = r.data;
+        rpcError = r.error;
+    } else {
+        // ================================================================
+        // RESERVA SERVER-SIDE: RPC reservar_cita — valida cupos, descuenta,
+        // crea la cita y la notificación, todo atómico en el servidor.
+        // (El cliente ya no inserta ni descuenta directamente.)
+        // ================================================================
+        const rr = await supabaseClient.rpc('reservar_cita', {
+            p_tenant_id: tenantIdReserva,
+            p_servicio_id: servicio.id,
+            p_fecha: fecha,
+            p_hora: horaTexto,
+            p_trabajador_id: trabajadorIdReserva,
+            p_contacto: pContactoReserva
+        });
+        reserva = rr.data;
+        rpcError = rr.error;
+    }
 
     if (rpcError) {
         console.error('Error en reservar_cita:', rpcError);
@@ -12259,9 +12634,13 @@ async function confirmarReserva(e) {
     if (typeof renderCarrito === 'function') renderCarrito();
 
     try{
-        mostrarToast('¡Reserva exitosa! Revisa tu WhatsApp pronto', 'success');
+        mostrarToast(esPromoReserva
+            ? `¡Reserva exitosa! ${servicio.num_sesiones} sesiones reservadas. Revisa tu WhatsApp pronto`
+            : '¡Reserva exitosa! Revisa tu WhatsApp pronto', 'success');
     }catch(e){
-        mostrarMensaje(`¡Reserva confirmada para el ${fecha} a las ${horaTexto}!`, 'success');
+        mostrarMensaje(esPromoReserva
+            ? `¡Reserva confirmada! ${servicio.num_sesiones} sesiones reservadas.`
+            : `¡Reserva confirmada para el ${fecha} a las ${horaTexto}!`, 'success');
     }
 
     if (typeof cargarServiciosParaCliente === 'function') cargarServiciosParaCliente();

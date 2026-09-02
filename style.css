@@ -17966,3 +17966,227 @@ textarea.kanban-nueva-card-input {
 .tutorial-video-wrap.tutorial-fixed.tour-video-fixed {
     z-index: 10005 !important;
 }
+
+/* ============================================================
+   SERVICIOS POR PROMOCIÓN (paquete N sesiones)
+   Admin: toggle tipo de venta + campos promo.
+   Cliente: selector 1 sesión vs promoción + slots de sesiones.
+   Overrides al final, scoped. NO tocar login.
+   ============================================================ */
+
+/* ---- Admin: toggle Por sesión / Por promoción ---- */
+.tipo-venta-selector {
+    margin: 10px 0 4px;
+}
+.tipo-venta-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.tipo-venta-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.tipo-venta-option:hover {
+    border-color: rgba(157, 78, 221, 0.6);
+    background: rgba(157, 78, 221, 0.08);
+}
+.tipo-venta-option.active {
+    border-color: #9d4edd;
+    background: linear-gradient(135deg, rgba(157, 78, 221, 0.18), rgba(0, 184, 148, 0.08));
+    box-shadow: 0 0 0 1px #9d4edd inset;
+}
+.tipo-venta-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.tipo-venta-option .tv-icon {
+    font-size: 1.15rem;
+    color: #b388eb;
+    margin-top: 2px;
+}
+.tipo-venta-option.active .tv-icon {
+    color: #ffd700;
+}
+.tipo-venta-option .tv-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.3;
+}
+.tipo-venta-option .tv-text small {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.74rem;
+}
+.promo-fields {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 215, 0, 0.25);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(255, 215, 0, 0.06), rgba(255, 215, 0, 0.02));
+}
+.promo-calc {
+    margin-top: 8px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.8rem;
+}
+.badge-promo-servicio {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ffd700, #ff9f43);
+    color: #1a1a2e;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    vertical-align: middle;
+    text-transform: uppercase;
+}
+
+/* ---- Cliente: badge PROMO en la card del catálogo ---- */
+.badge-promo-card {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ffd700, #ff9f43);
+    color: #1a1a2e;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    z-index: 2;
+}
+.promo-card-price {
+    font-size: 1.05rem;
+    color: #4ade80;
+}
+.promo-card-ind {
+    display: block;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.7rem;
+    margin-top: 2px;
+}
+
+/* ---- Cliente: selector 1 sesión vs promoción en el popup ---- */
+.modalidad-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 12px 0 4px;
+}
+.modalidad-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #fff;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+}
+.modalidad-option:hover {
+    border-color: rgba(157, 78, 221, 0.6);
+    background: rgba(157, 78, 221, 0.08);
+}
+.modalidad-option.active {
+    border-color: #ffd700;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(157, 78, 221, 0.12));
+    box-shadow: 0 0 0 1px #ffd700 inset;
+}
+.modalidad-option[data-modalidad="promocion"].active {
+    border-color: #4ade80;
+    box-shadow: 0 0 0 1px #4ade80 inset;
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.12), rgba(157, 78, 221, 0.1));
+}
+.modalidad-icon {
+    font-size: 1.1rem;
+    color: #b388eb;
+    margin-top: 2px;
+}
+.modalidad-option[data-modalidad="promocion"] .modalidad-icon {
+    color: #ffd700;
+}
+.modalidad-option.active .modalidad-icon {
+    color: #4ade80;
+}
+.modalidad-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.3;
+}
+.modalidad-text small {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.76rem;
+}
+.modalidad-option.active .modalidad-text small {
+    color: #4ade80;
+}
+
+/* ---- Cliente: slots de sesiones de la promoción ---- */
+.promo-titulo {
+    color: #ffd700;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.promo-slot {
+    display: grid;
+    grid-template-columns: 86px 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.promo-slot-num {
+    color: #b388eb;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.promo-slot select {
+    width: 100%;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+.promo-slot select:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.promo-resumen {
+    margin-top: 8px;
+}
+.promo-resumen .popup-summary {
+    font-size: 0.8rem;
+}
+@media (max-width: 640px) {
+    .tipo-venta-options,
+    .modalidad-options {
+        grid-template-columns: 1fr;
+    }
+    .promo-slot {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+}

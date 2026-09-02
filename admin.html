@@ -369,6 +369,33 @@
                                         <input type="text" id="srv-name" placeholder="Nombre del servicio*" required>
                                         <input type="number" id="srv-price" placeholder="Precio ($)*" min="0" required>
                                     </div>
+
+                                    <!-- Tipo de venta: por sesión o por promoción -->
+                                    <div class="tipo-venta-selector">
+                                        <p class="field-hint" style="margin-bottom:8px;"><i class="fas fa-tags"></i> Tipo de venta:</p>
+                                        <div class="tipo-venta-options">
+                                            <label class="tipo-venta-option active" data-tipo="sesion">
+                                                <input type="radio" name="srv-tipo-venta" value="sesion" checked>
+                                                <span class="tv-icon"><i class="fas fa-calendar-check"></i></span>
+                                                <span class="tv-text"><strong>Por sesión</strong><small>El cliente reserva 1 sesión y paga el precio de la sesión.</small></span>
+                                            </label>
+                                            <label class="tipo-venta-option" data-tipo="promocion">
+                                                <input type="radio" name="srv-tipo-venta" value="promocion">
+                                                <span class="tv-icon"><i class="fas fa-gift"></i></span>
+                                                <span class="tv-text"><strong>Por promoción</strong><small>El cliente elige 1 sesión o un paquete de N sesiones con descuento.</small></span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Campos de promoción (solo en modo promoción) -->
+                                    <div id="promo-fields" class="promo-fields" style="display:none;">
+                                        <div class="form-row">
+                                            <input type="number" id="srv-promo-sesiones" placeholder="N° de sesiones del paquete*" min="2" step="1">
+                                            <input type="number" id="srv-promo-precio" placeholder="Precio promoción (total $)*" min="0">
+                                        </div>
+                                        <p class="field-hint promo-calc" id="promo-calc-hint"></p>
+                                    </div>
+
                                     <p class="field-hint">Estos son los datos que verán tus clientes. El nombre debe ser claro y el precio en pesos chilenos ($).</p>
 
                                     <!-- Duración -->

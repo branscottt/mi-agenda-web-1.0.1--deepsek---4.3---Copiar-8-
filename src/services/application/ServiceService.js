@@ -25,7 +25,11 @@ export async function getAllServicios(optionalTenantId) {
             activo: s.activo !== false,
             disponibilidad: s.disponibilidad || {},
             fechas: s.fechas || Object.keys(s.disponibilidad || {}),
-            fechaCreacion: s.created_at
+            fechaCreacion: s.created_at,
+            tipo_venta: s.tipo_venta || 'sesion',
+            precio_individual: (typeof s.precio_individual !== 'undefined' && s.precio_individual !== null) ? s.precio_individual : s.precio,
+            num_sesiones: s.num_sesiones ?? null,
+            precio_promocion: s.precio_promocion ?? null
         }));
     } catch (e) {
         console.error('Error getAllServicios:', e);
@@ -47,7 +51,11 @@ export async function saveServicio(servicio) {
         destacado: servicio.destacado || false,
         activo: servicio.activo !== false,
         disponibilidad: servicio.disponibilidad || {},
-        fechas: Object.keys(servicio.disponibilidad || {})
+        fechas: Object.keys(servicio.disponibilidad || {}),
+        tipo_venta: servicio.tipo_venta || 'sesion',
+        precio_individual: (typeof servicio.precio_individual !== 'undefined' ? servicio.precio_individual : servicio.precio) ?? null,
+        num_sesiones: servicio.num_sesiones ?? null,
+        precio_promocion: servicio.precio_promocion ?? null
     };
     let result;
     if (servicio.id) {
