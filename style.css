@@ -18595,3 +18595,59 @@ textarea.kanban-nueva-card-input {
         flex: 1 1 100%;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v12.1 — Board "Información" en móvil/tablet: cabecera compacta.
+   Con nombre largo el título envolvía en ~8 líneas (header 150px+)
+   y el texto se derramaba sobre los botones de acciones (a 700px la
+   columna de info colapsaba a 0px). Ahora: nombre en 1 línea con
+   ellipsis, acciones icon-only en su propia fila si no entran.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    #kanban-modal .kanban-modal-header {
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        padding: 12px 14px;
+    }
+
+    /* Fila 1: avatar + nombre/meta + X (el X siempre arriba a la derecha) */
+    #kanban-modal .kanban-cliente-avatar { order: 1; }
+    #kanban-modal .kanban-cliente-info {
+        order: 2;
+        flex: 1 1 130px;
+        min-width: 0;
+    }
+
+    #kanban-modal .kanban-cliente-info h3 {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.98rem;
+    }
+    #kanban-modal .kanban-cliente-info h3 i {
+        display: inline-block;
+    }
+
+    /* Acciones: icon-only hasta 768px; si no entran en la fila del
+       nombre pasan solas a su propia fila (nunca se pisan con el texto) */
+    #kanban-modal .kanban-estilos-actions {
+        order: 3;
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+    }
+    #kanban-modal .kanban-estilos-actions .kanban-estilos-txt {
+        display: none;
+    }
+    #kanban-modal .kanban-estilos-actions .kanban-estilos-btn {
+        padding: 8px 11px;
+    }
+    #kanban-modal .kanban-btn-close { order: 4; }
+}
+
+/* En teléfonos (<641px) las acciones no entran con el nombre: van a su
+   propia fila y la X queda siempre arriba a la derecha. */
+@media (max-width: 640px) {
+    #kanban-modal .kanban-estilos-actions { order: 4; }
+    #kanban-modal .kanban-btn-close { order: 3; }
+}
