@@ -18512,3 +18512,86 @@ textarea.kanban-nueva-card-input {
     margin-top: 14px;
     text-align: center;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v12 — Mis Clientes en móvil: acciones con etiqueta SIEMPRE
+   full-width (contenido dentro del botón) + toolbar ordenada.
+   Fix: "Enviar info" / "Copiar enlace" quedaban forzados a 34px
+   (bloque v10 icon-only) con el texto derramándose 27px fuera del
+   botón. Información/Historial ya tenían el fix solo ≤640px; aquí
+   se unifica ≤768px y se agregan los 2 botones faltantes.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+    /* Fila de acciones: permite salto de línea para los full-width */
+    .cliente-actions-row {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .cliente-actions-row .btn-small {
+        white-space: nowrap;
+    }
+
+    /* Botones CON etiqueta: cada uno en su propia fila completa,
+       contenido centrado y siempre dentro del botón. Anula el
+       width/height 34×32 !important del bloque v10 (icon-only). */
+    .cliente-actions-row .btn-enviar-info-cliente,
+    .cliente-actions-row .btn-copiar-enlace-cliente,
+    .cliente-actions-row .btn-info-cliente,
+    .cliente-actions-row .btn-ver-historial {
+        flex: 1 1 100%;
+        justify-content: center;
+        min-height: 38px;
+        padding: 8px 12px !important;
+        border-radius: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        box-sizing: border-box;
+        width: auto !important;
+        height: auto !important;
+        margin-left: 0 !important;
+    }
+    .cliente-actions-row .btn-enviar-info-cliente { order: 1; }
+    .cliente-actions-row .btn-copiar-enlace-cliente { order: 2; }
+    .cliente-actions-row .btn-info-cliente { order: 3; }
+    .cliente-actions-row .btn-ver-historial { order: 4; }
+
+    /* Toolbar: buscador ancho completo, Agregar+Exportar en una
+       fila pareja, Etiquetas ancho completo, contador abajo. */
+    .clientes-header-actions {
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }
+    .clientes-header-actions .search-box {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+    }
+    /* box-sizing border-box + sin margen lateral heredado (8px):
+       ambos rompían el cálculo del 50% (nunca caben 2 por fila) */
+    .clientes-header-actions #agregar-cliente-btn,
+    .clientes-header-actions #export-clientes-csv,
+    .clientes-header-actions #toggle-permiso-etiquetas {
+        box-sizing: border-box;
+        margin-right: 0 !important;
+    }
+    .clientes-header-actions #agregar-cliente-btn {
+        order: 1;
+        flex: 1 1 calc(50% - 6px) !important;
+        justify-content: center;
+    }
+    .clientes-header-actions #export-clientes-csv {
+        order: 2;
+        flex: 1 1 calc(50% - 6px) !important;
+        justify-content: center;
+    }
+    .clientes-header-actions #toggle-permiso-etiquetas {
+        order: 3;
+        flex: 1 1 100% !important;
+        justify-content: center;
+    }
+    .clientes-header-actions #clientes-count {
+        order: 4;
+        flex: 1 1 100%;
+    }
+}

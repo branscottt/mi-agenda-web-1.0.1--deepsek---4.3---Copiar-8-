@@ -333,7 +333,17 @@ function renderLista(container) {
  */
 function renderHelpBanner() {
     let visible = true;
-    try { visible = localStorage.getItem('mis_clientes_help_visible') !== '0'; } catch (e) { /* sin almacenamiento */ }
+    try {
+        const pref = localStorage.getItem('mis_clientes_help_visible');
+        if (pref === null) {
+            // En pantallas chicas el banner (≈600px) entierra las tarjetas:
+            // primera visita en móvil = plegado. El usuario puede abrirlo y
+            // su preferencia queda guardada como siempre.
+            visible = !window.matchMedia('(max-width: 768px)').matches;
+        } else {
+            visible = pref !== '0';
+        }
+    } catch (e) { /* sin almacenamiento */ }
     return `
         <div class="clientes-help" style="border:1px solid rgba(157,78,221,0.28);border-radius:12px;background:linear-gradient(135deg, rgba(157,78,221,0.10), rgba(0,184,148,0.05));margin-bottom:14px;overflow:hidden;">
             <button id="toggle-clientes-help" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:none;color:var(--text-color,#e0e0e0);cursor:pointer;font-size:0.88rem;text-align:left;">

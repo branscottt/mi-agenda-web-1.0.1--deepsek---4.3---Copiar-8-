@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness — Mis Clientes móvil (replica DOM real ClientListView)</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<style>
+  /* Simula el contexto admin mínimo que necesitan los estilos */
+  html, body { background:#0f0f14; }
+  body { padding: 12px; margin:0; }
+  .admin-screen { --bg-color:#0d0d0d; }
+  #results { white-space:pre-wrap; font-family:monospace; font-size:12px; color:#9ae6b4; margin-top:14px; }
+</style>
+</head>
+<body class="admin-screen">
+<div class="admin-main">
+  <div class="section-content glass-panel" id="section-clientes" style="display:block;padding:14px;">
+    <div class="clientes-header-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+      <div class="search-box" style="flex:1;min-width:200px;">
+        <i class="fas fa-search"></i>
+        <input type="text" id="clientes-search-input" placeholder="Buscar por nombre, email o teléfono..." value="">
+      </div>
+      <button class="btn-primary btn-small" id="agregar-cliente-btn" title="Agregar un cliente que ya tenías antes de la web y asignarle una reserva si quieres">
+        <i class="fas fa-user-plus"></i> Agregar cliente
+      </button>
+      <button class="btn-secondary btn-small" id="toggle-permiso-etiquetas" title="Permitir que los trabajadores pongan etiquetas de pago a sus clientes (el estado aparece en Citas Programadas)">
+        <i class="fas fa-tags"></i> Etiquetas: Todos los trabajadores
+      </button>
+      <button class="btn-secondary btn-small" id="export-clientes-csv" title="Exportar todos los clientes a CSV">
+        <i class="fas fa-download"></i> Exportar CSV
+      </button>
+      <span style="color:var(--text-muted);font-size:0.85rem;" id="clientes-count">
+        <i class="fas fa-users"></i> 2 clientes
+      </span>
+    </div>
+    <p style="color:var(--text-muted);font-size:0.78rem;margin:-8px 0 14px;">
+      <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de 3 meses sin reservar. Los clientes que agregas manualmente se conservan hasta que tú los borres.
+    </p>
+
+    <!-- renderHelpBanner: estado EXPANDIDO (replica 1ª visita desktop o con preferencia) -->
+    <div class="clientes-help" style="border:1px solid rgba(157,78,221,0.28);border-radius:12px;background:linear-gradient(135deg, rgba(157,78,221,0.10), rgba(0,184,148,0.05));margin-bottom:14px;overflow:hidden;">
+      <button id="toggle-clientes-help" style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;background:none;border:none;color:var(--text-color,#e0e0e0);cursor:pointer;font-size:0.88rem;text-align:left;">
+        <i class="fas fa-lightbulb" style="color:#ffd166;"></i>
+        <strong style="flex:1;">¿Cómo usar Mis Clientes? — todo lo que puedes hacer</strong>
+        <i class="fas fa-chevron-down" id="clientes-help-chevron" style="transition:transform .2s;transform:rotate(180deg);"></i>
+      </button>
+      <div id="clientes-help-body" style="display:block;padding:2px 16px 14px;font-size:0.83rem;color:var(--text-muted,#bbb);line-height:1.6;">
+        <ul style="margin:0;padding-left:18px;">
+          <li><strong>Información</strong> (botón de la tarjeta o clic en ella): abre el tablero completo del cliente. Ahí puedes <strong>guardar datos y escribir información</strong> (listas y tarjetas, ej. "Historia clínica", "Seguimiento", "Notas"), crear <strong>checklists</strong>, <strong>subir archivos</strong> (fotos, PDF, Word, Excel… hasta 100 MB), marcar el <strong>estado de pago</strong>, guardar plantillas de listas, editar su contacto y eliminarlo.</li>
+          <li><strong>Compartir con el cliente</strong>: activá el <i class="fas fa-eye"></i> en las listas que quieras (o "Lo que ve el cliente" en el tablero) y en la tarjeta aparecerá <strong>"Enviar info"</strong>: le manda por WhatsApp un enlace donde el cliente ve <strong>solo esas listas</strong>, siempre actualizado.</li>
+          <li><strong>Historial</strong>: muestra todas sus citas (servicio, fecha, hora, precio y totales).</li>
+          <li><strong>Agregar cliente</strong>: importa clientes que ya tenías antes de la web, con reserva opcional.</li>
+          <li><strong>WhatsApp / Email / Llamar</strong>: contacto directo desde la tarjeta.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- renderGridHtml: card 1 CON lista compartida (Enviar info + chip) -->
+    <div class="cliente-card glass-panel cliente-card-clickable" data-email="admin@demo.com" title="Clic para abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
+      <div class="cliente-card-header">
+        <div class="cliente-avatar"><i class="fas fa-user-circle"></i></div>
+        <div class="cliente-info">
+          <strong>Administrador</strong>
+          <span class="cliente-email" style="font-size:0.8rem;color:var(--text-muted);">admin@demo.com</span>
+        </div>
+        <div class="cliente-stats-mini">
+          <span class="stat-chip" title="Total gastado"><i class="fas fa-dollar-sign"></i> $25.000</span>
+          <span class="stat-chip" title="Visitas"><i class="fas fa-calendar-check"></i> 4</span>
+        </div>
+      </div>
+      <div class="cliente-card-body">
+        <div class="cliente-meta">
+          <span><i class="fas fa-phone"></i> +56 9 8765 4321</span>
+          <span><i class="fas fa-clock"></i> Última: 17 sept</span>
+          <span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: 3 sept 13:00</span>
+        </div>
+        <div style="margin:4px 0 2px;">
+          <span class="cliente-compartido-chip" title="Listas que este cliente ve a través de su enlace"><i class="fas fa-eye"></i> 2 listas compartidas</span>
+        </div>
+        <div class="cliente-etiqueta-fila" data-email="admin@demo.com" title="Cambiar el estado de pago del cliente (aparece en Citas Programadas)">
+          <span class="chip-etiqueta" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:0.72rem;background:rgba(46,230,168,0.12);color:#2ee6a8;border:1px solid rgba(46,230,168,0.25);"><i class="fas fa-tag"></i> Pagado</span>
+        </div>
+        <div class="cliente-actions-row">
+          <a href="https://wa.me/56987654321" target="_blank" class="btn-small" style="background:#25D366;color:#fff;" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></a>
+          <a href="mailto:admin@demo.com" class="btn-small" style="background:var(--primary-color);color:#fff;" title="Enviar Email"><i class="fas fa-envelope"></i></a>
+          <a href="tel:+56987654321" class="btn-small" style="background:var(--secondary-color);color:#fff;" title="Llamar"><i class="fas fa-phone"></i></a>
+          <a href="https://wa.me/56987654321?text=info" target="_blank" rel="noopener noreferrer" class="btn-small btn-enviar-info-cliente" style="background:#128C7E;color:#fff;font-weight:600;" title="Enviar por WhatsApp el enlace con la información que compartiste con este cliente">
+            <i class="fab fa-whatsapp"></i> Enviar info
+          </a>
+          <button class="btn-small btn-info-cliente" data-email="admin@demo.com" title="Abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
+            <i class="fas fa-id-card"></i> Información
+          </button>
+          <button class="btn-small btn-ver-historial" data-email="admin@demo.com" style="margin-left:auto;">
+            <i class="fas fa-history"></i> Historial
+          </button>
+        </div>
+        <div class="cliente-historial" id="historial-admin-demo-com" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Card 2: SIN compartir (solo iconos + Información + Historial) -->
+    <div class="cliente-card glass-panel cliente-card-clickable" data-email="nene@demo.com" title="Clic para abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
+      <div class="cliente-card-header">
+        <div class="cliente-avatar"><i class="fas fa-user-circle"></i></div>
+        <div class="cliente-info">
+          <strong>Nene</strong>
+          <span class="cliente-email" style="font-size:0.8rem;color:var(--text-muted);">nene@demo.com</span>
+        </div>
+        <div class="cliente-stats-mini">
+          <span class="stat-chip" title="Total gastado"><i class="fas fa-dollar-sign"></i> $8.000</span>
+          <span class="stat-chip" title="Visitas"><i class="fas fa-calendar-check"></i> 1</span>
+        </div>
+      </div>
+      <div class="cliente-card-body">
+        <div class="cliente-meta">
+          <span><i class="fas fa-phone"></i> +56 9 1122 3344</span>
+          <span><i class="fas fa-clock"></i> Última: 12 sept</span>
+        </div>
+        <div class="cliente-etiqueta-fila" data-email="nene@demo.com" title="Cambiar el estado de pago del cliente (aparece en Citas Programadas)">
+          <span class="chip-etiqueta" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:0.72rem;background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.25);"><i class="fas fa-tag"></i> Pendiente</span>
+        </div>
+        <div class="cliente-actions-row">
+          <a href="https://wa.me/56911223344" target="_blank" class="btn-small" style="background:#25D366;color:#fff;" title="Enviar WhatsApp"><i class="fab fa-whatsapp"></i></a>
+          <a href="mailto:nene@demo.com" class="btn-small" style="background:var(--primary-color);color:#fff;" title="Enviar Email"><i class="fas fa-envelope"></i></a>
+          <a href="tel:+56911223344" class="btn-small" style="background:var(--secondary-color);color:#fff;" title="Llamar"><i class="fas fa-phone"></i></a>
+          <button class="btn-small btn-info-cliente" data-email="nene@demo.com" title="Abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
+            <i class="fas fa-id-card"></i> Información
+          </button>
+          <button class="btn-small btn-ver-historial" data-email="nene@demo.com" style="margin-left:auto;">
+            <i class="fas fa-history"></i> Historial
+          </button>
+        </div>
+        <div class="cliente-historial" id="historial-nene-demo-com" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<pre id="results"></pre>
+</body>
+</html>
