@@ -10751,8 +10751,11 @@ async function iniciarCliente() {
     configurarFiltroFecha();
     configurarBotonesExportacion();
 
-    // Determinar si es cliente externo (viene del link compartido con ?tenant=)
-    const vieneDeLinkCompartido = urlParams.has('tenant') || urlParams.has('tenant_id');
+    // Determinar si es cliente externo (viene del link compartido con ?tenant= o URL amigable /p/:slug)
+    // El rewrite de Vercel sirve cliente.html para /p/:slug SIN query string, por eso también
+    // se detecta la ruta amigable (commit 1b58715: el link de "Compartir a Clientes" ya genera /p/slug).
+    const esRutaSlugAmigable = /^\/p\//.test(window.location.pathname || '');
+    const vieneDeLinkCompartido = urlParams.has('tenant') || urlParams.has('tenant_id') || esRutaSlugAmigable;
 
     // Verificar sesión – cargar datos adicionales si el usuario está logueado
     const session = await getSession();
