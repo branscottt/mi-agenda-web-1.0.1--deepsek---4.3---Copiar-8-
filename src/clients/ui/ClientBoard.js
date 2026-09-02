@@ -90,6 +90,47 @@ let cardModalCard = null;  // card cuyo modal está abierto (para refrescar badg
 let dragCardId = null;
 let tokenCompartido = null; // token público del board (enlace "lo que ve el cliente")
 
+// ========== BOTÓN "ATRÁS" DEL NAVEGADOR (móvil) ==========
+// Al abrir el board se hace pushState; si el usuario toca "atrás" (y no la X),
+// el popstate cierra el board (y cualquier overlay anidado) y queda en
+// Mis Clientes — nunca se va de la página con el board abierto.
+let maHistorialActivo = false; // hay una entrada propia del board en el historial
+let maCerrando = false;        // guard anti doble-disparo (X/back rápido)
+
+function maPushHistorialBoard() {
+    if (maHistorialActivo) return; // ya hay entrada (re-apertura sobre el mismo board)
+    try {
+        history.pushState({ maBoard: true }, '');
+        maHistorialActivo = true;
+    } catch (e) { /* historial no disponible */ }
+}
+
+function maConsumirEntradaBoard() {
+    // Cierre por UI (X, backdrop, Escape, eliminar): consume la entrada propia
+    // para que "atrás" posterior no quede mudo ni salga de más.
+    if (maCerrando) return;
+    if (!maHistorialActivo) { cerrarModal(); return; }
+    maCerrando = true;
+    try {
+        history.back(); // popstate → maPopHandler cierra el board y limpia el flag
+    } catch (e) {
+        maCerrando = false;
+        maHistorialActivo = false;
+        cerrarModal();
+    }
+}
+
+function maPopHandler() {
+    if (!maHistorialActivo) return;
+    maHistorialActivo = false;
+    maCerrando = false;
+    // Cierra overlays anidados (tarjeta/estilos) y después el board:
+    // "atrás" devuelve SIEMPRE a Mis Clientes.
+    const cardOv = document.getElementById('kanban-card-overlay');
+    if (cardOv) cerrarCardModal();
+    if (document.getElementById('kanban-modal')) cerrarModal();
+}
+
 // ========== APERTURA ==========
 
 /**
@@ -180,11 +221,13 @@ function renderBoardModal() {
     `;
     document.body.appendChild(overlay);
 
-    document.getElementById('kanban-cerrar').addEventListener('click', cerrarModal);
+    document.getElementById('kanban-cerrar').addEventListener('click', maConsumirEntradaBoard);
     overlay.addEventListener('mousedown', (e) => {
-        if (e.target === overlay) cerrarModal();
+        if (e.target === overlay) maConsumirEntradaBoard();
     });
     document.addEventListener('keydown', kanbanEscHandler);
+    window.addEventListener('popstate', maPopHandler);
+    maPushHistorialBoard();
 
     bindAddLista();
     bindListas();
@@ -229,7 +272,7 @@ function bindEliminarCliente() {
                 return;
             }
             const email = clienteActual.email;
-            cerrarModal();
+            maConsumirEntradaBoard();
             // Refresca la lista de Mis Clientes (expuesta por main.js en admin).
             if (typeof window.renderClientListView === 'function') {
                 try { window.renderClientListView(); } catch (e) { console.warn('[ClientBoard] Error refrescando Mis Clientes:', e); }
@@ -704,13 +747,16 @@ function kanbanEscHandler(e) {
             if (cardModalCard) actualizarCardEnBoard(cardModalCard);
             cerrarCardModal();
         } else {
-            cerrarModal();
+            maConsumirEntradaBoard();
         }
     }
 }
 
 function cerrarModal() {
     document.removeEventListener('keydown', kanbanEscHandler);
+    window.removeEventListener('popstate', maPopHandler);
+    maHistorialActivo = false;
+    maCerrando = false;
     const overlay = document.getElementById('kanban-modal');
     if (overlay) overlay.remove();
     board = null;
