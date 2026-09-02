@@ -11744,6 +11744,26 @@ async function abrirModalReserva(serviceId) {
         return `<option value="${f}" ${todosAgotadosEnFecha ? 'disabled' : ''}>${formatFechaConDiaSemana(f)}${todosAgotadosEnFecha ? ' (Agotada)' : ''}</option>`;
     }).join('');
 
+    // Fechas para los SLOTS de promoción: además de las agotadas, se
+    // descartan las fechas sin NINGÚN horario futuro (ej. hoy con horas
+    // ya pasadas) — si no, el slot queda sin horas y el botón nunca se
+    // habilita ("no me deja guardar la promoción").
+    const ahoraSlots = new Date();
+    const slotsFechasOptions = fechas.map(f => {
+        const modulosForDate = servicio.disponibilidad[f] || [];
+        const esHoyF = f === hoyLocalStr;
+        const disponible = modulosForDate.some(m => {
+            if (Number(m.cupos || 0) <= 0) return false;
+            if (!esHoyF) return true;
+            const hp = String(m.hora || m.startTime || '').match(/(\d{1,2}):(\d{2})/);
+            if (!hp) return true;
+            const fh = new Date();
+            fh.setHours(parseInt(hp[1]), parseInt(hp[2]), 0, 0);
+            return fh > ahoraSlots;
+        });
+        return `<option value="${f}" ${disponible ? '' : 'disabled'}>${formatFechaConDiaSemana(f)}${disponible ? '' : ' (Agotada)'}</option>`;
+    }).join('');
+
     // Cargar trabajadores asignados al servicio (selector opcional de reserva)
     // Vía RPC SECURITY DEFINER: no depende del GUC de sesión app.tenant_id
     // (bug 20260916: el pooler transaccional pierde el GUC entre requests).
@@ -11859,7 +11879,7 @@ async function abrirModalReserva(serviceId) {
                 <span class="promo-slot-num">Sesión ${i} de ${servicio.num_sesiones}</span>
                 <select class="promo-slot-fecha" id="promo-fecha-${i}" data-slot="${i}" ${i > 1 ? 'disabled' : ''}>
                     <option value="">Seleccione fecha</option>
-                    ${fechasOptions}
+                    ${slotsFechasOptions}
                 </select>
                 <select class="promo-slot-hora" id="promo-hora-${i}" data-slot="${i}" disabled>
                     <option value="">Seleccione hora</option>
@@ -11921,9 +11941,20 @@ async function abrirModalReserva(serviceId) {
                 const modulosForDate = (servicio.disponibilidad && servicio.disponibilidad[fechaSel]) ? servicio.disponibilidad[fechaSel] : [];
                 const esHoySlot = fechaSel === hoyLocalStr;
                 const ahoraLocalSlot = new Date();
+                // Horas ya elegidas en OTROS slots con la misma fecha: se
+                // excluyen para no duplicar (fecha,hora) — con cupos bajos el
+                // bulk todo-o-nada fallaría por "horario agotado".
+                const horasUsadasOtrosSlots = new Set();
+                slotsContainer.querySelectorAll('.promo-slot').forEach(s => {
+                    if (s === sel.closest('.promo-slot')) return;
+                    const f2 = s.querySelector('.promo-slot-fecha')?.value;
+                    const h2 = s.querySelector('.promo-slot-hora')?.value;
+                    if (f2 === fechaSel && h2) horasUsadasOtrosSlots.add(String(h2));
+                });
                 let options = '<option value="">Seleccione hora</option>';
                 modulosForDate.forEach((m, index) => {
                     if (Number(m.cupos || 0) <= 0) return;
+                    if (horasUsadasOtrosSlots.has(String(index))) return;
                     const horaRaw = normalizarHoraReserva(m.hora || m.startTime || '00:00');
                     const horaText = formatTimeDisplay(horaRaw);
                     if (esHoySlot) {
