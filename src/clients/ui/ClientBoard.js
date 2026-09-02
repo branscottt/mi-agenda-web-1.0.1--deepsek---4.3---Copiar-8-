@@ -746,6 +746,33 @@ function actualizarCardEnBoard(card) {
     bindCheckTarjeta(nuevo);
 }
 
+/** Inserta una tarjeta recién creada en el DOM del board SIN re-renderizar
+ * (conserva scroll y foco: permite crear varias tarjetas seguidas con Enter). */
+function agregarCardAlBoard(lista, card) {
+    if (!lista || !card) return;
+    const cont = document.querySelector(`.kanban-list[data-list-id="${lista.id}"] .kanban-list-cards`);
+    if (!cont) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = renderCardHtml(card).trim();
+    const nuevo = wrap.firstElementChild;
+    if (!nuevo) return;
+
+    const addCard = cont.querySelector('.kanban-add-card');
+    if (addCard) cont.insertBefore(nuevo, addCard);
+    else cont.appendChild(nuevo);
+
+    nuevo.addEventListener('click', (e) => {
+        if (e.target.closest('.kanban-card-check')) return;
+        abrirCardModal(card.id);
+    });
+    bindCheckTarjeta(nuevo);
+    bindCardDnD(nuevo);
+
+    // Contador de tarjetas del header de la lista
+    const countEl = document.querySelector(`.kanban-list[data-list-id="${lista.id}"] .kanban-list-count`);
+    if (countEl) countEl.textContent = lista.cards.length;
+}
+
 // ========== LISTAS: crear / editar / eliminar ==========
 
 function bindAddLista() {
@@ -860,6 +887,11 @@ function bindListas() {
     document.querySelectorAll('.kanban-add-card').forEach(btn => {
         btn.addEventListener('click', () => {
             const listaId = btn.dataset.listId;
+            // Cerrar el editor restaurando el botón "Añadir tarjeta" SIN
+            // re-renderizar el board: así ningún clic en curso se pierde.
+            const cerrarComposer = () => {
+                btn.innerHTML = '<i class="fas fa-plus"></i> Añadir tarjeta';
+            };
             btn.innerHTML = `
                 <textarea class="kanban-nueva-card-input" placeholder="Nombre de la tarjeta..." maxlength="300" rows="1" autofocus></textarea>
                 <div class="kanban-multi-hint" id="kanban-multi-hint" style="display:none;"></div>
@@ -867,6 +899,7 @@ function bindListas() {
             const input = btn.querySelector('textarea');
             const hint = btn.querySelector('.kanban-multi-hint');
             let modoMulti = 'multiples'; // 'multiples' | 'una'
+            let creando = false;         // candado anti doble-Enter
 
             // Auto-resize del textarea (una línea = alto normal)
             const autoResize = () => {
@@ -901,10 +934,12 @@ function bindListas() {
             input.addEventListener('input', () => { actualizarHint(); autoResize(); });
 
             const confirmar = async () => {
+                if (creando) return; // candado: evita doble Enter concurrente
                 const lineas = input.value.split('\n').map(l => l.trim()).filter(Boolean);
                 if (!lineas.length) return;
                 const lista = lists.find(l => l.id === listaId);
                 if (!lista) return;
+                creando = true;
                 try {
                     if (lineas.length > 1 && modoMulti === 'multiples') {
                         // Trello-style: una tarjeta por línea
@@ -915,27 +950,45 @@ function bindListas() {
                         renderBoardModal();
                         mostrarToast(`${lineas.length} tarjetas creadas`, 'success');
                     } else {
-                        // Una tarjeta: primera línea = título, resto = descripción
+                        // Una tarjeta: primera línea = título, resto = descripción.
+                        // NO se abre el modal automáticamente: la tarjeta queda
+                        // creada y se abre SOLO cuando el usuario hace clic en ella
+                        // (así puede crear varias tarjetas seguidas con Enter).
                         const titulo = lineas[0];
                         const descripcion = lineas.slice(1).join('\n');
                         const nueva = await deps.kanbanApi.createCard(listaId, { titulo, descripcion, posicion: lista.cards.length });
                         lista.cards.push({ ...nueva, etiquetas: nueva.etiquetas || [], checklists: [], adjuntos: [] });
-                        renderBoardModal();
-                        abrirCardModal(nueva.id);
+                        agregarCardAlBoard(lista, nueva);
+                        if (lineas.length === 1) {
+                            // Entrada rápida: dejar el campo limpio y con foco
+                            // para seguir creando más tarjetas con Enter.
+                            input.value = '';
+                            modoMulti = 'multiples';
+                            hint.style.display = 'none';
+                            hint.innerHTML = '';
+                            autoResize();
+                            input.focus();
+                        } else {
+                            // Multilínea elegida como "una sola tarjeta": la
+                            // descripción ya quedó guardada; se cierra el editor.
+                            cerrarComposer();
+                        }
                     }
                 } catch (e) {
                     console.error('[ClientBoard] Error creando tarjeta:', e);
                     mostrarToast('No se pudo crear la tarjeta', 'error');
                     renderBoardModal();
+                } finally {
+                    creando = false;
                 }
             };
             input.addEventListener('keydown', (e) => {
                 // Enter sin Shift crea; Shift+Enter permite salto de línea (paste manual)
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmar(); }
-                if (e.key === 'Escape') renderBoardModal();
+                if (e.key === 'Escape') cerrarComposer();
             });
             input.addEventListener('blur', () => {
-                if (!input.value.trim()) renderBoardModal();
+                if (!input.value.trim()) cerrarComposer();
             });
             input.focus();
         });
@@ -980,20 +1033,23 @@ function bindCheckTarjeta(cardEl) {
 
 // ========== DRAG & DROP (nativo HTML5) ==========
 
-function bindDnD() {
-    document.querySelectorAll('.kanban-card').forEach(cardEl => {
-        cardEl.addEventListener('dragstart', (e) => {
-            dragCardId = cardEl.dataset.cardId;
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', dragCardId);
-            cardEl.classList.add('kanban-dragging');
-        });
-        cardEl.addEventListener('dragend', () => {
-            dragCardId = null;
-            cardEl.classList.remove('kanban-dragging');
-            document.querySelectorAll('.kanban-list-cards').forEach(c => c.classList.remove('kanban-drag-over'));
-        });
+/** Bind de drag & drop para UNA tarjeta (reutilizable al insertar tarjetas nuevas sin re-render). */
+function bindCardDnD(cardEl) {
+    cardEl.addEventListener('dragstart', (e) => {
+        dragCardId = cardEl.dataset.cardId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragCardId);
+        cardEl.classList.add('kanban-dragging');
     });
+    cardEl.addEventListener('dragend', () => {
+        dragCardId = null;
+        cardEl.classList.remove('kanban-dragging');
+        document.querySelectorAll('.kanban-list-cards').forEach(c => c.classList.remove('kanban-drag-over'));
+    });
+}
+
+function bindDnD() {
+    document.querySelectorAll('.kanban-card').forEach(cardEl => bindCardDnD(cardEl));
 
     document.querySelectorAll('.kanban-list-cards').forEach(cont => {
         const listaId = cont.dataset.listId;
