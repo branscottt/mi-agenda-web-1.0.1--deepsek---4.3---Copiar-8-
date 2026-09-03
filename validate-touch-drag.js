@@ -37,6 +37,8 @@ async function main() {
     localStorage.setItem('agendapro_refresh_token', refresh);
     localStorage.setItem('agendapro_user_data', JSON.stringify(userData));
     localStorage.setItem(sbKey, JSON.stringify({ access_token: access, refresh_token: refresh, expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, token_type: 'bearer', user: null }));
+    // Tour de bienvenida del admin: marcarlo visto para que no tape la UI en el test
+    if (userData.tenant_id) localStorage.setItem('agendapro_tour_' + userData.tenant_id, 'visto');
   }, { access: session.access_token, refresh: session.refresh_token, userData, sbKey });
 
   await page.goto(`${BASE}/admin.html`, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -88,7 +90,7 @@ async function main() {
     }, n);
     if (!pos) break;
     console.log(`cliente ${n}: pos=${JSON.stringify(pos)}`);
-    if (pos.cubierto || pos.y < 0 || pos.y > innerHeight) continue;
+    if (pos.cubierto || pos.y < 0 || pos.y > 1112) continue;
     await tap(pos.x, pos.y);
     await sleep(3500);
     const st = await page.evaluate(() => ({
@@ -128,23 +130,80 @@ async function main() {
   if (!punto) { console.log('estructura insuficiente'); process.exit(2); }
   console.log('Mover card', punto.cardId, punto.origen, '→', punto.destino, JSON.stringify(punto.from), '→', JSON.stringify(punto.to));
 
-  // CASO 1: tap corto en tarjeta → abre modal de card
-  await tap(punto.from.x, punto.from.y);
-  await sleep(1800);
-  const caso1 = await page.evaluate(() => !!document.querySelector('#kcard-lista, #kcard-titulo'));
-  console.log('CASO 1 (tap abre modal de card):', caso1 ? 'PASS' : 'FAIL');
-  await page.keyboard.press('Escape'); await sleep(800);
-  await page.evaluate(() => { const ov = document.querySelector('.kanban-card-overlay'); if (ov) ov.remove(); }).catch(() => {});
-  await sleep(400);
-
-  // CASO 2: long-press + deslizar a la última columna
+  // CASO 2: long-press + deslizar a la última columna (board recién abierto, sin modales)
   const antes = await page.evaluate(colDeCard, punto.cardId);
   await drag(punto.from.x, punto.from.y, punto.to.x, punto.to.y);
-  await sleep(1500);
+  await sleep(1800);
   const despues = await page.evaluate(colDeCard, punto.cardId);
   const abrioModal = await page.evaluate(() => !!document.querySelector('#kcard-lista'));
-  console.log(`CASO 2 (drag táctil mueve de columna): antes=${antes} despues=${despues} → ${antes !== despues ? 'PASS' : 'FAIL'}`);
+  console.log(`CASO 2 (drag táctil mueve de columna): antes=${antes} despues=${despues} → ${antes !== despues && despues === punto.destino ? 'PASS' : 'FAIL'}`);
   console.log('CASO 2b (no abre modal al soltar):', abrioModal ? 'FAIL (abrió modal)' : 'PASS');
+
+  // Restaurar la tarjeta a su columna original (no alterar los datos del tenant demo)
+  if (antes !== despues && despues === punto.destino && punto.origen) {
+    const back = await page.evaluate(({ cardId, origenId }) => {
+      const card = document.querySelector(`.kanban-card[data-card-id="${cardId}"]`);
+      if (!card) return null;
+      const origen = document.querySelector(`.kanban-list[data-list-id="${origenId}"] .kanban-list-cards`);
+      if (!origen) return null;
+      card.scrollIntoView({ block: 'center' });
+      const a2 = card.getBoundingClientRect();
+      const b2 = origen.getBoundingClientRect();
+      return { from: { x: Math.round(a2.x + a2.width / 2), y: Math.round(a2.y + a2.height / 2) }, to: { x: Math.round(b2.x + b2.width / 2), y: Math.round(b2.y + Math.min(80, b2.height / 2)) } };
+    }, { cardId: punto.cardId, origenId: punto.origen });
+    if (back) {
+      await drag(back.from.x, back.from.y, back.to.x, back.to.y);
+      await sleep(1800);
+      const restaurada = await page.evaluate(colDeCard, punto.cardId);
+      console.log(`CASO 2c (restauración a columna original): ${restaurada === punto.origen ? 'PASS' : 'FAIL (' + restaurada + ')'}`);
+    }
+  }
+
+  // CASO 1: tap corto en tarjeta → abre modal de card (sin arrastre)
+  // Nota: el click del drag de restauración anterior puede quedar suprimido
+  // (once) y comerse el primer tap → reintentar hasta 3 veces.
+  async function asegurarBoardAbierto() {
+    const ok = await page.evaluate(() => !!document.getElementById('kanban-modal'));
+    if (ok) return true;
+    const pos = await page.evaluate(() => {
+      const card = document.querySelector('.cliente-card');
+      if (!card) return null;
+      const b = card.querySelector('.btn-info-cliente') || card;
+      b.scrollIntoView({ block: 'center' });
+      const r = b.getBoundingClientRect();
+      return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+    });
+    if (!pos) return false;
+    await tap(pos.x, pos.y);
+    await sleep(3500);
+    return page.evaluate(() => !!document.getElementById('kanban-modal'));
+  }
+  let caso1 = false;
+  for (let i = 0; i < 3 && !caso1; i++) {
+    if (!(await asegurarBoardAbierto())) break;
+    const tapCard = await page.evaluate(() => {
+      const c = document.querySelector('.kanban-card');
+      if (!c) return null;
+      const r = c.getBoundingClientRect();
+      return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
+    });
+    if (!tapCard) break;
+    await tap(tapCard.x, tapCard.y);
+    await sleep(2000);
+    caso1 = await page.evaluate(() => !!document.querySelector('#kcard-lista, #kcard-titulo'));
+    if (!caso1) await sleep(600);
+  }
+  console.log('CASO 1 (tap abre modal de card):', caso1 ? 'PASS' : 'FAIL');
+  if (caso1) {
+    // Cerrar el modal de card con su botón real (Escape cerraría el board vía popstate)
+    const cerrado = await page.evaluate(() => {
+      const btn = document.querySelector('.kanban-card-overlay .kanban-btn-close, [id*="card"] .kanban-btn-close, .kanban-card-overlay button[class*="close"]');
+      if (btn) { btn.click(); return true; }
+      return false;
+    });
+    if (!cerrado) await page.keyboard.press('Escape');
+    await sleep(1200);
+  }
 
   // CASO 3: swipe rápido sin long-press (scroll) → no mueve ni abre
   const card3 = await page.evaluate(() => {
