@@ -1092,6 +1092,151 @@ function bindCardDnD(cardEl) {
         cardEl.classList.remove('kanban-dragging');
         document.querySelectorAll('.kanban-list-cards').forEach(c => c.classList.remove('kanban-drag-over'));
     });
+
+    // En pantallas táctiles el DnD HTML5 no existe: se arrastra con el dedo
+    // (long-press 300ms + deslizar). Ver bindCardTouch() abajo.
+    bindCardTouch(cardEl);
+}
+
+// ========== DRAG TÁCTIL (tablet/móvil) ==========
+// HTML5 drag & drop solo funciona con mouse; en pantallas táctiles (iPad,
+// tablets Android) arrastrar tarjetas no disparaba dragstart. Este fallback
+// con Pointer Events permite mover tarjetas con el dedo:
+//   toque sostenido ~300ms (sin moverse) → entra en modo arrastre
+//   deslizar el dedo → reorden en vivo (misma UI que el dragover)
+//   soltar sobre una lista → persiste con persistirOrden() + syncStateDesdeDOM()
+// Un toque corto o un swipe de scroll normal siguen intactos (el modo
+// arrastre solo se activa si el dedo queda quieto hasta el umbral).
+
+let toqueDrag = null; // { cardEl, cardId, x0, y0, activo, timer, vivo }
+
+function bindCardTouch(cardEl) {
+    cardEl.addEventListener('pointerdown', (e) => {
+        if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+        if (e.target.closest('button, a, select, input, textarea, .kanban-card-check')) return;
+        if (toqueDrag) return;
+        toqueDrag = {
+            cardEl,
+            cardId: cardEl.dataset.cardId,
+            x0: e.clientX,
+            y0: e.clientY,
+            activo: false,   // modo arrastre activado (pasó el long-press)
+            vivo: true,
+            timer: setTimeout(() => activarDragToque(e.clientX, e.clientY), 300),
+        };
+        window.addEventListener('pointermove', onToquePointerMove, { passive: false });
+        window.addEventListener('pointerup', onToquePointerUp);
+        window.addEventListener('pointercancel', onToquePointerUp);
+    });
+
+    // El menú contextual del long-press (Android/iOS) no debe aparecer
+    // mientras se arrastra una tarjeta con el dedo. El click derecho de
+    // escritorio sigue intacto (toqueDrag inactivo en ese caso).
+    cardEl.addEventListener('contextmenu', (e) => {
+        if (toqueDrag && toqueDrag.activo) e.preventDefault();
+    });
+}
+
+function activarDragToque(x, y) {
+    if (!toqueDrag || !toqueDrag.vivo || toqueDrag.activo) return;
+    // Si el dedo ya se movió antes del umbral, era un scroll: no arrastrar.
+    if (Math.hypot(x - toqueDrag.x0, y - toqueDrag.y0) > 14) { cancelarDragToque(); return; }
+    toqueDrag.activo = true;
+    toqueDrag.cardEl.classList.add('kanban-dragging');
+    dragCardId = toqueDrag.cardId;
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (_) { /* noop */ } }
+    // Bloquear el scroll nativo mientras se arrastra (preventDefault en touchmove)
+    window.addEventListener('touchmove', bloquearScrollToque, { passive: false });
+}
+
+function bloquearScrollToque(e) {
+    if (toqueDrag && toqueDrag.activo) e.preventDefault();
+}
+
+function onToquePointerMove(e) {
+    if (!toqueDrag || !toqueDrag.vivo) return;
+    const t = toqueDrag;
+    if (!t.activo) {
+        // Aún no pasó el umbral: si el dedo se mueve, es scroll → abortar el long-press
+        if (Math.hypot(e.clientX - t.x0, e.clientY - t.y0) > 14) {
+            clearTimeout(t.timer);
+            t.vivo = false;
+            limpiarListenersToque();
+        }
+        return;
+    }
+    e.preventDefault();
+    const cont = document.elementFromPoint(e.clientX, e.clientY)?.closest('.kanban-list-cards');
+    document.querySelectorAll('.kanban-list-cards').forEach(c => c.classList.remove('kanban-drag-over'));
+    if (!cont) return;
+    cont.classList.add('kanban-drag-over');
+    // Reorden en vivo: insertar la tarjeta antes de la más cercana (igual que dragover)
+    const dragging = t.cardEl;
+    const cards = [...cont.querySelectorAll('.kanban-card:not(.kanban-dragging)')];
+    let antes = null;
+    for (const card of cards) {
+        const rect = card.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) { antes = card; break; }
+    }
+    if (antes && antes.parentElement === cont) cont.insertBefore(dragging, antes);
+    else if (!antes && dragging.parentElement !== cont) cont.appendChild(dragging);
+}
+
+function onToquePointerUp(e) {
+    if (!toqueDrag || !toqueDrag.vivo) return;
+    const t = toqueDrag;
+    clearTimeout(t.timer);
+    const fueArrastre = t.activo;
+    if (fueArrastre) {
+        const cont = document.elementFromPoint(e.clientX, e.clientY)?.closest('.kanban-list-cards');
+        t.cardEl.classList.remove('kanban-dragging');
+        if (cont) {
+            const listaId = cont.dataset.listId;
+            const listaOrigen = lists.find(l => l.cards.some(c => c.id === t.cardId));
+            (async () => {
+                try {
+                    await persistirOrden(listaId);
+                    if (listaOrigen && listaOrigen.id !== listaId) await persistirOrden(listaOrigen.id);
+                } catch (err) {
+                    console.error('[ClientBoard] Error guardando movimiento táctil:', err);
+                    mostrarToast('No se pudo guardar el movimiento', 'error');
+                }
+                syncStateDesdeDOM();
+            })();
+        } else {
+            syncStateDesdeDOM(); // soltó fuera de toda lista → revierte el reorden visual
+        }
+        document.querySelectorAll('.kanban-list-cards').forEach(c => c.classList.remove('kanban-drag-over'));
+        dragCardId = null;
+        window.removeEventListener('touchmove', bloquearScrollToque);
+        // El click que el navegador dispara tras soltar NO debe abrir el modal de tarjeta
+        document.addEventListener('click', suprimirClickPostDrag, { capture: true, once: true });
+    }
+    toqueDrag = null;
+    limpiarListenersToque();
+}
+
+function suprimirClickPostDrag(e) {
+    e.stopPropagation();
+    e.preventDefault();
+}
+
+function cancelarDragToque() {
+    if (!toqueDrag) return;
+    clearTimeout(toqueDrag.timer);
+    toqueDrag.cardEl.classList.remove('kanban-dragging');
+    toqueDrag.vivo = false;
+    toqueDrag = null;
+    dragCardId = null;
+    document.querySelectorAll('.kanban-list-cards').forEach(c => c.classList.remove('kanban-drag-over'));
+    window.removeEventListener('touchmove', bloquearScrollToque);
+    limpiarListenersToque();
+}
+
+function limpiarListenersToque() {
+    window.removeEventListener('pointermove', onToquePointerMove);
+    window.removeEventListener('pointerup', onToquePointerUp);
+    window.removeEventListener('pointercancel', onToquePointerUp);
 }
 
 function bindDnD() {

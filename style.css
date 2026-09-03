@@ -18651,3 +18651,27 @@ textarea.kanban-nueva-card-input {
     #kanban-modal .kanban-estilos-actions { order: 4; }
     #kanban-modal .kanban-btn-close { order: 3; }
 }
+
+/* ============================================================
+   TABLET / PANTALLA TÁCTIL — DRAG DE TARJETAS DEL BOARD
+   El DnD HTML5 solo funciona con mouse. En táctil (iPad, tablets
+   Android) las tarjetas se arrastran con long-press + deslizar
+   (ver bindCardTouch en ClientBoard.js). Estas reglas solo
+   aplican a dispositivos con puntero grueso (coarse); el
+   escritorio y los portátiles con touchpad quedan intactos.
+   ============================================================ */
+@media (pointer: coarse) {
+    /* Evitar selección de texto / callout de iOS al mantener pulsada
+       una tarjeta para arrastrarla (la tarjeta es un ítem arrastrable,
+       no texto seleccionable). */
+    .kanban-card {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    .kanban-card.kanban-dragging {
+        -webkit-user-select: none;
+        user-select: none;
+        cursor: grabbing;
+    }
+}

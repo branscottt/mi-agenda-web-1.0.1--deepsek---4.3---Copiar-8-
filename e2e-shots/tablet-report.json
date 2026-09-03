@@ -1,0 +1,638 @@
+[
+  {
+    "page": "index",
+    "vp": "t768",
+    "vw": 768,
+    "sw": 768,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "home-marquee-track",
+        "id": "",
+        "right": 1707,
+        "vw": 939,
+        "left": -93
+      },
+      {
+        "tag": "div",
+        "cls": "home-marquee-group",
+        "id": "",
+        "right": 487,
+        "vw": -281,
+        "left": -93
+      },
+      {
+        "tag": "article",
+        "cls": "dir-card",
+        "id": "",
+        "right": 187,
+        "vw": -581,
+        "left": -93
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cover",
+        "id": "",
+        "right": 186,
+        "vw": -582,
+        "left": -92
+      },
+      {
+        "tag": "img",
+        "cls": "",
+        "id": "",
+        "right": 186,
+        "vw": -582,
+        "left": -92
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-body",
+        "id": "",
+        "right": 186,
+        "vw": -582,
+        "left": -92
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "right": 168,
+        "vw": -600,
+        "left": -74
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cat",
+        "id": "",
+        "right": 168,
+        "vw": -600,
+        "left": -74
+      },
+      {
+        "tag": "span",
+        "cls": "dir-card-stars",
+        "id": "",
+        "right": 168,
+        "vw": -600,
+        "left": -74
+      },
+      {
+        "tag": "a",
+        "cls": "btn-reservar",
+        "id": "",
+        "right": 168,
+        "vw": -600,
+        "left": -74
+      }
+    ],
+    "nOffenders": 40,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t768-index.png",
+    "errs": []
+  },
+  {
+    "page": "login",
+    "vp": "t768",
+    "vw": 768,
+    "sw": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 7,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t768-login.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "planes",
+    "vp": "t768",
+    "vw": 768,
+    "sw": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 7,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t768-planes.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "directorio",
+    "vp": "t768",
+    "vw": 768,
+    "sw": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t768-directorio.png",
+    "errs": []
+  },
+  {
+    "page": "admin",
+    "vp": "t768",
+    "vw": 768,
+    "sw": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 1,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t768-admin.png",
+    "errs": []
+  },
+  {
+    "page": "admin-clientes",
+    "vp": "t768",
+    "vw": 768,
+    "sw": 768,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 7,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t768-admin-clientes.png",
+    "errs": []
+  },
+  {
+    "page": "index",
+    "vp": "t800",
+    "vw": 800,
+    "sw": 800,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "home-marquee-track",
+        "id": "",
+        "right": 1685,
+        "vw": 885,
+        "left": -115
+      },
+      {
+        "tag": "div",
+        "cls": "home-marquee-group",
+        "id": "",
+        "right": 465,
+        "vw": -335,
+        "left": -115
+      },
+      {
+        "tag": "article",
+        "cls": "dir-card",
+        "id": "",
+        "right": 165,
+        "vw": -635,
+        "left": -115
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cover",
+        "id": "",
+        "right": 164,
+        "vw": -636,
+        "left": -114
+      },
+      {
+        "tag": "img",
+        "cls": "",
+        "id": "",
+        "right": 164,
+        "vw": -636,
+        "left": -114
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-body",
+        "id": "",
+        "right": 164,
+        "vw": -636,
+        "left": -114
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "right": 146,
+        "vw": -654,
+        "left": -96
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cat",
+        "id": "",
+        "right": 146,
+        "vw": -654,
+        "left": -96
+      },
+      {
+        "tag": "span",
+        "cls": "dir-card-stars",
+        "id": "",
+        "right": 146,
+        "vw": -654,
+        "left": -96
+      },
+      {
+        "tag": "a",
+        "cls": "btn-reservar",
+        "id": "",
+        "right": 146,
+        "vw": -654,
+        "left": -96
+      }
+    ],
+    "nOffenders": 36,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t800-index.png",
+    "errs": []
+  },
+  {
+    "page": "login",
+    "vp": "t800",
+    "vw": 800,
+    "sw": 800,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t800-login.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "planes",
+    "vp": "t800",
+    "vw": 800,
+    "sw": 800,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t800-planes.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "directorio",
+    "vp": "t800",
+    "vw": 800,
+    "sw": 800,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t800-directorio.png",
+    "errs": []
+  },
+  {
+    "page": "admin",
+    "vp": "t800",
+    "vw": 800,
+    "sw": 800,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 1,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t800-admin.png",
+    "errs": []
+  },
+  {
+    "page": "admin-clientes",
+    "vp": "t800",
+    "vw": 800,
+    "sw": 800,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t800-admin-clientes.png",
+    "errs": []
+  },
+  {
+    "page": "index",
+    "vp": "t834",
+    "vw": 834,
+    "sw": 834,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "home-marquee-track",
+        "id": "",
+        "right": 1684,
+        "vw": 850,
+        "left": -116
+      },
+      {
+        "tag": "div",
+        "cls": "home-marquee-group",
+        "id": "",
+        "right": 464,
+        "vw": -370,
+        "left": -116
+      },
+      {
+        "tag": "article",
+        "cls": "dir-card",
+        "id": "",
+        "right": 164,
+        "vw": -670,
+        "left": -116
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cover",
+        "id": "",
+        "right": 163,
+        "vw": -671,
+        "left": -115
+      },
+      {
+        "tag": "img",
+        "cls": "",
+        "id": "",
+        "right": 163,
+        "vw": -671,
+        "left": -115
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-body",
+        "id": "",
+        "right": 163,
+        "vw": -671,
+        "left": -115
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "right": 145,
+        "vw": -689,
+        "left": -97
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cat",
+        "id": "",
+        "right": 145,
+        "vw": -689,
+        "left": -97
+      },
+      {
+        "tag": "span",
+        "cls": "dir-card-stars",
+        "id": "",
+        "right": 145,
+        "vw": -689,
+        "left": -97
+      },
+      {
+        "tag": "a",
+        "cls": "btn-reservar",
+        "id": "",
+        "right": 145,
+        "vw": -689,
+        "left": -97
+      }
+    ],
+    "nOffenders": 36,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t834-index.png",
+    "errs": []
+  },
+  {
+    "page": "login",
+    "vp": "t834",
+    "vw": 834,
+    "sw": 834,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t834-login.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "planes",
+    "vp": "t834",
+    "vw": 834,
+    "sw": 834,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t834-planes.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "directorio",
+    "vp": "t834",
+    "vw": 834,
+    "sw": 834,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t834-directorio.png",
+    "errs": []
+  },
+  {
+    "page": "admin",
+    "vp": "t834",
+    "vw": 834,
+    "sw": 834,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 1,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t834-admin.png",
+    "errs": []
+  },
+  {
+    "page": "admin-clientes",
+    "vp": "t834",
+    "vw": 834,
+    "sw": 834,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t834-admin-clientes.png",
+    "errs": []
+  },
+  {
+    "page": "index",
+    "vp": "t1024",
+    "vw": 1024,
+    "sw": 1024,
+    "overflowX": 0,
+    "offenders": [
+      {
+        "tag": "div",
+        "cls": "home-marquee-track",
+        "id": "",
+        "right": 2286,
+        "vw": 1262,
+        "left": -114
+      },
+      {
+        "tag": "div",
+        "cls": "home-marquee-group",
+        "id": "",
+        "right": 466,
+        "vw": -558,
+        "left": -114
+      },
+      {
+        "tag": "article",
+        "cls": "dir-card",
+        "id": "",
+        "right": 166,
+        "vw": -858,
+        "left": -114
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cover",
+        "id": "",
+        "right": 165,
+        "vw": -859,
+        "left": -113
+      },
+      {
+        "tag": "img",
+        "cls": "",
+        "id": "",
+        "right": 165,
+        "vw": -859,
+        "left": -113
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-body",
+        "id": "",
+        "right": 165,
+        "vw": -859,
+        "left": -113
+      },
+      {
+        "tag": "h3",
+        "cls": "",
+        "id": "",
+        "right": 147,
+        "vw": -877,
+        "left": -95
+      },
+      {
+        "tag": "div",
+        "cls": "dir-card-cat",
+        "id": "",
+        "right": 147,
+        "vw": -877,
+        "left": -95
+      },
+      {
+        "tag": "span",
+        "cls": "dir-card-stars",
+        "id": "",
+        "right": 147,
+        "vw": -877,
+        "left": -95
+      },
+      {
+        "tag": "a",
+        "cls": "btn-reservar",
+        "id": "",
+        "right": 147,
+        "vw": -877,
+        "left": -95
+      }
+    ],
+    "nOffenders": 53,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t1024-index.png",
+    "errs": []
+  },
+  {
+    "page": "login",
+    "vp": "t1024",
+    "vw": 1024,
+    "sw": 1024,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t1024-login.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "planes",
+    "vp": "t1024",
+    "vw": 1024,
+    "sw": 1024,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t1024-planes.png",
+    "errs": [
+      "[Cloudflare Turnstile] Error: 110200.",
+      "[Cloudflare Turnstile] Error: 110200."
+    ]
+  },
+  {
+    "page": "directorio",
+    "vp": "t1024",
+    "vw": 1024,
+    "sw": 1024,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 8,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t1024-directorio.png",
+    "errs": []
+  },
+  {
+    "page": "admin",
+    "vp": "t1024",
+    "vw": 1024,
+    "sw": 1024,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 1,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t1024-admin.png",
+    "errs": []
+  },
+  {
+    "page": "admin-clientes",
+    "vp": "t1024",
+    "vw": 1024,
+    "sw": 1024,
+    "overflowX": 0,
+    "offenders": [],
+    "nOffenders": 0,
+    "targetsChicos": 11,
+    "screenshot": "/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)/e2e-shots/tablet/t1024-admin-clientes.png",
+    "errs": []
+  }
+]
