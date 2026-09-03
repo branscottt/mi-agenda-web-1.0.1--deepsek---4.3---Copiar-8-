@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://dfcfimipkfhitlsyixqu.supabase.co" crossorigin>
     <title>Mi Horario - Organify</title>
     <link rel="stylesheet" href="style.css?v=43">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .worker-portal-body {
             min-height: 100vh;
@@ -181,7 +184,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js"></script>
+    <script type="module" src="dist/app.js?v=43"></script>
     <!-- El portal del trabajador se inicia desde app.js (main.js detecta .worker-portal-body) -->
 </body>
 </html>

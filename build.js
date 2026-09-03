@@ -145,9 +145,7 @@ for (const f of htmlFiles) {
         // La barra inicial (rutas absolutas) es OBLIGATORIA para páginas servidas
         // bajo rewrites tipo /p/:slug → cliente.html (si no, los assets se resuelven
         // contra /p/ y el rewrite los convierte en HTML rompiendo la página).
-        content = content.replace(/src="\/?dist\/app\.js"/g, 'src="/app.js"');
-        content = content.replace(/src="\/?dist\/legacy\.js"/g, 'src="/legacy.js"');
-        content = content.replace(/src="\/?dist\/home-directorio\.js"/g, 'src="/home-directorio.js"');
+        content = content.replace(/(src="\/?dist\/)(app\.js|legacy\.js|home-directorio\.js)(\?v=\d+)?"/g, (m, p1, p2, p3) => 'src="/' + p2 + (p3 || '') + '"');
         fs.writeFileSync(path.join('dist', f), content);
         console.log(`   ✅ dist/${f} (paths updated)`);
     }
