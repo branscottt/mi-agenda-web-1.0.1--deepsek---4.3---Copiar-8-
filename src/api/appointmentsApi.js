@@ -51,7 +51,7 @@ export async function getVentasArchivadas(tenantId) {
             .order('fecha_venta', { ascending: false });
         if (error) throw error;
         return data || [];
-    }, [tenantId], 15_000); // TTL corto: igual que citas
+    }, [tenantId], 120_000); // TTL 2 min: las ventas solo cambian al archivar citas (escrituras ya limpian el caché vía cacheClearPrefix)
 }
 
 export async function createCita(data) {

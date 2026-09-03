@@ -177,9 +177,25 @@ export async function renderClientListView(containerId = 'clientes-list-containe
     try {
         const tenantId = await getCurrentTenantId();
 
-        // Permiso de etiquetas de pago para trabajadores (master + lista blanca)
+        // Las lecturas de la vista son INDEPENDIENTES entre sí: se lanzan en
+        // paralelo (antes eran secuenciales → ~6 round-trips encadenados por
+        // apertura). Promise.allSettled conserva el manejo de error individual
+        // de cada fuente (ninguna puede tumbar a las demás).
+        const [rPermiso, rCitas, rVentas, rServicios, rManuales, rResumen] = await Promise.allSettled([
+            getSupabase().rpc('admin_get_permiso_etiquetas', { p_tenant_id: tenantId }),
+            getAllCitas(),
+            getVentasArchivadas(tenantId),
+            getAllServicios(tenantId),
+            getSupabase()
+                .from('clientes_manuales')
+                .select('id, tenant_id, nombre, telefono, email, direccion, creado_en')
+                .eq('tenant_id', tenantId),
+            kanbanApi.getResumenCompartido(tenantId)
+        ]);
+
+        // 1) Permiso de etiquetas de pago para trabajadores (master + lista blanca)
         try {
-            const { data: permisoData } = await getSupabase().rpc('admin_get_permiso_etiquetas', { p_tenant_id: tenantId });
+            const permisoData = rPermiso.status === 'fulfilled' ? rPermiso.value?.data : null;
             if (permisoData && permisoData.ok) {
                 permisoEtiquetas = {
                     permitir: permisoData.permitir === true,
@@ -191,25 +207,24 @@ export async function renderClientListView(containerId = 'clientes-list-containe
             console.warn('[ClientListView] No se pudo leer el permiso de etiquetas:', e);
         }
 
-        // Histórico completo = citas vigentes (hoy/futuro) + ventas archivadas (pasado).
-        // La limpieza automática borra las citas con fecha pasada y el trigger
-        // trg_archivar_venta las conserva en `ventas`. Sin este merge, los clientes
-        // con solo citas pasadas desaparecían y el historial quedaba vacío.
-        const citas = await getAllCitas();
+        // 2) Citas vigentes — si fallan, error general de la vista (comportamiento original)
+        if (rCitas.status === 'rejected') throw rCitas.reason;
+        const citas = rCitas.value || [];
 
+        // 3) Ventas archivadas (histórico): fallo individual no tumba la vista
         let ventas = [];
         try {
-            ventas = await getVentasArchivadas(tenantId);
+            if (rVentas.status === 'fulfilled') ventas = rVentas.value || [];
         } catch (e) {
             console.warn('[ClientListView] No se pudieron cargar ventas archivadas:', e);
         }
 
-        // Mapa servicio_id -> nombre real (la cita solo guarda servicio_id; el
+        // 4) Mapa servicio_id -> nombre real (la cita solo guarda servicio_id; el
         // campo c.nombre es el placeholder 'Servicio' del mapeo legacy).
         mapaServicios = {};
         try {
-            const servicios = await getAllServicios(tenantId);
-            (servicios || []).forEach(s => { if (s && s.id != null) mapaServicios[s.id] = s.nombre; });
+            const servicios = rServicios.status === 'fulfilled' ? (rServicios.value || []) : [];
+            servicios.forEach(s => { if (s && s.id != null) mapaServicios[s.id] = s.nombre; });
         } catch (e) {
             console.warn('[ClientListView] No se pudieron cargar nombres de servicios:', e);
         }
@@ -224,27 +239,23 @@ export async function renderClientListView(containerId = 'clientes-list-containe
 
         clientesCache = deduplicarClientes(todas);
 
-        // Clientes agregados manualmente por el admin (tabla clientes_manuales):
+        // 5) Clientes agregados manualmente por el admin (tabla clientes_manuales):
         // se fusionan DESPUÉS del filtro de inactividad → siempre visibles hasta
         // que el admin los borre (política de retención del producto).
         let manuales = [];
         try {
-            const { data: manualesData, error: manualesError } = await getSupabase()
-                .from('clientes_manuales')
-                .select('id, tenant_id, nombre, telefono, email, direccion, creado_en')
-                .eq('tenant_id', tenantId);
-            if (!manualesError) manuales = manualesData || [];
+            if (rManuales.status === 'fulfilled' && !rManuales.value?.error) manuales = rManuales.value.data || [];
         } catch (e) {
             console.warn('[ClientListView] No se pudieron cargar clientes manuales:', e);
         }
         fusionarClientesManuales(manuales);
 
-        // Qué listas comparte el admin con cada cliente (para el botón de
+        // 6) Qué listas comparte el admin con cada cliente (para el botón de
         // "Enviar información por WhatsApp" y el chip en la card).
         compartidasPorEmail = {};
         try {
-            const resumen = await kanbanApi.getResumenCompartido(tenantId);
-            (resumen || []).forEach(r => { compartidasPorEmail[r.cliente_email] = r; });
+            const resumen = rResumen.status === 'fulfilled' ? (rResumen.value || []) : [];
+            resumen.forEach(r => { compartidasPorEmail[r.cliente_email] = r; });
         } catch (e) {
             console.warn('[ClientListView] No se pudo leer listas compartidas:', e);
         }

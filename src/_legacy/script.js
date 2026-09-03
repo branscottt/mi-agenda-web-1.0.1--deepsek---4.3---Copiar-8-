@@ -10394,7 +10394,14 @@ async function renderAdminAppointments() {
     const container = document.getElementById('upcoming-appointments');
     if (!container) return;
 
-    const todas = await CitasManager.getAll();
+    // Citas y servicios son lecturas independientes → en paralelo (antes:
+    // secuenciales). Si las citas fallan, se propaga el error igual que antes.
+    const [rTodas, rServicios] = await Promise.allSettled([
+        CitasManager.getAll(),
+        ServiciosManager.getAll()
+    ]);
+    if (rTodas.status === 'rejected') throw rTodas.reason;
+    const todas = rTodas.value || [];
     if (!todas || todas.length === 0) {
         container.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#aaa;"><i class="fas fa-calendar-times" style="font-size:48px;display:block;margin-bottom:15px;"></i><p>No hay citas programadas</p></div>';
         configurarBotonLimpiarCitas();
@@ -10405,8 +10412,8 @@ async function renderAdminAppointments() {
     // campo c.nombre es el placeholder 'Servicio' del mapeo legacy).
     let mapaServicios = {};
     try {
-        const servicios = await ServiciosManager.getAll();
-        (servicios || []).forEach(s => { if (s && s.id) mapaServicios[s.id] = s.nombre; });
+        const servicios = rServicios.status === 'fulfilled' ? (rServicios.value || []) : [];
+        servicios.forEach(s => { if (s && s.id) mapaServicios[s.id] = s.nombre; });
     } catch (e) {
         console.warn('No se pudieron cargar nombres de servicios', e);
     }
