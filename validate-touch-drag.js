@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const ROOT = '/home/branscott/proyectos/mi-agenda-web 1.0.1 (deepsek) (4.3) (Copiar 13)';
-const BASE = 'http://127.0.0.1:8799';
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:8799';
 const cfgRaw = fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8');
 const get = (k) => { const m = cfgRaw.match(new RegExp(`^${k}=['"]?(.*?)['"]?\\s*$`, 'm')); return m ? m[1] : ''; };
 const cfg = { url: get('SUPABASE_URL'), key: get('SUPABASE_KEY') };
