@@ -376,6 +376,24 @@
         .dir-card-dir { font-size: 0.8rem; color: #8b8fa3; margin-bottom: 10px; }
         .dir-card-stars { font-size: 0.88rem; color: #f5b301; letter-spacing: 2px; margin-bottom: 14px; }
         .dir-card-stars .count { color: #8b8fa3; font-size: 0.78rem; letter-spacing: 0; margin-left: 6px; }
+        .dir-card-resena {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--primary-light);
+            border-radius: 8px;
+            padding: 7px 9px;
+            margin-bottom: 12px;
+        }
+        .dir-card-resena-head {
+            font-size: 0.75rem; font-weight: 700; color: var(--primary-light);
+            display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
+        }
+        .dir-card-mini-stars { color: #f5b301; letter-spacing: 1px; font-size: 0.68rem; }
+        .dir-card-resena-texto {
+            font-size: 0.78rem; color: var(--text); opacity: 0.88;
+            line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden;
+        }
         .dir-card .btn-reservar {
             margin-top: auto; display: block; text-align: center; padding: 11px; border-radius: 12px;
             background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
@@ -712,6 +730,6 @@
         </div>
     </footer>
 
-    <script defer src="/dist/home-directorio.js?v=44"></script>
+    <script defer src="/dist/home-directorio.js?v=45"></script>
 </body>
 </html>

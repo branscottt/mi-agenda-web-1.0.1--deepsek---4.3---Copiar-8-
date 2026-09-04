@@ -18675,3 +18675,135 @@ textarea.kanban-nueva-card-input {
         cursor: grabbing;
     }
 }
+
+/* ============================================================
+   RESEÑAS DEL DIRECTORIO — vista cliente (/p/:slug)
+   Sección nueva al final del catálogo; solo visible cuando el
+   negocio participa en el directorio con estrellas/comentarios.
+   ============================================================ */
+.client-resenas {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 6px 20px 34px;
+}
+.client-resenas-inner {
+    padding: 26px 28px;
+}
+.client-resenas-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.client-resenas-title i { color: var(--primary-color); }
+.client-resenas-resumen {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+}
+.client-resenas-stars { color: #f5b301; letter-spacing: 2px; font-size: 0.95rem; }
+.client-resenas-stars.big { font-size: 1.1rem; }
+.client-resenas-promedio { font-weight: 800; font-size: 1.25rem; }
+.client-resenas-total { color: var(--text-muted); font-size: 0.88rem; }
+.client-resenas-vacio { color: var(--text-muted); font-size: 0.92rem; margin-bottom: 14px; }
+.client-resenas-lista { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.client-resena-item {
+    padding: 14px 4px;
+    border-bottom: 1px solid var(--glass-border);
+}
+.client-resena-item:last-child { border-bottom: none; }
+.client-resena-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+.client-resena-nombre { font-weight: 600; font-size: 0.95rem; }
+.client-resena-nombre i { color: var(--text-muted); margin-right: 4px; }
+.client-resena-fecha { color: var(--text-muted); font-size: 0.78rem; margin-left: auto; }
+.client-resena-texto { font-size: 0.92rem; color: var(--text-light); opacity: 0.92; line-height: 1.55; }
+.client-resenas-form {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--glass-border);
+}
+.client-resenas-form-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
+.client-resenas-form-title i { color: var(--primary-color); }
+.client-resenas-form-row { margin-bottom: 12px; position: relative; }
+.client-resenas-form-row input[type="text"],
+.client-resenas-form-row textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-light);
+    font-size: 0.93rem;
+    font-family: inherit;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s ease;
+}
+.client-resenas-form-row input:focus,
+.client-resenas-form-row textarea:focus { border-color: var(--primary-color); }
+.client-resenas-form-row input::placeholder,
+.client-resenas-form-row textarea::placeholder { color: var(--text-muted); }
+.client-resenas-form-label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-muted); }
+.client-resenas-picker { display: flex; gap: 4px; }
+.client-resenas-picker button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+.client-resenas-picker button:hover { transform: scale(1.12); }
+.client-resenas-picker button i.fa-star { color: #f5b301; }
+.client-resenas-contador {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.client-resenas-nota {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.client-resenas-nota i { margin-right: 4px; }
+.client-resenas-enviar { margin-top: 2px; }
+@media (max-width: 768px) {
+    .client-resenas { padding: 4px 14px 26px; }
+    .client-resenas-inner { padding: 20px 18px; }
+    .client-resena-fecha { margin-left: 0; width: 100%; }
+}
+
+/* Badge de reseñas pendientes (ConfigEditor, paso 7) */
+.cfg-directorio-badge {
+    margin-left: 8px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: rgba(253, 203, 110, 0.15);
+    border: 1px solid rgba(253, 203, 110, 0.55);
+    color: #fdcb6e;
+    font-size: 0.72rem;
+    font-weight: 700;
+    vertical-align: middle;
+    letter-spacing: 0.2px;
+    box-shadow: 0 2px 10px rgba(253, 203, 110, 0.15);
+}

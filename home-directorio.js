@@ -35,6 +35,19 @@ function renderEstrellas(promedio, total) {
     return `<span class="dir-card-stars">${stars}${count}</span>`;
 }
 
+function renderResenasHomeCard(p) {
+    const resenas = (Array.isArray(p.resenas) ? p.resenas : []).filter(r => r && r.comentario);
+    if (!resenas.length) return '';
+    const r = resenas[0];
+    const estrellas = r.puntuacion ? '<span class="dir-card-mini-stars">' + '★'.repeat(Math.min(5, Number(r.puntuacion))) + '</span>' : '';
+    const texto = String(r.comentario).length > 100 ? String(r.comentario).slice(0, 100) + '…' : String(r.comentario);
+    return `
+        <div class="dir-card-resena">
+            <div class="dir-card-resena-head">${escapeHtml(r.nombre_cliente)} ${estrellas}</div>
+            <p class="dir-card-resena-texto">"${escapeHtml(texto)}"</p>
+        </div>`;
+}
+
 function renderCard(p, slug) {
     const fotos = Array.isArray(p.fotos) ? p.fotos.filter(Boolean) : [];
     const portada = fotos[0] || p.logo_url || '';
@@ -50,7 +63,8 @@ function renderCard(p, slug) {
                 <h3>${escapeHtml(p.nombre_negocio)}</h3>
                 <div class="dir-card-cat">${escapeHtml(p.tipo_pyme || p.categoria || 'Pyme')}</div>
                 ${p.direccion ? `<div class="dir-card-dir">📍 ${escapeHtml(p.direccion)}</div>` : ''}
-                ${p.estrellas_activas ? renderEstrellas(p.promedio, p.total_resenas) : ''}
+                ${p.estrellas_activas && p.total_resenas > 0 ? renderEstrellas(p.promedio, p.total_resenas) : ''}
+                ${p.comentarios_activos ? renderResenasHomeCard(p) : ''}
                 <a class="btn-reservar" href="${href}" rel="noopener">Reservar hora</a>
             </div>
         </article>`;

@@ -35,6 +35,21 @@ function renderEstrellas(promedio, total) {
     return `<span class="stars">${stars}${count}</span>`;
 }
 
+function renderResenasCard(p) {
+    const resenas = (Array.isArray(p.resenas) ? p.resenas : []).filter(r => r && r.comentario);
+    if (!resenas.length) return '';
+    const items = resenas.slice(0, 2).map(r => {
+        const estrellas = r.puntuacion ? '<span class="mini">' + '★'.repeat(Math.min(5, Number(r.puntuacion))) + '</span>' : '';
+        const texto = String(r.comentario).length > 110 ? String(r.comentario).slice(0, 110) + '…' : String(r.comentario);
+        return `
+            <div class="card-resena">
+                <div class="card-resena-head">${escapeHtml(r.nombre_cliente)} ${estrellas}</div>
+                <p class="card-resena-texto">"${escapeHtml(texto)}"</p>
+            </div>`;
+    }).join('');
+    return `<div class="card-resenas">${items}</div>`;
+}
+
 function renderCard(p, slug) {
     const fotos = Array.isArray(p.fotos) ? p.fotos.filter(Boolean) : [];
     const portada = fotos[0] || p.logo_url || '';
@@ -50,7 +65,8 @@ function renderCard(p, slug) {
                 <h2>${escapeHtml(p.nombre_negocio)}</h2>
                 <div class="cat">${escapeHtml(p.tipo_pyme || p.categoria || 'Pyme')}</div>
                 ${p.direccion ? `<div class="dir">📍 ${escapeHtml(p.direccion)}</div>` : ''}
-                ${p.estrellas_activas ? renderEstrellas(p.promedio, p.total_resenas) : ''}
+                ${p.estrellas_activas && p.total_resenas > 0 ? renderEstrellas(p.promedio, p.total_resenas) : ''}
+                ${p.comentarios_activos ? renderResenasCard(p) : ''}
                 <a class="btn-reservar" href="${href}" rel="noopener">Reservar hora</a>
             </div>
         </article>`;

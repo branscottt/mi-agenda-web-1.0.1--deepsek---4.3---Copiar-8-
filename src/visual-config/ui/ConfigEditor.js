@@ -221,7 +221,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
 
             <!-- PASO 7: DIRECTORIO PÚBLICO Y RESEÑAS -->
             <div class="config-section">
-                <h4 class="config-section-title"><i class="fas fa-store"></i> 7. Directorio Público y Reseñas</h4>
+                <h4 class="config-section-title"><i class="fas fa-store"></i> 7. Directorio Público y Reseñas <span id="cfg-directorio-badge" class="cfg-directorio-badge" style="display:none;"></span></h4>
                 <p class="field-hint" style="margin-bottom:10px;">Aparece en la página de inicio junto a otras pymes para que nuevos clientes te descubran y reserven contigo. Disponible en planes <strong>Pro, Premium Anual y Freemium</strong>.</p>
 
                 <label class="directorio-switch">
@@ -645,11 +645,15 @@ async function cargarModeracion() {
         cont.innerHTML = '<p class="muted small">No se pudieron cargar las reseñas.</p>';
         return;
     }
-    cont.innerHTML = renderModeracion(resenas);
+    const lista = Array.isArray(resenas) ? resenas : [];
+    cont.innerHTML = renderModeracion(lista);
     cont.querySelectorAll('[data-moderar]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const id = btn.dataset.moderar;
             const estado = btn.dataset.accion;
+            if (estado === 'rechazado' && !confirm('¿Rechazar esta reseña? Dejará de verse en tu página pública. Puedes publicarla de nuevo cuando quieras.')) {
+                return;
+            }
             btn.disabled = true;
             try {
                 await moderarResena(id, estado);
@@ -661,37 +665,83 @@ async function cargarModeracion() {
             }
         });
     });
+    // Badge de pendientes en el título del paso 7 (visible aunque la sección esté plegada)
+    const badge = document.getElementById('cfg-directorio-badge');
+    if (badge) {
+        const n = lista.filter(r => r.estado === 'pendiente').length;
+        if (n > 0) {
+            badge.textContent = `🔔 ${n} reseña${n === 1 ? '' : 's'} pendiente${n === 1 ? '' : 's'} de moderar`;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
 }
 
 function renderModeracion(resenas) {
     if (!resenas.length) {
-        return '<p class="muted small"><i class="fas fa-inbox"></i> Aún no hay reseñas.</p>';
+        return '<p class="muted small"><i class="fas fa-inbox"></i> Aún no hay reseñas. Comparte tu página pública para que tus clientes opinen de tu negocio.</p>';
     }
     const pendientes = resenas.filter(r => r.estado === 'pendiente');
-    const aprobadas = resenas.filter(r => r.estado === 'aprobado').length;
-    const rechazadas = resenas.filter(r => r.estado === 'rechazado').length;
-    const header = `<p class="muted small" style="margin-bottom:8px;">Pendientes: <strong>${pendientes.length}</strong> · Publicadas: ${aprobadas} · Rechazadas: ${rechazadas}</p>`;
-    if (!pendientes.length) {
-        return header + '<p class="muted small"><i class="fas fa-check-circle"></i> Sin reseñas pendientes de moderar.</p>';
+    const aprobadas = resenas.filter(r => r.estado === 'aprobado');
+    const rechazadas = resenas.filter(r => r.estado === 'rechazado');
+    const header = `<p class="muted small" style="margin-bottom:8px;">Pendientes: <strong>${pendientes.length}</strong> · Publicadas: ${aprobadas.length} · Rechazadas: ${rechazadas.length}</p>`;
+
+    const bloques = [];
+    if (pendientes.length) {
+        bloques.push(`<p class="muted small" style="margin:10px 0 4px;"><strong><i class="fas fa-hourglass-half"></i> Por moderar</strong></p>` +
+            pendientes.map(r => renderResenaAdminItem(r)).join(''));
     }
-    return header + pendientes.map(r => `
+    if (aprobadas.length) {
+        bloques.push(`<p class="muted small" style="margin:10px 0 4px;"><strong><i class="fas fa-check-circle" style="color:#00b894;"></i> Publicadas en tu página</strong></p>` +
+            aprobadas.map(r => renderResenaAdminItem(r)).join(''));
+    }
+    if (rechazadas.length) {
+        bloques.push(`<p class="muted small" style="margin:10px 0 4px;"><strong><i class="fas fa-times-circle" style="color:#e74c3c;"></i> Rechazadas</strong></p>` +
+            rechazadas.map(r => renderResenaAdminItem(r)).join(''));
+    }
+    return header + bloques.join('');
+}
+
+function renderResenaAdminItem(r) {
+    const estrellas = r.puntuacion
+        ? `<span class="pyme-card-stars small">${[1,2,3,4,5].map(i => `<i class="${i <= r.puntuacion ? 'fas' : 'far'} fa-star"></i>`).join('')}</span>`
+        : '<span class="muted small">Sin puntuación</span>';
+    const fecha = r.creado_en ? new Date(r.creado_en).toLocaleString('es-ES') : '';
+
+    let acciones = '';
+    if (r.estado === 'pendiente') {
+        acciones = `
+            <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="aprobado" style="background:linear-gradient(135deg,#00b894,#00a381);border:none;color:#fff;box-shadow:0 4px 12px rgba(0,184,148,0.3);">
+                <i class="fas fa-check"></i> Aprobar y publicar
+            </button>
+            <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="rechazado" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);color:#e74c3c;">
+                <i class="fas fa-times"></i> Rechazar
+            </button>`;
+    } else if (r.estado === 'aprobado') {
+        acciones = `
+            <span class="muted small" style="margin-right:6px;"><i class="fas fa-globe-americas" style="color:#00b894;"></i> Visible en tu página pública</span>
+            <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="rechazado" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);color:#e74c3c;">
+                <i class="fas fa-eye-slash"></i> Quitar de mi página
+            </button>`;
+    } else {
+        acciones = `
+            <span class="muted small" style="margin-right:6px;">Oculta para el público</span>
+            <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="aprobado" style="background:linear-gradient(135deg,#00b894,#00a381);border:none;color:#fff;box-shadow:0 4px 12px rgba(0,184,148,0.3);">
+                <i class="fas fa-redo"></i> Publicar de nuevo
+            </button>`;
+    }
+
+    return `
         <div class="directorio-resena-admin">
             <div class="directorio-resena-admin-head">
                 <strong>${escapeHtml(r.nombre_cliente)}</strong>
-                ${r.puntuacion ? `<span class="pyme-card-stars small">${[1,2,3,4,5].map(i => `<i class="${i <= r.puntuacion ? 'fas' : 'far'} fa-star"></i>`).join('')}</span>` : ''}
-                <span class="muted small">${r.creado_en ? new Date(r.creado_en).toLocaleString('es-ES') : ''}</span>
+                ${estrellas}
+                ${fecha ? `<span class="muted small">${fecha}</span>` : ''}
             </div>
             ${r.comentario ? `<p class="directorio-resena-texto">${escapeHtml(r.comentario)}</p>` : ''}
-            <div class="directorio-resena-admin-acciones">
-                <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="aprobado" style="background:rgba(0,184,148,0.15);border:1px solid rgba(0,184,148,0.4);color:#00b894;">
-                    <i class="fas fa-check"></i> Aprobar
-                </button>
-                <button type="button" class="btn-small" data-moderar="${r.id}" data-accion="rechazado" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.35);color:#e74c3c;">
-                    <i class="fas fa-times"></i> Rechazar
-                </button>
-            </div>
-        </div>
-    `).join('');
+            <div class="directorio-resena-admin-acciones">${acciones}</div>
+        </div>`;
 }
 
 async function subirImagenStorage(file, tipo, inputId) {

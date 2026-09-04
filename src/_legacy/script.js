@@ -10874,6 +10874,13 @@ async function iniciarCliente() {
         console.warn('[iniciarCliente] Error cargando config visual:', e);
     }
 
+    // Reseñas del Directorio Público (solo si el negocio participa y las acepta)
+    try {
+        await cargarResenasCliente(tenantId);
+    } catch (e) {
+        console.warn('[iniciarCliente] Error cargando reseñas:', e);
+    }
+
     // Cargar nombre del tenant (para mostrarlo en la esquina)
     try {
         const { data: tenantInfo } = await supabaseClient
@@ -10965,6 +10972,213 @@ async function iniciarCliente() {
     }
 }
 window.iniciarCliente = iniciarCliente;
+
+// ============================================================
+// RESEÑAS DEL DIRECTORIO PÚBLICO — vista cliente (/p/:slug)
+// Solo se muestra si el negocio participa en el directorio con
+// estrellas o comentarios activos. Lee reseñas aprobadas vía RPC
+// whitelist get_resenas_pyme; el formulario inserta con
+// crear_resena_pyme (queda 'pendiente' hasta moderación del admin).
+// Sin inline handlers (CSP): todo se enlaza con addEventListener.
+// ============================================================
+async function cargarResenasCliente(tenantId) {
+    const section = document.getElementById('client-resenas');
+    if (!section || !tenantId || !supabaseClient) return;
+
+    // Flags públicos del negocio vía RPC whitelist (anon NO puede leer
+    // tenant_config por RLS; el directorio expone los flags whitelist).
+    let filaDir = null;
+    try {
+        const { data, error } = await supabaseClient.rpc('get_directorio_pymes');
+        if (!error && Array.isArray(data)) {
+            filaDir = data.find(p => p && p.tenant_id === tenantId) || null;
+        }
+    } catch (e) {
+        console.warn('[Resenas] Error leyendo directorio:', e);
+    }
+    if (!filaDir) {
+        section.style.display = 'none';
+        return;
+    }
+    const estrellas = filaDir.estrellas_activas === true;
+    const comentarios = filaDir.comentarios_activos === true;
+    if (!estrellas && !comentarios) {
+        section.style.display = 'none';
+        return;
+    }
+
+    let resenas = [];
+    try {
+        const { data, error } = await supabaseClient.rpc('get_resenas_pyme', { p_tenant_id: tenantId });
+        if (!error && Array.isArray(data)) resenas = data;
+    } catch (e) {
+        console.warn('[Resenas] Error cargando reseñas:', e);
+    }
+
+    section.style.display = '';
+    section.innerHTML = renderResenasCliente(resenas, estrellas, comentarios);
+    bindResenasCliente(section, tenantId, estrellas, comentarios);
+}
+
+function renderResenasCliente(resenas, estrellas, comentarios) {
+    const lista = Array.isArray(resenas) ? resenas : [];
+    const conPuntos = lista.filter(r => Number(r.puntuacion) > 0);
+    const promedio = conPuntos.length
+        ? (conPuntos.reduce((acc, r) => acc + Number(r.puntuacion), 0) / conPuntos.length)
+        : 0;
+    const total = lista.length;
+
+    let resumenHtml = '';
+    if (estrellas && total > 0) {
+        const redondeo = Math.round(promedio * 2) / 2;
+        let stars = '<span class="client-resenas-stars big">';
+        for (let i = 1; i <= 5; i++) {
+            stars += (redondeo >= i || redondeo >= i - 0.5)
+                ? '<i class="fas fa-star"></i>'
+                : '<i class="far fa-star"></i>';
+        }
+        stars += '</span>';
+        resumenHtml = `
+            <div class="client-resenas-resumen">
+                ${stars}
+                <span class="client-resenas-promedio">${promedio.toFixed(1)}</span>
+                <span class="client-resenas-total">${total} reseña${total === 1 ? '' : 's'}</span>
+            </div>`;
+    } else if (total === 0) {
+        resumenHtml = '<p class="client-resenas-vacio">Aún no hay reseñas publicadas. ¡Sé el primero en opinar!</p>';
+    }
+
+    const itemsHtml = lista.length
+        ? lista.map(r => {
+            const fecha = resenaFechaCliente(r.creado_en);
+            return `
+                <div class="client-resena-item">
+                    <div class="client-resena-head">
+                        <span class="client-resena-nombre"><i class="fas fa-user-circle"></i> ${escapeHtml(r.nombre_cliente)}</span>
+                        ${r.puntuacion ? resenaEstrellasCliente(r.puntuacion) : ''}
+                        ${fecha ? `<span class="client-resena-fecha">${fecha}</span>` : ''}
+                    </div>
+                    ${r.comentario ? `<p class="client-resena-texto">${escapeHtml(r.comentario)}</p>` : ''}
+                </div>`;
+        }).join('')
+        : '';
+
+    const formHtml = (estrellas || comentarios) ? `
+        <div class="client-resenas-form">
+            <h4 class="client-resenas-form-title"><i class="fas fa-pen"></i> Deja tu reseña</h4>
+            <div class="client-resenas-form-row">
+                <input type="text" id="client-resenas-nombre" placeholder="Tu nombre *" maxlength="60" autocomplete="off" value="${escapeHtml((window.__clienteSession && window.__clienteSession.nombre) || '')}">
+            </div>
+            ${estrellas ? `
+                <div class="client-resenas-form-row">
+                    <span class="client-resenas-form-label">Tu puntuación:</span>
+                    <div class="client-resenas-picker" id="client-resenas-picker" role="radiogroup" aria-label="Puntuación">
+                        ${[1, 2, 3, 4, 5].map(i =>
+                            `<button type="button" data-val="${i}" aria-label="${i} estrella${i === 1 ? '' : 's'}"><i class="far fa-star"></i></button>`
+                        ).join('')}
+                    </div>
+                </div>` : ''}
+            ${comentarios ? `
+                <div class="client-resenas-form-row">
+                    <textarea id="client-resenas-comentario" placeholder="Cuéntanos tu experiencia (opcional)" maxlength="500" rows="3"></textarea>
+                    <span class="client-resenas-contador" id="client-resenas-contador">0/500</span>
+                </div>` : ''}
+            <button type="button" class="btn-grad client-resenas-enviar" id="client-resenas-enviar">
+                <i class="fas fa-paper-plane"></i> Enviar reseña
+            </button>
+            <p class="client-resenas-nota"><i class="fas fa-shield-alt"></i> Tu reseña se publicará después de la moderación del negocio.</p>
+        </div>` : '';
+
+    return `
+        <div class="client-resenas-inner glass-panel">
+            <h3 class="client-resenas-title"><i class="fas fa-comments"></i> Reseñas de clientes</h3>
+            ${resumenHtml}
+            ${itemsHtml ? `<div class="client-resenas-lista">${itemsHtml}</div>` : ''}
+            ${formHtml}
+        </div>`;
+}
+
+function resenaEstrellasCliente(n) {
+    const val = Number(n) || 0;
+    let html = '<span class="client-resenas-stars" aria-label="' + val + ' de 5 estrellas">';
+    for (let i = 1; i <= 5; i++) html += i <= val ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>';
+    return html + '</span>';
+}
+
+function resenaFechaCliente(iso) {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (e) {
+        return '';
+    }
+}
+
+function bindResenasCliente(section, tenantId, estrellas, comentarios) {
+    let valorPuntuacion = 0;
+
+    const picker = section.querySelector('#client-resenas-picker');
+    if (picker) {
+        const pintar = (n) => {
+            picker.querySelectorAll('button').forEach(b => {
+                const on = Number(b.dataset.val) <= n;
+                b.innerHTML = on ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>';
+                b.setAttribute('aria-checked', on ? 'true' : 'false');
+            });
+        };
+        picker.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-val]');
+            if (!btn) return;
+            valorPuntuacion = Number(btn.dataset.val);
+            pintar(valorPuntuacion);
+        });
+    }
+
+    const ta = section.querySelector('#client-resenas-comentario');
+    const contador = section.querySelector('#client-resenas-contador');
+    if (ta && contador) {
+        ta.addEventListener('input', () => { contador.textContent = ta.value.length + '/500'; });
+    }
+
+    const enviar = section.querySelector('#client-resenas-enviar');
+    if (!enviar) return;
+    enviar.addEventListener('click', async () => {
+        const nombreEl = section.querySelector('#client-resenas-nombre');
+        const nombre = (nombreEl ? nombreEl.value : '').trim();
+        const comentario = ta ? ta.value.trim() : '';
+        if (nombre.length < 2) {
+            mostrarToast('Escribe tu nombre para dejar la reseña', 'warning');
+            return;
+        }
+        if (estrellas && !valorPuntuacion && !(comentarios && comentario)) {
+            mostrarToast('Selecciona una puntuación o escribe un comentario', 'warning');
+            return;
+        }
+        if (!estrellas && !comentario) {
+            mostrarToast('Escribe un comentario para dejar la reseña', 'warning');
+            return;
+        }
+        enviar.disabled = true;
+        const original = enviar.innerHTML;
+        enviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+        try {
+            const { error } = await supabaseClient.rpc('crear_resena_pyme', {
+                p_tenant_id: tenantId,
+                p_nombre_cliente: nombre,
+                p_puntuacion: valorPuntuacion || null,
+                p_comentario: comentario || null
+            });
+            if (error) throw error;
+            mostrarToast('✅ ¡Gracias! Tu reseña se publicará tras la moderación del negocio.', 'success');
+            await cargarResenasCliente(tenantId);
+        } catch (err) {
+            const msg = (err && (err.message || err.error_description)) || 'No se pudo enviar la reseña';
+            mostrarToast('❌ ' + msg, 'error');
+            enviar.disabled = false;
+            enviar.innerHTML = original;
+        }
+    });
+}
 
 async function cargarServiciosParaCliente(tenantId) {
     const gridContainer = document.getElementById('client-services-grid');
