@@ -3588,9 +3588,10 @@ function abrirGuiaDashboard() {
     const btnGuia = document.getElementById('btn-guia-dashboard');
     if (btnGuia) btnGuia.classList.add('active');
 
-    // Si parte de la guía quedó fuera de la pantalla (móvil/tablet), asegurar
-    // que el inicio (con el ✕ Cerrar) quede visible.
-    guia.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Llevar el inicio de la guía (con el ✕ Cerrar) a la parte visible:
+    // en pantallas donde la guía es más alta que el viewport (PC incluido),
+    // sin este scroll el usuario no sabe que se abrió.
+    guia.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function cerrarGuiaDashboard() {
@@ -3619,6 +3620,19 @@ function configurarCierreGuiaDashboard() {
             if (e.key !== 'Escape') return;
             const guia = document.getElementById('guia-dashboard');
             if (guia && guia.style.display !== 'none') cerrarGuiaDashboard();
+        });
+    }
+    if (!window.__guiaDashboardClickBound) {
+        window.__guiaDashboardClickBound = true;
+        // Cerrar al hacer clic FUERA de la guía (y fuera del botón que la abre,
+        // que ya tiene su propio toggle). Clicks dentro de la guía no cierran.
+        document.addEventListener('click', function (e) {
+            const guia = document.getElementById('guia-dashboard');
+            if (!guia || guia.style.display === 'none') return;
+            if (guia.contains(e.target)) return;
+            const btnGuia = document.getElementById('btn-guia-dashboard');
+            if (btnGuia && (e.target === btnGuia || btnGuia.contains(e.target))) return;
+            cerrarGuiaDashboard();
         });
     }
 }
