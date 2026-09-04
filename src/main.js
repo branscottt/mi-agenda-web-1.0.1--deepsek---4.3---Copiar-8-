@@ -196,6 +196,10 @@ async function syncJwtSession() {
                 const { configurarFormularioServicio } = await import('./services/ui/ServiceForm.js');
                 configurarFormularioServicio();
 
+                // Chat "Crea tu servicio conversando" (botón junto a "Ver tutorial")
+                const { initServicioChat } = await import('./services/ui/ServiceChat.js');
+                initServicioChat();
+
                 // NOTA: la sección "Citas Programadas" la renderiza el legacy
                 // renderAdminAppointments (script.js) vía navigateTo — el render
                 // moderno inicial aquí era sobrescrito y quedaba como trabajo muerto.

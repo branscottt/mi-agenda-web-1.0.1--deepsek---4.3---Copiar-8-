@@ -10427,8 +10427,15 @@ function generarFechasPorRango() {
         mostrarMensaje('Selecciona al menos un día de la semana', 'warning');
         return;
     }
-    const start = new Date(fechaInicio + 'T00:00:00');
-    const end = new Date(fechaFin + 'T00:00:00');
+    // IMPORTANTE: iterar con MEDIODÍA local (T12:00:00), no medianoche.
+    // Al cruzar un cambio de hora (ej. Chile: 00:00 → 01:00 del primer
+    // sábado de septiembre), setDate() desde las 00:00 queda desfasado +1h
+    // y el bucle termina sin procesar el ÚLTIMO día del rango (verificado
+    // 2026-09-04 con rango sep→dic: faltaba el día final). A las 12:00 el
+    // reloj nunca salta y toISOString() cae en el mismo día para cualquier
+    // huso entre UTC-12 y UTC+12.
+    const start = new Date(fechaInicio + 'T12:00:00');
+    const end = new Date(fechaFin + 'T12:00:00');
     let count = 0;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         if (diasSeleccionados.includes(d.getDay())) {
