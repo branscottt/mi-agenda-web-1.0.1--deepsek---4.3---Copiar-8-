@@ -241,6 +241,10 @@ async function syncJwtSession() {
                 const { initTutorialNotificaciones } = await import('./notifications/ui/NotificationsTutorial.js');
                 initTutorialNotificaciones();
 
+                // Fase 2: simulador "Probar avisos" + banner "Tus citas de hoy"
+                const { initAvisosPreview } = await import('./notifications/ui/AvisosPreview.js');
+                initAvisosPreview().catch(e => console.warn('[main.js] AvisosPreview:', e?.message));
+
                 // Tutorial en video — Citas Programadas
                 const { initTutorialCitas } = await import('./appointments/ui/CitasTutorial.js');
                 initTutorialCitas();

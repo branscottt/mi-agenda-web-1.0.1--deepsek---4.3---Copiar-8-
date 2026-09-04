@@ -19585,3 +19585,108 @@ textarea.kanban-nueva-card-input {
 }
 .svcchat-input-usado { opacity: 0.45; pointer-events: none; }
 .svcchat-input-usado .svcchat-input { color: #9b9fb4; }
+
+/* ============================================================
+   FASE 2 — "PROBAR AVISOS" + BANNER CITAS DE HOY (AvisosPreview.js)
+   ============================================================ */
+.avisos-btn-probar { margin-left: 4px; }
+
+/* --- Banner "Tus citas de hoy" --- */
+.avisos-banner-hoy {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: linear-gradient(135deg, rgba(157,78,221,0.18), rgba(37,99,235,0.14));
+    border: 1px solid rgba(157,78,221,0.4); border-radius: 14px;
+    padding: 10px 14px; margin-bottom: 14px;
+}
+.avisos-banner-icono { font-size: 1.3rem; color: #c77dff; }
+.avisos-banner-texto { flex: 1; min-width: 200px; font-size: 0.9rem; color: #e8e9f2; }
+.avisos-banner-texto strong { display: block; margin-bottom: 4px; }
+.avisos-banner-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.avisos-chip {
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.14); border-radius: 999px;
+    padding: 3px 10px; font-size: 0.8rem; color: #cfd2e0;
+}
+.avisos-chip strong { color: #4ade80; margin-right: 4px; }
+.avisos-resto { font-size: 0.8rem; color: #9b9fb4; align-self: center; }
+.avisos-banner-ver {
+    background: linear-gradient(135deg, #7b2ff7, #9d4edd); color: #fff; border: none; border-radius: 9px;
+    padding: 8px 14px; font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.avisos-banner-ver:hover { filter: brightness(1.15); }
+.avisos-banner-cerrar {
+    background: transparent; border: none; color: #9b9fb4; cursor: pointer; font-size: 1rem; padding: 4px 6px; border-radius: 8px;
+}
+.avisos-banner-cerrar:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+/* --- Modal simulador --- */
+.avisos-modal { position: fixed; inset: 0; z-index: 10060; display: flex; align-items: center; justify-content: center; padding: 18px; }
+.avisos-modal[hidden] { display: none; }
+.avisos-backdrop { position: absolute; inset: 0; background: rgba(4,4,10,0.78); backdrop-filter: blur(4px); }
+.avisos-panel {
+    position: relative; width: min(560px, 100%); max-height: min(780px, calc(100vh - 36px)); overflow-y: auto;
+    background: linear-gradient(160deg, rgba(24,22,38,0.98), rgba(14,13,24,0.99));
+    border: 1px solid rgba(37,211,102,0.3); border-radius: 18px;
+    box-shadow: 0 30px 90px rgba(0,0,0,0.65); display: flex; flex-direction: column;
+}
+.avisos-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 16px 18px 10px; }
+.avisos-head h4 { margin: 0; font-size: 1.02rem; color: #fff; }
+.avisos-head p { margin: 4px 0 0; font-size: 0.8rem; color: #9b9fb4; }
+.avisos-cerrar { background: transparent; border: none; color: #9b9fb4; font-size: 1.15rem; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.avisos-cerrar:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.avisos-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 18px 10px; }
+.avisos-tab {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #cfd2e0;
+    border-radius: 999px; padding: 6px 12px; font-size: 0.78rem; cursor: pointer; font-weight: 600; transition: all .15s ease;
+}
+.avisos-tab.active { background: linear-gradient(135deg, #25d366, #128c7e); border-color: transparent; color: #fff; }
+.avisos-tab:hover:not(.active) { background: rgba(255,255,255,0.12); }
+.avisos-cuerpo { padding: 4px 18px 8px; }
+.avisos-aviso-datos { font-size: 0.8rem; color: #9b9fb4; margin-bottom: 12px; line-height: 1.5; }
+.avisos-aviso-datos i { color: #4ade80; margin-right: 4px; }
+
+/* Mockup WhatsApp (claro, estilo real para contraste) */
+.avisos-mockup-whatsapp {
+    background: #eae6df; border-radius: 16px; padding: 0; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.avisos-wa-chat { padding: 12px; }
+.avisos-wa-contacto {
+    display: flex; align-items: center; gap: 8px; background: #075e54; color: #fff;
+    margin: -12px -12px 12px; padding: 10px 12px;
+}
+.avisos-wa-avatar { background: rgba(255,255,255,0.2); border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+.avisos-wa-nombre { font-weight: 700; font-size: 0.88rem; }
+.avisos-wa-online { font-size: 0.7rem; color: #b3e6dc; margin-left: auto; }
+.avisos-wa-burbuja {
+    background: #d9fdd3; color: #111; border-radius: 10px; border-top-left-radius: 2px;
+    padding: 8px 11px; max-width: 88%; display: flex; flex-direction: column; gap: 3px; box-shadow: 0 1px 1px rgba(0,0,0,0.15);
+}
+.avisos-wa-remitente { font-size: 0.72rem; color: #075e54; }
+.avisos-wa-texto { font-size: 0.88rem; line-height: 1.5; white-space: normal; word-break: break-word; }
+.avisos-wa-hora { align-self: flex-end; font-size: 0.65rem; color: #8a8a7a; }
+
+/* Mockup correo (claro) */
+.avisos-mockup-email {
+    background: #fff; color: #1a1a1a; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.avisos-mail-cabecera { border-bottom: 1px solid #e5e5e5; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; }
+.avisos-mail-de { color: #555; }
+.avisos-mail-de strong { color: #1a1a1a; }
+.avisos-mail-asunto { color: #555; }
+.avisos-mail-asunto strong { color: #1a1a1a; }
+.avisos-mail-cuerpo { padding: 14px; font-size: 0.88rem; line-height: 1.6; white-space: normal; word-break: break-word; }
+.avisos-texto-real { font-size: 0.74rem; color: #6f7389; margin-top: 10px; }
+
+/* Footer del modal */
+.avisos-foot { padding: 12px 18px 18px; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.avisos-foot-nota { font-size: 0.76rem; color: #9b9fb4; margin: 0; flex: 1; min-width: 200px; }
+.avisos-btn-prueba {
+    background: linear-gradient(135deg, #25d366, #128c7e); color: #fff; border: none; border-radius: 11px;
+    padding: 11px 18px; font-size: 0.88rem; font-weight: 800; cursor: pointer; box-shadow: 0 6px 20px rgba(37,211,102,0.3); transition: all .15s ease; white-space: nowrap;
+}
+.avisos-btn-prueba:hover { filter: brightness(1.1); transform: translateY(-1px); }
+@media (max-width: 768px) {
+    .avisos-modal { padding: 0; align-items: flex-end; }
+    .avisos-panel { width: 100%; max-height: 94vh; border-radius: 18px 18px 0 0; }
+    .avisos-banner-hoy { align-items: flex-start; }
+    .avisos-banner-ver { margin-left: auto; }
+}
