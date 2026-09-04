@@ -2784,9 +2784,13 @@ body {
     background-clip: unset;
 }
 .admin-header .tenant-name-header {
-    font-size: 0.8rem;
-    opacity: 0.7;
-    font-weight: 400;
+    font-size: 1rem;
+    font-weight: 600;
+    opacity: 1;
+    background: linear-gradient(90deg, var(--primary-light), var(--primary-color));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 /* =============================================
@@ -18806,4 +18810,40 @@ textarea.kanban-nueva-card-input {
     vertical-align: middle;
     letter-spacing: 0.2px;
     box-shadow: 0 2px 10px rgba(253, 203, 110, 0.15);
+}
+
+/* ── OVERRIDE (final): header admin en móvil — mostrar "Bienvenido" + marca de la
+   pyme (logo + nombre) igual que en PC/tablet, pero compacta y profesional.
+   Solo aplica SIN portada: con portada (has-cover) el diseño móvil previo se
+   conserva intacto (logo grande 48px sobre la portada). ── */
+@media (max-width: 768px) {
+    .profile-header:not(.has-cover) .admin-header .tenant-brand {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+    }
+    .profile-header:not(.has-cover) .admin-header .header-left h1 {
+        gap: 6px !important;
+    }
+    .profile-header:not(.has-cover) .admin-header .tenant-brand .tenant-logo-header {
+        height: 14px !important;
+        width: auto;
+        max-width: 44px;
+    }
+    .profile-header:not(.has-cover) .admin-header .tenant-name-header {
+        max-width: 96px;
+        font-size: 0.6rem;
+        font-weight: 600;
+        opacity: 1;
+    }
+}
+@media (max-width: 480px) {
+    .profile-header:not(.has-cover) .admin-header .tenant-name-header {
+        max-width: 64px;
+        font-size: 0.55rem;
+    }
+    .profile-header:not(.has-cover) .admin-header .tenant-brand .tenant-logo-header {
+        max-width: 30px;
+    }
 }
