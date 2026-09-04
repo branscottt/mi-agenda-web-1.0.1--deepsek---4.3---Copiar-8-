@@ -3567,6 +3567,62 @@ async function exportarVentasCSV() {
     mostrarToast(`Exportadas ${ventas.length} ventas`, 'success');
 }
 
+// ============================================
+// GUÍA "¿Cómo leer este dashboard?"
+// Al abrir se MUEVE justo debajo de la cabecera del panel (antes quedaba al
+// final de la sección, fuera de pantalla: el usuario no sabía si había salido).
+// Se cierra con el ✕ superior, el botón inferior, la tecla ESC o el mismo
+// botón de la cabecera (que queda visible encima de la guía).
+// ============================================
+function abrirGuiaDashboard() {
+    const guia = document.getElementById('guia-dashboard');
+    if (!guia) return;
+
+    const panel = guia.closest('.dashboard-section');
+    if (panel) {
+        const filtro = panel.querySelector('.date-range-filter');
+        panel.insertBefore(guia, filtro || panel.firstChild);
+    }
+    guia.style.display = 'block';
+
+    const btnGuia = document.getElementById('btn-guia-dashboard');
+    if (btnGuia) btnGuia.classList.add('active');
+
+    // Si parte de la guía quedó fuera de la pantalla (móvil/tablet), asegurar
+    // que el inicio (con el ✕ Cerrar) quede visible.
+    guia.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cerrarGuiaDashboard() {
+    const guia = document.getElementById('guia-dashboard');
+    if (guia) guia.style.display = 'none';
+
+    const btnGuia = document.getElementById('btn-guia-dashboard');
+    if (btnGuia) btnGuia.classList.remove('active');
+}
+
+function configurarCierreGuiaDashboard() {
+    const btnCerrar = document.getElementById('btn-cerrar-guia-dashboard');
+    const btnCerrarFin = document.getElementById('btn-cerrar-guia-dashboard-fin');
+
+    if (btnCerrar && !btnCerrar.dataset.guiaBound) {
+        btnCerrar.dataset.guiaBound = '1';
+        btnCerrar.addEventListener('click', cerrarGuiaDashboard);
+    }
+    if (btnCerrarFin && !btnCerrarFin.dataset.guiaBound) {
+        btnCerrarFin.dataset.guiaBound = '1';
+        btnCerrarFin.addEventListener('click', cerrarGuiaDashboard);
+    }
+    if (!window.__guiaDashboardEscBound) {
+        window.__guiaDashboardEscBound = true;
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            const guia = document.getElementById('guia-dashboard');
+            if (guia && guia.style.display !== 'none') cerrarGuiaDashboard();
+        });
+    }
+}
+
 function configurarDashboardEventos() {
     const btnAplicar = document.getElementById('btn-aplicar-filtro');
     const btnLimpiar = document.getElementById('btn-limpiar-filtro');
@@ -3578,11 +3634,14 @@ function configurarDashboardEventos() {
         btnGuia.addEventListener('click', () => {
             const guia = document.getElementById('guia-dashboard');
             if (!guia) return;
-            const visible = guia.style.display !== 'none';
-            guia.style.display = visible ? 'none' : 'block';
-            btnGuia.classList.toggle('active', !visible);
+            if (guia.style.display !== 'none') {
+                cerrarGuiaDashboard();
+            } else {
+                abrirGuiaDashboard();
+            }
         });
     }
+    configurarCierreGuiaDashboard();
     
     if (btnAplicar) {
         btnAplicar.addEventListener('click', aplicarFiltroFechas);

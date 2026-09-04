@@ -293,7 +293,12 @@
                         </div>
                     </div>
                     <div class="guia-dashboard" id="guia-dashboard" style="display:none;">
-                        <h4><i class="fas fa-book-open"></i> ¿Qué es el Dashboard Financiero?</h4>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
+                            <h4 style="margin:0; min-width:0; flex:1 1 auto;"><i class="fas fa-book-open"></i> ¿Qué es el Dashboard Financiero?</h4>
+                            <button type="button" id="btn-cerrar-guia-dashboard" class="btn-secondary btn-small" style="flex:0 0 auto;" title="Cerrar la guía">
+                                <i class="fas fa-times"></i> Cerrar
+                            </button>
+                        </div>
                         <p>
                             Es la pantalla donde ves el dinero de tu negocio en un vistazo: cuánto vendiste,
                             cuántas citas tienes y qué servicios se piden más. Los números se calculan solos
@@ -349,6 +354,11 @@
                             una venta se registra cuando confirmas una cita realizada con el check ✓ (resultado "completada").
                             Las citas pendientes o marcadas como "No asistió" no suman dinero.
                         </p>
+                        <div style="text-align:center; margin-top:14px;">
+                            <button type="button" id="btn-cerrar-guia-dashboard-fin" class="btn-secondary btn-small">
+                                <i class="fas fa-times"></i> Cerrar guía
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
