@@ -1,28 +1,36 @@
 // ============================================================
-// TOUR DE BIENVENIDA — onboarding interactivo del panel admin
+// TOUR DE BIENVENIDA — onboarding exprés del panel admin
 // (admin.html)
 //
 // ¿Qué hace?
 //  - La primera vez que un admin entra a su cuenta (por tenant),
-//    pregunta si quiere un recorrido guiado por el panel.
+//    muestra un MAPA del panel: todas las secciones agrupadas
+//    por zonas, con ícono + micro-etiqueta. Tocar una sección
+//    navega directo (aprender haciendo). Desde el mapa se puede
+//    lanzar el RECORRIDO GUIADO (30 s).
+//  - El recorrido guiado enmarca 13 puntos en 4 grupos con
+//    micro-copy (una idea = una línea, chips o mini-maquetas
+//    visuales; cero párrafos y cero videos intercalados).
+//    Los videos tutoriales siguen existiendo DENTRO de cada
+//    sección ("Ver tutorial"), fuera de este módulo.
 //  - Si omite o completa, NO vuelve a preguntar (localStorage
 //    por tenant: 'agendapro_tour_<tenantId>' = 'visto'|'omitido').
-//  - Botón "Ver tutorial" en el footer del sidebar para volver
-//    a recorrerlo cuando quiera.
+//  - Si se cierra a mitad, guarda el progreso y al reabrir
+//    desde "Ver tutorial" (footer del sidebar) continúa donde
+//    quedó.
 //
 // Mecánica: overlay oscuro + spotlight (recuadro que enmarca el
-// elemento objetivo) + tarjeta con descripción y botones
-// Volver / Omitir / Siguiente. Navega de sección en sección del
-// menú y, dentro de "Datos de Admin", enmarca cada campo
-// individual (nombre del negocio, temas, colores, logo, etc.).
+// elemento objetivo) + tarjeta con título/descripción/contador
+// por grupo y botones Volver / Omitir / Siguiente. Navega de
+// grupo en grupo por el menú (una parada por sección).
 //
 // Reglas de convivencia con el resto de la app:
 //  - Sin onclick inline ni <style> dinámico (CSP: script-src por
 //    hashes; style-src permite unsafe-inline en style.css estático).
 //  - z-index: overlay 10000, spotlight 10001, tarjeta 10002
 //    (por encima de sidebar 1000 y modales 9999/10000).
-//  - Usa window.navigateTo / window.toggleSidebar (legacy) solo
-//    si existen; si no, enmarca sin navegar.
+//  - Usa window.navigateTo / window.toggleSidebar / window.toggleNotifPopover
+//    (legacy) solo si existen; si no, enmarca sin navegar.
 //  - No toca datos: solo localStorage propio.
 // ============================================================
 
@@ -30,244 +38,265 @@ import { getCurrentTenantId } from '../../shared/domain/session.js';
 
 const STORAGE_PREFIX = 'agendapro_tour_';
 
-// Videos tutoriales por sección (bucket público 'tutoriales' en Supabase).
-// Mismas URLs que usan los tutoriales embebidos de cada sección
-// (NotificationsTutorial.js, ServiceForm.js, CitasTutorial.js,
-// EquipoTutorial.js, ShareTutorial.js).
-const VIDEOS_TUTORIAL = {
-    notif: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-notificaciones-hd.mp4?v=2',
-    'crear-servicio': 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-crear-servicio.mp4?v=1',
-    citas: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-citas-programadas.mp4?v=1',
-    equipo: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-mi-equipo.mp4?v=1',
-    compartir: 'https://dfcfimipkfhitlsyixqu.supabase.co/storage/v1/object/public/tutoriales/tutorial-compartir-clientes.mp4?v=1'
+// ─────────────────────────────────────────────
+// MINI-MAQUETAS VISUALES (ejemplos estáticos)
+// Reemplazan a los videos: se leen en 1 segundo.
+// Colores fijos (resisten tenant-custom-styles
+// porque viven dentro de la tarjeta del tour).
+// ─────────────────────────────────────────────
+const MOCKS = {
+    // Ficha de cliente con badges de lo que guarda
+    ficha: `
+        <div class="tour-mock tour-mock-ficha">
+            <div class="tour-mock-ficha-avatar">M</div>
+            <div class="tour-mock-ficha-main">
+                <div class="tour-mock-ficha-nombre">María González</div>
+                <div class="tour-mock-ficha-meta">12 turnos · su favorito: Calistenia</div>
+                <div class="tour-mock-ficha-badges">
+                    <span class="tour-badge"><i class="fas fa-paperclip"></i> 2 archivos</span>
+                    <span class="tour-badge"><i class="fas fa-image"></i> 1 foto</span>
+                    <span class="tour-badge"><i class="fas fa-paper-plane"></i> 3 env\u00edos</span>
+                </div>
+            </div>
+        </div>`,
+    // Celular: el link que recibe el cliente para reservar
+    'wa-link': `
+        <div class="tour-mock tour-mock-phone">
+            <div class="tour-mock-wa-head"><i class="fab fa-whatsapp"></i> WhatsApp · Cliente</div>
+            <div class="tour-mock-wa-msg">
+                <p>Hola \ud83d\udc4b Reserva tu hora aqu\u00ed:</p>
+                <div class="tour-mock-wa-card"><i class="fas fa-calendar-check"></i> agenda-pro.red/tu-negocio<span class="tour-mock-wa-btn">Reservar</span></div>
+                <span class="tour-mock-wa-hora">10:24</span>
+            </div>
+        </div>`,
+    // Celular: agenda semanal que recibe cada trabajador
+    'wa-agenda': `
+        <div class="tour-mock tour-mock-phone">
+            <div class="tour-mock-wa-head"><i class="fab fa-whatsapp"></i> WhatsApp · Trabajador</div>
+            <div class="tour-mock-wa-msg">
+                <p>Tu agenda de la semana:</p>
+                <ul class="tour-mock-wa-lista">
+                    <li>lun 10:00 \u00b7 Corte de cabello</li>
+                    <li>lun 12:00 \u00b7 Tinte</li>
+                    <li>mar 09:30 \u00b7 Corte infantil</li>
+                </ul>
+                <span class="tour-mock-wa-hora">09:02</span>
+            </div>
+        </div>`,
+    // Dos horarios lado a lado (trabajadores)
+    equipo: `
+        <div class="tour-mock tour-mock-equipo">
+            <div class="tour-mock-equipo-card"><i class="fas fa-user"></i><strong>Ana</strong><span>Lun a Vie \u00b7 9:00-13:00</span></div>
+            <div class="tour-mock-equipo-card"><i class="fas fa-user"></i><strong>Luis</strong><span>Lun a Vie \u00b7 15:00-20:00</span></div>
+        </div>`,
+    // Chips fantasma: lo que se rellena en Datos de Admin
+    ghosts: `
+        <div class="tour-mock tour-mock-ghosts">
+            <span class="tour-ghost"><i class="fas fa-store"></i> Nombre</span>
+            <span class="tour-ghost"><i class="fas fa-image"></i> Logo</span>
+            <span class="tour-ghost"><i class="fas fa-fill-drip"></i> Colores</span>
+            <span class="tour-ghost"><i class="fas fa-share-alt"></i> Redes</span>
+            <span class="tour-ghost"><i class="fas fa-map-marker-alt"></i> Mapa</span>
+            <span class="tour-ghost"><i class="fas fa-store-alt"></i> Directorio</span>
+        </div>`
 };
 
-const PASOS_BASE = [
-    // ── 1. NOTIFICACIONES (campanita) — la más importante ─────
+// ─────────────────────────────────────────────
+// RECORRIDO GUIADO EXPRÉS (13 paradas, 4 grupos)
+// Regla de copy: si el nombre ya dice lo que hace,
+// no se explica (chips de contenido). Una idea = una
+// línea. Lo abstracto se muestra con una maqueta.
+// ─────────────────────────────────────────────
+const PASOS = [
+    // ── GRUPO 1: TU DÍA A DÍA ──────────────────
     {
         selector: '#notif-bell-btn',
         abrirSidebar: false,
         icono: 'fa-bell',
-        videoUrl: VIDEOS_TUTORIAL.notif,
-        titulo: 'Campanita de notificaciones',
-        descripcion: 'Es la <strong>secci\u00f3n m\u00e1s importante del panel</strong>: aquí recibes los avisos de tus clientes.<br><br>\u2022 <strong>Morada \u2014 Confirmaci\u00f3n de reserva:</strong> cada vez que un cliente reserva, aparece para que confirmes: presiona "Correo" y se abre el mensaje ya escrito, solo envíalo.<br>\u2022 <strong>Verde \u2014 Recordatorio:</strong> cuando falta 1 d\u00eda para la cita, aparece un recordatorio por WhatsApp ya armado para avisarle al cliente.<br><br>Revísala todos los días: <strong>cada aviso es un cliente que espera tu confirmaci\u00f3n</strong>. Sin notificaciones pendientes = reservas al d\u00eda.'
+        grupo: 'Tu d\u00eda a d\u00eda',
+        titulo: 'Notificaciones',
+        descripcion: 'Aqu\u00ed llegan las reservas de tus clientes: t\u00fa confirmas y la web avisa sola.',
+        chips: ['Reserva nueva: confirmar', 'Recordatorio 24 h antes']
     },
-    // ── 2. DASHBOARD ──────────────────────────────────────────
     {
         section: 'dashboard',
         selector: '.sidebar-item[data-section="dashboard"]',
         abrirSidebar: true,
         icono: 'fa-chart-line',
+        grupo: 'Tu d\u00eda a d\u00eda',
         titulo: 'Dashboard Financiero',
-        descripcion: 'Es el resumen econ\u00f3mico de tu negocio: las ventas de <strong>HOY</strong>, esta semana y este mes; la tendencia en un gr\u00e1fico; tus servicios m\u00e1s vendidos y KPIs como ticket promedio o d\u00eda pico.<br><br>Todos los montos salen solos de las citas registradas. Tambi\u00e9n puedes filtrar por fechas y <strong>exportar tus ventas a CSV</strong>. Sirve para ver de un vistazo c\u00f3mo va tu negocio sin hacer cuentas.'
+        descripcion: 'Tus n\u00fameros, sin hacer cuentas.',
+        chips: ['Ventas de HOY', 'Exportar a CSV']
     },
-    // ── 2. CREAR SERVICIO (detallado) ─────────────────────────
-    {
-        section: 'crear-servicio',
-        selector: '.sidebar-item[data-section="crear-servicio"]',
-        abrirSidebar: true,
-        icono: 'fa-plus-circle',
-        videoUrl: VIDEOS_TUTORIAL['crear-servicio'],
-        titulo: 'Crear Servicio',
-        descripcion: 'Aqu\u00ed creas los servicios que ofrecer\u00e1s, paso a paso:<br>\u2022 <strong>Nombre y precio</strong>: ej. "Corte de cabello" $12.000.<br>\u2022 <strong>Duraci\u00f3n</strong>: cu\u00e1ntos minutos dura cada sesi\u00f3n.<br>\u2022 <strong>Imagen y descripci\u00f3n</strong> (opcional): para que el servicio se vea m\u00e1s atractivo.<br>\u2022 <strong>Fechas y cupos</strong>: eliges qu\u00e9 d\u00edas est\u00e1 disponible (por rango de fechas o marcando d\u00edas en el calendario: lun, mar, mi\u00e9\u2026).<br>\u2022 <strong>Horarios</strong>: cu\u00e1ntas veces por d\u00eda tiene disponibilidad (ej. 10:00, 11:00, 12:00) y los cupos por horario.<br><br>Al final marcas si va <strong>destacado en el cat\u00e1logo</strong> y si est\u00e1 <strong>activo</strong> para que los clientes puedan reservarlo.'
-    },
-    // ── 3. MIS SERVICIOS ──────────────────────────────────────
-    {
-        section: 'mis-servicios',
-        selector: '.sidebar-item[data-section="mis-servicios"]',
-        abrirSidebar: true,
-        icono: 'fa-boxes',
-        titulo: 'Mis Servicios',
-        descripcion: 'Aqu\u00ed ves todos los servicios que creaste con su estado de disponibilidad: el color de cada tarjeta te avisa si hay cupos pronto (<strong>morado</strong> = pr\u00f3ximas 24 h), <strong>urgente</strong> (rojo = menos de 2 h) o <strong>expirado</strong> (gris = sin fechas).<br><br>Desde cada tarjeta puedes <strong>editar</strong>, <strong>duplicar</strong>, <strong>ocultar</strong> o <strong>eliminar</strong> el servicio, y filtrar por estado o urgencia. Abajo ves totales, activos, destacados, cupos e <strong>ingresos proyectados</strong>.'
-    },
-    // ── 4. CITAS ──────────────────────────────────────────────
     {
         section: 'citas',
         selector: '.sidebar-item[data-section="citas"]',
         abrirSidebar: true,
         icono: 'fa-calendar-check',
-        videoUrl: VIDEOS_TUTORIAL.citas,
+        grupo: 'Tu d\u00eda a d\u00eda',
         titulo: 'Citas Programadas',
-        descripcion: 'Aqu\u00ed est\u00e1n todas las reservas de tus clientes, ordenadas por fecha. Para cada cita puedes: <strong>contactar por WhatsApp</strong>, <strong>editar</strong> fecha/hora, marcar que <strong>asisti\u00f3</strong> o que <strong>no asisti\u00f3</strong>.<br><br>La campana de notificaciones te avisa las reservas nuevas (morado) y los recordatorios de 24 h (verde). Es el coraz\u00f3n de tu agenda diaria.'
+        descripcion: 'Tus reservas: confirma, mueve la fecha o marca si asist\u00f3.'
     },
-    // ── 5. CLIENTES (detallado) ───────────────────────────────
+    // ── GRUPO 2: LO QUE OFRECES (solo existe) ──
+    {
+        section: 'crear-servicio',
+        selector: '.sidebar-item[data-section="crear-servicio"]',
+        abrirSidebar: true,
+        icono: 'fa-plus-circle',
+        grupo: 'Lo que ofreces',
+        titulo: 'Crear Servicio',
+        descripcion: '',
+        chips: ['Nombre', 'Precio', 'Horarios', 'Cupos']
+    },
+    {
+        section: 'mis-servicios',
+        selector: '.sidebar-item[data-section="mis-servicios"]',
+        abrirSidebar: true,
+        icono: 'fa-boxes',
+        grupo: 'Lo que ofreces',
+        titulo: 'Mis Servicios',
+        descripcion: '',
+        chips: ['Editar', 'Duplicar', 'Activar']
+    },
+    // ── GRUPO 3: CLIENTES Y EQUIPO ─────────────
     {
         section: 'clientes',
         selector: '.sidebar-item[data-section="clientes"]',
         abrirSidebar: true,
         icono: 'fa-users',
+        grupo: 'Clientes y equipo',
         titulo: 'Mis Clientes',
-        descripcion: 'Aqu\u00ed est\u00e1n tus clientes: los que reservaron en tu web (por su email) y los que agregas a mano.<br><br>Toca <strong>"Informaci\u00f3n"</strong> en un cliente para abrir su ficha: ah\u00ed puedes guardar sus datos, escribir notas e informaci\u00f3n importante, y <strong>subir archivos de manera individual</strong> (documentos, fotos, comprobantes) para tener todo ordenado y documentado por cliente. Ideal para llevar el historial de cada persona.'
+        mock: 'ficha',
+        descripcion: 'Toca un cliente y abre su ficha: datos, notas, fotos y archivos en un solo lugar.'
     },
-    // ── 6. MI EQUIPO ──────────────────────────────────────────
-    {
-        section: 'equipo',
-        selector: '.sidebar-item[data-section="equipo"]',
-        abrirSidebar: true,
-        icono: 'fa-user-friends',
-        videoUrl: VIDEOS_TUTORIAL.equipo,
-        titulo: 'Mi Equipo',
-        descripcion: 'Si trabajas con m\u00e1s personas, aqu\u00ed las agregas: nombre, servicio que realizan y WhatsApp. Cada trabajador puede tener <strong>su propio horario y su propia agenda</strong>, y los clientes podr\u00e1n elegir con qui\u00e9n reservar.'
-    },
-    // ── 7. HORARIOS ───────────────────────────────────────────
-    {
-        section: 'horarios',
-        selector: '.sidebar-item[data-section="horarios"]',
-        abrirSidebar: true,
-        icono: 'fa-clock',
-        titulo: 'Horarios',
-        descripcion: 'Aqu\u00ed defines los <strong>horarios de atenci\u00f3n</strong>: por d\u00eda de la semana y por trabajador. Por ejemplo, lunes a viernes de 9:00 a 18:00 y s\u00e1bados solo ma\u00f1ana. Los cupos de tus servicios respetan estos horarios autom\u00e1ticamente.'
-    },
-    // ── 8. COMPARTIR TRABAJADORES ─────────────────────────────
-    {
-        section: 'compartir-trabajadores',
-        selector: '.sidebar-item[data-section="compartir-trabajadores"]',
-        abrirSidebar: true,
-        icono: 'fa-user-share',
-        titulo: 'Compartir Trabajadores',
-        descripcion: 'Genera un <strong>enlace para cada trabajador</strong>: al abrirlo ve solo su propia agenda (sus citas y horarios) sin entrar a tu panel. \u00datil para que cada uno gestione sus turnos.'
-    },
-    // ── 9. DATOS DE ADMIN (sub-pasos por campo) ───────────────
-    {
-        section: 'personalizar',
-        selector: '.sidebar-item[data-section="personalizar"]',
-        abrirSidebar: true,
-        icono: 'fa-palette',
-        titulo: 'Datos de Admin',
-        descripcion: 'Aqu\u00ed personalizas todo lo que ven tus clientes: el nombre de tu negocio, los colores, el logo y m\u00e1s. Te lo mostramos campo por campo.'
-    },
-    {
-        section: 'personalizar',
-        selector: '#cfg-nombre-negocio',
-        abrirSidebar: false,
-        icono: 'fa-store',
-        titulo: 'Nombre del negocio',
-        descripcion: 'Es el nombre que ven tus clientes arriba en tu p\u00e1gina y en el <strong>Directorio P\u00fablico</strong>. Si te registraste con Google, aqu\u00ed lo corriges (el nombre autom\u00e1tico es el prefijo de tu email). Puedes cambiarlo <strong>una vez cada 14 d\u00edas</strong> para evitar abusos.'
-    },
-    {
-        section: 'personalizar',
-        selector: '#temas-grid',
-        abrirSidebar: false,
-        icono: 'fa-paint-roller',
-        titulo: 'Temas r\u00e1pidos',
-        descripcion: 'Un clic y toda tu p\u00e1gina cambia de colores al instante: el panel y la vista de tus clientes. Elige el tema que m\u00e1s represente tu negocio y despu\u00e9s ajusta los detalles con los colores.'
-    },
-    {
-        section: 'personalizar',
-        selector: '#cfg-primary',
-        abrirSidebar: false,
-        icono: 'fa-fill-drip',
-        titulo: 'Colores',
-        descripcion: 'Ajusta los colores principales uno por uno: <strong>Primario</strong> (botones y acentos), <strong>Secundario</strong> (gradientes y detalles), <strong>Fondo</strong>, <strong>Tarjetas</strong>, <strong>Texto</strong> y <strong>Bordes</strong>. Cada uno indica su funci\u00f3n: as\u00ed logr\u00e1s una identidad visual a tu medida.'
-    },
-    {
-        section: 'personalizar',
-        selector: '#cfg-logo',
-        abrirSidebar: false,
-        icono: 'fa-image',
-        titulo: 'Logo',
-        descripcion: 'Sube el <strong>logo de tu negocio</strong>: aparece en la parte superior de la vista de tus clientes. Si todav\u00eda no tienes logo, puedes dejar tu inicial o usar los temas r\u00e1pidos.'
-    },
-    {
-        section: 'personalizar',
-        selector: '#cfg-cover',
-        abrirSidebar: false,
-        icono: 'fa-panorama',
-        titulo: 'Portada / Banner',
-        descripcion: 'La <strong>imagen de portada</strong> que se muestra arriba de tu perfil (formato panor\u00e1mico). Hace que tu p\u00e1gina se vea m\u00e1s profesional y le da identidad a tu espacio.'
-    },
-    {
-        section: 'personalizar',
-        selector: '#cfg-instagram',
-        abrirSidebar: false,
-        icono: 'fa-share-alt',
-        titulo: 'Redes sociales',
-        descripcion: 'Pega los enlaces de tu <strong>Instagram y TikTok</strong>: tus clientes los ver\u00e1n en su secci\u00f3n "Mis Reservas" y podr\u00e1n ver tus trabajos y seguirte.'
-    },
-    {
-        section: 'personalizar',
-        selector: '.ubicacion-opciones',
-        abrirSidebar: false,
-        icono: 'fa-map-marker-alt',
-        titulo: 'Ubicaci\u00f3n de tu negocio',
-        descripcion: 'Elige cómo funciona tu negocio: si tus clientes vienen a tu <strong>local</strong>, escribes tu dirección y se muestra con un <strong>mapa</strong> y bot\u00f3n "C\u00f3mo llegar"; si <strong>tú</strong> vas al domicilio del cliente, \u00e9l escribe su direcci\u00f3n al reservar y la ves en la cita.'
-    },
-    {
-        section: 'personalizar',
-        selector: 'label.directorio-switch:has(#cfg-directorio-activo)',
-        abrirSidebar: false,
-        icono: 'fa-store',
-        titulo: 'Directorio P\u00fablico y rese\u00f1as',
-        descripcion: 'Activa esta opción para <strong>aparecer en el Directorio P\u00fablico</strong> de la p\u00e1gina de inicio: nuevos clientes te descubren, ven tus fotos y te dejan <strong>rese\u00f1as</strong> con estrellas y comentarios (tú los moderas antes de que se publiquen). Disponible en planes Pro, Premium Anual y Freemium.'
-    },
-    {
-        section: 'personalizar',
-        selector: '.config-section.finalizar',
-        abrirSidebar: false,
-        icono: 'fa-check-circle',
-        titulo: 'Finalizar',
-        descripcion: 'Cuando est\u00e9s conforme con todo, presiona <strong>"Guardar Cambios"</strong> para aplicar. Si te arrepent\u00eds, <strong>"Restablecer Valores"</strong> vuelve a la configuraci\u00f3n original.'
-    },
-    // ── 10. COMPARTIR CON CLIENTES ────────────────────────────
     {
         section: 'compartir',
         selector: '.sidebar-item[data-section="compartir"]',
         abrirSidebar: true,
         icono: 'fa-share-alt',
-        videoUrl: VIDEOS_TUTORIAL.compartir,
+        grupo: 'Clientes y equipo',
         titulo: 'Compartir con Clientes',
-        descripcion: 'Aqu\u00ed est\u00e1 el <strong>enlace de tu espacio de clientes</strong>: comp\u00e1rtelo por WhatsApp, copia el enlace o genera un <strong>c\u00f3digo QR</strong> para imprimir y poner en tu local. Tus clientes entran, ven tu cat\u00e1logo y reservan solos.'
+        mock: 'wa-link',
+        descripcion: 'Tu link y tu QR: tus clientes entran, ven tu cat\u00e1logo y reservan solos.'
     },
-    // ── 11. MI SUSCRIPCI\u00d3N ──────────────────────────────────
+    {
+        section: 'equipo',
+        selector: '.sidebar-item[data-section="equipo"]',
+        abrirSidebar: true,
+        icono: 'fa-user-friends',
+        grupo: 'Clientes y equipo',
+        titulo: 'Mi Equipo',
+        mock: 'equipo',
+        descripcion: 'Solo si trabajas con m\u00e1s personas: cada uno con su servicio, su horario y su propia agenda.'
+    },
+    {
+        section: 'horarios',
+        selector: '.sidebar-item[data-section="horarios"]',
+        abrirSidebar: true,
+        icono: 'fa-clock',
+        grupo: 'Clientes y equipo',
+        titulo: 'Horarios',
+        descripcion: 'Cu\u00e1ndo atiendes: por d\u00eda de la semana y por trabajador.'
+    },
+    {
+        section: 'compartir-trabajadores',
+        selector: '.sidebar-item[data-section="compartir-trabajadores"]',
+        abrirSidebar: true,
+        icono: 'fa-user-share',
+        grupo: 'Clientes y equipo',
+        titulo: 'Compartir Trabajadores',
+        mock: 'wa-agenda',
+        descripcion: 'Cada trabajador con su propio enlace: ve solo su agenda, sin entrar a tu panel.'
+    },
+    // ── GRUPO 4: TU WEB ────────────────────────
+    {
+        section: 'personalizar',
+        selector: '.sidebar-item[data-section="personalizar"]',
+        abrirSidebar: true,
+        icono: 'fa-palette',
+        grupo: 'Tu web',
+        titulo: 'Datos de Admin',
+        mock: 'ghosts',
+        descripcion: 'Todo lo que ve tu cliente: dale la cara a tu web. Compl\u00e9talo cuando quieras.'
+    },
     {
         section: 'suscripcion',
         selector: '.sidebar-item[data-section="suscripcion"]',
         abrirSidebar: true,
         icono: 'fa-crown',
+        grupo: 'Tu web',
         titulo: 'Mi Suscripci\u00f3n',
-        descripcion: 'Aqu\u00ed ves tu <strong>plan actual</strong>, su vigencia y estado. Puedes <strong>cambiar de plan</strong> cuando quieras para acceder a m\u00e1s funciones y, si no lo necesitas m\u00e1s, <strong>cancelar la suscripci\u00f3n</strong>: tus datos se conservan por si vuelves despu\u00e9s.'
+        descripcion: 'Tu plan y tus facturas.'
     },
-    // ── CIERRE ────────────────────────────────────────────────
+    // ── CIERRE (sin selector: tarjeta centrada) ─
     {
         selector: null,
         abrirSidebar: false,
         icono: 'fa-rocket',
-        titulo: '\u00a1Listo!',
-        descripcion: 'Ya conoces el panel. Si en alg\u00fan momento te pierdes, toca <strong>"Ver tutorial"</strong> en el men\u00fa para recorrerlo de nuevo. \u00a1\u00c9xitos con tu negocio! \ud83d\ude80'
+        titulo: '\u00a1Listo! \ud83d\ude80',
+        descripcion: 'Misi\u00f3n: crea tu primer servicio y comparte tu link con alguien. P\u00eddele que reserve\u2026 \u00a1y ver\u00e1s la magia! \u2728'
     }
 ];
 
-// Tras cada secci\u00f3n que tiene video tutorial se intercala un paso PROPIO
-// y bien visible ("Video tutorial: <secci\u00f3n>") con bot\u00f3n para verlo,
-// antes de continuar con la siguiente secci\u00f3n del men\u00fa. El spotlight
-// enmarca el bot\u00f3n real "Ver tutorial" de esa secci\u00f3n (para la
-// campanita, la campanita misma: el bot\u00f3n vive dentro de su popover).
-const SELECTOR_BOTON_VIDEO = {
-    'crear-servicio': '#btn-ver-tutorial',
-    citas: '#btn-ver-tutorial-citas',
-    equipo: '#btn-ver-tutorial-equipo',
-    compartir: '#btn-ver-tutorial-share',
-    notif: '#notif-bell-btn'
-};
-const DESCRIPCION_VIDEO_SECCION = 'Este es el bot\u00f3n <strong>"Ver tutorial"</strong> de esta secci\u00f3n, con el que puedes ver el video cuando quieras. Toca <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras completas los datos.';
-const DESCRIPCION_VIDEO_NOTIF = 'El bot\u00f3n <strong>"Ver tutorial"</strong> est\u00e1 adentro de la campanita: t\u00f3cala y lo vas a ver arriba. Toca <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras completas los datos.';
-
-const PASOS = [];
-for (const p of PASOS_BASE) {
-    PASOS.push(p);
-    if (p.videoUrl) {
-        const esNotif = !p.section; // la campanita no navega a ninguna secci\u00f3n
-        PASOS.push({
-            esVideo: true,
-            icono: 'fa-play-circle',
-            videoUrl: p.videoUrl,
-            section: p.section,
-            selector: esNotif ? SELECTOR_BOTON_VIDEO.notif : SELECTOR_BOTON_VIDEO[p.section],
-            abrirSidebar: false,
-            titulo: 'Video tutorial: ' + p.titulo,
-            descripcion: esNotif ? DESCRIPCION_VIDEO_NOTIF : DESCRIPCION_VIDEO_SECCION
-        });
+// ─────────────────────────────────────────────
+// MAPA DEL PANEL (bienvenida de una sola vista)
+// Todas las secciones agrupadas por zona. Tocar
+// una navega directo a usarla; el recorrido
+// guiado queda como acción opcional.
+// ─────────────────────────────────────────────
+const MAPA_ZONAS = [
+    {
+        zona: 'Tu d\u00eda a d\u00eda',
+        items: [
+            { section: '__notif__', icono: 'fa-bell', nombre: 'Notificaciones', tag: 'Avisos y confirmaciones' },
+            { section: 'dashboard', icono: 'fa-chart-line', nombre: 'Dashboard Financiero', tag: 'Tus n\u00fameros' },
+            { section: 'citas', icono: 'fa-calendar-check', nombre: 'Citas Programadas', tag: 'Confirma y mueve' }
+        ]
+    },
+    {
+        zona: 'Lo que ofreces',
+        items: [
+            { section: 'crear-servicio', icono: 'fa-plus-circle', nombre: 'Crear Servicio', tag: 'Precio, horarios y cupos' },
+            { section: 'mis-servicios', icono: 'fa-boxes', nombre: 'Mis Servicios', tag: 'Edita, duplica, activa' }
+        ]
+    },
+    {
+        zona: 'Tus clientes',
+        items: [
+            { section: 'clientes', icono: 'fa-users', nombre: 'Mis Clientes', tag: 'Fichas con archivos' },
+            { section: 'compartir', icono: 'fa-share-alt', nombre: 'Compartir con Clientes', tag: 'Tu link y QR' }
+        ]
+    },
+    {
+        zona: 'Tu equipo',
+        items: [
+            { section: 'equipo', icono: 'fa-user-friends', nombre: 'Mi Equipo', tag: 'Solo con empleados' },
+            { section: 'horarios', icono: 'fa-clock', nombre: 'Horarios', tag: 'Cu\u00e1ndo atiendes' },
+            { section: 'compartir-trabajadores', icono: 'fa-user-share', nombre: 'Compartir Trabajadores', tag: 'Agenda de cada uno' }
+        ]
+    },
+    {
+        zona: 'Tu web',
+        items: [
+            { section: 'personalizar', icono: 'fa-palette', nombre: 'Datos de Admin', tag: 'La cara de tu web' },
+            { section: 'suscripcion', icono: 'fa-crown', nombre: 'Mi Suscripci\u00f3n', tag: 'Tu plan' }
+        ]
     }
+];
+
+function construirMapaHTML() {
+    return MAPA_ZONAS.map((zona) => `
+        <div class="tour-map-zona">
+            <div class="tour-map-zona-titulo">${zona.zona}</div>
+            <div class="tour-map-grid">
+                ${zona.items.map((it) => `
+                    <button type="button" class="tour-map-item" data-section="${it.section}">
+                        <i class="fas ${it.icono}"></i>
+                        <span class="tour-map-item-nombre">${it.nombre}</span>
+                        <span class="tour-map-item-tag">${it.tag}</span>
+                    </button>`).join('')}
+            </div>
+        </div>`).join('');
 }
 
 // Estado del tour
@@ -280,8 +309,6 @@ let overlayEl = null;
 let spotlightEl = null;
 let cardEl = null;
 let welcomeEl = null;
-let videoTourEl = null;
-let videoTourVideo = null;
 
 function esMovil() {
     return window.matchMedia('(max-width: 768px)').matches;
@@ -311,7 +338,47 @@ function esperarSelector(selector, timeoutMs) {
 }
 
 // ─────────────────────────────────────────────
-// MODAL DE BIENVENIDA (pregunta inicial)
+// PROGRESO DEL RECORRIDO (localStorage propio)
+// ─────────────────────────────────────────────
+function claveProgreso() {
+    return STORAGE_PREFIX + tenantId + '_prog';
+}
+
+function guardarProgreso(i) {
+    try {
+        localStorage.setItem(claveProgreso(), String(i));
+    } catch (e) { /* sin almacenamiento: no pasa nada */ }
+}
+
+function limpiarProgreso() {
+    try {
+        localStorage.removeItem(claveProgreso());
+    } catch (e) { /* ignore */ }
+}
+
+// Devuelve el paso guardado si es retomable (no el último),
+// o null si no hay progreso / quedó completo.
+function leerProgreso() {
+    try {
+        const v = parseInt(localStorage.getItem(claveProgreso()), 10);
+        if (Number.isFinite(v) && v >= 0 && v < PASOS.length - 1) return v;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+// Posición dentro del grupo actual: {nombre, pos, tot}
+function infoGrupo(idx) {
+    const g = PASOS[idx] && PASOS[idx].grupo;
+    if (!g) return null;
+    let ini = idx;
+    let fin = idx;
+    while (ini > 0 && PASOS[ini - 1].grupo === g) ini--;
+    while (fin < PASOS.length - 1 && PASOS[fin + 1].grupo === g) fin++;
+    return { nombre: g, pos: idx - ini + 1, tot: fin - ini + 1 };
+}
+
+// ─────────────────────────────────────────────
+// BIENVENIDA = MAPA DEL PANEL (una sola vista)
 // ─────────────────────────────────────────────
 function mostrarBienvenida() {
     if (welcomeEl) return;
@@ -319,12 +386,13 @@ function mostrarBienvenida() {
     welcomeEl.id = 'tour-welcome-overlay';
     welcomeEl.className = 'tour-overlay';
     welcomeEl.innerHTML = `
-        <div class="tour-welcome-card">
-            <div class="tour-welcome-icon"><i class="fas fa-graduation-cap"></i></div>
-            <h3 class="tour-welcome-title">\u00bfQuieres un recorrido r\u00e1pido?</h3>
-            <p class="tour-welcome-text">Te mostramos cada secci\u00f3n del panel con una explicaci\u00f3n breve y ejemplos, para que aproveches todo desde el primer d\u00eda. Toma menos de un minuto.</p>
+        <div class="tour-welcome-card tour-welcome-mapa">
+            <div class="tour-welcome-icon"><i class="fas fa-map-signs"></i></div>
+            <h3 class="tour-welcome-title">Conoce tu panel</h3>
+            <p class="tour-welcome-text">Toca lo que te llame la atenci\u00f3n para entrar, o recorre todo en 30 segundos.</p>
+            <div class="tour-map">${construirMapaHTML()}</div>
             <div class="tour-welcome-actions">
-                <button type="button" class="tour-btn tour-btn-primario" id="tour-welcome-si"><i class="fas fa-play"></i> S\u00ed, comenzar</button>
+                <button type="button" class="tour-btn tour-btn-primario" id="tour-welcome-si"><i class="fas fa-play"></i> Recorrido guiado (30 s)</button>
                 <button type="button" class="tour-btn tour-btn-secundario" id="tour-welcome-no">Ahora no</button>
             </div>
         </div>
@@ -334,11 +402,32 @@ function mostrarBienvenida() {
     welcomeEl.querySelector('#tour-welcome-si').addEventListener('click', () => {
         localStorage.setItem(STORAGE_PREFIX + tenantId, 'visto');
         cerrarBienvenida();
-        iniciarTour();
+        iniciarTour(0);
     });
     welcomeEl.querySelector('#tour-welcome-no').addEventListener('click', () => {
         localStorage.setItem(STORAGE_PREFIX + tenantId, 'omitido');
         cerrarBienvenida();
+    });
+    // Mapa: tocar una sección navega directo (aprender haciendo)
+    welcomeEl.querySelectorAll('.tour-map-item').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const section = btn.dataset.section;
+            localStorage.setItem(STORAGE_PREFIX + tenantId, 'visto');
+            cerrarBienvenida();
+            if (section === '__notif__') {
+                if (typeof window.toggleNotifPopover === 'function') {
+                    window.toggleNotifPopover();
+                } else if (typeof window.navigateTo === 'function') {
+                    window.navigateTo('dashboard');
+                }
+                return;
+            }
+            if (typeof window.navigateTo === 'function') {
+                try {
+                    window.navigateTo(section);
+                } catch (e) { /* sección ya visible o sin navegación: cerrar basta */ }
+            }
+        });
     });
 }
 
@@ -375,7 +464,8 @@ function crearElementosTour() {
     document.body.appendChild(cardEl);
 }
 
-function iniciarTour() {
+// desde: paso por el que arranca (0 = inicio, o progreso guardado)
+function iniciarTour(desde) {
     if (tourActivo) return;
     tourActivo = true;
     crearElementosTour();
@@ -386,12 +476,17 @@ function iniciarTour() {
     if (!timerReposicion) {
         timerReposicion = setInterval(() => reposicionar(), 400);
     }
-    pasoIdx = -1;
-    irAPaso(0);
+    const inicio = Number.isFinite(desde) ? Math.min(Math.max(desde, 0), PASOS.length - 1) : 0;
+    pasoIdx = inicio - 1;
+    irAPaso(inicio);
 }
 
-function cerrarTour() {
+// opts.completo: el usuario terminó (finalizó la misión) → limpiar progreso.
+// opts.abortar: falló la navegación (selector no encontrado) → no retomar.
+function cerrarTour(opts) {
     if (!tourActivo) return;
+    const o = opts || {};
+    const ultimoPaso = pasoIdx >= PASOS.length - 1;
     tourActivo = false;
     if (timerReposicion) {
         clearInterval(timerReposicion);
@@ -408,6 +503,11 @@ function cerrarTour() {
         if (abierto && !sidebarAbiertoAlIniciar) {
             if (typeof window.toggleSidebar === 'function') window.toggleSidebar();
         }
+    }
+    if (o.abortar || o.completo || ultimoPaso) {
+        limpiarProgreso();
+    } else {
+        guardarProgreso(pasoIdx);
     }
     window.removeEventListener('scroll', reposicionar, true);
     window.removeEventListener('resize', reposicionar);
@@ -433,9 +533,6 @@ async function irAPaso(i) {
     const paso = PASOS[i];
     if (!paso) return;
 
-    // Cerrar el reproductor del paso anterior (cada paso tiene su propio video)
-    cerrarVideoTour();
-
     // 1. Navegar a la sección del menú (si corresponde y no está visible)
     if (paso.section) {
         const sec = document.getElementById('section-' + paso.section);
@@ -456,9 +553,8 @@ async function irAPaso(i) {
             if (pasoIdx !== i) return; // otro paso ganó la carrera
         }
     } else {
-        // 2b. Pasos de campo (p. ej. dentro de "Datos de Admin"):
-        // cerrar el sidebar para que la sección quede visible y el
-        // spotlight ilumine el campo real (no el sidebar superpuesto).
+        // 2b. Pasos que no son del menú (campanita, cierre): cerrar el
+        // sidebar si está abierto para que el spotlight ilumine el objetivo.
         const sidebar = document.getElementById('sidebar');
         if (sidebar && sidebar.classList.contains('open') && typeof window.toggleSidebar === 'function') {
             window.toggleSidebar();
@@ -474,7 +570,8 @@ async function irAPaso(i) {
         if (pasoIdx !== i) return; // otro paso ganó la carrera
         if (!target) {
             // Elemento no encontrado: cerrar el tour silenciosamente
-            cerrarTour();
+            // (abortar = no guardar progreso para no retomar un paso roto)
+            cerrarTour({ abortar: true });
             return;
         }
         // Scroll al objetivo (centrado) — los items del sidebar son fixed, no se mueven
@@ -503,27 +600,34 @@ async function irAPaso(i) {
 }
 
 function pintarCard(paso) {
+    const esUltimo = pasoIdx >= PASOS.length - 1;
+    const grupo = infoGrupo(pasoIdx);
+    const pct = Math.round((pasoIdx / (PASOS.length - 1)) * 100);
+    const mockHTML = paso.mock ? (MOCKS[paso.mock] || '') : '';
+    const chipsHTML = (paso.chips && paso.chips.length)
+        ? `<div class="tour-chips">${paso.chips.map((c) => `<span class="tour-chip">${c}</span>`).join('')}</div>`
+        : '';
+
     cardEl.innerHTML = `
         <div class="tour-card-header">
             <span class="tour-icon"><i class="fas ${paso.icono}"></i></span>
             <h4 class="tour-card-title">${paso.titulo}</h4>
-            <span class="tour-card-count">${pasoIdx + 1} / ${PASOS.length}</span>
+            ${grupo ? `<span class="tour-card-count">${grupo.pos} de ${grupo.tot}</span>` : ''}
         </div>
+        <div class="tour-progress"><div class="tour-progress-fill" style="width:${pct}%"></div></div>
         <div class="tour-card-body">
-            ${paso.esVideo ? `
-            <div class="tour-video-paso">
-                <div class="tour-video-paso-icono"><i class="fas fa-play-circle"></i></div>
-                <p>${paso.descripcion}</p>
-                <button type="button" class="tour-btn tour-btn-video-grande" data-accion="video"><i class="fas fa-play"></i> Ver video tutorial</button>
-            </div>` : paso.descripcion}
+            ${grupo ? `<div class="tour-grupo"><i class="fas fa-layer-group"></i> ${grupo.nombre}</div>` : ''}
+            ${mockHTML}
+            ${paso.descripcion ? `<p class="tour-desc">${paso.descripcion}</p>` : ''}
+            ${chipsHTML}
         </div>
         <div class="tour-card-footer">
             ${pasoIdx > 0 ? '<button type="button" class="tour-btn tour-btn-volver" data-accion="volver"><i class="fas fa-arrow-left"></i> Volver</button>' : ''}
             <span class="tour-card-spacer"></span>
             <button type="button" class="tour-btn tour-btn-secundario" data-accion="omitir">Omitir</button>
-            ${pasoIdx < PASOS.length - 1
-                ? `<button type="button" class="tour-btn tour-btn-primario" data-accion="siguiente">${paso.esVideo ? 'Continuar' : 'Siguiente'} <i class="fas fa-arrow-right"></i></button>`
-                : '<button type="button" class="tour-btn tour-btn-primario" data-accion="finalizar"><i class="fas fa-check"></i> Finalizar</button>'}
+            ${esUltimo
+                ? '<button type="button" class="tour-btn tour-btn-primario" data-accion="mision"><i class="fas fa-rocket"></i> Crear mi primer servicio</button>'
+                : '<button type="button" class="tour-btn tour-btn-primario" data-accion="siguiente">Siguiente <i class="fas fa-arrow-right"></i></button>'}
         </div>
     `;
     cardEl.querySelectorAll('[data-accion]').forEach((btn) => {
@@ -532,11 +636,15 @@ function pintarCard(paso) {
             if (accion === 'siguiente') siguiente();
             else if (accion === 'volver') volver();
             else if (accion === 'omitir') cerrarTour();
-            else if (accion === 'video') abrirVideoTour(paso.videoUrl);
-            else if (accion === 'finalizar') {
-                cerrarTour();
+            else if (accion === 'mision') {
+                cerrarTour({ completo: true });
                 const { mostrarToast } = window.__toast || {};
-                if (typeof mostrarToast === 'function') mostrarToast('\u00a1Recorrido finalizado! Puedes volver a verlo desde el men\u00fa.', 'success');
+                if (typeof mostrarToast === 'function') mostrarToast('\u00a1Manos a la obra! Crea tu primer servicio y comparte tu link.', 'success');
+                if (typeof window.navigateTo === 'function') {
+                    try {
+                        window.navigateTo('crear-servicio');
+                    } catch (e) { /* ignore */ }
+                }
             }
         });
     });
@@ -548,59 +656,6 @@ function siguiente() {
 
 function volver() {
     if (pasoIdx > 0) irAPaso(pasoIdx - 1);
-}
-
-// ─────────────────────────────────────────────
-// REPRODUCTOR DE VIDEO TUTORIAL POR SECCIÓN
-// Reutiliza el patrón .tutorial-video-wrap.tutorial-fixed
-// (video 9:16 fijo arriba, visible mientras se completa la
-// sección). z-index 10005 (clase .tour-video-fixed en style.css):
-// por encima del overlay del tour (10000), su spotlight (10001)
-// y su tarjeta (10002). Al omitir/cerrar el tour el video SIGUE
-// abierto para poder verlo mientras se rellena la sección.
-// ─────────────────────────────────────────────
-function abrirVideoTour(url) {
-    if (!url) return;
-    if (!videoTourEl) {
-        videoTourEl = document.createElement('div');
-        videoTourEl.className = 'tutorial-video-wrap tutorial-open tutorial-fixed tour-video-fixed';
-        videoTourEl.id = 'tour-video-player';
-        videoTourEl.innerHTML = `
-            <div class="tutorial-bar">
-                <video id="tour-video" controls playsinline preload="metadata"></video>
-            </div>
-            <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Cierra el video (\u2715) para continuar el recorrido \u2014 u omite el recorrido y sigue vi\u00e9ndolo mientras completas la secci\u00f3n</p>
-            <button type="button" class="tutorial-close-btn" id="tour-video-close" title="Cerrar tutorial" aria-label="Cerrar tutorial"><i class="fas fa-times"></i></button>
-        `;
-        videoTourVideo = videoTourEl.querySelector('video');
-        // El PiP nativo queda DETRÁS de la web; el modo flotante propio
-        // garantiza que el video siempre quede por encima al scrollear.
-        videoTourVideo.disablePictureInPicture = true;
-        videoTourEl.querySelector('.tutorial-close-btn').addEventListener('click', cerrarVideoTour);
-        document.body.appendChild(videoTourEl);
-    }
-    videoTourVideo.src = url;
-    videoTourVideo.play().catch(() => { /* autoplay bloqueado: el usuario pulsa play */ });
-    // El video ocupa la pantalla: ocultar la tarjeta del tour mientras se ve
-    // (al cerrar el video, la tarjeta vuelve con "Continuar").
-    if (tourActivo && cardEl) {
-        cardEl.style.display = 'none';
-    }
-}
-
-function cerrarVideoTour() {
-    if (!videoTourEl) return;
-    videoTourVideo.pause();
-    videoTourVideo.removeAttribute('src');
-    videoTourVideo.load();
-    videoTourEl.remove();
-    videoTourEl = null;
-    videoTourVideo = null;
-    // Restaurar la tarjeta del tour y reposicionarla
-    if (cardEl) {
-        cardEl.style.display = '';
-        reposicionar();
-    }
 }
 
 // Reposiciona spotlight + tarjeta según el rect actual del objetivo
@@ -649,11 +704,6 @@ function reposicionar() {
     if (top + cardH > vh - 10) {
         top = rect.top - cardH - 14;
     }
-    // Si el reproductor de video del tour está abierto, la tarjeta va SIEMPRE
-    // debajo del video (nunca tapada por él; el video es fijo arriba).
-    if (videoTourEl) {
-        top = Math.max(top, videoTourEl.offsetHeight + 10);
-    }
     if (top < 10) top = Math.max(10, Math.min(top, vh - cardH - 10));
     let left = rect.left - 8;
     left = Math.max(12, Math.min(left, vw - cardW - 12));
@@ -666,6 +716,8 @@ function reposicionar() {
 
 // ─────────────────────────────────────────────
 // BOTÓN "VER TUTORIAL" (footer del sidebar)
+// Reabre el mapa; si hay un recorrido a mitad,
+// el botón del mapa ofrece continuarlo.
 // ─────────────────────────────────────────────
 function inyectarBotonReactivar() {
     const footer = document.querySelector('.sidebar-footer');
@@ -678,7 +730,13 @@ function inyectarBotonReactivar() {
     btn.title = 'Volver a ver el recorrido guiado por el panel';
     btn.addEventListener('click', () => {
         localStorage.setItem(STORAGE_PREFIX + tenantId, 'visto');
-        iniciarTour();
+        const prog = leerProgreso();
+        // Si venía a mitad, continúa donde quedó; si no, arranca del mapa.
+        if (prog !== null && prog > 0) {
+            iniciarTour(prog);
+        } else {
+            mostrarBienvenida();
+        }
     });
     footer.appendChild(btn);
 }

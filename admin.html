@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>Organify - Panel Admin</title>
-    <link rel="stylesheet" href="style.css?v=47">
+    <link rel="stylesheet" href="style.css?v=48">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
@@ -33,47 +33,47 @@
             <div class="sidebar-items">
                 <a href="#" class="sidebar-item" data-section="personalizar" onclick="navigateTo('personalizar')">
                     <i class="fas fa-palette"></i>
-                    <span>Datos de Admin</span>
+                    <div class="sidebar-item-text"><span>Datos de Admin</span><span class="sidebar-item-sub">La cara de tu web</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="compartir" onclick="navigateTo('compartir')">
                     <i class="fas fa-share-alt"></i>
-                    <span>Compartir con Clientes</span>
+                    <div class="sidebar-item-text"><span>Compartir con Clientes</span><span class="sidebar-item-sub">Tu link y QR</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="clientes" onclick="navigateTo('clientes')">
                     <i class="fas fa-users"></i>
-                    <span>Mis Clientes</span>
+                    <div class="sidebar-item-text"><span>Mis Clientes</span><span class="sidebar-item-sub">Fichas con archivos</span></div>
                 </a>
                 <a href="#" class="sidebar-item active" data-section="dashboard" onclick="navigateTo('dashboard')">
                     <i class="fas fa-chart-line"></i>
-                    <span>Dashboard Financiero</span>
+                    <div class="sidebar-item-text"><span>Dashboard Financiero</span><span class="sidebar-item-sub">Tus n&uacute;meros</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="crear-servicio" onclick="navigateTo('crear-servicio')">
                     <i class="fas fa-plus-circle"></i>
-                    <span>Crear Servicio</span>
+                    <div class="sidebar-item-text"><span>Crear Servicio</span><span class="sidebar-item-sub">Precio, horarios y cupos</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="mis-servicios" onclick="navigateTo('mis-servicios')">
                     <i class="fas fa-boxes"></i>
-                    <span>Mis Servicios</span>
+                    <div class="sidebar-item-text"><span>Mis Servicios</span><span class="sidebar-item-sub">Edita, duplica, activa</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="citas" onclick="navigateTo('citas')">
                     <i class="fas fa-calendar-check"></i>
-                    <span>Citas Programadas</span>
+                    <div class="sidebar-item-text"><span>Citas Programadas</span><span class="sidebar-item-sub">Confirma y mueve</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="equipo" onclick="navigateTo('equipo')">
                     <i class="fas fa-user-friends"></i>
-                    <span>Mi Equipo</span>
+                    <div class="sidebar-item-text"><span>Mi Equipo</span><span class="sidebar-item-sub">Solo con empleados</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="horarios" onclick="navigateTo('horarios')">
                     <i class="fas fa-clock"></i>
-                    <span>Horarios</span>
+                    <div class="sidebar-item-text"><span>Horarios</span><span class="sidebar-item-sub">Cu&aacute;ndo atiendes</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="compartir-trabajadores" onclick="navigateTo('compartir-trabajadores')">
                     <i class="fas fa-user-share"></i>
-                    <span>Compartir Trabajadores</span>
+                    <div class="sidebar-item-text"><span>Compartir Trabajadores</span><span class="sidebar-item-sub">Agenda de cada uno</span></div>
                 </a>
                 <a href="#" class="sidebar-item" data-section="suscripcion" onclick="navigateTo('suscripcion')">
                     <i class="fas fa-crown"></i>
-                    <span>Mi Suscripción</span>
+                    <div class="sidebar-item-text"><span>Mi Suscripci&oacute;n</span><span class="sidebar-item-sub">Tu plan</span></div>
                 </a>
                 <a href="#" class="sidebar-item sidebar-item-promo" id="sidebar-promo-video" data-section="promo-video" onclick="navigateTo('promo-video')" style="display:none;">
                     <i class="fas fa-video"></i>
@@ -1160,7 +1160,7 @@
         </footer>
     </div>
 
-    <script type="module" src="dist/app.js?v=47"></script>
+    <script type="module" src="dist/app.js?v=48"></script>
     <script defer src="dist/legacy.js?v=48"></script>
 
     <!-- Containers para modulos modernos (display:none, coexisten con legacy) -->

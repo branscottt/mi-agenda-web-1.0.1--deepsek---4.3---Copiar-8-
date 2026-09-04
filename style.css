@@ -19220,3 +19220,259 @@ textarea.kanban-nueva-card-input {
         margin-left: auto;
     }
 }
+
+/* ============================================================
+   TOUR EXPRÉS v2 — subtítulos del menú + mapa + recorrido guiado
+   (admin.html .sidebar-item-sub; AdminTour.js welcome-mapa,
+   chips, mini-maquetas, barra de progreso, contador por grupo).
+   Overrides al final: colores fijos + !important para resistir
+   <style id=tenant-custom-styles>. Sin handlers inline (CSP).
+   ============================================================ */
+
+/* Subtítulo permanente bajo cada ítem del menú (2-4 palabras) */
+.sidebar-item .sidebar-item-text {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+    line-height: 1.2 !important;
+}
+.sidebar-item .sidebar-item-sub {
+    display: block !important;
+    font-size: 0.6rem !important;
+    font-weight: 400 !important;
+    line-height: 1.25 !important;
+    opacity: 0.62 !important;
+    margin-top: 2px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 190px !important;
+}
+
+/* Barra de progreso global del recorrido (bajo el header de la tarjeta) */
+.tour-card .tour-progress {
+    height: 4px !important;
+    margin: 8px 16px 0 !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-radius: 999px !important;
+    overflow: hidden !important;
+}
+.tour-card .tour-progress-fill {
+    height: 100% !important;
+    border-radius: 999px !important;
+    background: linear-gradient(90deg, #9d4edd, #b300ff) !important;
+    transition: width 0.25s ease !important;
+}
+
+/* Etiqueta de grupo (p. ej. "Tu día a día") */
+.tour-card .tour-grupo {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin: 0 0 6px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    font-size: 0.62rem !important;
+    font-weight: 700 !important;
+    color: #a89bb8 !important;
+}
+.tour-card .tour-grupo i { font-size: 0.6rem !important; color: #c77dff !important; }
+
+/* Descripción de una línea */
+.tour-card .tour-desc { margin: 0 !important; }
+
+/* Chips de contenido (palabras sueltas, no párrafos) */
+.tour-card .tour-chips {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+}
+.tour-card .tour-chip {
+    display: inline-block !important;
+    background: rgba(179, 0, 255, 0.16) !important;
+    border: 1px solid rgba(179, 0, 255, 0.4) !important;
+    color: #e9d9ff !important;
+    border-radius: 999px !important;
+    padding: 3px 10px !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    white-space: nowrap !important;
+}
+
+/* Mini-maquetas visuales (reemplazan a los videos) */
+.tour-card .tour-mock {
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 12px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    padding: 10px 12px !important;
+    margin: 2px 0 10px !important;
+}
+.tour-card .tour-mock i { margin-right: 0 !important; }
+
+/* Maqueta: ficha de cliente con badges */
+.tour-card .tour-mock-ficha { display: flex !important; gap: 10px !important; align-items: flex-start !important; }
+.tour-card .tour-mock-ficha-avatar {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    background: linear-gradient(135deg, #9d4edd, #b300ff) !important;
+    color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+}
+.tour-card .tour-mock-ficha-nombre { font-weight: 700 !important; color: #fff !important; font-size: 0.85rem !important; }
+.tour-card .tour-mock-ficha-meta { font-size: 0.7rem !important; color: #a89bb8 !important; margin: 1px 0 6px !important; }
+.tour-card .tour-mock-ficha-badges { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; }
+.tour-card .tour-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    background: rgba(157, 78, 221, 0.2) !important;
+    border: 1px solid rgba(157, 78, 221, 0.45) !important;
+    color: #e9d9ff !important;
+    border-radius: 7px !important;
+    font-size: 0.66rem !important;
+    font-weight: 600 !important;
+    padding: 2px 7px !important;
+    line-height: 1.4 !important;
+}
+
+/* Maqueta: celular con chat (WhatsApp) */
+.tour-card .tour-mock-phone { max-width: 250px !important; margin-left: auto !important; margin-right: auto !important; }
+.tour-card .tour-mock-wa-head {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    font-size: 0.68rem !important;
+    font-weight: 700 !important;
+    color: #cfc6de !important;
+    margin-bottom: 6px !important;
+}
+.tour-card .tour-mock-wa-head i { font-size: 0.9rem !important; color: #25d366 !important; }
+.tour-card .tour-mock-wa-msg {
+    background: #1b2430 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+    border-top-left-radius: 2px !important;
+    padding: 8px 10px !important;
+    font-size: 0.72rem !important;
+    color: #e4e6eb !important;
+}
+.tour-card .tour-mock-wa-msg p { margin: 0 0 6px !important; color: #e4e6eb !important; }
+.tour-card .tour-mock-wa-card {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    background: #0b4f43 !important;
+    border-radius: 8px !important;
+    padding: 6px 8px !important;
+    color: #fff !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+}
+.tour-card .tour-mock-wa-card i { color: #7ee2a8 !important; }
+.tour-card .tour-mock-wa-btn {
+    margin-left: auto !important;
+    background: linear-gradient(135deg, #9d4edd, #7b2cbf) !important;
+    border-radius: 6px !important;
+    padding: 3px 9px !important;
+    font-weight: 700 !important;
+    font-size: 0.64rem !important;
+}
+.tour-card .tour-mock-wa-hora { display: block !important; text-align: right !important; font-size: 0.58rem !important; color: #8696a0 !important; margin-top: 4px !important; }
+.tour-card .tour-mock-wa-lista { margin: 0 !important; padding-left: 16px !important; color: #e4e6eb !important; }
+.tour-card .tour-mock-wa-lista li { font-size: 0.7rem !important; line-height: 1.6 !important; }
+
+/* Maqueta: horarios de trabajadores lado a lado */
+.tour-card .tour-mock-equipo { display: flex !important; gap: 8px !important; }
+.tour-card .tour-mock-equipo-card {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 3px !important;
+    text-align: center !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 10px !important;
+    padding: 8px 6px !important;
+}
+.tour-card .tour-mock-equipo-card i { color: #c77dff !important; font-size: 0.85rem !important; }
+.tour-card .tour-mock-equipo-card strong { color: #fff !important; font-size: 0.75rem !important; }
+.tour-card .tour-mock-equipo-card span { font-size: 0.6rem !important; color: #a89bb8 !important; line-height: 1.3 !important; }
+
+/* Maqueta: chips fantasma de Datos de Admin */
+.tour-card .tour-mock-ghosts { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+.tour-card .tour-ghost {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    border: 1px dashed rgba(200, 180, 255, 0.55) !important;
+    color: #cfc0e8 !important;
+    border-radius: 8px !important;
+    padding: 4px 9px !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+}
+.tour-card .tour-ghost i { color: #a89bb8 !important; font-size: 0.7rem !important; }
+
+/* Mapa de bienvenida (una sola vista con todas las secciones) */
+.tour-overlay .tour-welcome-card.tour-welcome-mapa {
+    max-width: 640px !important;
+    width: 100% !important;
+    text-align: left !important;
+    padding: 22px 20px 18px !important;
+    max-height: 88vh !important;
+    overflow-y: auto !important;
+}
+.tour-welcome-mapa .tour-welcome-icon,
+.tour-welcome-mapa .tour-welcome-title,
+.tour-welcome-mapa .tour-welcome-text { text-align: center !important; }
+.tour-welcome-mapa .tour-welcome-actions { justify-content: center !important; margin-top: 4px !important; }
+.tour-map { margin: 4px 0 14px !important; }
+.tour-map-zona { margin-bottom: 12px !important; }
+.tour-map-zona-titulo {
+    margin: 0 0 6px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    font-size: 0.64rem !important;
+    font-weight: 700 !important;
+    color: #a89bb8 !important;
+}
+.tour-map-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; gap: 6px !important; }
+.tour-map-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 2px !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    padding: 8px 10px !important;
+    color: #e9e4f2 !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+}
+.tour-map-item:hover { background: rgba(179, 0, 255, 0.18) !important; border-color: rgba(179, 0, 255, 0.5) !important; }
+.tour-map-item i { color: #c77dff !important; font-size: 0.95rem !important; margin-bottom: 3px !important; }
+.tour-map-item-nombre { font-weight: 600 !important; font-size: 0.75rem !important; color: #fff !important; line-height: 1.25 !important; }
+.tour-map-item-tag { font-size: 0.62rem !important; color: #a89bb8 !important; line-height: 1.3 !important; }
+
+@media (max-width: 768px) {
+    .tour-overlay .tour-welcome-card.tour-welcome-mapa {
+        max-width: calc(100vw - 24px) !important;
+        padding: 16px 14px 14px !important;
+    }
+    .tour-map-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
