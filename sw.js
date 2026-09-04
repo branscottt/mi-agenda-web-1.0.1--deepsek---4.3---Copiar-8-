@@ -2,7 +2,7 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v61';
+const CACHE_NAME = 'agendapro-v62';
 // Solo assets estáticos con hash/versión fija se precachean.
 // Los HTML NO se precachean: cada deploy cambia headers (CSP) y estructura,
 // y un HTML viejo en caché rompe la navegación y la política de seguridad.
