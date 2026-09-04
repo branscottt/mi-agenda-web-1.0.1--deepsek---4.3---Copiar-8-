@@ -19690,3 +19690,39 @@ textarea.kanban-nueva-card-input {
     .avisos-banner-hoy { align-items: flex-start; }
     .avisos-banner-ver { margin-left: auto; }
 }
+
+/* ============================================================
+   CHAT v2 INLINE — vista por defecto de Crear Servicio (ServiceChat.js)
+   (conv/resumen/burbujas reutilizan las clases .svcchat-* de v1)
+   ============================================================ */
+.svcchat-view { width: 100%; }
+.svcchat-inline { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+.svcchat-view .svcchat-conv { max-height: 56vh; padding: 16px 14px 20px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(0,0,0,0.12); min-height: 260px; }
+.svcchat-view .svcchat-resumen { border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid rgba(157,78,221,0.6); border-radius: 14px; max-height: 56vh; position: sticky; top: 10px; background: rgba(255,255,255,0.03); }
+.svcchat-modo-btn { margin-left: 8px; }
+.svcchat-opt-otro { border-style: dashed; }
+.svcchat-otro-row { align-self: flex-start; width: min(480px, 92%); margin-top: 2px; }
+.svcchat-otro-row .svcchat-input { flex: 1; }
+
+/* Multiselect de chips (días / bloques) */
+.svcchat-multiselect { align-self: flex-start; display: flex; flex-direction: column; gap: 10px; width: min(540px, 96%); margin-top: 2px; animation: svcchat-in .18s ease; }
+.svcchat-chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.svcchat-chip {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16); color: #e8e9f2;
+    border-radius: 999px; padding: 9px 16px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all .15s ease;
+}
+.svcchat-chip:hover { background: rgba(157,78,221,0.2); border-color: rgba(157,78,221,0.6); }
+.svcchat-chip.active { background: linear-gradient(135deg, #7b2ff7, #9d4edd); border-color: transparent; color: #fff; box-shadow: 0 3px 12px rgba(157,78,221,0.35); }
+.svcchat-multi-continuar { align-self: flex-end; padding: 10px 22px; }
+.svcchat-btn-manual {
+    background: rgba(255,255,255,0.08); color: #e8e9f2; border: 1px solid rgba(255,255,255,0.16); border-radius: 12px;
+    padding: 13px 18px; font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all .15s ease;
+}
+.svcchat-btn-manual:hover { background: rgba(255,255,255,0.15); }
+.svcchat-input-fecha { color-scheme: dark; min-width: 170px; }
+.svcchat-fecha-row .svcchat-input { flex: 0 1 auto; }
+@media (max-width: 900px) {
+    .svcchat-inline { grid-template-columns: 1fr; gap: 12px; }
+    .svcchat-view .svcchat-resumen { position: static; max-height: none; border-left: 3px solid rgba(157,78,221,0.6); }
+    .svcchat-view .svcchat-conv { max-height: 50vh; }
+}
