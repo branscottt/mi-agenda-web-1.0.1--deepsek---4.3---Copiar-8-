@@ -17,6 +17,7 @@ export async function getAllCitas(tenantId) {
             .from(TABLE)
             .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, trabajador_id, trabajadores!left(nombre, color), estado_pago, estado_pago_actualizado_en')
             .eq('tenant_id', String(tid).trim())
+            .is('resultado', null)
             .order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];

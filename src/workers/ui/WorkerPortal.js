@@ -23,6 +23,7 @@ let _wpWorkerId = null;
 let _citasDelTrabajador = [];   // [{ cita_id, fecha, hora, servicio, cliente, contacto, estado_pago }]
 let _clienteActual = null;      // { email, nombre, telefono }
 let _permisoEtiquetas = false;  // ¿el admin permite al trabajador poner etiquetas de pago?
+let _permisoFinalizar = false;  // ¿el admin permite al trabajador marcar sus citas como realizadas?
 
 export async function initWorkerPortal() {
     const params = new URLSearchParams(window.location.search);
@@ -89,6 +90,7 @@ async function cargarDatosPortal() {
         const citas = data.citas_hoy || [];
         const citasProximas = data.citas_proximas || [];
         _permisoEtiquetas = data.permiso_etiquetas === true;
+        _permisoFinalizar = data.permiso_finalizar === true;
 
         _citasDelTrabajador = [...citas.map(c => ({ ...c, fecha: '' })), ...citasProximas];
 
@@ -154,8 +156,12 @@ function renderReservas(container, citas, citasProximas) {
         const etiqueta = c.estado_pago
             ? renderChipEtiqueta(c.estado_pago, { clickeable: _permisoEtiquetas })
             : (_permisoEtiquetas ? renderChipEtiqueta(null, { clickeable: true, vacioTexto: 'Marcar pago' }) : '');
+        // ¿Puede marcar esta reserva como realizada? Solo las de HOY (fecha ''
+        // = hoy en la RPC) y con el permiso del admin.
+        const esDeHoy = !c.fecha || String(c.fecha) === hoyStr;
+        const puedeMarcar = _permisoFinalizar && esDeHoy && !c.resultado;
         return `
-            <div class="worker-cita-card" role="button" tabindex="0"
+            <div class="worker-cita-card${puedeMarcar ? ' worker-cita-marcable' : ''}" role="button" tabindex="0"
                  data-cita-id="${escapeAttr(c.cita_id || '')}"
                  data-email="${escapeAttr((c.contacto && c.contacto.email) || '')}"
                  title="Ver información del cliente">
@@ -165,6 +171,7 @@ function renderReservas(container, citas, citasProximas) {
                     <strong>${escapeHtml(c.servicio || 'Servicio')}</strong>
                     <span>${escapeHtml(c.cliente || 'Cliente')}</span>
                 </div>
+                ${puedeMarcar ? `<button type="button" class="worker-btn-marcar" data-marcar="${escapeAttr(c.cita_id || '')}" data-nombre="${escapeAttr(c.cliente || '')}" title="Marcar como realizada: registra la venta y suma al total (precio reservado)"><i class="fas fa-check"></i> Realizada</button>` : ''}
                 <span class="cita-ver"><i class="fas fa-chevron-right"></i></span>
             </div>
         `;
@@ -217,6 +224,23 @@ function renderReservas(container, citas, citasProximas) {
         card.addEventListener('click', abrir);
         card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
 
+        // Botón "Realizada" (marcar la reserva como venta) — no abre la información
+        const btnMarcar = card.querySelector('.worker-btn-marcar');
+        if (btnMarcar) {
+            btnMarcar.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const citaId = btnMarcar.dataset.marcar;
+                const nombre = btnMarcar.dataset.nombre || 'el cliente';
+                if (btnMarcar.disabled) return;
+                btnMarcar.disabled = true;
+                const ok = await workerMarcarRealizada(citaId, nombre);
+                if (!ok) btnMarcar.disabled = false;
+            });
+            btnMarcar.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); btnMarcar.click(); }
+            });
+        }
+
         // Etiqueta de pago (si el admin lo permitió) — no abre la información
         card.querySelectorAll('.cita-etiqueta .etiqueta-pago-chip[role="button"]').forEach(chip => {
             const abrirEtiqueta = (e) => {
@@ -255,6 +279,38 @@ function cambiarEtiquetaReserva(email, estadoActual) {
             mostrarToast('No se pudo actualizar el estado de pago', 'error');
         }
     });
+}
+
+// ========== MARCAR REALIZADA (permiso del admin) ==========
+// El trabajador confirma su propia reserva de HOY como realizada:
+// archiva la venta con el precio reservado (el ajuste de monto es
+// del admin en Citas Programadas) y suma al total del negocio.
+async function workerMarcarRealizada(citaId, nombreCliente) {
+    if (!_permisoFinalizar) {
+        mostrarToast('No tienes permiso para marcar citas como realizadas', 'warning');
+        return false;
+    }
+    try {
+        const { data, error } = await window.supabaseClient.rpc('worker_finalizar_cita', {
+            p_tenant_id: String(_wpTenantId).trim(),
+            p_worker_id: _wpWorkerId,
+            p_cita_id: String(citaId),
+            p_resultado: 'completada'
+        });
+        if (error) throw error;
+        if (!(data && data.ok === true)) {
+            mostrarToast((data && data.error) || 'No se pudo marcar la reserva', 'error');
+            return false;
+        }
+        const monto = Number(data.monto) || 0;
+        mostrarToast(`${nombreCliente || 'La reserva'} marcada como realizada · +$${monto.toLocaleString('es-ES')} al total`, 'success');
+        cargarDatosPortal();
+        return true;
+    } catch (err) {
+        console.error('[WorkerPortal] Error marcando realizada:', err);
+        mostrarToast('No se pudo marcar la reserva', 'error');
+        return false;
+    }
 }
 
 // ========== MODAL CLIENTE ==========

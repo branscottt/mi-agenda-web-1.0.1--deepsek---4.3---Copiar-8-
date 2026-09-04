@@ -18847,3 +18847,376 @@ textarea.kanban-nueva-card-input {
         max-width: 30px;
     }
 }
+
+/* ============================================================
+   CERRAR VENTA / MARCADO DE REALIZADAS (migración 20261009)
+   Caja del día (Hoy/Mes), modales cv-*, panel de permiso para
+   trabajadores, snackbar Deshacer, badge "pasó su hora" y botón
+   "Realizada" del portal del trabajador.
+   Al final del archivo a propósito (overrides sobre estilos base).
+   ============================================================ */
+
+/* ---- Caja del día (Citas Programadas) ---- */
+.caja-ventas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin: 12px 0 14px;
+}
+.caja-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-color, #e0e0e0);
+    white-space: nowrap;
+}
+.caja-chip strong {
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+.caja-chip small {
+    opacity: 0.6;
+    font-size: 0.7rem;
+}
+.caja-chip-hoy i { color: #ffd700; }
+.caja-chip-mes i { color: #00b894; }
+.caja-hint {
+    margin-left: auto;
+    font-size: 0.72rem;
+    opacity: 0.55;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* ---- Badge "pasó su hora" ---- */
+.appointment-card.apt-hora-pasada {
+    border: 1px solid rgba(255, 193, 7, 0.35) !important;
+    box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.08) inset;
+}
+.apt-pasada-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #ffc107;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.25);
+    border-radius: 999px;
+    padding: 3px 10px;
+    animation: apt-pasada-pulso 2s ease-in-out infinite;
+}
+@keyframes apt-pasada-pulso {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+/* ---- Modales cerrar venta / venta sin turno ---- */
+.cv-modal-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(3px);
+    z-index: 15000;
+    padding: 16px;
+}
+.cv-modal {
+    background: var(--card-bg, #1a1a2e);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    width: min(520px, 100%);
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+    animation: cv-modal-in 0.18s ease-out;
+}
+@keyframes cv-modal-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+.cv-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.cv-modal-head h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.cv-modal-head h3 i { color: #00b894; }
+.cv-modal-x {
+    background: transparent;
+    border: 0;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+.cv-modal-x:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.cv-modal-body {
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.cv-cliente {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+}
+.cv-cliente strong { display: block; font-size: 0.95rem; }
+.cv-cliente span { font-size: 0.78rem; color: rgba(255, 255, 255, 0.55); }
+.cv-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-color, #e0e0e0);
+    margin-top: 6px;
+}
+.cv-label-hint {
+    font-weight: 400;
+    opacity: 0.6;
+    font-size: 0.72rem;
+}
+.cv-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    color: var(--text-color, #e0e0e0);
+    padding: 10px 12px;
+    font-size: 0.95rem;
+}
+.cv-input:focus {
+    outline: none;
+    border-color: var(--primary-color, #9d4edd);
+    box-shadow: 0 0 0 3px rgba(157, 78, 221, 0.2);
+}
+.cv-note {
+    font-size: 0.78rem;
+    opacity: 0.75;
+    margin: 2px 0 0;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+}
+.cv-note i { margin-top: 2px; }
+.cv-error {
+    color: #ff6b6b;
+    font-size: 0.78rem;
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.25);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+.cv-modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 18px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* ---- Panel: permiso para trabajadores ---- */
+.cv-permiso-box {
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.cv-permiso-head {
+    font-weight: 800;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.cv-permiso-head i { color: var(--primary-color, #9d4edd); }
+.cv-permiso-master {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.cv-permiso-master input {
+    accent-color: var(--primary-color, #9d4edd);
+    width: 17px;
+    height: 17px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+.cv-permiso-hint {
+    font-size: 0.72rem;
+    opacity: 0.6;
+    margin: 6px 0 0;
+}
+.cv-permiso-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.cv-permiso-chip {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color, #e0e0e0);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+.cv-permiso-chip:hover { border-color: rgba(255, 255, 255, 0.4); }
+.cv-permiso-chip.activo {
+    background: linear-gradient(135deg, var(--primary-color, #9d4edd), var(--secondary-color, #ff6d00));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(157, 78, 221, 0.35);
+    font-weight: 700;
+}
+.cv-permiso-vacio {
+    font-size: 0.78rem;
+    opacity: 0.6;
+    margin: 8px 0 0;
+}
+
+/* ---- Snackbar Deshacer ---- */
+.snackbar-undo-cv {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 16000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, var(--card-bg, #1a1a2e), #232342);
+    border: 1px solid rgba(46, 230, 168, 0.45);
+    border-radius: 12px;
+    padding: 10px 14px 10px 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    animation: cv-snackbar-in 0.22s ease-out;
+    max-width: min(94vw, 560px);
+}
+@keyframes cv-snackbar-in {
+    from { opacity: 0; transform: translate(-50%, 14px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+.snackbar-undo-texto {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #2ee6a8;
+}
+.snackbar-undo-btn {
+    border: 0;
+    background: rgba(46, 230, 168, 0.15);
+    color: #2ee6a8;
+    border: 1px solid rgba(46, 230, 168, 0.4);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.snackbar-undo-btn:hover {
+    background: rgba(46, 230, 168, 0.3);
+}
+
+/* ---- Portal trabajador: botón Realizada ---- */
+.worker-portal-body .worker-btn-marcar {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #00b894, #00a381);
+    color: #04261f;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 7px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: filter 0.12s ease, transform 0.12s ease;
+}
+.worker-portal-body .worker-btn-marcar:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+}
+.worker-portal-body .worker-btn-marcar:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+.worker-portal-body .worker-cita-marcable {
+    border-color: rgba(0, 184, 148, 0.35);
+}
+
+/* ---- Responsive: móvil / tablet ---- */
+@media (max-width: 768px) {
+    .caja-ventas {
+        gap: 6px 12px;
+        padding: 10px;
+    }
+    .caja-hint {
+        margin-left: 0;
+        width: 100%;
+    }
+    .cv-modal {
+        width: 100%;
+    }
+    .cv-modal-foot {
+        flex-direction: column-reverse;
+        padding: 12px 14px 16px;
+    }
+    .cv-modal-foot .btn-grad,
+    .cv-modal-foot .btn-secondary {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        justify-content: center;
+    }
+    .snackbar-undo-cv {
+        width: 94vw;
+        justify-content: space-between;
+    }
+    .snackbar-undo-texto {
+        font-size: 0.78rem;
+    }
+}
+@media (max-width: 480px) {
+    .caja-chip {
+        font-size: 0.8rem;
+    }
+    .apt-pasada-chip {
+        font-size: 0.68rem;
+    }
+    .worker-portal-body .worker-cita-card {
+        flex-wrap: wrap;
+        gap: 8px 10px;
+    }
+    .worker-portal-body .worker-btn-marcar {
+        margin-left: auto;
+    }
+}

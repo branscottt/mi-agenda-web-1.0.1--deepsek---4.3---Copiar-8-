@@ -487,6 +487,7 @@ const CitasManager = {
                 .from('citas')
                 .select('id, servicio_id, fecha, hora, precio, contacto, notificaciones, created_at, estado_pago')
                 .eq('tenant_id', cleanTenantId)
+                .is('resultado', null)
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -721,32 +722,21 @@ const VentasManager = {
             const tenantId = await getCurrentTenantId();
             if (!tenantId) return [];
 
-            // Citas vigentes (misma fuente de siempre)
-            const { data, error } = await supabaseClient
-                .from('citas')
-                .select('id, servicio_id, precio, contacto, created_at, fecha, hora')
-                .eq('tenant_id', String(tenantId).trim())
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('Error en VentasManager.getAll:', error);
-                return [];
-            }
-
-            // Histórico archivado: la limpieza borra las citas con fecha
-            // pasada, pero el trigger trg_archivar_venta las conserva en
-            // `ventas` para que el dashboard no pierda el acumulado.
-            // Las "No Asistió" se conservan en la tabla pero NO cuentan
-            // como ingreso (resultado <> 'no_asistio').
-            const { data: archivadas, error: errArchivadas } = await supabaseClient
+            // ÚNICA fuente del dinero: la tabla `ventas` (archivo real).
+            // Una venta existe SOLO cuando el check confirmó la cita
+            // (resultado 'completada'); las citas sin confirmar NO suman
+            // y las 'No Asistió' se conservan pero NO cuentan como
+            // ingreso (resultado <> 'no_asistio').
+            const { data: archivadas, error } = await supabaseClient
                 .from('ventas')
-                .select('cita_id, servicio_id, precio, contacto, fecha, hora, fecha_venta')
+                .select('id, cita_id, servicio_id, precio, contacto, fecha, hora, fecha_venta')
                 .eq('tenant_id', String(tenantId).trim())
                 .neq('resultado', 'no_asistio')
                 .order('fecha_venta', { ascending: false });
 
-            if (errArchivadas) {
-                console.warn('No se pudieron leer ventas archivadas:', errArchivadas);
+            if (error) {
+                console.error('Error en VentasManager.getAll:', error);
+                return [];
             }
 
             // Obtener nombres reales de servicios (para Top Servicios legible)
@@ -763,21 +753,22 @@ const VentasManager = {
                 console.warn('No se pudieron obtener nombres de servicios:', e);
             }
 
-            // Mapeo único para citas vigentes y ventas archivadas
-            const mapearVenta = (c, citaId) => {
-                const fechaVenta = c.fecha_venta || c.created_at;
+            // Mapeo único de ventas archivadas (id real de `ventas`; las de
+            // venta sin turno no tienen cita asociada, cita_id = null).
+            const mapearVenta = (v) => {
+                const fechaVenta = v.fecha_venta;
                 const createdDate = new Date(fechaVenta);
                 return {
-                    id: `VENTA-${citaId}`,
-                    citaId: citaId,
-                    servicioId: c.servicio_id,
-                    servicioNombre: nombresServicios[c.servicio_id] || 'Servicio',
-                    clienteNombre: c.contacto?.nombre || 'Cliente',
-                    clienteEmail: c.contacto?.email || '',
-                    clienteTelefono: c.contacto?.telefono || '',
-                    fecha: c.fecha,
-                    hora: c.hora,
-                    monto: Number(c.precio) || 0,
+                    id: v.id,
+                    citaId: v.cita_id,
+                    servicioId: v.servicio_id,
+                    servicioNombre: (v.servicio_id != null && nombresServicios[v.servicio_id]) || 'Venta libre',
+                    clienteNombre: v.contacto?.nombre || 'Cliente',
+                    clienteEmail: v.contacto?.email || '',
+                    clienteTelefono: v.contacto?.telefono || '',
+                    fecha: v.fecha,
+                    hora: v.hora,
+                    monto: Number(v.precio) || 0,
                     fechaVenta: fechaVenta,
                     mes: createdDate.getMonth() + 1,
                     año: createdDate.getFullYear(),
@@ -785,10 +776,7 @@ const VentasManager = {
                 };
             };
 
-            const ventas = [
-                ...(data || []).map(c => mapearVenta(c, c.id)),
-                ...(archivadas || []).map(v => mapearVenta(v, v.cita_id))
-            ];
+            const ventas = (archivadas || []).map(mapearVenta);
 
             this._cachedVentas = ventas;
             this._cacheTime = ahora;
@@ -3666,15 +3654,17 @@ window.sanearBaseDeDatos = sanearBaseDeDatos;
 
 /**
  * Finaliza una cita vía RPC `finalizar_cita`: archiva la venta en `ventas`
- * con el resultado ('completada' | 'no_asistio') SIEMPRE (cualquier fecha,
- * incluso hoy) y borra la cita. El check ✓ confirma la venta hecha; el X
+ * con el resultado ('completada' | 'no_asistio') y MARCA la cita (resultado)
+ * sin borrarla. El check ✓ confirma la venta hecha (monto ajustable); el X
  * (No Asistió) conserva el registro sin contar como ingreso.
+ * (Función auxiliar; el flujo actual usa los modales Cerrar Venta.)
  */
-async function finalizarCitaConResultado(citaId, resultado) {
+async function finalizarCitaConResultado(citaId, resultado, precio) {
     try {
         const { data, error } = await supabaseClient.rpc('finalizar_cita', {
             p_cita_id: String(citaId),
-            p_resultado: resultado
+            p_resultado: resultado,
+            p_precio: (precio != null && precio !== '' && Number(precio) > 0) ? Number(precio) : null
         });
         if (error) throw error;
         return !!(data && data.ok === true);
@@ -3684,87 +3674,561 @@ async function finalizarCitaConResultado(citaId, resultado) {
     }
 }
 
-async function finalizarCita(citaId) {
-    const citas = await CitasManager.getAll();
-    const cita = citas.find(c => String(c.id) === String(citaId));
-    
-    if (!cita) {
-        mostrarToast('Cita no encontrada', 'error');
-        return;
-    }
+// ============================================
+// CERRAR VENTA (check ✓ / No Asistió ✗)
+// El check registra la venta (suma al total) y la cita queda
+// marcada como realizada — ya NO se borra: permite deshacer,
+// ajustar el monto real y marcar más tarde desde el historial.
+// El total del mes = SOLO ventas confirmadas (tabla ventas).
+// ============================================
 
-    const nombreCliente = cita.contacto?.nombre || cita.nombreCliente || 'el cliente';
-    if (!confirm(`¿Marcar como completada la cita de ${nombreCliente}? Se eliminará de la lista y se registrará la venta.`)) {
-        return;
-    }
+let _cv = null;             // estado del modal cerrar venta
+let _ws = null;             // estado del modal venta sin turno
+let _wsAbriendo = false;    // anti-reentrada: pointerup abre async y el click fantasma
+                            // inmediato no debe lanzar una 2ª apertura (verificado E2E 2026-10)
+let _ultimaCitaFinalizada = null;  // para el botón Deshacer
+let _permisoSel = null;     // Set de trabajadores elegidos (permiso finalizar)
+let _cvUXListo = false;     // delegación de eventos instalada 1 sola vez
 
-    if (await finalizarCitaConResultado(citaId, 'completada')) {
-        // El RPC finalizar_cita archivó la venta en `ventas` (resultado
-        // 'completada') ANTES de borrar la cita — cualquier fecha, incluso
-        // hoy. El trigger trg_archivar_venta ya no la duplica (guard de
-        // idempotencia por cita_id).
-        if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
-        if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
-        if (typeof actualizarDashboardFinanzas === 'function') actualizarDashboardFinanzas();
-        
-        mostrarToast('Servicio completado. Ingresos actualizados', 'success');
+function _fmtPesoCV(n) {
+    const num = Number(n) || 0;
+    return '$' + num.toLocaleString('es-ES');
+}
+
+// Refresca la "caja del día" (Hoy / Este mes) de Citas Programadas.
+async function refrescarTotalesVentas() {
+    try {
+        const [hoy, mes] = await Promise.all([VentasManager.getHoy(), VentasManager.getMes()]);
+        const elHoy = document.getElementById('caja-ventas-hoy');
+        const elMes = document.getElementById('caja-ventas-mes');
+        const detHoy = document.getElementById('caja-ventas-hoy-det');
+        const detMes = document.getElementById('caja-ventas-mes-det');
+        if (elHoy) elHoy.textContent = _fmtPesoCV(VentasManager.calcularTotal(hoy));
+        if (elMes) elMes.textContent = _fmtPesoCV(VentasManager.calcularTotal(mes));
+        if (detHoy) detHoy.textContent = hoy.length === 1 ? '1 venta' : hoy.length + ' ventas';
+        if (detMes) detMes.textContent = mes.length === 1 ? '1 venta' : mes.length + ' ventas';
+    } catch (e) {
+        console.warn('Error refrescando totales de ventas:', e);
     }
 }
-window.finalizarCita = finalizarCita;
+window.refrescarTotalesVentas = refrescarTotalesVentas;
 
-async function noAsistioCita(citaId) {
-    const citas = await CitasManager.getAll();
-    const cita = citas.find(c => String(c.id) === String(citaId));
-    
-    if (!cita) {
-        mostrarToast('Cita no encontrada', 'error');
-        return;
+// Refresco global tras registrar/deshacer una venta.
+async function afterVentaActualizada() {
+    VentasManager.invalidateCache();
+    await refrescarTotalesVentas();
+    if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
+    if (typeof actualizarDashboardFinanzas === 'function') actualizarDashboardFinanzas();
+    if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
+}
+
+// ---- Deshacer (undo del check) ----
+async function deshacerFinalizarCita(citaId) {
+    try {
+        const { data, error } = await supabaseClient.rpc('deshacer_finalizar_cita', {
+            p_cita_id: String(citaId)
+        });
+        if (error) throw error;
+        if (data && data.ok === true) {
+            await afterVentaActualizada();
+            mostrarToast('Se deshizo el check: la cita vuelve a pendiente', 'info');
+            return true;
+        }
+        mostrarToast(data?.error || 'No se pudo deshacer', 'error');
+        return false;
+    } catch (e) {
+        console.error('Error al deshacer la finalización:', e);
+        mostrarToast('No se pudo deshacer el check', 'error');
+        return false;
     }
+}
+window.deshacerFinalizarCita = deshacerFinalizarCita;
 
-    if (!confirm(`¿Confirmas que ${cita.contacto?.nombre || cita.nombreCliente || 'el cliente'} NO ASISTIÓ a su cita?`)) {
-        return;
-    }
+// Snackbar con acción "Deshacer" (aparece 7s tras confirmar una venta).
+function mostrarSnackbarDeshacer(citaId, monto, resultado) {
+    const previo = document.getElementById('snackbar-undo-cv');
+    if (previo) previo.remove();
+    const sb = document.createElement('div');
+    sb.id = 'snackbar-undo-cv';
+    sb.className = 'snackbar-undo-cv';
+    const texto = resultado === 'no_asistio'
+        ? 'Cita marcada como No Asistió (no suma al total)'
+        : 'Venta registrada: +' + _fmtPesoCV(monto) + ' sumados al total';
+    sb.innerHTML =
+        '<span class="snackbar-undo-texto"></span>' +
+        '<button type="button" class="snackbar-undo-btn">Deshacer</button>';
+    sb.querySelector('.snackbar-undo-texto').textContent = texto;
+    document.body.appendChild(sb);
+    _ultimaCitaFinalizada = citaId;
+    const limpiar = () => { sb.remove(); _ultimaCitaFinalizada = null; };
+    sb.querySelector('.snackbar-undo-btn').addEventListener('click', async () => {
+        const id = _ultimaCitaFinalizada;
+        limpiar();
+        if (id) await deshacerFinalizarCita(id);
+    });
+    setTimeout(() => { if (document.getElementById('snackbar-undo-cv') === sb) limpiar(); }, 7000);
+}
 
+// Libera el cupo del servicio cuando el cliente NO asistió.
+async function liberarCupoNoAsistio(cita) {
     try {
         const servicios = await ServiciosManager.getAll();
         const sIdx = servicios.findIndex(s => s && String(s.id) === String(cita.servicioId));
-        
-        if (sIdx !== -1) {
-            const servicio = servicios[sIdx];
-            const fecha = cita.fecha;
-            
-            if (servicio.disponibilidad && servicio.disponibilidad[fecha]) {
-                const targetHora = String(cita.hora || '').trim();
-                
-                for (let mi = 0; mi < servicio.disponibilidad[fecha].length; mi++) {
-                    const m = servicio.disponibilidad[fecha][mi];
-                    const horaText = formatTimeDisplay(m.hora || m.startTime || '00:00');
-                    
-                    if (horaText === targetHora) {
-                        servicio.disponibilidad[fecha][mi].cupos = (Number(m.cupos || 0) + 1);
-                        break;
-                    }
+        if (sIdx === -1) return;
+        const servicio = servicios[sIdx];
+        const fecha = cita.fecha;
+        if (servicio.disponibilidad && servicio.disponibilidad[fecha]) {
+            const targetHora = String(cita.hora || '').trim();
+            for (let mi = 0; mi < servicio.disponibilidad[fecha].length; mi++) {
+                const m = servicio.disponibilidad[fecha][mi];
+                const horaText = formatTimeDisplay(m.hora || m.startTime || '00:00');
+                if (horaText === targetHora) {
+                    servicio.disponibilidad[fecha][mi].cupos = (Number(m.cupos || 0) + 1);
+                    break;
                 }
             }
-            
-            servicios[sIdx] = servicio;
-            await ServiciosManager.save(servicio);
         }
-    } catch (e) { 
-        console.warn('No se pudo devolver cupo al servicio', e); 
-    }
-
-    if (await finalizarCitaConResultado(citaId, 'no_asistio')) {
-        if (typeof renderAdminAppointments === 'function') renderAdminAppointments();
-        if (typeof updateProjectedRevenue === 'function') updateProjectedRevenue();
-        if (typeof renderCarrito === 'function') renderCarrito();
-        // El registro queda archivado en `ventas` como 'no_asistio'
-        // (conservado, pero NO cuenta como ingreso en el dashboard).
-        
-        mostrarToast('Cita marcada como No Asistió. Cupo liberado.', 'info');
+        servicios[sIdx] = servicio;
+        await ServiciosManager.save(servicio);
+    } catch (e) {
+        console.warn('No se pudo devolver cupo al servicio', e);
     }
 }
+
+// ---- Modal: Cerrar venta (check) ----
+async function finalizarCita(citaId) {
+    const citas = await CitasManager.getAll();
+    const cita = citas.find(c => String(c.id) === String(citaId));
+
+    if (!cita) {
+        mostrarToast('Cita no encontrada o ya finalizada', 'error');
+        return;
+    }
+
+    const servicios = await ServiciosManager.getAll();
+    const servicio = servicios.find(s => String(s.id) === String(cita.servicioId));
+    const montoReservado = Number(cita.precio) || 0;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'cv-modal-overlay';
+    overlay.innerHTML = `
+        <div class="cv-modal" role="dialog" aria-modal="true" aria-label="Cerrar venta">
+            <div class="cv-modal-head">
+                <h3><i class="fas fa-check-circle"></i> Cerrar venta</h3>
+                <button type="button" class="cv-modal-x" data-cv-accion="cerrar" title="Cerrar">×</button>
+            </div>
+            <div class="cv-modal-body">
+                <div class="cv-cliente">
+                    <strong>${cita.contacto?.nombre || cita.nombreCliente || 'Cliente'}</strong>
+                    <span>${servicio ? servicio.nombre : (cita.nombre || 'Servicio')} · ${cita.fecha || ''} ${cita.hora || ''}</span>
+                </div>
+                <label class="cv-label" for="cv-monto">Monto cobrado <span class="cv-label-hint">(si no calza con lo reservado, ajústalo)</span></label>
+                <input type="number" id="cv-monto" class="cv-input" min="0" step="any" inputmode="decimal" value="${montoReservado || ''}">
+                <p class="cv-note"><i class="fas fa-info-circle"></i> Al confirmar, la venta se registra y <strong>suma al total del mes</strong>.</p>
+                <div id="cv-error" class="cv-error" style="display:none;"></div>
+            </div>
+            <div class="cv-modal-foot">
+                <button type="button" class="btn-secondary" data-cv-accion="cancelar">Cancelar</button>
+                <button type="button" class="btn-grad" data-cv-accion="confirmar"><i class="fas fa-check"></i> Confirmar venta</button>
+            </div>
+        </div>`;
+
+    const cerrar = (forzar) => {
+        const input = document.getElementById('cv-monto');
+        const montoFinal = input ? (Number(input.value) || 0) : montoReservado;
+        if (!forzar && montoFinal !== montoReservado) {
+            if (!confirm('Cambiaste el monto. ¿Descartar los cambios?')) return;
+        }
+        document.removeEventListener('keydown', onKey);
+        overlay.remove();
+        _cv = null;
+    };
+
+    const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
+    };
+
+    _cv = { citaId, montoReservado, resultado: 'completada', cerrar, creadoEn: Date.now() };
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', onKey);
+    const input = document.getElementById('cv-monto');
+    if (input) input.focus();
+}
+window.finalizarCita = finalizarCita;
+
+// ---- Modal: No Asistió ----
+async function noAsistioCita(citaId) {
+    const citas = await CitasManager.getAll();
+    const cita = citas.find(c => String(c.id) === String(citaId));
+
+    if (!cita) {
+        mostrarToast('Cita no encontrada o ya finalizada', 'error');
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'cv-modal-overlay';
+    overlay.innerHTML = `
+        <div class="cv-modal" role="dialog" aria-modal="true" aria-label="Registrar No Asistió">
+            <div class="cv-modal-head">
+                <h3><i class="fas fa-user-slash"></i> No asistió</h3>
+                <button type="button" class="cv-modal-x" data-cv-accion="cerrar" title="Cerrar">×</button>
+            </div>
+            <div class="cv-modal-body">
+                <div class="cv-cliente">
+                    <strong>${cita.contacto?.nombre || cita.nombreCliente || 'Cliente'}</strong>
+                    <span>${cita.fecha || ''} ${cita.hora || ''}</span>
+                </div>
+                <p class="cv-note"><i class="fas fa-info-circle"></i> Se libera el cupo y la cita se registra como <strong>No Asistió</strong>: queda en el historial pero <strong>no suma al total</strong>.</p>
+                <div id="cv-error" class="cv-error" style="display:none;"></div>
+            </div>
+            <div class="cv-modal-foot">
+                <button type="button" class="btn-secondary" data-cv-accion="cancelar">Cancelar</button>
+                <button type="button" class="btn-grad" data-cv-accion="confirmar"><i class="fas fa-times"></i> Confirmar No Asistió</button>
+            </div>
+        </div>`;
+
+    const cerrar = (forzar) => {
+        document.removeEventListener('keydown', onKey);
+        overlay.remove();
+        _cv = null;
+    };
+
+    const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); cerrar(true); }
+    };
+
+    _cv = { citaId, montoReservado: 0, resultado: 'no_asistio', cerrar, creadoEn: Date.now() };
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', onKey);
+}
 window.noAsistioCita = noAsistioCita;
+
+// Ejecuta la confirmación del modal actual.
+async function confirmarModalCerrarVenta() {
+    if (!_cv) return;
+    const { citaId, montoReservado, resultado } = _cv;
+    const overlay = _cv.overlay || document.querySelector('.cv-modal-overlay');
+    const errorEl = overlay ? overlay.querySelector('#cv-error') : null;
+    const input = overlay ? overlay.querySelector('#cv-monto') : null;
+    const boton = overlay ? overlay.querySelector('[data-cv-accion="confirmar"]') : null;
+    const mostrarError = (msg) => {
+        if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+        mostrarToast(msg, 'error');
+    };
+
+    let montoFinal = montoReservado;
+    if (resultado === 'completada') {
+        montoFinal = input ? (Number(input.value) || 0) : montoReservado;
+        if (montoFinal <= 0) { mostrarError('El monto debe ser mayor a cero'); return; }
+    }
+
+    if (boton) boton.disabled = true;
+    try {
+        if (resultado === 'no_asistio') {
+            const citas = await CitasManager.getAll();
+            const cita = citas.find(c => String(c.id) === String(citaId));
+            if (cita) await liberarCupoNoAsistio(cita);
+        }
+
+        const { data, error } = await supabaseClient.rpc('finalizar_cita', {
+            p_cita_id: String(citaId),
+            p_resultado: resultado,
+            p_precio: resultado === 'completada' ? montoFinal : null
+        });
+
+        if (error) throw error;
+        if (!(data && data.ok === true)) {
+            mostrarError(data?.error || 'No se pudo registrar la venta');
+            if (boton) boton.disabled = false;
+            return;
+        }
+
+        _cv.cerrar(true);
+        await afterVentaActualizada();
+        if (resultado === 'no_asistio') {
+            mostrarToast('Cita marcada como No Asistió. Cupo liberado.', 'info');
+            mostrarSnackbarDeshacer(citaId, 0, 'no_asistio');
+        } else {
+            mostrarToast('Venta registrada: +' + _fmtPesoCV(montoFinal), 'success');
+            mostrarSnackbarDeshacer(citaId, montoFinal, 'completada');
+        }
+    } catch (e) {
+        console.error('Error al cerrar la venta:', e);
+        mostrarError('Error de conexión. No se registró la venta.');
+        if (boton) boton.disabled = false;
+    }
+}
+
+// ---- Modal: Venta sin turno (walk-in, crea/actualiza el cliente) ----
+async function abrirModalVentaSinTurno() {
+    if (_ws || _wsAbriendo) return;
+    _wsAbriendo = true;
+    let servicios = [];
+    try {
+        servicios = await ServiciosManager.getAll();
+    } catch (e) {
+        console.warn(e);
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'cv-modal-overlay';
+    overlay.innerHTML = `
+        <div class="cv-modal" role="dialog" aria-modal="true" aria-label="Venta sin turno">
+            <div class="cv-modal-head">
+                <h3><i class="fas fa-cash-register"></i> Venta sin turno</h3>
+                <button type="button" class="cv-modal-x" data-ws-accion="cerrar" title="Cerrar">×</button>
+            </div>
+            <div class="cv-modal-body">
+                <p class="cv-note"><i class="fas fa-info-circle"></i> Llegó alguien sin reserva: cargá sus datos y la venta suma al total. Queda guardada en <strong>Mis Clientes</strong>.</p>
+                <label class="cv-label" for="ws-nombre">Nombre *</label>
+                <input type="text" id="ws-nombre" class="cv-input" placeholder="Nombre de la clienta / cliente" autocomplete="name">
+                <label class="cv-label" for="ws-telefono">Teléfono *</label>
+                <input type="tel" id="ws-telefono" class="cv-input" placeholder="Ej: +56 9 1234 5678" autocomplete="tel">
+                <label class="cv-label" for="ws-email">Email <span class="cv-label-hint">(opcional: si no lo da, se genera uno desde el teléfono para que aparezca en Mis Clientes)</span></label>
+                <input type="email" id="ws-email" class="cv-input" placeholder="cliente@email.com" autocomplete="email">
+                <label class="cv-label" for="ws-servicio">Servicio <span class="cv-label-hint">(opcional: si es un servicio de tu lista, elegilo y se carga el precio)</span></label>
+                <select id="ws-servicio" class="cv-input">
+                    <option value="">— Venta libre (sin servicio) —</option>
+                    ${servicios.filter(s => s.activo !== false).map(s => `<option value="${s.id}">${s.nombre} (${_fmtPesoCV(s.precio)})</option>`).join('')}
+                </select>
+                <label class="cv-label" for="ws-monto">Monto cobrado *</label>
+                <input type="number" id="ws-monto" class="cv-input" min="0" step="any" inputmode="decimal" placeholder="0">
+                <div id="ws-error" class="cv-error" style="display:none;"></div>
+            </div>
+            <div class="cv-modal-foot">
+                <button type="button" class="btn-secondary" data-ws-accion="cancelar">Cancelar</button>
+                <button type="button" class="btn-grad" data-ws-accion="guardar"><i class="fas fa-check"></i> Registrar venta</button>
+            </div>
+        </div>`;
+
+    const cerrar = () => { _wsAbriendo = false; document.removeEventListener('keydown', onKey); overlay.remove(); _ws = null; };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); cerrar(); } };
+
+    _ws = { cerrar, creadoEn: Date.now() };
+    document.body.appendChild(overlay);
+    _wsAbriendo = false; // el modal ya existe: el guard pasa a _ws
+    document.addEventListener('keydown', onKey);
+
+    // Al elegir servicio se precarga su precio (editable).
+    const sel = overlay.querySelector('#ws-servicio');
+    const monto = overlay.querySelector('#ws-monto');
+    if (sel && monto) {
+        sel.addEventListener('change', () => {
+            const sv = servicios.find(s => String(s.id) === String(sel.value));
+            if (sv && sv.precio) monto.value = Number(sv.precio);
+        });
+    }
+    setTimeout(() => { const n = overlay.querySelector('#ws-nombre'); if (n) n.focus(); }, 50);
+}
+window.abrirModalVentaSinTurno = abrirModalVentaSinTurno;
+
+async function guardarVentaSinTurno() {
+    if (!_ws) return;
+    const overlay = _ws.overlay || document.querySelector('.cv-modal-overlay');
+    const errorEl = overlay ? overlay.querySelector('#ws-error') : null;
+    const mostrarError = (msg) => {
+        if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+        mostrarToast(msg, 'error');
+    };
+
+    const nombre = (overlay.querySelector('#ws-nombre')?.value || '').trim();
+    const telefono = (overlay.querySelector('#ws-telefono')?.value || '').trim();
+    const email = (overlay.querySelector('#ws-email')?.value || '').trim();
+    const servicioIdRaw = overlay.querySelector('#ws-servicio')?.value || '';
+    const monto = Number(overlay.querySelector('#ws-monto')?.value) || 0;
+
+    if (!nombre) { mostrarError('El nombre es obligatorio'); return; }
+    if (!telefono) { mostrarError('El teléfono es obligatorio'); return; }
+    if (monto <= 0) { mostrarError('El monto debe ser mayor a cero'); return; }
+
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) { mostrarError('Sin acceso a este negocio'); return; }
+
+    const boton = overlay.querySelector('[data-ws-accion="guardar"]');
+    if (boton) boton.disabled = true;
+    try {
+        const { data, error } = await supabaseClient.rpc('registrar_cliente_venta_directa', {
+            p_tenant_id: String(tenantId).trim(),
+            p_nombre: nombre,
+            p_telefono: telefono,
+            p_email: email,
+            p_servicio_id: servicioIdRaw ? Number(servicioIdRaw) : null,
+            p_monto: monto
+        });
+        if (error) throw error;
+        if (!(data && data.ok === true)) {
+            mostrarError(data?.error || 'No se pudo registrar la venta');
+            if (boton) boton.disabled = false;
+            return;
+        }
+        _ws.cerrar();
+        await afterVentaActualizada();
+        const clienteMsg = data.cliente_nuevo ? 'Cliente guardada en Mis Clientes' : 'Cliente actualizado en Mis Clientes';
+        mostrarToast('Venta sin turno: +' + _fmtPesoCV(data.monto || monto) + ' · ' + clienteMsg, 'success');
+    } catch (e) {
+        console.error('Error en venta sin turno:', e);
+        mostrarError('Error de conexión. No se registró la venta.');
+        if (boton) boton.disabled = false;
+    }
+}
+
+// ---- Panel: permiso para que los trabajadores marquen realizadas ----
+async function cargarPanelPermisoFinalizar() {
+    const cont = document.getElementById('panel-permiso-finalizar');
+    if (!cont) return;
+    const tenantId = await getCurrentTenantId();
+    if (!tenantId) return;
+
+    try {
+        const { data, error } = await supabaseClient.rpc('admin_get_permiso_finalizar', {
+            p_tenant_id: String(tenantId).trim()
+        });
+        if (error) throw error;
+        if (!(data && data.ok === true)) return;
+
+        _permisoSel = new Set((data.trabajadores || []).map(String));
+        const lista = data.trabajadores_lista || [];
+        const master = data.permitir === true;
+
+        let chips = '';
+        if (lista.length === 0) {
+            chips = '<p class="cv-permiso-vacio">No hay trabajadores activos todavía.</p>';
+        } else {
+            chips = '<div class="cv-permiso-chips">' + lista.map(w =>
+                `<button type="button" class="cv-permiso-chip${_permisoSel.has(String(w.id)) ? ' activo' : ''}" data-wid="${w.id}">${w.nombre}</button>`
+            ).join('') + '</div>';
+        }
+
+        cont.innerHTML = `
+            <div class="cv-permiso-box">
+                <div class="cv-permiso-head">
+                    <i class="fas fa-user-check"></i> ¿Quién puede marcar "Realizada"?
+                </div>
+                <label class="cv-permiso-master">
+                    <input type="checkbox" id="cv-permiso-master" ${master ? 'checked' : ''}>
+                    Permitir que los trabajadores marquen sus citas como realizadas
+                </label>
+                <p class="cv-permiso-hint">El administrador siempre puede marcar. Con permiso, cada trabajador ve el botón en sus reservas (solo las suyas, con el precio reservado).</p>
+                ${lista.length ? '<p class="cv-permiso-hint">Trabajadores con permiso (si no elegís ninguno, pueden todos):</p>' : ''}
+                ${chips}
+                <button type="button" id="btn-guardar-permiso-finalizar" class="btn-grad btn-small" style="margin-top:10px;"><i class="fas fa-save"></i> Guardar permiso</button>
+            </div>`;
+    } catch (e) {
+        console.warn('Error cargando permiso finalizar:', e);
+    }
+}
+window.cargarPanelPermisoFinalizar = cargarPanelPermisoFinalizar;
+
+async function guardarPermisoFinalizar() {
+    const cont = document.getElementById('panel-permiso-finalizar');
+    const tenantId = await getCurrentTenantId();
+    const masterEl = cont && cont.querySelector('#cv-permiso-master');
+    if (!tenantId || !masterEl) return;
+
+    const master = masterEl.checked;
+    const boton = cont.querySelector('#btn-guardar-permiso-finalizar');
+    if (boton) boton.disabled = true;
+    try {
+        const { data, error } = await supabaseClient.rpc('admin_set_permiso_finalizar', {
+            p_tenant_id: String(tenantId).trim(),
+            p_permitir: master,
+            p_trabajadores: master ? Array.from(_permisoSel || []).map(String) : null
+        });
+        if (error) throw error;
+        if (!(data && data.ok === true)) {
+            mostrarToast(data?.error || 'No se pudo guardar', 'error');
+            return;
+        }
+        mostrarToast(master ? 'Permiso guardado: los trabajadores elegidos pueden marcar citas como realizadas' : 'Permiso desactivado: solo el administrador puede marcar', 'success');
+    } catch (e) {
+        console.error('Error guardando permiso finalizar:', e);
+        mostrarToast('Error al guardar el permiso', 'error');
+    } finally {
+        if (boton) boton.disabled = false;
+    }
+}
+
+// ---- Delegación de eventos (1 sola vez) ----
+function configurarUXCerrarVenta() {
+    if (_cvUXListo) return;
+    _cvUXListo = true;
+
+    // Binding DIRECTO del botón "Venta sin turno" (fase target: funciona aunque
+    // otro listener de documento haga stopPropagation en móvil — verificado E2E
+    // 2026-10: el primer toque móvil se perdía con delegación sola).
+    // Se abre en 'pointerup' Y 'click' con dedupe: si el toque ya abrió el
+    // modal, el click fantasma posterior no lo vuelve a abrir ni lo cierra.
+    const abrirVentaSinTurnoGuard = () => {
+        if (_ws || _cv) return;
+        abrirModalVentaSinTurno();
+    };
+    const btnVentaDirecto = document.getElementById('btn-venta-sin-turno');
+    if (btnVentaDirecto && !btnVentaDirecto._cvBind) {
+        btnVentaDirecto._cvBind = true;
+        btnVentaDirecto.addEventListener('pointerup', (e) => {
+            if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+            e.preventDefault();
+            e.stopPropagation();
+            abrirVentaSinTurnoGuard();
+        });
+        btnVentaDirecto.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // evita doble apertura vía delegación de documento
+            abrirVentaSinTurnoGuard();
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        // Modal cerrar venta
+        const cvBtn = e.target.closest('[data-cv-accion]');
+        if (cvBtn && _cv) {
+            const accion = cvBtn.dataset.cvAccion;
+            if (accion === 'cerrar' || accion === 'cancelar') { e.stopPropagation(); _cv.cerrar(false); return; }
+            if (accion === 'confirmar') { e.stopPropagation(); confirmarModalCerrarVenta(); return; }
+        }
+        // Click fuera del modal (backdrop) con guard de cambios; se ignora
+        // dentro de los primeros 450ms (evita que un click fantasma posterior
+        // al toque cierre el modal recién abierto).
+        if (e.target.classList && e.target.classList.contains('cv-modal-overlay') && _cv && (Date.now() - (_cv.creadoEn || 0) > 450)) {
+            _cv.cerrar(false);
+            return;
+        }
+        // Modal venta sin turno
+        const wsBtn = e.target.closest('[data-ws-accion]');
+        if (wsBtn && _ws) {
+            const accion = wsBtn.dataset.wsAccion;
+            if (accion === 'cerrar' || accion === 'cancelar') { e.stopPropagation(); _ws.cerrar(); return; }
+            if (accion === 'guardar') { e.stopPropagation(); guardarVentaSinTurno(); return; }
+        }
+        if (e.target.classList && e.target.classList.contains('cv-modal-overlay') && _ws && (Date.now() - (_ws.creadoEn || 0) > 450)) {
+            _ws.cerrar();
+            return;
+        }
+        // Botón "Venta sin turno" del header de Citas Programadas (respaldo
+        // si el binding directo no estuviera; el directo frena la propagación)
+        if (e.target.closest('#btn-venta-sin-turno')) {
+            if (!_ws && !_cv) abrirModalVentaSinTurno();
+            return;
+        }
+        // Chips de trabajadores del panel de permiso
+        const chip = e.target.closest('.cv-permiso-chip');
+        if (chip && _permisoSel) {
+            const wid = String(chip.dataset.wid);
+            if (_permisoSel.has(wid)) _permisoSel.delete(wid); else _permisoSel.add(wid);
+            chip.classList.toggle('activo', _permisoSel.has(wid));
+            return;
+        }
+        // Guardar permiso
+        if (e.target.closest('#btn-guardar-permiso-finalizar')) {
+            guardarPermisoFinalizar();
+        }
+    });
+
+    // Render inicial del panel de permiso + caja de ventas
+    cargarPanelPermisoFinalizar();
+    refrescarTotalesVentas();
+}
+window.configurarUXCerrarVenta = configurarUXCerrarVenta;
 
 // ============================================
 // RENDERIZADO DE NOTIFICACIONES (modificado para async)
@@ -4933,6 +5397,7 @@ async function iniciarAdmin() {
     // Cargar dashboard al inicio
     if (typeof actualizarDashboardFinanzas === 'function') {
         setTimeout(() => actualizarDashboardFinanzas(), 200);
+        setTimeout(() => configurarUXCerrarVenta(), 300);
     }
 
     // ========== BOTÓN CANCELAR SUSCRIPCIÓN (doble confirmación) ==========
@@ -10394,6 +10859,13 @@ async function renderAdminAppointments() {
     const container = document.getElementById('upcoming-appointments');
     if (!container) return;
 
+    // Mantener la "caja del día" (Hoy / Este mes) fresca al entrar a la sección
+    // y GARANTIZAR el binding de la UX de cerrar venta (en móvil el boot de
+    // sesión puede tardar con retries y el usuario podría tocar antes del
+    // setTimeout de iniciarAdmin — verificado E2E 2026-10).
+    if (typeof configurarUXCerrarVenta === 'function') configurarUXCerrarVenta();
+    if (typeof refrescarTotalesVentas === 'function') refrescarTotalesVentas();
+
     // Citas y servicios son lecturas independientes → en paralelo (antes:
     // secuenciales). Si las citas fallan, se propaga el error igual que antes.
     const [rTodas, rServicios] = await Promise.allSettled([
@@ -10442,11 +10914,25 @@ async function renderAdminAppointments() {
         const hora = c.hora || '—';
         const precio = c.precio ? `$${Number(c.precio).toLocaleString('es-ES')}` : '';
         const esHoy = c.fecha && new Date(c.fecha.split('T')[0]) <= new Date() && new Date(c.fecha.split('T')[0]) >= new Date(new Date().toDateString());
+        const esPasada = c.fecha && (() => {
+            try {
+                const citaFecha = (c.fecha || '').split('T')[0];
+                const hoyStr = new Date().toISOString().split('T')[0];
+                if (citaFecha < hoyStr) return true;
+                if (citaFecha === hoyStr) {
+                    const ahoraMin = new Date().getHours() * 60 + new Date().getMinutes();
+                    const partes = String(c.hora || '23:59').split(':');
+                    const citaMin = (Number(partes[0]) || 0) * 60 + (Number(partes[1]) || 0);
+                    return ahoraMin > citaMin;
+                }
+                return false;
+            } catch (e) { return false; }
+        })();
         const estadoUrgencia = typeof UrgenciaManager?.calcularEstado === 'function' ? UrgenciaManager.calcularEstado(c.fecha, c.hora) : 'normal';
         const estadoPago = ESTADOS_PAGO[c.estado_pago] || null;
 
         html += `
-            <div class="appointment-card ${esHoy ? 'today-card' : ''} ${estadoUrgencia === 'urgent-now' ? 'urgent-now' : ''} ${estadoUrgencia === 'urgent-soon' ? 'urgent-soon' : ''}" data-id="${c.id}">
+            <div class="appointment-card ${esHoy ? 'today-card' : ''} ${esPasada ? 'apt-hora-pasada' : ''} ${estadoUrgencia === 'urgent-now' ? 'urgent-now' : ''} ${estadoUrgencia === 'urgent-soon' ? 'urgent-soon' : ''}" data-id="${c.id}">
                 <div class="apt-header">
                     <strong>${escapeHtml(nombre)}</strong>
                     <span class="apt-price">${precio}</span>
@@ -10456,6 +10942,7 @@ async function renderAdminAppointments() {
                     <span><i class="fas fa-clock"></i> ${hora}</span>
                     <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
                 </div>
+                ${esPasada ? '<span class="apt-pasada-chip"><i class="fas fa-hourglass-end"></i> Pasó su hora — ¿se realizó? Marcá el check para sumarla</span>' : ''}
                 ${direccionCliente ? `<a class="apt-direccion" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccionCliente)}" target="_blank" rel="noopener noreferrer" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccionCliente)}</a>` : ''}
                 ${estadoPago ? `<div class="apt-estado-pago" title="Estado de pago"><span class="apt-estado-dot" style="background:${estadoPago.color}"></span> ${estadoPago.nombre}</div>` : ''}
                 <div class="apt-actions">

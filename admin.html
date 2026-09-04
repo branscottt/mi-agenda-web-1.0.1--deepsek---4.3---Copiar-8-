@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>Organify - Panel Admin</title>
-    <link rel="stylesheet" href="style.css?v=46">
+    <link rel="stylesheet" href="style.css?v=47">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
@@ -807,7 +807,7 @@
                     <!-- GUÍA RÁPIDA -->
                     <div class="step-guide" style="margin-bottom:16px;">
                         <i class="fas fa-info-circle"></i>
-                        <span><strong>Administración de citas:</strong> Aquí ves todas las citas agendadas por tus clientes. Puedes contactarlos por WhatsApp, editar la fecha/hora, marcar como completada o registrar que no asistieron. Usa el botón "Limpiar Base de Datos" solo si deseas eliminar todas las citas.</span>
+                        <span><strong>Administración de citas:</strong> Aquí ves todas las citas agendadas por tus clientes. Puedes contactarlos por WhatsApp, editar la fecha/hora o marcar el resultado con los botones de cada cita. Al marcar <strong>✓ Asistió</strong> se registra la <strong>venta</strong> y suma al total (podés ajustar el monto si no calza con lo cobrado). Al marcar <strong>✗ No asistió</strong> se libera el cupo pero <strong>no suma</strong>. Usa el botón "Limpiar Base de Datos" solo si deseas eliminar todas las citas.</span>
                     </div>
 
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -816,13 +816,27 @@
                             <span class="btn-legend">
                                 <i class="fab fa-whatsapp" style="color:#25D366;"></i> Contactar
                                 <i class="fas fa-pen" style="color:var(--primary-light);margin-left:6px;"></i> Editar
-                                <i class="fas fa-check" style="color:#00b894;margin-left:6px;"></i> Asistió
+                                <i class="fas fa-check" style="color:#00b894;margin-left:6px;"></i> Asistió (suma)
                                 <i class="fas fa-times" style="color:#ff6b6b;margin-left:6px;"></i> No asistió
                             </span>
+                            <button type="button" class="btn-grad btn-small" id="btn-venta-sin-turno" title="Llegó alguien sin reserva: registrá la venta y queda guardada como clienta en Mis Clientes">
+                                <i class="fas fa-cash-register"></i> Venta sin turno
+                            </button>
                         </div>
                     </div>
-                    <p class="field-hint" style="margin-top:8px;margin-bottom:0;">Pasá el mouse sobre cada icono para ver su función. Las citas se ordenan por fecha más próxima.</p>
+                    <p class="field-hint" style="margin-top:8px;margin-bottom:0;">Pasá el mouse sobre cada icono para ver su función. Las citas se ordenan por fecha más próxima. Cuando una cita pasa su hora y no se marcó, se resalta para que la cierres con el check.</p>
+
+                    <!-- Caja del día: totales SOLO de ventas confirmadas -->
+                    <div class="caja-ventas" id="caja-ventas">
+                        <span class="caja-chip caja-chip-hoy"><i class="fas fa-sun"></i> Hoy: <strong id="caja-ventas-hoy">$0</strong> <small id="caja-ventas-hoy-det"></small></span>
+                        <span class="caja-chip caja-chip-mes"><i class="fas fa-calendar-alt"></i> Este mes: <strong id="caja-ventas-mes">$0</strong> <small id="caja-ventas-mes-det"></small></span>
+                        <span class="caja-hint"><i class="fas fa-info-circle"></i> Solo suman las citas marcadas como realizadas y las ventas sin turno</span>
+                    </div>
+
                     <div id="upcoming-appointments"></div>
+
+                    <!-- Permiso: quién puede marcar "Realizada" -->
+                    <div id="panel-permiso-finalizar" style="margin-top:18px;"></div>
                 </div>
             </div>
 
@@ -1135,8 +1149,8 @@
         </footer>
     </div>
 
-    <script type="module" src="dist/app.js?v=45"></script>
-    <script defer src="dist/legacy.js?v=45"></script>
+    <script type="module" src="dist/app.js?v=46"></script>
+    <script defer src="dist/legacy.js?v=46"></script>
 
     <!-- Containers para modulos modernos (display:none, coexisten con legacy) -->
     <div id="notif-badge" style="display:none"></div>
