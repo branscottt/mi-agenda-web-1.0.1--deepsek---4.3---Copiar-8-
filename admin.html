@@ -139,7 +139,7 @@
                                 <p class="notif-info-intro">Revisa tus notificaciones <strong>todos los días</strong> (antes o al terminar tu turno). Es la tarea más importante de tu agenda: cada aviso es un cliente que espera tu confirmación y así tu servicio se siente más personal.</p>
                                 <div class="notif-info-step">
                                     <span class="notif-dot notif-dot-morado"></span>
-                                    <div><strong class="notif-morado-text">Morado — Confirmación de reserva (correo):</strong> cada vez que un cliente reserva aparece en morado para que confirmes su reserva. Presiona <b>CORREO</b> y se abrirá el correo ya escrito con los datos de la reserva: solo dale enviar.</div>
+                                    <div><strong class="notif-morado-text">Morado — Confirmación de reserva (correo):</strong> cada vez que un cliente reserva aparece en morado para que confirmes su reserva. Presiona <b>CORREO</b> y se abrirá el correo ya escrito con los datos de la reserva: solo envíalo.</div>
                                 </div>
                                 <div class="notif-info-step">
                                     <span class="notif-dot notif-dot-verde"></span>
@@ -818,7 +818,7 @@
                     <!-- GUÍA RÁPIDA -->
                     <div class="step-guide" style="margin-bottom:16px;">
                         <i class="fas fa-info-circle"></i>
-                        <span><strong>Administración de citas:</strong> Aquí ves todas las citas agendadas por tus clientes. Puedes contactarlos por WhatsApp, editar la fecha/hora o marcar el resultado con los botones de cada cita. Al marcar <strong>✓ Asistió</strong> se registra la <strong>venta</strong> y suma al total (podés ajustar el monto si no calza con lo cobrado). Al marcar <strong>✗ No asistió</strong> se libera el cupo pero <strong>no suma</strong>. Usa el botón "Limpiar Base de Datos" solo si deseas eliminar todas las citas.</span>
+                        <span><strong>Administración de citas:</strong> Aquí ves todas las citas agendadas por tus clientes. Puedes contactarlos por WhatsApp, editar la fecha/hora o marcar el resultado con los botones de cada cita. Al marcar <strong>✓ Asistió</strong> se registra la <strong>venta</strong> y suma al total (puedes ajustar el monto si no coincide con lo cobrado). Al marcar <strong>✗ No asistió</strong> se libera el cupo pero <strong>no suma</strong>. Usa el botón "Limpiar Base de Datos" solo si deseas eliminar todas las citas.</span>
                     </div>
 
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
@@ -830,7 +830,7 @@
                                 <i class="fas fa-check" style="color:#00b894;margin-left:6px;"></i> Asistió (suma)
                                 <i class="fas fa-times" style="color:#ff6b6b;margin-left:6px;"></i> No asistió
                             </span>
-                            <button type="button" class="btn-grad btn-small" id="btn-venta-sin-turno" title="Llegó alguien sin reserva: registrá la venta y queda guardada como clienta en Mis Clientes">
+                            <button type="button" class="btn-grad btn-small" id="btn-venta-sin-turno" title="Llegó alguien sin reserva: registra la venta y queda guardada en Mis Clientes">
                                 <i class="fas fa-cash-register"></i> Venta sin turno
                             </button>
                         </div>
@@ -855,7 +855,7 @@
             <div id="section-clientes" class="section-content" style="display:none;">
                 <div class="glass-panel">
                     <h3><i class="fas fa-users"></i> Mis Clientes</h3>
-                    <p class="muted" style="margin-bottom:16px;">Tus clientes: los que reservan en tu web, tu historial y los que agregas a mano. Tocá "Información" en un cliente para guardar notas, datos y archivos.</p>
+                    <p class="muted" style="margin-bottom:16px;">Tus clientes: los que reservan en tu web, tu historial y los que agregas a mano. Toca "Información" en un cliente para guardar notas, datos y archivos.</p>
                     <div id="clientes-list-container">
                         <div class="loading-spinner">
                             <i class="fas fa-spinner fa-spin"></i>
@@ -1160,8 +1160,8 @@
         </footer>
     </div>
 
-    <script type="module" src="dist/app.js?v=46"></script>
-    <script defer src="dist/legacy.js?v=47"></script>
+    <script type="module" src="dist/app.js?v=47"></script>
+    <script defer src="dist/legacy.js?v=48"></script>
 
     <!-- Containers para modulos modernos (display:none, coexisten con legacy) -->
     <div id="notif-badge" style="display:none"></div>

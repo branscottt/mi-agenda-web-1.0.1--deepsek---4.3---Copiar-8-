@@ -66,7 +66,7 @@ export const CATEGORIAS_DIRECTORIO = [
         descripcion: 'PYMEs cuyas reservas implican visitas a domicilio o traslados geográficos.',
         tipos: [
             'Técnicos de Reparación de Electrodomésticos / Aire Acondicionado',
-            'Plomeros / Electricistas / Gasfíters',
+            'Plomeros / Electricistas / Técnicos en gas',
             'Empresas de Limpieza de Alfombras / Sofás',
             'Guías de Turismo (Tours privados o excursiones)',
             'Dueños de Canchas de Fútbol / Pádel / Tenis (Alquiler de espacios)'

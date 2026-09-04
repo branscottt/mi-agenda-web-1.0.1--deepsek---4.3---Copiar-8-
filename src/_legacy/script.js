@@ -3895,7 +3895,7 @@ async function finalizarCita(citaId) {
                     <strong>${cita.contacto?.nombre || cita.nombreCliente || 'Cliente'}</strong>
                     <span>${servicio ? servicio.nombre : (cita.nombre || 'Servicio')} · ${cita.fecha || ''} ${cita.hora || ''}</span>
                 </div>
-                <label class="cv-label" for="cv-monto">Monto cobrado <span class="cv-label-hint">(si no calza con lo reservado, ajústalo)</span></label>
+                <label class="cv-label" for="cv-monto">Monto cobrado <span class="cv-label-hint">(si no coincide con lo reservado, ajústalo)</span></label>
                 <input type="number" id="cv-monto" class="cv-input" min="0" step="any" inputmode="decimal" value="${montoReservado || ''}">
                 <p class="cv-note"><i class="fas fa-info-circle"></i> Al confirmar, la venta se registra y <strong>suma al total del mes</strong>.</p>
                 <div id="cv-error" class="cv-error" style="display:none;"></div>
@@ -4052,14 +4052,14 @@ async function abrirModalVentaSinTurno() {
                 <button type="button" class="cv-modal-x" data-ws-accion="cerrar" title="Cerrar">×</button>
             </div>
             <div class="cv-modal-body">
-                <p class="cv-note"><i class="fas fa-info-circle"></i> Llegó alguien sin reserva: cargá sus datos y la venta suma al total. Queda guardada en <strong>Mis Clientes</strong>.</p>
+                <p class="cv-note"><i class="fas fa-info-circle"></i> Llegó alguien sin reserva: carga sus datos y la venta suma al total. Queda guardada en <strong>Mis Clientes</strong>.</p>
                 <label class="cv-label" for="ws-nombre">Nombre *</label>
                 <input type="text" id="ws-nombre" class="cv-input" placeholder="Nombre de la clienta / cliente" autocomplete="name">
                 <label class="cv-label" for="ws-telefono">Teléfono *</label>
                 <input type="tel" id="ws-telefono" class="cv-input" placeholder="Ej: +56 9 1234 5678" autocomplete="tel">
                 <label class="cv-label" for="ws-email">Email <span class="cv-label-hint">(opcional: si no lo da, se genera uno desde el teléfono para que aparezca en Mis Clientes)</span></label>
                 <input type="email" id="ws-email" class="cv-input" placeholder="cliente@email.com" autocomplete="email">
-                <label class="cv-label" for="ws-servicio">Servicio <span class="cv-label-hint">(opcional: si es un servicio de tu lista, elegilo y se carga el precio)</span></label>
+                <label class="cv-label" for="ws-servicio">Servicio <span class="cv-label-hint">(opcional: si es un servicio de tu lista, elígelo y se carga el precio)</span></label>
                 <select id="ws-servicio" class="cv-input">
                     <option value="">— Venta libre (sin servicio) —</option>
                     ${servicios.filter(s => s.activo !== false).map(s => `<option value="${s.id}">${s.nombre} (${_fmtPesoCV(s.precio)})</option>`).join('')}
@@ -4182,7 +4182,7 @@ async function cargarPanelPermisoFinalizar() {
                     Permitir que los trabajadores marquen sus citas como realizadas
                 </label>
                 <p class="cv-permiso-hint">El administrador siempre puede marcar. Con permiso, cada trabajador ve el botón en sus reservas (solo las suyas, con el precio reservado).</p>
-                ${lista.length ? '<p class="cv-permiso-hint">Trabajadores con permiso (si no elegís ninguno, pueden todos):</p>' : ''}
+                ${lista.length ? '<p class="cv-permiso-hint">Trabajadores con permiso (si no eliges ninguno, pueden todos):</p>' : ''}
                 ${chips}
                 <button type="button" id="btn-guardar-permiso-finalizar" class="btn-grad btn-small" style="margin-top:10px;"><i class="fas fa-save"></i> Guardar permiso</button>
             </div>`;
@@ -11015,7 +11015,7 @@ async function renderAdminAppointments() {
                     <span><i class="fas fa-clock"></i> ${hora}</span>
                     <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
                 </div>
-                ${esPasada ? '<span class="apt-pasada-chip"><i class="fas fa-hourglass-end"></i> Pasó su hora — ¿se realizó? Marcá el check para sumarla</span>' : ''}
+                ${esPasada ? '<span class="apt-pasada-chip"><i class="fas fa-hourglass-end"></i> Pasó su hora — ¿se realizó? Marca el check para sumarla</span>' : ''}
                 ${direccionCliente ? `<a class="apt-direccion" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccionCliente)}" target="_blank" rel="noopener noreferrer" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccionCliente)}</a>` : ''}
                 ${estadoPago ? `<div class="apt-estado-pago" title="Estado de pago"><span class="apt-estado-dot" style="background:${estadoPago.color}"></span> ${estadoPago.nombre}</div>` : ''}
                 <div class="apt-actions">
@@ -15420,8 +15420,8 @@ function imprimirQR(url) {
         '.qr-url{margin-top:18px;font-size:13px;color:#444;word-break:break-all;}' +
         '@media print{body{padding:10px;}}' +
         '</style></head><body>' +
-        '<h2>Escaneá y agendá tu cita</h2>' +
-        '<p>Mirá nuestros servicios y reservá tu hora</p>' +
+        '<h2>Escanea y agenda tu cita</h2>' +
+        '<p>Mira nuestros servicios y reserva tu hora</p>' +
         '<img src="' + qrSrc + '" alt="Código QR">' +
         '<div class="qr-url">' + url + '</div>' +
         '</body></html>'
@@ -15448,7 +15448,7 @@ async function descargarQR(url) {
     if (esIOS) {
         const win = window.open(qrSrc, '_blank');
         if (win) {
-            mostrarToast('Imagen abierta: mantené el dedo sobre ella para guardarla', 'info');
+            mostrarToast('Imagen abierta: mantén el dedo sobre ella para guardarla', 'info');
         } else {
             mostrarToast('Permite ventanas emergentes para descargar el QR', 'warning');
         }
@@ -15478,9 +15478,9 @@ async function descargarQR(url) {
             console.error('Error descargando QR:', e, e2);
             const win = window.open(qrSrc, '_blank');
             if (win) {
-                mostrarToast('Imagen abierta: mantené pulsado para guardarla', 'info');
+                mostrarToast('Imagen abierta: mantén pulsado para guardarla', 'info');
             } else {
-                mostrarToast('Error al descargar el QR. Revisá tu conexión', 'error');
+                mostrarToast('Error al descargar el QR. Revisa tu conexión', 'error');
             }
         }
     }

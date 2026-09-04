@@ -201,7 +201,7 @@ function renderBoardModal() {
                         <i class="fas fa-layer-group"></i><span class="kanban-estilos-txt"> Usar estilo</span>
                     </button>
                     ${deps.compartirHabilitado ? `
-                    <button class="kanban-estilos-btn" id="kanban-compartir" title="Elegí qué listas ve el cliente (solo esas) y copiá su enlace para enviárselo por WhatsApp">
+                    <button class="kanban-estilos-btn" id="kanban-compartir" title="Elige qué listas ve el cliente (solo esas) y copia su enlace para enviárselo por WhatsApp">
                         <i class="fas fa-eye"></i><span class="kanban-estilos-txt"> Lo que ve el cliente</span>
                     </button>` : ''}
                     ${!deps.adjuntosSoloLectura ? `
@@ -300,7 +300,7 @@ function bindEstilos() {
 /** Modal chico para ponerle nombre al estilo antes de guardarlo. */
 async function abrirModalGuardarEstilo() {
     if (!lists.length) {
-        mostrarToast('No hay listas para guardar. Creá algunas primero.', 'warning');
+        mostrarToast('No hay listas para guardar. Crea algunas primero.', 'warning');
         return;
     }
     const overlay = document.createElement('div');
@@ -312,7 +312,7 @@ async function abrirModalGuardarEstilo() {
                 <button class="kanban-btn-close" id="kestilo-cerrar"><i class="fas fa-times"></i></button>
             </header>
             <div class="kanban-card-form">
-                <p class="kanban-hint">Guardá la estructura de estas <strong>${lists.length} lista${lists.length !== 1 ? 's' : ''}</strong> como plantilla para reutilizarla en otros clientes con un clic.</p>
+                <p class="kanban-hint">Guarda la estructura de estas <strong>${lists.length} lista${lists.length !== 1 ? 's' : ''}</strong> como plantilla para reutilizarla en otros clientes con un clic.</p>
                 <label class="kanban-seccion-label"><i class="fas fa-heading"></i> Nombre del estilo</label>
                 <input type="text" id="kestilo-nombre" placeholder="Ej: Ficha de nuevo cliente, Seguimiento de pagos..." maxlength="80" autofocus>
                 <div class="kanban-card-actions">
@@ -331,7 +331,7 @@ async function abrirModalGuardarEstilo() {
     const input = document.getElementById('kestilo-nombre');
     const confirmar = async () => {
         const nombre = input.value.trim();
-        if (!nombre) { mostrarToast('Poné un nombre al estilo', 'warning'); return; }
+        if (!nombre) { mostrarToast('Pon un nombre al estilo', 'warning'); return; }
         try {
             const tenantId = await deps.getCurrentTenantId();
             const listasPlantilla = lists.map(l => ({
@@ -377,10 +377,10 @@ async function abrirPanelUsarEstilo() {
                     <div class="kanban-estilos-vacio">
                         <i class="fas fa-layer-group"></i>
                         <h4>Todavía no hay estilos guardados</h4>
-                        <p>En cualquier cliente podés armar las listas y tocar <strong>"Guardar estilo"</strong> arriba para reutilizarlas después en otros clientes con un clic.</p>
+                        <p>En cualquier cliente puedes armar las listas y tocar <strong>"Guardar estilo"</strong> arriba para reutilizarlas después en otros clientes con un clic.</p>
                     </div>
                 ` : `
-                    <p class="kanban-hint">Elegí un estilo guardado para aplicarlo a <strong>${escapeHtml(clienteActual.nombre || 'este cliente')}</strong>${clientesDelTenant.length ? ' y/o a todos tus clientes' : ''}.</p>
+                    <p class="kanban-hint">Elige un estilo guardado para aplicarlo a <strong>${escapeHtml(clienteActual.nombre || 'este cliente')}</strong>${clientesDelTenant.length ? ' y/o a todos tus clientes' : ''}.</p>
                     <div class="kanban-estilos-lista">
                         ${estilos.map(est => {
                             const nListas = (est.listas || []).length;
@@ -510,7 +510,7 @@ function renderListasHtml() {
             <div class="kanban-empty">
                 <i class="fas fa-folder-open"></i>
                 <h4>Sin secciones todavía</h4>
-                <p>Guardá aquí la información de este cliente: creá listas (ej. "Historia clínica", "Seguimiento", "Documentos") y tarjetas con notas y checklists, y adjuntá archivos (fotos, PDF, Word, Excel… hasta 100 MB). También podés marcar su estado de pago y vincular tarjetas a sus citas.</p>
+                <p>Guarda aquí la información de este cliente: crea listas (ej. "Historia clínica", "Seguimiento", "Documentos") y tarjetas con notas y checklists, y adjunta archivos (fotos, PDF, Word, Excel… hasta 100 MB). También puedes marcar su estado de pago y vincular tarjetas a sus citas.</p>
             </div>
         `;
     }
@@ -620,7 +620,7 @@ async function abrirPanelCompartir() {
                 <button class="kanban-btn-close" id="kshare-cerrar" title="Cerrar"><i class="fas fa-times"></i></button>
             </header>
             <div class="kanban-share-body">
-                <p class="kanban-hint" style="margin:0 0 10px;">Activá las listas que querés que el cliente vea. Solo esas aparecen en su enlace; el resto del tablero sigue siendo privado.</p>
+                <p class="kanban-hint" style="margin:0 0 10px;">Activa las listas que quieres que el cliente vea. Solo esas aparecen en su enlace; el resto del tablero sigue siendo privado.</p>
                 <div id="kshare-listas" class="kanban-share-listas">
                     ${renderFilasCompartir()}
                 </div>
@@ -665,7 +665,7 @@ function actualizarFilaCompartir(overlay, lista) {
 
 function renderFilasCompartir() {
     if (!lists.length) {
-        return '<p class="kanban-hint">Todavía no hay listas. Creá listas en el tablero y elegí cuáles compartir con el cliente.</p>';
+        return '<p class="kanban-hint">Todavía no hay listas. Crea listas en el tablero y elige cuáles compartir con el cliente.</p>';
     }
     return lists.map(lista => `
         <label class="kanban-share-fila" data-list-id="${lista.id}" title="${lista.compartida ? 'Quitar de lo que ve el cliente' : 'El cliente podrá ver esta lista'}">
@@ -1358,7 +1358,7 @@ function abrirCardModal(cardId) {
     const soloLectura = deps.adjuntosSoloLectura === true;
     const adjuntosHtml = card.adjuntos.length
         ? card.adjuntos.map(a => renderAdjuntoHtml(a, soloLectura)).join('')
-        : `<p class="kanban-adjuntos-vacio">Sin documentos${soloLectura ? '' : '. Podés subir imágenes, PDF, Word, Excel, PowerPoint, etc.'}</p>`;
+        : `<p class="kanban-adjuntos-vacio">Sin documentos${soloLectura ? '' : '. Puedes subir imágenes, PDF, Word, Excel, PowerPoint, etc.'}</p>`;
 
     const overlay = document.createElement('div');
     overlay.id = 'kanban-card-overlay';

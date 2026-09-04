@@ -31,11 +31,11 @@ export function initTutorialCitas() {
     wrap.className = 'tutorial-video-wrap';
     wrap.id = 'tutorial-video-wrap-citas';
     wrap.innerHTML = `
-        <div class="tutorial-drag-bar" id="tutorial-drag-bar-citas" title="Arrastrá para mover"><i class="fas fa-grip-vertical"></i> <span>Arrastrá el video para moverlo</span></div>
+        <div class="tutorial-drag-bar" id="tutorial-drag-bar-citas" title="Arrastra para mover"><i class="fas fa-grip-vertical"></i> <span>Arrastra el video para moverlo</span></div>
         <div class="tutorial-bar">
             <video id="tutorial-video-citas" controls playsinline preload="metadata"></video>
         </div>
-        <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Usá los botones de acá abajo — el tutorial sigue arriba</p>
+        <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Usa los botones de aquí abajo — el tutorial sigue arriba</p>
         <button type="button" class="tutorial-close-btn" id="tutorial-close-btn-citas" title="Cerrar tutorial" aria-label="Cerrar tutorial"><i class="fas fa-times"></i></button>
         <button type="button" class="tutorial-zoom-btn" id="tutorial-zoom-btn-citas" title="Agrandar video" aria-label="Agrandar video"><i class="fas fa-expand"></i></button>
         <div class="tutorial-msg" id="tutorial-msg-citas"></div>
@@ -199,7 +199,7 @@ export function initTutorialCitas() {
 
     // Si el video aún no está subido a Supabase → mensaje visible (nada silencioso)
     video.addEventListener('error', () => {
-        msg.textContent = '⚠️ Tutorial aún no disponible. Subí el video al bucket "tutoriales" de Supabase (pasos en el chat) y recargá la página.';
+        msg.textContent = '⚠️ Tutorial aún no disponible. Sube el video al bucket "tutoriales" de Supabase (pasos en el chat) y recarga la página.';
         msg.style.display = 'block';
     });
     video.addEventListener('canplay', () => { msg.style.display = 'none'; });

@@ -50,7 +50,7 @@ const PASOS_BASE = [
         icono: 'fa-bell',
         videoUrl: VIDEOS_TUTORIAL.notif,
         titulo: 'Campanita de notificaciones',
-        descripcion: 'Es la <strong>secci\u00f3n m\u00e1s importante del panel</strong>: ac\u00e1 recib\u00eds los avisos de tus clientes.<br><br>\u2022 <strong>Morada \u2014 Confirmaci\u00f3n de reserva:</strong> cada vez que un cliente reserva, aparece para que confirmes: presion\u00e1 "Correo" y se abre el mensaje ya escrito, solo dale enviar.<br>\u2022 <strong>Verde \u2014 Recordatorio:</strong> cuando falta 1 d\u00eda para la cita, aparece un recordatorio por WhatsApp ya armado para avisarle al cliente.<br><br>Revisala todos los d\u00edas: <strong>cada aviso es un cliente que espera tu confirmaci\u00f3n</strong>. Sin notificaciones pendientes = reservas al d\u00eda.'
+        descripcion: 'Es la <strong>secci\u00f3n m\u00e1s importante del panel</strong>: aquí recibes los avisos de tus clientes.<br><br>\u2022 <strong>Morada \u2014 Confirmaci\u00f3n de reserva:</strong> cada vez que un cliente reserva, aparece para que confirmes: presiona "Correo" y se abre el mensaje ya escrito, solo envíalo.<br>\u2022 <strong>Verde \u2014 Recordatorio:</strong> cuando falta 1 d\u00eda para la cita, aparece un recordatorio por WhatsApp ya armado para avisarle al cliente.<br><br>Revísala todos los días: <strong>cada aviso es un cliente que espera tu confirmaci\u00f3n</strong>. Sin notificaciones pendientes = reservas al d\u00eda.'
     },
     // ── 2. DASHBOARD ──────────────────────────────────────────
     {
@@ -59,7 +59,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-chart-line',
         titulo: 'Dashboard Financiero',
-        descripcion: 'Es el resumen econ\u00f3mico de tu negocio: las ventas de <strong>HOY</strong>, esta semana y este mes; la tendencia en un gr\u00e1fico; tus servicios m\u00e1s vendidos y KPIs como ticket promedio o d\u00eda pico.<br><br>Todos los montos salen solos de las citas registradas. Tambi\u00e9n pod\u00e9s filtrar por fechas y <strong>exportar tus ventas a CSV</strong>. Sirve para ver de un vistazo c\u00f3mo va tu negocio sin hacer cuentas.'
+        descripcion: 'Es el resumen econ\u00f3mico de tu negocio: las ventas de <strong>HOY</strong>, esta semana y este mes; la tendencia en un gr\u00e1fico; tus servicios m\u00e1s vendidos y KPIs como ticket promedio o d\u00eda pico.<br><br>Todos los montos salen solos de las citas registradas. Tambi\u00e9n puedes filtrar por fechas y <strong>exportar tus ventas a CSV</strong>. Sirve para ver de un vistazo c\u00f3mo va tu negocio sin hacer cuentas.'
     },
     // ── 2. CREAR SERVICIO (detallado) ─────────────────────────
     {
@@ -69,7 +69,7 @@ const PASOS_BASE = [
         icono: 'fa-plus-circle',
         videoUrl: VIDEOS_TUTORIAL['crear-servicio'],
         titulo: 'Crear Servicio',
-        descripcion: 'Ac\u00e1 cre\u00e1s los servicios que ofrecer\u00e1s, paso a paso:<br>\u2022 <strong>Nombre y precio</strong>: ej. "Corte de cabello" $12.000.<br>\u2022 <strong>Duraci\u00f3n</strong>: cu\u00e1ntos minutos dura cada sesi\u00f3n.<br>\u2022 <strong>Imagen y descripci\u00f3n</strong> (opcional): para que el servicio se vea m\u00e1s atractivo.<br>\u2022 <strong>Fechas y cupos</strong>: eleg\u00eds qu\u00e9 d\u00edas est\u00e1 disponible (por rango de fechas o marcando d\u00edas en el calendario: lun, mar, mi\u00e9\u2026).<br>\u2022 <strong>Horarios</strong>: cu\u00e1ntas veces por d\u00eda tiene disponibilidad (ej. 10:00, 11:00, 12:00) y los cupos por horario.<br><br>Al final marc\u00e1s si va <strong>destacado en el cat\u00e1logo</strong> y si est\u00e1 <strong>activo</strong> para que los clientes puedan reservarlo.'
+        descripcion: 'Aqu\u00ed creas los servicios que ofrecer\u00e1s, paso a paso:<br>\u2022 <strong>Nombre y precio</strong>: ej. "Corte de cabello" $12.000.<br>\u2022 <strong>Duraci\u00f3n</strong>: cu\u00e1ntos minutos dura cada sesi\u00f3n.<br>\u2022 <strong>Imagen y descripci\u00f3n</strong> (opcional): para que el servicio se vea m\u00e1s atractivo.<br>\u2022 <strong>Fechas y cupos</strong>: eliges qu\u00e9 d\u00edas est\u00e1 disponible (por rango de fechas o marcando d\u00edas en el calendario: lun, mar, mi\u00e9\u2026).<br>\u2022 <strong>Horarios</strong>: cu\u00e1ntas veces por d\u00eda tiene disponibilidad (ej. 10:00, 11:00, 12:00) y los cupos por horario.<br><br>Al final marcas si va <strong>destacado en el cat\u00e1logo</strong> y si est\u00e1 <strong>activo</strong> para que los clientes puedan reservarlo.'
     },
     // ── 3. MIS SERVICIOS ──────────────────────────────────────
     {
@@ -78,7 +78,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-boxes',
         titulo: 'Mis Servicios',
-        descripcion: 'Ac\u00e1 ves todos los servicios que creaste con su estado de disponibilidad: el color de cada tarjeta te avisa si hay cupos pronto (<strong>morado</strong> = pr\u00f3ximas 24 h), <strong>urgente</strong> (rojo = menos de 2 h) o <strong>expirado</strong> (gris = sin fechas).<br><br>Desde cada tarjeta pod\u00e9s <strong>editar</strong>, <strong>duplicar</strong>, <strong>ocultar</strong> o <strong>eliminar</strong> el servicio, y filtrar por estado o urgencia. Abajo ves totales, activos, destacados, cupos e <strong>ingresos proyectados</strong>.'
+        descripcion: 'Aqu\u00ed ves todos los servicios que creaste con su estado de disponibilidad: el color de cada tarjeta te avisa si hay cupos pronto (<strong>morado</strong> = pr\u00f3ximas 24 h), <strong>urgente</strong> (rojo = menos de 2 h) o <strong>expirado</strong> (gris = sin fechas).<br><br>Desde cada tarjeta puedes <strong>editar</strong>, <strong>duplicar</strong>, <strong>ocultar</strong> o <strong>eliminar</strong> el servicio, y filtrar por estado o urgencia. Abajo ves totales, activos, destacados, cupos e <strong>ingresos proyectados</strong>.'
     },
     // ── 4. CITAS ──────────────────────────────────────────────
     {
@@ -88,7 +88,7 @@ const PASOS_BASE = [
         icono: 'fa-calendar-check',
         videoUrl: VIDEOS_TUTORIAL.citas,
         titulo: 'Citas Programadas',
-        descripcion: 'Ac\u00e1 est\u00e1n todas las reservas de tus clientes, ordenadas por fecha. Para cada cita pod\u00e9s: <strong>contactar por WhatsApp</strong>, <strong>editar</strong> fecha/hora, marcar que <strong>asisti\u00f3</strong> o que <strong>no asistió</strong>.<br><br>La campana de notificaciones te avisa las reservas nuevas (morado) y los recordatorios de 24 h (verde). Es el coraz\u00f3n de tu agenda diaria.'
+        descripcion: 'Aqu\u00ed est\u00e1n todas las reservas de tus clientes, ordenadas por fecha. Para cada cita puedes: <strong>contactar por WhatsApp</strong>, <strong>editar</strong> fecha/hora, marcar que <strong>asisti\u00f3</strong> o que <strong>no asisti\u00f3</strong>.<br><br>La campana de notificaciones te avisa las reservas nuevas (morado) y los recordatorios de 24 h (verde). Es el coraz\u00f3n de tu agenda diaria.'
     },
     // ── 5. CLIENTES (detallado) ───────────────────────────────
     {
@@ -97,7 +97,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-users',
         titulo: 'Mis Clientes',
-        descripcion: 'Ac\u00e1 est\u00e1n tus clientes: los que reservaron en tu web (por su email) y los que agreg\u00e1s a mano.<br><br>Toc\u00e1 <strong>"Informaci\u00f3n"</strong> en un cliente para abrir su ficha: ah\u00ed pod\u00e9s guardar sus datos, escribir notas e informaci\u00f3n importante, y <strong>subir archivos de manera individual</strong> (documentos, fotos, comprobantes) para tener todo ordenado y documentado por cliente. Ideal para llevar el historial de cada persona.'
+        descripcion: 'Aqu\u00ed est\u00e1n tus clientes: los que reservaron en tu web (por su email) y los que agregas a mano.<br><br>Toca <strong>"Informaci\u00f3n"</strong> en un cliente para abrir su ficha: ah\u00ed puedes guardar sus datos, escribir notas e informaci\u00f3n importante, y <strong>subir archivos de manera individual</strong> (documentos, fotos, comprobantes) para tener todo ordenado y documentado por cliente. Ideal para llevar el historial de cada persona.'
     },
     // ── 6. MI EQUIPO ──────────────────────────────────────────
     {
@@ -107,7 +107,7 @@ const PASOS_BASE = [
         icono: 'fa-user-friends',
         videoUrl: VIDEOS_TUTORIAL.equipo,
         titulo: 'Mi Equipo',
-        descripcion: 'Si trabaj\u00e1s con m\u00e1s personas, ac\u00e1 las agreg\u00e1s: nombre, servicio que realizan y WhatsApp. Cada trabajador puede tener <strong>su propio horario y su propia agenda</strong>, y los clientes podr\u00e1n elegir con qui\u00e9n reservar.'
+        descripcion: 'Si trabajas con m\u00e1s personas, aqu\u00ed las agregas: nombre, servicio que realizan y WhatsApp. Cada trabajador puede tener <strong>su propio horario y su propia agenda</strong>, y los clientes podr\u00e1n elegir con qui\u00e9n reservar.'
     },
     // ── 7. HORARIOS ───────────────────────────────────────────
     {
@@ -116,7 +116,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-clock',
         titulo: 'Horarios',
-        descripcion: 'Ac\u00e1 defin\u00eds los <strong>horarios de atenci\u00f3n</strong>: por d\u00eda de la semana y por trabajador. Por ejemplo, lunes a viernes de 9:00 a 18:00 y s\u00e1bados solo ma\u00f1ana. Los cupos de tus servicios respetan estos horarios autom\u00e1ticamente.'
+        descripcion: 'Aqu\u00ed defines los <strong>horarios de atenci\u00f3n</strong>: por d\u00eda de la semana y por trabajador. Por ejemplo, lunes a viernes de 9:00 a 18:00 y s\u00e1bados solo ma\u00f1ana. Los cupos de tus servicios respetan estos horarios autom\u00e1ticamente.'
     },
     // ── 8. COMPARTIR TRABAJADORES ─────────────────────────────
     {
@@ -125,7 +125,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-user-share',
         titulo: 'Compartir Trabajadores',
-        descripcion: 'Gener\u00e1 un <strong>enlace para cada trabajador</strong>: al abrirlo ve solo su propia agenda (sus citas y horarios) sin entrar a tu panel. \u00datil para que cada uno gestione sus turnos.'
+        descripcion: 'Genera un <strong>enlace para cada trabajador</strong>: al abrirlo ve solo su propia agenda (sus citas y horarios) sin entrar a tu panel. \u00datil para que cada uno gestione sus turnos.'
     },
     // ── 9. DATOS DE ADMIN (sub-pasos por campo) ───────────────
     {
@@ -134,7 +134,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-palette',
         titulo: 'Datos de Admin',
-        descripcion: 'Ac\u00e1 personaliz\u00e1s todo lo que ven tus clientes: el nombre de tu negocio, los colores, el logo y m\u00e1s. Te lo mostramos campo por campo.'
+        descripcion: 'Aqu\u00ed personalizas todo lo que ven tus clientes: el nombre de tu negocio, los colores, el logo y m\u00e1s. Te lo mostramos campo por campo.'
     },
     {
         section: 'personalizar',
@@ -142,7 +142,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-store',
         titulo: 'Nombre del negocio',
-        descripcion: 'Es el nombre que ven tus clientes arriba en tu p\u00e1gina y en el <strong>Directorio P\u00fablico</strong>. Si te registraste con Google, ac\u00e1 lo correg\u00eds (el nombre autom\u00e1tico es el prefijo de tu email). Pod\u00e9s cambiarlo <strong>una vez cada 14 d\u00edas</strong> para evitar abusos.'
+        descripcion: 'Es el nombre que ven tus clientes arriba en tu p\u00e1gina y en el <strong>Directorio P\u00fablico</strong>. Si te registraste con Google, aqu\u00ed lo corriges (el nombre autom\u00e1tico es el prefijo de tu email). Puedes cambiarlo <strong>una vez cada 14 d\u00edas</strong> para evitar abusos.'
     },
     {
         section: 'personalizar',
@@ -150,7 +150,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-paint-roller',
         titulo: 'Temas r\u00e1pidos',
-        descripcion: 'Un clic y toda tu p\u00e1gina cambia de colores al instante: el panel y la vista de tus clientes. Eleg\u00ed el tema que m\u00e1s represente tu negocio y despu\u00e9s ajust\u00e1 los detalles con los colores.'
+        descripcion: 'Un clic y toda tu p\u00e1gina cambia de colores al instante: el panel y la vista de tus clientes. Elige el tema que m\u00e1s represente tu negocio y despu\u00e9s ajusta los detalles con los colores.'
     },
     {
         section: 'personalizar',
@@ -158,7 +158,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-fill-drip',
         titulo: 'Colores',
-        descripcion: 'Ajust\u00e1 los colores principales uno por uno: <strong>Primario</strong> (botones y acentos), <strong>Secundario</strong> (gradientes y detalles), <strong>Fondo</strong>, <strong>Tarjetas</strong>, <strong>Texto</strong> y <strong>Bordes</strong>. Cada uno indica su funci\u00f3n: as\u00ed logr\u00e1s una identidad visual a tu medida.'
+        descripcion: 'Ajusta los colores principales uno por uno: <strong>Primario</strong> (botones y acentos), <strong>Secundario</strong> (gradientes y detalles), <strong>Fondo</strong>, <strong>Tarjetas</strong>, <strong>Texto</strong> y <strong>Bordes</strong>. Cada uno indica su funci\u00f3n: as\u00ed logr\u00e1s una identidad visual a tu medida.'
     },
     {
         section: 'personalizar',
@@ -166,7 +166,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-image',
         titulo: 'Logo',
-        descripcion: 'Sub\u00ed el <strong>logo de tu negocio</strong>: aparece en la parte superior de la vista de tus clientes. Si todav\u00eda no ten\u00e9s logo, pod\u00e9s dejar tu inicial o usar los temas r\u00e1pidos.'
+        descripcion: 'Sube el <strong>logo de tu negocio</strong>: aparece en la parte superior de la vista de tus clientes. Si todav\u00eda no tienes logo, puedes dejar tu inicial o usar los temas r\u00e1pidos.'
     },
     {
         section: 'personalizar',
@@ -182,7 +182,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-share-alt',
         titulo: 'Redes sociales',
-        descripcion: 'Peg\u00e1 los enlaces de tu <strong>Instagram y TikTok</strong>: tus clientes los ver\u00e1n en su secci\u00f3n "Mis Reservas" y podr\u00e1n ver tus trabajos y seguirte.'
+        descripcion: 'Pega los enlaces de tu <strong>Instagram y TikTok</strong>: tus clientes los ver\u00e1n en su secci\u00f3n "Mis Reservas" y podr\u00e1n ver tus trabajos y seguirte.'
     },
     {
         section: 'personalizar',
@@ -190,7 +190,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-map-marker-alt',
         titulo: 'Ubicaci\u00f3n de tu negocio',
-        descripcion: 'Eleg\u00ed c\u00f3mo funciona tu negocio: si tus clientes vienen a tu <strong>local</strong>, escrib\u00eds tu direcci\u00f3n y se muestra con un <strong>mapa</strong> y bot\u00f3n "C\u00f3mo llegar"; si <strong>vos</strong> vas al domicilio del cliente, \u00e9l escribe su direcci\u00f3n al reservar y la ves en la cita.'
+        descripcion: 'Elige cómo funciona tu negocio: si tus clientes vienen a tu <strong>local</strong>, escribes tu dirección y se muestra con un <strong>mapa</strong> y bot\u00f3n "C\u00f3mo llegar"; si <strong>tú</strong> vas al domicilio del cliente, \u00e9l escribe su direcci\u00f3n al reservar y la ves en la cita.'
     },
     {
         section: 'personalizar',
@@ -198,7 +198,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-store',
         titulo: 'Directorio P\u00fablico y rese\u00f1as',
-        descripcion: 'Activ\u00e1 esta opci\u00f3n para <strong>aparecer en el Directorio P\u00fablico</strong> de la p\u00e1gina de inicio: nuevos clientes te descubren, ven tus fotos y te dejan <strong>rese\u00f1as</strong> con estrellas y comentarios (vos los moder\u00e1s antes de que se publiquen). Disponible en planes Pro, Premium Anual y Freemium.'
+        descripcion: 'Activa esta opción para <strong>aparecer en el Directorio P\u00fablico</strong> de la p\u00e1gina de inicio: nuevos clientes te descubren, ven tus fotos y te dejan <strong>rese\u00f1as</strong> con estrellas y comentarios (tú los moderas antes de que se publiquen). Disponible en planes Pro, Premium Anual y Freemium.'
     },
     {
         section: 'personalizar',
@@ -206,7 +206,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-check-circle',
         titulo: 'Finalizar',
-        descripcion: 'Cuando est\u00e9s conforme con todo, presion\u00e1 <strong>"Guardar Cambios"</strong> para aplicar. Si te arrepent\u00eds, <strong>"Restablecer Valores"</strong> vuelve a la configuraci\u00f3n original.'
+        descripcion: 'Cuando est\u00e9s conforme con todo, presiona <strong>"Guardar Cambios"</strong> para aplicar. Si te arrepent\u00eds, <strong>"Restablecer Valores"</strong> vuelve a la configuraci\u00f3n original.'
     },
     // ── 10. COMPARTIR CON CLIENTES ────────────────────────────
     {
@@ -216,7 +216,7 @@ const PASOS_BASE = [
         icono: 'fa-share-alt',
         videoUrl: VIDEOS_TUTORIAL.compartir,
         titulo: 'Compartir con Clientes',
-        descripcion: 'Ac\u00e1 est\u00e1 el <strong>enlace de tu espacio de clientes</strong>: compartilo por WhatsApp, copi\u00e1 el enlace o gener\u00e1 un <strong>c\u00f3digo QR</strong> para imprimir y poner en tu local. Tus clientes entran, ven tu cat\u00e1logo y reservan solos.'
+        descripcion: 'Aqu\u00ed est\u00e1 el <strong>enlace de tu espacio de clientes</strong>: comp\u00e1rtelo por WhatsApp, copia el enlace o genera un <strong>c\u00f3digo QR</strong> para imprimir y poner en tu local. Tus clientes entran, ven tu cat\u00e1logo y reservan solos.'
     },
     // ── 11. MI SUSCRIPCI\u00d3N ──────────────────────────────────
     {
@@ -225,7 +225,7 @@ const PASOS_BASE = [
         abrirSidebar: true,
         icono: 'fa-crown',
         titulo: 'Mi Suscripci\u00f3n',
-        descripcion: 'Ac\u00e1 ves tu <strong>plan actual</strong>, su vigencia y estado. Pod\u00e9s <strong>cambiar de plan</strong> cuando quieras para acceder a m\u00e1s funciones y, si no lo necesit\u00e1s m\u00e1s, <strong>cancelar la suscripci\u00f3n</strong>: tus datos se conservan por si volv\u00e9s despu\u00e9s.'
+        descripcion: 'Aqu\u00ed ves tu <strong>plan actual</strong>, su vigencia y estado. Puedes <strong>cambiar de plan</strong> cuando quieras para acceder a m\u00e1s funciones y, si no lo necesitas m\u00e1s, <strong>cancelar la suscripci\u00f3n</strong>: tus datos se conservan por si vuelves despu\u00e9s.'
     },
     // ── CIERRE ────────────────────────────────────────────────
     {
@@ -233,7 +233,7 @@ const PASOS_BASE = [
         abrirSidebar: false,
         icono: 'fa-rocket',
         titulo: '\u00a1Listo!',
-        descripcion: 'Ya conoc\u00e9s el panel. Si en alg\u00fan momento te perd\u00e9s, toc\u00e1 <strong>"Ver tutorial"</strong> en el men\u00fa para recorrerlo de nuevo. \u00a1\u00c9xitos con tu negocio! \ud83d\ude80'
+        descripcion: 'Ya conoces el panel. Si en alg\u00fan momento te pierdes, toca <strong>"Ver tutorial"</strong> en el men\u00fa para recorrerlo de nuevo. \u00a1\u00c9xitos con tu negocio! \ud83d\ude80'
     }
 ];
 
@@ -249,8 +249,8 @@ const SELECTOR_BOTON_VIDEO = {
     compartir: '#btn-ver-tutorial-share',
     notif: '#notif-bell-btn'
 };
-const DESCRIPCION_VIDEO_SECCION = 'Este es el bot\u00f3n <strong>"Ver tutorial"</strong> de esta secci\u00f3n, con el que pod\u00e9s ver el video cuando quieras. Toc\u00e1 <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras complet\u00e1s los datos.';
-const DESCRIPCION_VIDEO_NOTIF = 'El bot\u00f3n <strong>"Ver tutorial"</strong> est\u00e1 adentro de la campanita: tocala y lo vas a ver arriba. Toc\u00e1 <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras complet\u00e1s los datos.';
+const DESCRIPCION_VIDEO_SECCION = 'Este es el bot\u00f3n <strong>"Ver tutorial"</strong> de esta secci\u00f3n, con el que puedes ver el video cuando quieras. Toca <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras completas los datos.';
+const DESCRIPCION_VIDEO_NOTIF = 'El bot\u00f3n <strong>"Ver tutorial"</strong> est\u00e1 adentro de la campanita: t\u00f3cala y lo vas a ver arriba. Toca <strong>Ver video tutorial</strong> para verlo ahora: el video queda fijo arriba mientras completas los datos.';
 
 const PASOS = [];
 for (const p of PASOS_BASE) {
@@ -321,7 +321,7 @@ function mostrarBienvenida() {
     welcomeEl.innerHTML = `
         <div class="tour-welcome-card">
             <div class="tour-welcome-icon"><i class="fas fa-graduation-cap"></i></div>
-            <h3 class="tour-welcome-title">\u00bfQuer\u00e9s un recorrido r\u00e1pido?</h3>
+            <h3 class="tour-welcome-title">\u00bfQuieres un recorrido r\u00e1pido?</h3>
             <p class="tour-welcome-text">Te mostramos cada secci\u00f3n del panel con una explicaci\u00f3n breve y ejemplos, para que aproveches todo desde el primer d\u00eda. Toma menos de un minuto.</p>
             <div class="tour-welcome-actions">
                 <button type="button" class="tour-btn tour-btn-primario" id="tour-welcome-si"><i class="fas fa-play"></i> S\u00ed, comenzar</button>
@@ -536,7 +536,7 @@ function pintarCard(paso) {
             else if (accion === 'finalizar') {
                 cerrarTour();
                 const { mostrarToast } = window.__toast || {};
-                if (typeof mostrarToast === 'function') mostrarToast('\u00a1Recorrido finalizado! Pod\u00e9s volver a verlo desde el men\u00fa.', 'success');
+                if (typeof mostrarToast === 'function') mostrarToast('\u00a1Recorrido finalizado! Puedes volver a verlo desde el men\u00fa.', 'success');
             }
         });
     });
@@ -569,7 +569,7 @@ function abrirVideoTour(url) {
             <div class="tutorial-bar">
                 <video id="tour-video" controls playsinline preload="metadata"></video>
             </div>
-            <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Cerr\u00e1 el video (✕) para continuar el recorrido \u2014 u omit\u00ed el recorrido y segu\u00ed vi\u00e9ndolo mientras complet\u00e1s la secci\u00f3n</p>
+            <p class="tutorial-fixed-hint"><i class="fas fa-arrow-down"></i> Cierra el video (\u2715) para continuar el recorrido \u2014 u omite el recorrido y sigue vi\u00e9ndolo mientras completas la secci\u00f3n</p>
             <button type="button" class="tutorial-close-btn" id="tour-video-close" title="Cerrar tutorial" aria-label="Cerrar tutorial"><i class="fas fa-times"></i></button>
         `;
         videoTourVideo = videoTourEl.querySelector('video');

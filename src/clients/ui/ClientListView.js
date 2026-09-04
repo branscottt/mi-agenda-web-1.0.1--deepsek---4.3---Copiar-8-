@@ -365,7 +365,7 @@ function renderHelpBanner() {
             <div id="clientes-help-body" style="display:${visible ? 'block' : 'none'};padding:2px 16px 14px;font-size:0.83rem;color:var(--text-muted,#bbb);line-height:1.6;">
                 <ul style="margin:0;padding-left:18px;">
                     <li><strong>Información</strong> (botón de la tarjeta o clic en ella): abre el tablero completo del cliente. Ahí puedes <strong>guardar datos y escribir información</strong> (listas y tarjetas, ej. "Historia clínica", "Seguimiento", "Notas"), crear <strong>checklists</strong>, <strong>subir archivos</strong> (fotos, PDF, Word, Excel… hasta 100 MB), marcar el <strong>estado de pago</strong>, guardar plantillas de listas, editar su contacto y eliminarlo.</li>
-                    <li><strong>Compartir con el cliente</strong>: activá el <i class="fas fa-eye"></i> en las listas que quieras (o "Lo que ve el cliente" en el tablero) y en la tarjeta aparecerá <strong>"Enviar info"</strong>: le manda por WhatsApp un enlace donde el cliente ve <strong>solo esas listas</strong>, siempre actualizado.</li>
+                    <li><strong>Compartir con el cliente</strong>: activa el <i class="fas fa-eye"></i> en las listas que quieras (o "Lo que ve el cliente" en el tablero) y en la tarjeta aparecerá <strong>"Enviar info"</strong>: le manda por WhatsApp un enlace donde el cliente ve <strong>solo esas listas</strong>, siempre actualizado.</li>
                     <li><strong>Historial</strong>: muestra todas sus citas (servicio, fecha, hora, precio y totales).</li>
                     <li><strong>Agregar cliente</strong>: importa clientes que ya tenías antes de la web, con reserva opcional.</li>
                     <li><strong>WhatsApp / Email / Llamar</strong>: contacto directo desde la tarjeta.</li>
@@ -842,8 +842,8 @@ function exportarClientesCSV() {
 /** Enlace de WhatsApp con el mensaje de información compartida del cliente. */
 function buildWaInfoCliente(cl, enlace) {
     const nombre = (cl.nombre && cl.nombre !== 'Sin nombre') ? cl.nombre.split(' ')[0] : '';
-    const saludo = nombre ? `Hola ${nombre}! 👋` : 'Hola! 👋';
-    const mensaje = `${saludo}\nTe compartí información a través de Organify. Abrí este enlace para verla:\n${enlace}\n\nEste enlace es solo para vos: cualquier cambio que haga se ve actualizado ahí.`;
+    const saludo = nombre ? `¡Hola ${nombre}! 👋` : '¡Hola! 👋';
+    const mensaje = `${saludo}\nTe compartí información a través de Organify. Abre este enlace para verla:\n${enlace}\n\nEste enlace es solo para ti: cualquier cambio que haga se ve actualizado ahí.`;
     return `https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`;
 }
 

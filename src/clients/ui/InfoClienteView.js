@@ -42,7 +42,7 @@ export async function initInfoCliente() {
         renderContenido(contenidoEl, data);
     } catch (e) {
         console.error('[InfoCliente] Error cargando información compartida:', e);
-        mostrarEstado(contenidoEl, 'error', 'fa-exclamation-triangle', 'No se pudo cargar', 'Ocurrió un error al cargar la información. Volvé a intentar.');
+        mostrarEstado(contenidoEl, 'error', 'fa-exclamation-triangle', 'No se pudo cargar', 'Ocurrió un error al cargar la información. Vuelve a intentarlo.');
     }
 }
 
@@ -55,7 +55,7 @@ function renderContenido(contenidoEl, data) {
             'vacio',
             'fa-eye-slash',
             'Todavía no hay información compartida',
-            'Quien te envió este enlace todavía no compartió listas con vos. Volvé a ingresar más tarde.'
+            'Quien te envió este enlace todavía no compartió listas contigo. Vuelve a ingresar más tarde.'
         );
         return;
     }
