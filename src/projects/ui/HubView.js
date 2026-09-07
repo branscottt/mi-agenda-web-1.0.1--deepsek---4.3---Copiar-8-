@@ -138,7 +138,19 @@ async function renderHub() {
 function renderCardEstado(proyecto, ws, userData) {
     const pill = document.getElementById(`pill-${proyecto}`);
     const cta = document.getElementById(`cta-${proyecto}`);
+    const wsnameEl = document.getElementById(`wsname-${proyecto}`);
     if (!pill || !cta) return;
+
+    // Nombre del workspace en su card: cada proyecto es independiente
+    if (wsnameEl) {
+        if (ws && ws.nombre_negocio) {
+            wsnameEl.textContent = ws.nombre_negocio;
+            wsnameEl.classList.remove('empty');
+        } else {
+            wsnameEl.textContent = 'Sin nombre todavía';
+            wsnameEl.classList.add('empty');
+        }
+    }
 
     const etiquetas = {
         reservas: 'Reservas de Pymes',

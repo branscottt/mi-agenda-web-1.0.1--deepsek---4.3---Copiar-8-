@@ -116,6 +116,8 @@
         .project-icon.reservas { background: linear-gradient(135deg, #7b2cbf, #c77dff); box-shadow: 0 8px 24px rgba(157, 78, 221, 0.4); }
         .project-icon.ventas_live { background: linear-gradient(135deg, #e8590c, #ffa94d); box-shadow: 0 8px 24px rgba(255, 107, 26, 0.4); }
         .project-card h2 { margin: 0; font-size: 1.45rem; color: #f8f9fa; font-weight: 700; }
+        .project-wsname { margin: 2px 0 10px; font-size: 0.95rem; font-weight: 700; color: #ffd43b; min-height: 18px; }
+        .project-wsname.empty { color: var(--muted, #adb5bd); font-weight: 500; font-size: 0.85rem; }
         .project-desc { color: var(--muted, #adb5bd); font-size: 0.9rem; line-height: 1.5; min-height: 42px; margin: 0; }
         .project-pill {
             display: inline-flex;
@@ -247,6 +249,7 @@
                 <section class="project-card" data-proyecto="reservas">
                     <div class="project-icon reservas"><i class="fas fa-calendar-check"></i></div>
                     <h2>Reservas de Pymes</h2>
+                    <p class="project-wsname empty" id="wsname-reservas">…</p>
                     <p class="project-desc">Tu agenda online: servicios, turnos, recordatorios automáticos y página propia para tus clientes.</p>
                     <span class="project-pill" id="pill-reservas"><i class="fas fa-circle-notch fa-spin"></i></span>
                     <button class="card-cta grad" id="cta-reservas" type="button" style="display:none;"></button>
@@ -255,7 +258,8 @@
                 <section class="project-card" data-proyecto="ventas_live">
                     <div class="project-icon ventas_live"><i class="fas fa-bolt"></i></div>
                     <h2>Ventas Live</h2>
-                    <p class="project-desc">Tu espacio de ventas conectado: próximamente vas a poder conectar WhatsApp a tu web y vender en vivo.</p>
+                    <p class="project-wsname empty" id="wsname-ventas_live">…</p>
+                    <p class="project-desc">Tu espacio de ventas en vivo: registro de prendas en el LIVE, cobro, envíos y finanzas.</p>
                     <span class="project-pill" id="pill-ventas_live"><i class="fas fa-circle-notch fa-spin"></i></span>
                     <button class="card-cta grad-ventas" id="cta-ventas_live" type="button" style="display:none;"></button>
                 </section>
