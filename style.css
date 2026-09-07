@@ -19831,3 +19831,69 @@ textarea.kanban-nueva-card-input {
     border-color: transparent;
     box-shadow: 0 4px 14px rgba(229, 56, 59, 0.45);
 }
+
+/* ============================================================
+   BURBUJA "LA WEB TE HABLA" (BurbujaNotif.js) — avisos junto a la
+   campana cuando llegan notificaciones (2026-09-07)
+   ============================================================ */
+.notif-habla {
+    position: fixed;    /* coordenadas calculadas al mostrar (pegada a la campana o arriba-derecha) */
+    z-index: 1002;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+    display: none;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(25, 20, 40, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(179, 0, 255, 0.25);
+    border-left: 3px solid #c77dff;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+    transition: border-color .15s ease, background .15s ease;
+}
+.notif-habla.visible { display: flex; animation: notif-habla-in .22s ease; }
+.notif-habla:hover { border-color: rgba(179, 0, 255, 0.55); background: rgba(32, 25, 52, 0.99); }
+@keyframes notif-habla-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.notif-habla-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #c77dff; margin-top: 5px; flex-shrink: 0;
+    box-shadow: 0 0 10px currentColor;
+}
+.notif-habla-verif { border-left-color: #9d4edd; }
+.notif-habla-verif .notif-habla-dot { background: #9d4edd; color: #9d4edd; }
+.notif-habla-record { border-left-color: #39ff14; }
+.notif-habla-record .notif-habla-dot { background: #39ff14; color: #39ff14; }
+.notif-habla-cambio { border-left-color: #9b59b6; }
+.notif-habla-cambio .notif-habla-dot { background: #9b59b6; color: #9b59b6; }
+.notif-habla-expirado { border-left-color: #ff1744; }
+.notif-habla-expirado .notif-habla-dot { background: #ff1744; color: #ff1744; }
+.notif-habla-generico { border-left-color: #c77dff; }
+.notif-habla-generico .notif-habla-dot { background: #c77dff; color: #c77dff; }
+.notif-habla-txt { flex: 1; min-width: 0; }
+.notif-habla-txt strong {
+    display: block; color: #fff; font-size: 0.88rem; font-weight: 800; margin-bottom: 2px;
+}
+.notif-habla-txt span {
+    display: block; color: #cfd2e0; font-size: 0.82rem; line-height: 1.45;
+}
+.notif-habla-flecha { align-self: center; color: #9b9fb4; font-size: 0.8rem; flex-shrink: 0; }
+
+/* Ring sutil de la campana cuando llega algo nuevo */
+#notif-bell-btn.notif-ring { animation: notif-ring .6s ease; transform-origin: top center; }
+@keyframes notif-ring {
+    0%, 100% { transform: rotate(0); }
+    20% { transform: rotate(-14deg); }
+    40% { transform: rotate(11deg); }
+    60% { transform: rotate(-8deg); }
+    80% { transform: rotate(4deg); }
+}
+@media (max-width: 480px) {
+    .notif-habla { font-size: 0.8rem; }
+}

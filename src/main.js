@@ -245,6 +245,10 @@ async function syncJwtSession() {
                 const { initAvisosPreview } = await import('./notifications/ui/AvisosPreview.js');
                 initAvisosPreview().catch(e => console.warn('[main.js] AvisosPreview:', e?.message));
 
+                // Burbuja "la web te habla": anuncia pendientes de la campana cuando llegan
+                const { initBurbujaNotif } = await import('./notifications/ui/BurbujaNotif.js');
+                initBurbujaNotif();
+
                 // Tutorial en video — Citas Programadas
                 const { initTutorialCitas } = await import('./appointments/ui/CitasTutorial.js');
                 initTutorialCitas();

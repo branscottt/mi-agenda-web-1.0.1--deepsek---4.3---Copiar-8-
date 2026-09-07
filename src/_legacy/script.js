@@ -4832,6 +4832,7 @@ window.NotificacionesAdminManager = NotificacionesAdminManager;
 window.crearNotificacionCambioAdmin = crearNotificacionCambioAdmin;
 window.renderNotificacionesCambiosAdmin = renderNotificacionesCambiosAdmin;
 window.actualizarContadorNotificacionesAdmin = actualizarContadorNotificacionesAdmin;
+window.generarNotificaciones = generarNotificaciones;
 
 // Limpiar notificaciones antiguas al iniciar (se ejecuta en DOMContentLoaded con supabaseClient listo)
 
