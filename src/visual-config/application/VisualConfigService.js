@@ -484,5 +484,21 @@ export const TEMAS_PREDEFINIDOS = {
         background_color: '#1c1c1c',
         card_color: '#2d2d2d',
         text_color: '#f0e6d3'
+    },
+    energia: {
+        nombre: 'Energía',
+        primary_color: '#ff6d00',
+        secondary_color: '#ff2e63',
+        background_color: '#141414',
+        card_color: '#1f1b1e',
+        text_color: '#fff3e6'
+    },
+    confianza: {
+        nombre: 'Confianza',
+        primary_color: '#2563eb',
+        secondary_color: '#0ea5e9',
+        background_color: '#0b1220',
+        card_color: '#111a2e',
+        text_color: '#e2e8f0'
     }
 };

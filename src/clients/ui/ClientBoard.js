@@ -16,6 +16,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
+import { getVisualConfig } from '../../visual-config/application/VisualConfigService.js';
 
 // ========== DEPENDENCIAS INYECTABLES ==========
 // Por defecto usa la capa de datos admin (kanbanApi + updateCita +
@@ -237,6 +238,10 @@ function renderBoardModal() {
     bindCompartir();
     const editarContactoBtn = document.getElementById('kanban-editar-contacto');
     if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
+
+    // Ficha vacía: ideas concretas según el rubro del negocio (chips que
+    // explican para qué sirve cada cosa y dónde queda guardada).
+    if (!lists.length) cargarChipsIdeas().catch(() => {});
 }
 
 // ========== ELIMINAR CLIENTE (solo admin) ==========
@@ -511,6 +516,7 @@ function renderListasHtml() {
                 <i class="fas fa-folder-open"></i>
                 <h4>Sin secciones todavía</h4>
                 <p>Guarda aquí la información de este cliente: crea listas (ej. "Historia clínica", "Seguimiento", "Documentos") y tarjetas con notas y checklists, y adjunta archivos (fotos, PDF, Word, Excel… hasta 100 MB). También puedes marcar su estado de pago y vincular tarjetas a sus citas.</p>
+                <div class="kanban-chip-ideas" id="kanban-chip-ideas"></div>
             </div>
         `;
     }
@@ -565,6 +571,109 @@ function renderCardHtml(card) {
             </div>
         </div>
     `;
+}
+
+// ========== CHIPS DE IDEAS (ficha vacía, según el rubro) ==========
+
+/** Ideas por categoría del directorio; fallback genérico si no hay rubro. */
+const IDEAS_FICHA_POR_RUBRO = {
+    deporte: [
+        { i: 'fa-camera', nombre: 'Foto del progreso', detalle: 'Se guarda como imagen adjunta en una tarjeta de su ficha: así comparas el avance entre sesiones.' },
+        { i: 'fa-file-pdf', nombre: 'Rutina en PDF', detalle: 'Se guarda como archivo adjunto: la tienes siempre a mano para reenviarla o actualizarla.' },
+        { i: 'fa-video', nombre: 'Video de técnica', detalle: 'Se guarda en su ficha para revisar la técnica o mandárselo por WhatsApp cuando quieras.' },
+        { i: 'fa-clipboard-list', nombre: 'Plan de entrenamiento', detalle: 'Se guarda como tarjeta con checklist: marcas lo cumplido sesión a sesión.' }
+    ],
+    estetica: [
+        { i: 'fa-camera', nombre: 'Foto del trabajo', detalle: 'Se guarda como imagen adjunta: recuerdas el estilo o color exacto que le gustó.' },
+        { i: 'fa-history', nombre: 'Historial de sesiones', detalle: 'Se guarda como tarjeta por visita (fecha, servicio, producto usado): su historia en un vistazo.' },
+        { i: 'fa-images', nombre: 'Referencias que trajo', detalle: 'Se guardan como fotos adjuntas para comparar y acordar el resultado antes de empezar.' },
+        { i: 'fa-spa', nombre: 'Cuidados post-servicio', detalle: 'Se guarda como tarjeta con texto: se la compartes al cliente al terminar.' }
+    ],
+    salud: [
+        { i: 'fa-notes-medical', nombre: 'Evolución del paciente', detalle: 'Se guarda como tarjeta por sesión: notas privadas que solo tú ves.' },
+        { i: 'fa-camera', nombre: 'Foto del tratamiento', detalle: 'Se guarda como imagen adjunta (con permiso del paciente) para seguir la evolución.' },
+        { i: 'fa-file-pdf', nombre: 'Indicaciones en PDF', detalle: 'Se guarda como archivo adjunto y se la puedes compartir al paciente.' },
+        { i: 'fa-calendar-check', nombre: 'Recordatorio de control', detalle: 'Se guarda como tarjeta vinculada a su próxima cita: todo queda conectado.' }
+    ],
+    profesionales: [
+        { i: 'fa-file-contract', nombre: 'Contrato en PDF', detalle: 'Se guarda como archivo adjunto en su ficha: siempre disponible, sin buscar en el correo.' },
+        { i: 'fa-file-invoice', nombre: 'Propuesta o cotización', detalle: 'Se guarda como adjunto y se la compartes por WhatsApp desde su ficha.' },
+        { i: 'fa-folder-open', nombre: 'Entregables del proyecto', detalle: 'Se guardan como adjuntos en una tarjeta: el historial del proyecto completo.' },
+        { i: 'fa-sticky-note', nombre: 'Notas de la reunión', detalle: 'Se guardan como tarjeta con texto: acuerdos y seguimiento en un solo lugar.' }
+    ],
+    tecnicos: [
+        { i: 'fa-camera', nombre: 'Foto del trabajo hecho', detalle: 'Se guarda como imagen adjunta: evidencia del servicio y referencia para el próximo.' },
+        { i: 'fa-file-pdf', nombre: 'Presupuesto en PDF', detalle: 'Se guarda como adjunto y se lo envías por WhatsApp desde su ficha.' },
+        { i: 'fa-receipt', nombre: 'Garantía o boleta', detalle: 'Se guarda como archivo adjunto: la encuentras al instante si el cliente pregunta.' },
+        { i: 'fa-book', nombre: 'Manual del equipo', detalle: 'Se guarda como adjunto para consultarlo en la próxima visita.' }
+    ]
+};
+
+const IDEAS_FICHA_GENERICAS = [
+    { i: 'fa-sticky-note', nombre: 'Notas de la visita', detalle: 'Se guardan como tarjeta en su ficha: lo hablado, lo pendiente y lo que quieras recordar.' },
+    { i: 'fa-camera', nombre: 'Fotos del trabajo', detalle: 'Se guardan como imágenes adjuntas: antes/después, referencias o resultados.' },
+    { i: 'fa-paperclip', nombre: 'Archivos del cliente', detalle: 'PDF, Word, Excel… se guardan como adjuntos y se los compartes por WhatsApp cuando quieras.' },
+    { i: 'fa-clipboard-check', nombre: 'Checklist del servicio', detalle: 'Se guarda como checklist dentro de una tarjeta: marcas lo que ya hiciste.' }
+];
+
+/** Carga las ideas según el rubro del negocio (categoría del directorio). */
+async function cargarChipsIdeas() {
+    const cont = document.getElementById('kanban-chip-ideas');
+    if (!cont || !clienteActual) return;
+    let categoriaId = '';
+    try {
+        const tenantId = await deps.getCurrentTenantId();
+        const cfg = await getVisualConfig(tenantId);
+        categoriaId = (cfg && cfg.directorio_categoria) || '';
+    } catch (e) {
+        console.warn('[ClientBoard] No se pudo leer el rubro para las ideas:', e);
+    }
+    const ideas = IDEAS_FICHA_POR_RUBRO[categoriaId] || IDEAS_FICHA_GENERICAS;
+    const primerNombre = (clienteActual.nombre && clienteActual.nombre !== 'Sin nombre') ? String(clienteActual.nombre).split(' ')[0] : 'tu cliente';
+    cont.innerHTML = `
+        <div class="kanban-chip-ideas-titulo"><i class="fas fa-lightbulb"></i> Ideas para la ficha de ${escapeHtml(primerNombre)}</div>
+        <div class="kanban-chip-ideas-lista">
+            ${ideas.map((idea, idx) => `
+                <button type="button" class="kanban-chip-idea" data-i="${idx}" title="${escapeHtml(idea.detalle)}">
+                    <i class="fas ${idea.i}"></i> ${escapeHtml(idea.nombre)}
+                </button>`).join('')}
+        </div>
+        <div class="kanban-chip-explica" id="kanban-chip-explica"></div>
+    `;
+    cont.querySelectorAll('.kanban-chip-idea').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idea = ideas[Number(btn.dataset.i)];
+            const expl = cont.querySelector('#kanban-chip-explica');
+            if (expl && idea) {
+                expl.innerHTML = `<i class="fas fa-info-circle"></i> <strong>${escapeHtml(idea.nombre)}:</strong> ${escapeHtml(idea.detalle)} <span class="kanban-chip-guarda">Todo queda guardado en su ficha, siempre a mano.</span>`;
+            }
+            cont.querySelectorAll('.kanban-chip-idea').forEach(b => b.classList.toggle('activa', b === btn));
+        });
+    });
+}
+
+/** "Enviar por WhatsApp" del panel compartir: simulador la 1ª vez, directo después. */
+async function enviarInfoBoard(enlace) {
+    const cliente = clienteActual || {};
+    const nombre = (cliente.nombre && cliente.nombre !== 'Sin nombre') ? String(cliente.nombre).split(' ')[0] : '';
+    const telefono = String(cliente.telefono || '');
+    if (!telefono.replace(/[^0-9]/g, '')) {
+        mostrarToast('Este cliente no tiene teléfono guardado: copia el enlace y se lo envías cuando quieras', 'warning');
+        return;
+    }
+    const saludo = nombre ? `¡Hola ${nombre}! 👋` : '¡Hola! 👋';
+    const mensaje = `${saludo}\nTe compartí información a través de Organify. Abre este enlace para verla:\n${enlace}\n\nEste enlace es solo para ti: cualquier cambio que haga se ve actualizado ahí.`;
+    const waUrl = `https://wa.me/${telefono.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`;
+    try {
+        const sim = await import('../../share/ui/SimuladorWhatsApp.js');
+        if (sim.shareSimPendiente()) {
+            sim.abrirSimuladorWhatsApp({ nombreCliente: cliente.nombre || '', telefono, enlace, mensaje });
+            return;
+        }
+    } catch (e) {
+        console.warn('[ClientBoard] No se pudo cargar el simulador:', e);
+    }
+    window.open(waUrl, '_blank', 'noopener');
 }
 
 // ========== COMPARTIR CON EL CLIENTE (vista pública) ==========
@@ -699,11 +808,14 @@ async function actualizarLinkarea(overlay) {
         <div class="kanban-share-enlace-row">
             <input type="text" readonly value="${escapeHtml(enlace)}" class="kanban-share-enlace-input" aria-label="Enlace del cliente" onclick="this.select()">
             <button type="button" class="btn-secondary btn-small" id="kshare-copiar" title="Copiar enlace"><i class="fas fa-copy"></i> Copiar</button>
-            <a class="btn-primary btn-small" id="kshare-preview" href="${escapeHtml(enlace)}" target="_blank" rel="noopener noreferrer" title="Ver qué ve el cliente"><i class="fas fa-external-link-alt"></i> Vista</a>
+            <button type="button" class="btn-primary btn-small" id="kshare-wa" title="Mostrar cómo recibe el cliente el mensaje y enviarlo por WhatsApp"><i class="fab fa-whatsapp"></i> WhatsApp</button>
+            <a class="btn-secondary btn-small" id="kshare-preview" href="${escapeHtml(enlace)}" target="_blank" rel="noopener noreferrer" title="Ver qué ve el cliente"><i class="fas fa-external-link-alt"></i> Vista</a>
         </div>
     `;
     const copiar = area.querySelector('#kshare-copiar');
     if (copiar) copiar.addEventListener('click', () => copiarTexto(enlace, copiar));
+    const waBtn = area.querySelector('#kshare-wa');
+    if (waBtn) waBtn.addEventListener('click', () => enviarInfoBoard(enlace));
 }
 
 /** Copia texto al portapapeles (con fallback) y avisa en el botón. */

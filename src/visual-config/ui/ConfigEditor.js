@@ -62,10 +62,15 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
             </div>
 
-            <!-- Ver cómo queda (móvil/tablet: abre la vitrina en overlay) -->
-            <button type="button" id="cfg-vitrina-btn" class="cfg-vitrina-btn">
-                <i class="fas fa-mobile-alt"></i> Ver cómo queda
-            </button>
+            <!-- Acciones rápidas: chat "Dale vida a tu web" + vitrina en móvil -->
+            <div class="cfg-acciones-rapidas">
+                <button type="button" id="cfg-chat-btn" class="cfg-chat-btn" title="Responde 5 preguntas y tu página queda lista. Nada se publica hasta que tocas Guardar Cambios">
+                    <i class="fas fa-wand-magic-sparkles"></i> Dale vida a tu web <small>(2 min)</small>
+                </button>
+                <button type="button" id="cfg-vitrina-btn" class="cfg-vitrina-btn">
+                    <i class="fas fa-mobile-alt"></i> Ver cómo queda
+                </button>
+            </div>
 
             <div class="config-layout">
             <div class="config-controls">
@@ -606,6 +611,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         container.addEventListener('change', refrescoVitrina);
     }
     document.getElementById('cfg-vitrina-btn')?.addEventListener('click', abrirVitrinaOverlay);
+    document.getElementById('cfg-chat-btn')?.addEventListener('click', abrirCfgChat);
 }
 
 // ============================================================
@@ -874,6 +880,250 @@ function cerrarVitrinaOverlay() {
     if (cont && origen && cont !== origen) origen.appendChild(cont);
     overlay.remove();
     actualizarVitrina();
+}
+
+// ============================================================
+// MINI-CHAT "DALE VIDA A TU WEB" (2 minutos, patrón conversación)
+// Cada respuesta enciende algo en la vitrina en vivo. Nada se guarda:
+// el usuario decide con "Guardar Cambios".
+// ============================================================
+
+function abrirCfgChat() {
+    const overlay = document.createElement('div');
+    overlay.className = 'cfgchat-overlay';
+    overlay.innerHTML = `
+        <div class="cfgchat-modal">
+            <header class="cfgchat-head">
+                <div class="cfgchat-head-icono"><i class="fas fa-wand-magic-sparkles"></i></div>
+                <div class="cfgchat-head-txt">
+                    <strong>Dale vida a tu web</strong>
+                    <span>5 preguntas y ves el resultado al instante (nada se publica hasta Guardar Cambios)</span>
+                </div>
+                <button type="button" class="cfgchat-cerrar" id="cfgchat-cerrar" title="Cerrar" aria-label="Cerrar">&times;</button>
+            </header>
+            <div class="cfgchat-chat" id="cfgchat-chat"></div>
+            <div class="cfgchat-zona" id="cfgchat-zona"></div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const chat = document.getElementById('cfgchat-chat');
+    const zona = document.getElementById('cfgchat-zona');
+
+    const cerrar = () => overlay.remove();
+    document.getElementById('cfgchat-cerrar').addEventListener('click', cerrar);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrar(); });
+
+    const scrollAbajo = () => { chat.scrollTop = chat.scrollHeight; };
+
+    function bot(html) {
+        const div = document.createElement('div');
+        div.className = 'cfgchat-msg cfgchat-bot';
+        div.innerHTML = `<span class="cfgchat-burbuja">${html}</span>`;
+        chat.appendChild(div);
+        scrollAbajo();
+        return div;
+    }
+    function user(html) {
+        const div = document.createElement('div');
+        div.className = 'cfgchat-msg cfgchat-user';
+        div.innerHTML = `<span class="cfgchat-burbuja">${html}</span>`;
+        chat.appendChild(div);
+        scrollAbajo();
+    }
+    function zonaHtml(html) {
+        zona.innerHTML = html;
+        zona.style.display = 'block';
+        scrollAbajo();
+    }
+
+    /** Escribe en un control real del formulario y refresca la vitrina. */
+    function aplicarCampo(id, valor, evento = 'input') {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        el.value = valor;
+        el.dispatchEvent(new Event(evento, { bubbles: true }));
+        actualizarVitrina();
+        return true;
+    }
+
+    const inputConEnter = (inputId, btnId, fn) => {
+        document.getElementById(btnId).addEventListener('click', fn);
+        const inp = document.getElementById(inputId);
+        if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
+    };
+
+    // ── 1) Nombre ──
+    bot(`¡Hola! 👋 Voy a dejar tu página lista en 2 minutos.<br><br><strong>¿Qué nombre verán tus clientes?</strong>`);
+    const nombreInput = document.getElementById('cfg-nombre-negocio');
+    const nombreActual = (nombreInput && !nombreInput.disabled) ? nombreInput.value : (_tenantData && _tenantData.nombre_negocio) || '';
+    zonaHtml(`
+        <div class="cfgchat-fila">
+            <input type="text" id="cfgchat-nombre" class="cfgchat-input" value="${escapeAttr(nombreActual)}" maxlength="60" placeholder="Nombre de tu negocio">
+            <button type="button" class="cfgchat-btn" id="cfgchat-nombre-ok"><i class="fas fa-arrow-right"></i></button>
+        </div>
+        ${nombreInput && nombreInput.disabled ? '<p class="cfgchat-nota"><i class="fas fa-clock"></i> El nombre se cambia cada 14 días: lo dejamos como está.</p>' : ''}
+    `);
+    const inpNombre = document.getElementById('cfgchat-nombre');
+    if (inpNombre) inpNombre.focus();
+    inputConEnter('cfgchat-nombre', 'cfgchat-nombre-ok', () => {
+        const v = (inpNombre.value || '').trim();
+        if (nombreInput && !nombreInput.disabled) {
+            if (!v) { mostrarToast('Escribe el nombre del negocio', 'warning'); return; }
+            aplicarCampo('cfg-nombre-negocio', v);
+        }
+        user(escapeHtml(v || nombreActual || 'El nombre actual'));
+        setTimeout(pasoColor, 250);
+    });
+
+    // ── 2) Look / colores ──
+    function pasoColor() {
+        bot(`<strong>¿Qué color te representa?</strong> Toca uno y mira la maqueta a la derecha (o arriba en el celular).`);
+        zonaHtml(`
+            <div class="cfgchat-temas">
+                ${Object.entries(TEMAS_PREDEFINIDOS).map(([key, t]) => `
+                    <button type="button" class="cfgchat-tema" data-tema="${key}" title="${escapeAttr(t.nombre)}">
+                        <span class="cfgchat-tema-dots"><i style="background:${t.primary_color}"></i><i style="background:${t.secondary_color}"></i><i style="background:${t.background_color}"></i></span>
+                        <span>${escapeHtml(t.nombre)}</span>
+                    </button>`).join('')}
+            </div>
+        `);
+        zona.querySelectorAll('.cfgchat-tema').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tema = TEMAS_PREDEFINIDOS[btn.dataset.tema];
+                if (!tema) return;
+                aplicarTema(tema);
+                actualizarVitrina();
+                user(`Look: <strong>${escapeHtml(tema.nombre)}</strong> aplicado en vivo`);
+                setTimeout(pasoUbicacion, 300);
+            });
+        });
+    }
+
+    // ── 3) Ubicación ──
+    function pasoUbicacion() {
+        bot(`<strong>¿Dónde te encuentra la gente?</strong>`);
+        zonaHtml(`
+            <button type="button" class="cfgchat-opcion" data-ubi="local"><i class="fas fa-store"></i> Tengo local: que me ubiquen</button>
+            <button type="button" class="cfgchat-opcion" data-ubi="domicilio"><i class="fas fa-truck"></i> Voy al domicilio del cliente</button>
+            <button type="button" class="cfgchat-opcion" data-ubi=""><i class="fas fa-hourglass-half"></i> Lo decido después</button>
+        `);
+        zona.querySelectorAll('.cfgchat-opcion').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const ubi = btn.dataset.ubi;
+                if (ubi) {
+                    const radio = document.querySelector(`input[name="cfg-ubicacion-tipo"][value="${ubi}"]`);
+                    if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); }
+                    actualizarVitrina();
+                }
+                user(ubi === 'local' ? 'Tengo local' : ubi === 'domicilio' ? 'Voy al domicilio' : 'Lo decido después');
+                if (ubi === 'local') setTimeout(pasoDireccion, 300);
+                else setTimeout(pasoRedes, 300);
+            });
+        });
+    }
+
+    function pasoDireccion() {
+        bot(`<strong>Escribe la dirección de tu local:</strong> en la maqueta verás aparecer el mapa.`);
+        zonaHtml(`
+            <div class="cfgchat-fila">
+                <input type="text" id="cfgchat-dir" class="cfgchat-input" placeholder="Ej: Av. Providencia 1234, Santiago" value="${escapeAttr((leerConfigForm().direccion || '').trim())}">
+                <button type="button" class="cfgchat-btn" id="cfgchat-dir-ok"><i class="fas fa-arrow-right"></i></button>
+            </div>
+        `);
+        const inpDir = document.getElementById('cfgchat-dir');
+        inpDir.focus();
+        inputConEnter('cfgchat-dir', 'cfgchat-dir-ok', () => {
+            const v = (inpDir.value || '').trim();
+            if (v.length < 6) { mostrarToast('Escribe una dirección para mostrar el mapa', 'warning'); return; }
+            aplicarCampo('cfg-direccion', v);
+            user(`Dirección guardada: <strong>${escapeHtml(v)}</strong>`);
+            setTimeout(pasoRedes, 350);
+        });
+    }
+
+    // ── 4) Redes ──
+    function pasoRedes(redAnterior) {
+        if (redAnterior === 'instagram') {
+            bot(`<strong>¿Y tu TikTok?</strong> (o elige "No por ahora")`);
+        } else {
+            bot(`<strong>¿Tienes redes para que te sigan desde tu página?</strong>`);
+        }
+        zonaHtml(`
+            <button type="button" class="cfgchat-opcion" data-red="instagram"><i class="fab fa-instagram"></i> Instagram</button>
+            <button type="button" class="cfgchat-opcion" data-red="tiktok"><i class="fab fa-tiktok"></i> TikTok</button>
+            <button type="button" class="cfgchat-opcion" data-red="no"><i class="fas fa-check"></i> No por ahora</button>
+        `);
+        zona.querySelectorAll('.cfgchat-opcion').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const red = btn.dataset.red;
+                if (red === 'no') {
+                    user('No por ahora');
+                    bot('Cuando quieras las agregas en el paso 5 (Redes Sociales). 😉');
+                    setTimeout(pasoDirectorio, 400);
+                    return;
+                }
+                user(red === 'instagram' ? 'Sí, tengo Instagram' : 'Sí, tengo TikTok');
+                const campo = red === 'instagram' ? 'cfg-instagram' : 'cfg-tiktok';
+                bot(red === 'instagram'
+                    ? '<strong>Pega aquí el enlace de tu Instagram:</strong>'
+                    : '<strong>Pega aquí el enlace de tu TikTok:</strong>');
+                zonaHtml(`
+                    <div class="cfgchat-fila">
+                        <input type="url" id="cfgchat-red" class="cfgchat-input" placeholder="${red === 'instagram' ? 'https://instagram.com/tu-perfil' : 'https://tiktok.com/@tu-perfil'}" value="${escapeAttr((leerConfigForm()[red === 'instagram' ? 'instagram_url' : 'tiktok_url'] || '').trim())}">
+                        <button type="button" class="cfgchat-btn" id="cfgchat-red-ok"><i class="fas fa-arrow-right"></i></button>
+                    </div>
+                `);
+                const inpRed = document.getElementById('cfgchat-red');
+                inpRed.focus();
+                inputConEnter('cfgchat-red', 'cfgchat-red-ok', () => {
+                    const v = (inpRed.value || '').trim();
+                    if (!/^https?:\/\/.+\..+/.test(v)) { mostrarToast('Pega el enlace completo (empieza con https://)', 'warning'); return; }
+                    aplicarCampo(campo, v);
+                    user(`Listo, enlace guardado`);
+                    if (redAnterior !== 'instagram' && red === 'instagram') setTimeout(() => pasoRedes('instagram'), 350);
+                    else setTimeout(pasoDirectorio, 350);
+                });
+            });
+        });
+    }
+
+    // ── 5) Directorio ──
+    function pasoDirectorio() {
+        bot(`<strong>¿Quieres que clientes nuevos te encuentren?</strong> Aparecer en el Directorio Público de Organify es gratis según tu plan.`);
+        zonaHtml(`
+            <button type="button" class="cfgchat-opcion" data-dir="1"><i class="fas fa-store"></i> Sí, quiero aparecer</button>
+            <button type="button" class="cfgchat-opcion" data-dir="0"><i class="fas fa-hourglass-half"></i> Luego lo veo</button>
+        `);
+        zona.querySelectorAll('.cfgchat-opcion').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.dir === '1') {
+                    const sw = document.getElementById('cfg-directorio-activo');
+                    if (sw && !sw.checked) {
+                        sw.checked = true;
+                        sw.dispatchEvent(new Event('change', { bubbles: true }));
+                        actualizarVitrina();
+                    }
+                    user('Sí, quiero aparecer en el directorio');
+                    const faltan = faltantesTarjetaDirectorio(leerConfigForm());
+                    bot(faltan.length
+                        ? `¡Activado! 🎉 Para que tu tarjeta luzca completa te falta: <strong>${escapeHtml(faltan.join(', '))}</strong>. Tócalos en la maqueta y se completan solos.`
+                        : '¡Activado! 🎉 Tu tarjeta está completa: mira cómo te ven los clientes nuevos en la maqueta.');
+                } else {
+                    user('Luego lo veo');
+                    bot('Queda como pendiente: verás el candado 🔒 en la maqueta hasta que lo actives.');
+                }
+                setTimeout(pasoFinal, 600);
+            });
+        });
+    }
+
+    function pasoFinal() {
+        bot(`¡Tu web quedó así! 🎉 Mírala en la maqueta${window.innerWidth < 1100 ? ' tocando "Ver cómo queda"' : ' a la derecha'}.<br><br>Puedes cambiarlo cuando quieras. Cuando estés conforme, toca <strong>Guardar Cambios</strong> para publicarlo.`);
+        zonaHtml(`
+            <button type="button" class="cfgchat-btn-ancho" id="cfgchat-fin">Entendido, ¡gracias!</button>
+        `);
+        document.getElementById('cfgchat-fin').addEventListener('click', cerrar);
+    }
 }
 
 // ============================================================

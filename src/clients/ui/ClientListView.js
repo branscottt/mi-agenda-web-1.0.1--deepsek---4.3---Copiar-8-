@@ -158,6 +158,29 @@ function bindAgregarCliente(container) {
     });
 }
 
+/**
+ * Botón "Crear mi primer cliente" (estado vacío) → chat guiado que
+ * agrega el cliente conversando (PrimerClienteChat.js). Al guardar,
+ * refresca la lista: la tarjeta nueva aparece con sus badges si subió
+ * fotos o archivos.
+ */
+function bindPrimerCliente(container) {
+    const btns = container.querySelectorAll('#primer-cliente-btn-empty');
+    btns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            try {
+                const { abrirPrimerClienteChat } = await import('./PrimerClienteChat.js');
+                await abrirPrimerClienteChat({
+                    onGuardado: () => renderClientListView()
+                });
+            } catch (err) {
+                console.error('[ClientListView] Error abriendo chat primer cliente:', err);
+                mostrarToast('No se pudo abrir la conversación', 'error');
+            }
+        });
+    });
+}
+
 // ========== RENDER ==========
 
 let clientesCache = [];
@@ -286,13 +309,20 @@ function renderLista(container) {
             <div class="empty-state">
                 <i class="fas fa-users"></i>
                 <h4>No hay clientes registrados</h4>
-                <p>Aún no tienes citas agendadas ni clientes agregados. Cuando los clientes reserven servicios aparecerán aquí, o agrega a los que ya tenías antes de la web.</p>
-                <button class="btn-primary btn-small" id="agregar-cliente-btn-empty" style="margin-top:12px;">
-                    <i class="fas fa-user-plus"></i> Agregar cliente
-                </button>
+                <p>Cuando tus clientes reserven en la web aparecerán aquí solos, con su historial y sus archivos. ¿Partimos con el primero?</p>
+                <div class="empty-ctas" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
+                    <button class="btn-primary btn-small" id="primer-cliente-btn-empty" title="Responde unas preguntas y el cliente queda guardado, con fotos y archivos si quieres">
+                        <i class="fas fa-comments"></i> Crear mi primer cliente
+                    </button>
+                    <button class="btn-secondary btn-small" id="agregar-cliente-btn-empty" title="Formulario completo: datos de contacto y reserva opcional">
+                        <i class="fas fa-user-plus"></i> Agregar con formulario
+                    </button>
+                </div>
+                <p style="color:var(--text-muted,#999);font-size:0.75rem;margin-top:10px;"><i class="fas fa-info-circle"></i> También se puede tocar "Crear mi primer cliente" las veces que quieras: cada conversación agrega un cliente.</p>
             </div>
         `;
         bindAgregarCliente(container);
+        bindPrimerCliente(container);
         return;
     }
 
@@ -513,9 +543,9 @@ function renderGridHtml(filtrados) {
                         ${cl.email ? `<a href="mailto:${encodeURIComponent(cl.email)}" class="btn-small" style="background:var(--primary-color);color:#fff;" title="Enviar Email"><i class="fas fa-envelope"></i></a>` : ''}
                         ${cl.telefono ? `<a href="tel:${escapeHtml(cl.telefono)}" class="btn-small" style="background:var(--secondary-color);color:#fff;" title="Llamar"><i class="fas fa-phone"></i></a>` : ''}
                         ${nComp > 0 && enlaceComp && cl.telefono ? `
-                        <a href="${buildWaInfoCliente(cl, enlaceComp)}" target="_blank" rel="noopener noreferrer" class="btn-small btn-enviar-info-cliente" style="background:#128C7E;color:#fff;font-weight:600;" title="Enviar por WhatsApp el enlace con la información que compartiste con este cliente">
+                        <button class="btn-small btn-enviar-info-cliente" data-email="${escapeHtml(cl.email)}" style="background:#128C7E;color:#fff;font-weight:600;border:none;cursor:pointer;" title="Ver cómo recibe el cliente su información y enviársela por WhatsApp">
                             <i class="fab fa-whatsapp"></i> Enviar info
-                        </a>` : ''}
+                        </button>` : ''}
                         ${nComp > 0 && !enlaceComp ? `
                         <button class="btn-small btn-copiar-enlace-cliente" data-email="${escapeHtml(cl.email)}" style="background:rgba(46,230,168,0.15);color:#2ee6a8;border:1px solid rgba(46,230,168,0.3);" title="Copiar el enlace con la información compartida de este cliente">
                             <i class="fas fa-link"></i> Copiar enlace
@@ -651,6 +681,30 @@ function bindClienteCards(container) {
             } catch (err) {
                 console.error('[ClientListView] Error generando enlace compartido:', err);
                 mostrarToast('No se pudo generar el enlace', 'error');
+            }
+        });
+    });
+
+    // "Enviar info": primera vez = simulador WhatsApp (cómo lo recibe el
+    // cliente); después = WhatsApp directo.
+    container.querySelectorAll('.btn-enviar-info-cliente').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const cl = clientesCache.find(c => c.email.toLowerCase() === btn.dataset.email.toLowerCase());
+            if (!cl) return;
+            const comp = fichasPorEmail[cl.email];
+            if (!comp) return;
+            try {
+                let token = comp.token_compartido;
+                if (!token) {
+                    token = await kanbanApi.asegurarTokenCompartido(comp.board_id);
+                    comp.token_compartido = token;
+                }
+                const enlace = kanbanApi.buildEnlaceCompartido(token);
+                await enviarInfoCliente(cl, enlace);
+            } catch (err) {
+                console.error('[ClientListView] Error enviando información:', err);
+                mostrarToast('No se pudo preparar el enlace', 'error');
             }
         });
     });
@@ -899,12 +953,42 @@ function exportarClientesCSV() {
 
 // ========== HELPERS ==========
 
-/** Enlace de WhatsApp con el mensaje de información compartida del cliente. */
-function buildWaInfoCliente(cl, enlace) {
+/** Texto del mensaje con la información compartida (neutro, editable en el simulador). */
+function mensajeInfoCliente(cl, enlace) {
     const nombre = (cl.nombre && cl.nombre !== 'Sin nombre') ? cl.nombre.split(' ')[0] : '';
     const saludo = nombre ? `¡Hola ${nombre}! 👋` : '¡Hola! 👋';
-    const mensaje = `${saludo}\nTe compartí información a través de Organify. Abre este enlace para verla:\n${enlace}\n\nEste enlace es solo para ti: cualquier cambio que haga se ve actualizado ahí.`;
-    return `https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`;
+    return `${saludo}\nTe compartí información a través de Organify. Abre este enlace para verla:\n${enlace}\n\nEste enlace es solo para ti: cualquier cambio que haga se ve actualizado ahí.`;
+}
+
+/** Enlace de WhatsApp con el mensaje de información compartida del cliente. */
+function buildWaInfoCliente(cl, enlace) {
+    return `https://wa.me/${cl.telefono.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensajeInfoCliente(cl, enlace))}`;
+}
+
+/**
+ * "Enviar info": la primera vez muestra el simulador de WhatsApp (cómo
+ * recibe el cliente el mensaje, editable); después abre WhatsApp directo.
+ */
+async function enviarInfoCliente(cl, enlace) {
+    const mensaje = mensajeInfoCliente(cl, enlace);
+    let sim;
+    try {
+        sim = await import('../../share/ui/SimuladorWhatsApp.js');
+    } catch (err) {
+        console.warn('[ClientListView] No se pudo cargar el simulador:', err);
+        window.open(buildWaInfoCliente(cl, enlace), '_blank', 'noopener');
+        return;
+    }
+    if (!sim.shareSimPendiente()) {
+        window.open(buildWaInfoCliente(cl, enlace), '_blank', 'noopener');
+        return;
+    }
+    sim.abrirSimuladorWhatsApp({
+        nombreCliente: cl.nombre,
+        telefono: cl.telefono,
+        enlace,
+        mensaje
+    });
 }
 
 /** Copia texto al portapapeles (con fallback). Devuelve true/false. */
