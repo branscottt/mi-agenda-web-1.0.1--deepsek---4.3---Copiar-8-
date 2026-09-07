@@ -294,6 +294,25 @@
         .vl-buscar { display: flex; gap: 10px; margin-bottom: 16px; }
         .vl-buscar .vl-control { flex: 1; font-size: 1.05rem; padding: 13px 16px; }
         .vl-hist-item { border-left: 3px solid rgba(255,255,255,0.15); padding: 6px 12px; margin: 6px 0; background: rgba(255,255,255,0.02); border-radius: 0 10px 10px 0; }
+
+        /* ===== Envíos / Finanzas ===== */
+        .vl-grupo-titulo {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 0.95rem; font-weight: 800; color: #f8f9fa; margin: 18px 0 10px;
+        }
+        .vl-grupo-titulo .cnt { background: rgba(255,255,255,0.1); border-radius: 999px; padding: 1px 10px; font-size: 0.8rem; }
+        .vl-datos-copy { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .vl-grid-fin { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-bottom: 16px; }
+        .vl-monto.pos { color: #7ff5d8; }
+        .vl-monto.neg { color: #ff9f9f; }
+        .vl-fin-k { font-size: 0.7rem; color: var(--muted, #adb5bd); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+        .vl-fin-v { font-size: 1.35rem; font-weight: 800; color: #f8f9fa; margin-top: 3px; }
+        .vl-nota { font-size: 0.78rem; color: var(--muted, #adb5bd); line-height: 1.5; margin-top: 6px; }
+        .vl-fila-accion { display: flex; align-items: center; gap: 6px; }
+        .vf-form-grid { grid-template-columns: 150px 1fr 170px 160px auto !important; }
+        @media (max-width: 860px) {
+            .vf-form-grid { grid-template-columns: 1fr 1fr !important; }
+        }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>

@@ -10,12 +10,9 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 
 const PLAN_LABELS = { vl_free: 'Gratis' };
 
-// Vistas pendientes de ciclos posteriores (Ciclo 6: Envíos/Finanzas).
-// Placeholder mínimo para no romper la navegación.
-const PENDIENTES = {
-    envios: { icono: 'fa-truck-fast', titulo: 'Envíos y entregas', texto: 'Las tareas del día: envíos de hoy, mañana y próximos, con los datos del cliente listos para copiar.' },
-    finanzas: { icono: 'fa-chart-line', titulo: 'Finanzas', texto: 'Ingresos, dinero pendiente, inversión y gastos, con ganancia estimada y flujo de caja.' }
-};
+// Todas las vistas están implementadas (Live, Procesos, Clientes,
+// Envíos, Finanzas).
+const PENDIENTES = {};
 
 let _initialized = false;
 
@@ -166,6 +163,28 @@ async function activarVista(nombre) {
         } catch (e) {
             console.error('[VentasLiveView] Error cargando ClientesView:', e);
             cont.innerHTML = '<div class="vl-empty">No se pudo cargar Clientes.</div>';
+        }
+        return;
+    }
+
+    if (nombre === 'envios') {
+        try {
+            const mod = await import('./EnviosView.js');
+            mod.initEnvios();
+        } catch (e) {
+            console.error('[VentasLiveView] Error cargando EnviosView:', e);
+            cont.innerHTML = '<div class="vl-empty">No se pudo cargar Envíos.</div>';
+        }
+        return;
+    }
+
+    if (nombre === 'finanzas') {
+        try {
+            const mod = await import('./FinanzasView.js');
+            mod.initFinanzas();
+        } catch (e) {
+            console.error('[VentasLiveView] Error cargando FinanzasView:', e);
+            cont.innerHTML = '<div class="vl-empty">No se pudo cargar Finanzas.</div>';
         }
         return;
     }
