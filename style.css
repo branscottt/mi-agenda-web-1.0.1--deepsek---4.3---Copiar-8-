@@ -20382,3 +20382,70 @@ body.cfgmo-lock { overflow: hidden; }
     .cfgmo-conv .cfgchat-burbuja { max-width: 94%; }
     .cfgmo-conv .cfgchat-opcion { padding: 13px 14px; }
 }
+/* ═══════════════════════════════════════════════════════════════
+   PULIDO VISUAL v2 — Asistente "Dale vida a tu web" (modal)
+   PC / tablet / móvil: ritmo, legibilidad y micro-interacciones.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Pill de progreso: "Paso 2 de 6 · Look y colores" */
+.cfgmo-pill { display: inline-flex; align-items: center; gap: 7px; }
+.cfgmo-pill em { font-style: normal; color: #cdb8f5; font-weight: 700; }
+
+/* Entrada de mensajes con animación (igual que el chat de servicios) */
+.cfgmo-conv .cfgchat-msg { animation: svcchat-in .22s ease both; }
+
+/* Scrollbar fina y discreta en la conversación */
+.cfgmo-conv .cfgchat-chat::-webkit-scrollbar { width: 7px; }
+.cfgmo-conv .cfgchat-chat::-webkit-scrollbar-track { background: transparent; }
+.cfgmo-conv .cfgchat-chat::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.13); border-radius: 99px;
+}
+.cfgmo-conv .cfgchat-chat::-webkit-scrollbar-thumb:hover { background: rgba(199,125,255,.45); }
+
+/* Columna celular: el pie del aside sobra dentro del modal (el chat ya
+   explica que nada se publica hasta Guardar). La tarjeta respira. */
+.cfgmo-vitrina .config-vitrina-foot { display: none; }
+.cfgmo-vitrina .config-vitrina-inner { display: flex; flex-direction: column; }
+.cfgmo-vitrina .config-vitrina-inner .cfg-vitrina { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.cfgmo-vitrina { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; }
+
+/* Zona de respuestas: sombra sutil que la separa de la conversación */
+.cfgmo-conv .cfgchat-zona { box-shadow: 0 -10px 26px rgba(0,0,0,.28); }
+
+/* Opciones e inputs con ancho de lectura (no estirados en pantallas
+   grandes), como en el chat de crear servicios */
+.cfgmo-conv .cfgchat-zona .cfgchat-opcion,
+.cfgmo-conv .cfgchat-zona .cfgchat-fila,
+.cfgmo-conv .cfgchat-zona .cfgchat-btn-ancho,
+.cfgmo-conv .cfgchat-zona .cfgchat-btn-sec { max-width: 600px; }
+
+/* Botón "Ver cómo queda" dentro del modal: acento para que se note */
+.cfgmo-btn-ver {
+    background: linear-gradient(135deg, rgba(255,109,0,.32), rgba(255,109,0,.14));
+    border-color: rgba(255,109,0,.55);
+}
+.cfgmo-btn-ver:hover { background: linear-gradient(135deg, rgba(255,109,0,.5), rgba(255,109,0,.28)); }
+.cfgmo-btn-ver i { color: #ffd9b0; }
+
+/* Cabecera compacta y de una sola línea en tablet (el subtítulo se oculta;
+   en móvil ya ocurría a 640px) */
+@media (max-width: 980px) {
+    .cfgmo-head-txt span { display: none; }
+    .cfgmo-head { padding: 11px 15px; }
+    .cfgmo-conv .cfgchat-zona .cfgchat-opcion,
+    .cfgmo-conv .cfgchat-zona .cfgchat-fila,
+    .cfgmo-conv .cfgchat-zona .cfgchat-btn-ancho,
+    .cfgmo-conv .cfgchat-zona .cfgchat-btn-sec { max-width: none; }
+}
+
+/* Móvil: tipografía y objetivos táctiles más generosos */
+@media (max-width: 640px) {
+    .cfgmo-pill em { display: none; } /* solo "Paso 3 de 6" en pantallas chicas */
+    .cfgmo-conv .cfgchat-burbuja { font-size: .95rem; padding: 12px 16px; }
+    .cfgmo-conv .cfgchat-opcion { min-height: 52px; padding: 13px 15px; font-size: .95rem; }
+    .cfgmo-conv .cfgchat-tema { min-height: 48px; }
+    .cfgmo-conv .cfgchat-input { font-size: 1rem; padding: 14px 16px; }
+    .cfgmo-conv .cfgchat-btn { min-width: 58px; }
+    .cfgmo-conv .cfgchat-zona .cfgchat-btn-ancho { font-size: 1rem; padding: 15px; }
+    .cfgmo-conv .cfgchat-btn-sec { font-size: .93rem; padding: 14px; }
+}

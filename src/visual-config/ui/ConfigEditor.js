@@ -920,7 +920,7 @@ function construirModalAsistente() {
                     <strong>Dale vida a tu web</strong>
                     <span>Responde y mira en vivo cómo va quedando tu página. Nada se publica hasta que tocas Guardar Cambios.</span>
                 </div>
-                <div class="cfgmo-pill" title="Progreso del asistente">Paso <strong id="cfgchat-paso-actual">1</strong> de 6</div>
+                <div class="cfgmo-pill" title="Progreso del asistente"><span>Paso <strong id="cfgchat-paso-actual">1</strong> de 6</span><em id="cfgchat-paso-nombre">Nombre</em></div>
                 <button type="button" class="cfgmo-btn cfgmo-btn-manual" id="cfgchat-head-manual" title="Ver el formulario completo"><i class="fas fa-keyboard"></i><span>Manual</span></button>
                 <button type="button" class="cfgmo-btn cfgmo-btn-ver" id="cfgchat-head-ver" title="Ver cómo queda tu página"><i class="fas fa-mobile-alt"></i><span>Ver cómo queda</span></button>
                 <button type="button" class="cfgmo-x" id="cfgchat-head-x" title="Cerrar y ver el formulario" aria-label="Cerrar asistente">&times;</button>
@@ -1007,12 +1007,15 @@ function montarChatVista() {
     if (!chat || !zona) return false;
     if (chat.querySelector('.cfgchat-msg')) return true; // conversación en curso: conservar
     const PASOS_TOTAL = 6;
+    const PASOS_NOMBRE = ['', 'Nombre', 'Look y colores', 'Ubicación', 'Redes', 'Directorio', '¡Listo!'];
     let pasoActual = 0;
 
     function setPaso(n) {
         pasoActual = Math.min(n, PASOS_TOTAL);
         const el = document.getElementById('cfgchat-paso-actual');
         if (el) el.textContent = pasoActual;
+        const nombre = document.getElementById('cfgchat-paso-nombre');
+        if (nombre) nombre.textContent = PASOS_NOMBRE[pasoActual] || '';
         const bar = document.getElementById('cfgchat-bar-fill');
         if (bar) bar.style.width = `${(pasoActual / PASOS_TOTAL) * 100}%`;
     }
