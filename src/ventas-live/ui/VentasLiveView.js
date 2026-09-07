@@ -10,11 +10,9 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 
 const PLAN_LABELS = { vl_free: 'Gratis' };
 
-// Vistas pendientes de ciclos posteriores (Ciclo 5: Procesos/Clientes;
-// Ciclo 6: Envíos/Finanzas). Placeholder mínimo para no romper la navegación.
+// Vistas pendientes de ciclos posteriores (Ciclo 6: Envíos/Finanzas).
+// Placeholder mínimo para no romper la navegación.
 const PENDIENTES = {
-    procesos: { icono: 'fa-list-check', titulo: 'Procesos activos', texto: 'Aquí verás a los clientes que requieren acción: esperando WhatsApp, esperando pago, listos para preparar, envíos y entregas.' },
-    clientes: { icono: 'fa-users', titulo: 'Clientes', texto: 'Acá vas a buscar clientes, revisar su ficha completa (historial, saldo, prendas guardadas) y editar su perfil.' },
     envios: { icono: 'fa-truck-fast', titulo: 'Envíos y entregas', texto: 'Las tareas del día: envíos de hoy, mañana y próximos, con los datos del cliente listos para copiar.' },
     finanzas: { icono: 'fa-chart-line', titulo: 'Finanzas', texto: 'Ingresos, dinero pendiente, inversión y gastos, con ganancia estimada y flujo de caja.' }
 };
@@ -102,6 +100,22 @@ async function renderVentasLive() {
     // Router de secciones
     wireNav();
     activarVista('live');
+
+    // Puente Procesos → ficha del cliente (pestaña Clientes)
+    window.__vlIrAFicha = async (clienteId) => {
+        document.querySelectorAll('.vl-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'clientes'));
+        document.querySelectorAll('.vl-view').forEach(v => v.classList.remove('active'));
+        const cont = document.getElementById('vl-view-clientes');
+        if (!cont) return;
+        cont.classList.add('active');
+        try {
+            const mod = await import('./ClientesView.js');
+            mod.initClientes();
+            mod.abrirFicha(clienteId);
+        } catch (e) {
+            console.error('[VentasLiveView] Error abriendo ficha:', e);
+        }
+    };
 }
 
 function wireNav() {
@@ -130,6 +144,28 @@ async function activarVista(nombre) {
         } catch (e) {
             console.error('[VentasLiveView] Error cargando LiveView:', e);
             cont.innerHTML = '<div class="vl-empty">No se pudo cargar el MODO LIVE.</div>';
+        }
+        return;
+    }
+
+    if (nombre === 'procesos') {
+        try {
+            const mod = await import('./ProcesosView.js');
+            mod.initProcesos();
+        } catch (e) {
+            console.error('[VentasLiveView] Error cargando ProcesosView:', e);
+            cont.innerHTML = '<div class="vl-empty">No se pudo cargar Procesos.</div>';
+        }
+        return;
+    }
+
+    if (nombre === 'clientes') {
+        try {
+            const mod = await import('./ClientesView.js');
+            mod.initClientes();
+        } catch (e) {
+            console.error('[VentasLiveView] Error cargando ClientesView:', e);
+            cont.innerHTML = '<div class="vl-empty">No se pudo cargar Clientes.</div>';
         }
         return;
     }
