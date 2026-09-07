@@ -67,7 +67,8 @@ export function redirectByRole(session) {
     if (session.rol === ROLES.SUPER_ADMIN) {
         window.location.href = 'superadmin.html';
     } else if (session.rol === ROLES.ADMIN) {
-        window.location.href = 'admin.html';
+        // Hub de proyectos: cards de Reservas de Pymes y Ventas Live
+        window.location.href = 'hub.html';
     } else {
         window.location.href = 'cliente.html';
     }

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://dfcfimipkfhitlsyixqu.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>Mis Proyectos - Organify</title>
+    <link rel="stylesheet" href="style.css?v=64">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* ===== HUB: selector de proyectos post-login ===== */
+        .hub-screen {
+            min-height: 100vh;
+            background: radial-gradient(ellipse at top, rgba(157, 78, 221, 0.12), transparent 55%), var(--bg, #0a0a0f);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 48px;
+        }
+        .hub-topbar {
+            width: 100%;
+            max-width: 980px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        .hub-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: #f8f9fa;
+        }
+        .hub-brand .hub-logo {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+            color: #fff;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 18px rgba(157, 78, 221, 0.45);
+        }
+        .hub-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--muted, #adb5bd);
+            font-size: 0.85rem;
+        }
+        .hub-user .hub-email {
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .hub-main { width: 100%; max-width: 980px; text-align: center; }
+        .hub-title { font-size: 1.9rem; font-weight: 700; color: #f8f9fa; margin: 0 0 6px; }
+        .hub-subtitle { color: var(--muted, #adb5bd); margin: 0 0 36px; font-size: 1rem; }
+        .hub-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 28px;
+            align-items: stretch;
+            perspective: 1200px;
+        }
+        .project-card {
+            position: relative;
+            background: var(--glass, rgba(20, 20, 30, 0.7));
+            border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+            border-radius: 20px;
+            padding: 32px 28px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            transition: transform .25s ease, opacity .25s ease, filter .25s ease, box-shadow .25s ease;
+        }
+        .project-card.primary {
+            z-index: 2;
+            border-color: rgba(157, 78, 221, 0.55);
+            box-shadow: 0 0 0 1px rgba(157, 78, 221, 0.35), 0 14px 44px rgba(157, 78, 221, 0.28);
+            transform: scale(1.02);
+        }
+        .project-card.dimmed {
+            opacity: 0.38;
+            filter: grayscale(0.75) blur(1px);
+            transform: scale(0.96);
+            pointer-events: none;
+            user-select: none;
+        }
+        .project-card.dimmed .card-cta { pointer-events: none; }
+        .project-icon {
+            width: 74px;
+            height: 74px;
+            border-radius: 20px;
+            display: grid;
+            place-items: center;
+            font-size: 2rem;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .project-icon.reservas { background: linear-gradient(135deg, #7b2cbf, #c77dff); box-shadow: 0 8px 24px rgba(157, 78, 221, 0.4); }
+        .project-icon.ventas_live { background: linear-gradient(135deg, #e8590c, #ffa94d); box-shadow: 0 8px 24px rgba(255, 107, 26, 0.4); }
+        .project-card h2 { margin: 0; font-size: 1.45rem; color: #f8f9fa; font-weight: 700; }
+        .project-desc { color: var(--muted, #adb5bd); font-size: 0.9rem; line-height: 1.5; min-height: 42px; margin: 0; }
+        .project-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #e9ecef;
+            border-radius: 999px;
+            padding: 4px 14px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        .project-pill.activo { background: rgba(0, 184, 148, 0.14); border-color: rgba(0, 184, 148, 0.45); color: #7ff5d8; }
+        .project-pill.alerta { background: rgba(230, 60, 60, 0.14); border-color: rgba(230, 60, 60, 0.45); color: #ff9f9f; }
+        .project-pill.sin { opacity: 0.85; }
+        .card-cta {
+            margin-top: 14px;
+            width: 100%;
+            padding: 13px 18px;
+            border-radius: 12px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
+            color: #fff;
+        }
+        .card-cta.grad {
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+            box-shadow: 0 6px 20px rgba(157, 78, 221, 0.4);
+        }
+        .card-cta.grad:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(157, 78, 221, 0.5); }
+        .card-cta.grad-ventas { background: linear-gradient(135deg, #ff6d00, #e8590c); box-shadow: 0 6px 20px rgba(255, 107, 26, 0.4); }
+        .card-cta.grad-ventas:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(255, 107, 26, 0.5); }
+        .card-cta.ghost { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.18); }
+        .card-cta.ghost:hover { background: rgba(255, 255, 255, 0.12); }
+        .card-cta.danger-soft { background: rgba(230, 60, 60, 0.85); }
+        .hub-swap {
+            margin-top: 26px;
+            background: none;
+            border: none;
+            color: #c77dff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .hub-swap:hover { color: #e0b1ff; }
+        .hub-footer-note { margin-top: 40px; color: rgba(173, 181, 189, 0.6); font-size: 0.8rem; }
+        /* Modal alta workspace */
+        .hub-modal-overlay {
+            position: fixed; inset: 0; z-index: 1000;
+            background: rgba(0, 0, 0, 0.65);
+            display: none; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .hub-modal-overlay.visible { display: flex; }
+        .hub-modal {
+            background: #14141e;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            padding: 28px 26px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        .hub-modal h3 { margin: 0 0 6px; color: #f8f9fa; }
+        .hub-modal p.hub-modal-sub { color: var(--muted, #adb5bd); font-size: 0.88rem; margin: 0 0 18px; }
+        .hub-modal label { display: block; color: #ced4da; font-size: 0.82rem; font-weight: 600; margin: 12px 0 5px; }
+        .hub-modal input {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f8f9fa;
+            border-radius: 10px;
+            padding: 11px 13px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        .hub-modal input:focus { border-color: #9d4edd; }
+        .hub-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .hub-modal-actions button {
+            flex: 1;
+            padding: 11px 14px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: #fff;
+        }
+        .hub-modal-error { color: #ff9f9f; font-size: 0.85rem; margin-top: 12px; display: none; }
+        .hub-loading { color: var(--muted, #adb5bd); padding: 60px 0; text-align: center; }
+        @media (max-width: 720px) {
+            .hub-title { font-size: 1.5rem; }
+            .hub-cards { grid-template-columns: 1fr; }
+            .project-card { padding: 24px 20px; }
+        }
+    </style>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="hub-screen">
+        <div class="hub-topbar">
+            <div class="hub-brand">
+                <div class="hub-logo"><i class="fas fa-layer-group"></i></div>
+                <span>Organify</span>
+            </div>
+            <div class="hub-user">
+                <span class="hub-email" id="hub-user-email"></span>
+                <button class="card-cta ghost" id="hub-logout" style="width:auto;padding:8px 16px;font-size:0.85rem;margin:0;">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+                </button>
+            </div>
+        </div>
+
+        <div class="hub-main">
+            <h1 class="hub-title">Mis Proyectos</h1>
+            <p class="hub-subtitle">Elige con qué proyecto quieres trabajar hoy.</p>
+
+            <div class="hub-loading" id="hub-loading"><i class="fas fa-spinner fa-spin"></i> Cargando tus proyectos...</div>
+
+            <div class="hub-cards" id="hub-cards" style="display:none;">
+                <!-- Reservas de Pymes -->
+                <section class="project-card" data-proyecto="reservas">
+                    <div class="project-icon reservas"><i class="fas fa-calendar-check"></i></div>
+                    <h2>Reservas de Pymes</h2>
+                    <p class="project-desc">Tu agenda online: servicios, turnos, recordatorios automáticos y página propia para tus clientes.</p>
+                    <span class="project-pill" id="pill-reservas"><i class="fas fa-circle-notch fa-spin"></i></span>
+                    <button class="card-cta grad" id="cta-reservas" type="button" style="display:none;"></button>
+                </section>
+                <!-- Ventas Live -->
+                <section class="project-card" data-proyecto="ventas_live">
+                    <div class="project-icon ventas_live"><i class="fas fa-bolt"></i></div>
+                    <h2>Ventas Live</h2>
+                    <p class="project-desc">Tu espacio de ventas conectado: próximamente vas a poder conectar WhatsApp a tu web y vender en vivo.</p>
+                    <span class="project-pill" id="pill-ventas_live"><i class="fas fa-circle-notch fa-spin"></i></span>
+                    <button class="card-cta grad-ventas" id="cta-ventas_live" type="button" style="display:none;"></button>
+                </section>
+            </div>
+
+            <button class="hub-swap" id="hub-swap" style="display:none;">Ver el otro proyecto</button>
+            <p class="hub-footer-note" id="hub-note"></p>
+        </div>
+    </div>
+
+    <!-- Modal: crear workspace -->
+    <div class="hub-modal-overlay" id="hub-modal-overlay">
+        <div class="hub-modal" role="dialog" aria-modal="true">
+            <h3 id="hub-modal-title">Nuevo espacio</h3>
+            <p class="hub-modal-sub" id="hub-modal-sub"></p>
+            <label for="hub-modal-nombre">Nombre del negocio o espacio</label>
+            <input type="text" id="hub-modal-nombre" maxlength="80" autocomplete="off">
+            <label for="hub-modal-whatsapp">WhatsApp (para que tus clientes te contacten)</label>
+            <input type="tel" id="hub-modal-whatsapp" autocomplete="off" placeholder="Ej: 56912345678">
+            <div class="hub-modal-error" id="hub-modal-error"></div>
+            <div class="hub-modal-actions">
+                <button type="button" class="card-cta ghost" id="hub-modal-cancel">Cancelar</button>
+                <button type="button" class="card-cta grad" id="hub-modal-confirm">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="dist/app.js?v=65"></script>
+    <script defer src="dist/legacy.js?v=65"></script>
+</body>
+</html>

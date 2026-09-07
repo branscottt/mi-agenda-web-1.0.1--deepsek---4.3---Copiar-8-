@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://dfcfimipkfhitlsyixqu.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>Ventas Live - Organify</title>
+    <link rel="stylesheet" href="style.css?v=64">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* ===== VENTAS LIVE: shell del workspace ===== */
+        .ventas-live-screen {
+            min-height: 100vh;
+            background: radial-gradient(ellipse at top, rgba(255, 109, 0, 0.10), transparent 55%), var(--bg, #0a0a0f);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px 48px;
+        }
+        .vl-topbar {
+            width: 100%;
+            max-width: 980px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        .vl-brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.2rem; color: #f8f9fa; }
+        .vl-brand .vl-logo {
+            width: 42px; height: 42px; border-radius: 12px;
+            display: grid; place-items: center;
+            background: linear-gradient(135deg, #ff6d00, #e8590c);
+            color: #fff; font-size: 1.15rem;
+            box-shadow: 0 4px 18px rgba(255, 107, 26, 0.45);
+        }
+        .vl-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+        .vl-actions .btn-top {
+            padding: 9px 16px; border-radius: 10px; border: none;
+            font-size: 0.85rem; font-weight: 600; cursor: pointer; color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: background .15s ease;
+        }
+        .vl-actions .btn-top:hover { background: rgba(255, 255, 255, 0.13); }
+        .vl-actions .btn-top.primary { background: linear-gradient(135deg, #ff6d00, #e8590c); border: none; box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35); }
+        .vl-main { width: 100%; max-width: 980px; }
+        .vl-workspace-head {
+            background: var(--glass, rgba(20, 20, 30, 0.7));
+            border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+            border-radius: 20px;
+            padding: 26px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            flex-wrap: wrap;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            margin-bottom: 22px;
+        }
+        .vl-workspace-head h1 { margin: 0; font-size: 1.5rem; color: #f8f9fa; display: flex; align-items: center; gap: 10px; }
+        .vl-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(0, 184, 148, 0.14);
+            border: 1px solid rgba(0, 184, 148, 0.45);
+            color: #7ff5d8;
+            border-radius: 999px; padding: 5px 16px;
+            font-size: 0.82rem; font-weight: 700;
+        }
+        .vl-loading { color: var(--muted, #adb5bd); padding: 60px 0; text-align: center; }
+        .vl-placeholder {
+            background: var(--glass, rgba(20, 20, 30, 0.7));
+            border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+            border-radius: 20px;
+            padding: 52px 30px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        .vl-placeholder-icon {
+            width: 84px; height: 84px; margin: 0 auto 18px;
+            border-radius: 24px;
+            display: grid; place-items: center;
+            background: linear-gradient(135deg, rgba(255, 109, 0, 0.25), rgba(232, 89, 12, 0.25));
+            border: 1px solid rgba(255, 109, 0, 0.4);
+            color: #ffa94d; font-size: 2.1rem;
+        }
+        .vl-placeholder h2 { margin: 0 0 8px; color: #f8f9fa; font-size: 1.4rem; }
+        .vl-placeholder p { color: var(--muted, #adb5bd); max-width: 520px; margin: 0 auto; line-height: 1.6; font-size: 0.95rem; }
+        .vl-soon {
+            list-style: none; padding: 0; margin: 26px auto 0; max-width: 420px;
+            display: grid; gap: 10px; text-align: left;
+        }
+        .vl-soon li {
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px; padding: 12px 16px;
+            color: #ced4da; font-size: 0.9rem;
+        }
+        .vl-soon li i { color: #ffa94d; width: 20px; text-align: center; }
+        .vl-soon li .tag-soon {
+            margin-left: auto; font-size: 0.68rem; font-weight: 700;
+            color: #ffa94d; border: 1px solid rgba(255, 169, 77, 0.4);
+            padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+        }
+        @media (max-width: 720px) {
+            .vl-workspace-head { padding: 20px; }
+            .vl-workspace-head h1 { font-size: 1.2rem; }
+        }
+    </style>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="ventas-live-screen">
+        <div class="vl-topbar">
+            <div class="vl-brand">
+                <div class="vl-logo"><i class="fas fa-bolt"></i></div>
+                <span>Ventas Live</span>
+            </div>
+            <div class="vl-actions">
+                <button class="btn-top" id="vl-back-hub" type="button"><i class="fas fa-th-large"></i> Mis proyectos</button>
+                <button class="btn-top" id="vl-logout" type="button"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button>
+            </div>
+        </div>
+
+        <div class="vl-main">
+            <div class="vl-loading" id="vl-loading"><i class="fas fa-spinner fa-spin"></i> Cargando tu espacio...</div>
+
+            <div id="vl-content" style="display:none;">
+                <div class="vl-workspace-head">
+                    <h1><i class="fas fa-store"></i> <span id="vl-nombre">—</span></h1>
+                    <span class="vl-pill" id="vl-plan"><i class="fas fa-circle-notch fa-spin"></i></span>
+                </div>
+
+                <div class="vl-placeholder">
+                    <div class="vl-placeholder-icon"><i class="fas fa-bolt"></i></div>
+                    <h2>Estamos preparando tu espacio de Ventas Live</h2>
+                    <p>Muy pronto vas a poder conectar WhatsApp a tu web para atender y vender en vivo, con todo lo que necesitas para no perder ninguna venta.</p>
+                    <ul class="vl-soon">
+                        <li><i class="fas fa-whatsapp"></i> Conexión de WhatsApp a tu web <span class="tag-soon">Próximamente</span></li>
+                        <li><i class="fas fa-comments"></i> Atención y ventas en vivo <span class="tag-soon">Próximamente</span></li>
+                        <li><i class="fas fa-chart-line"></i> Historial de tus ventas <span class="tag-soon">Próximamente</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="dist/app.js?v=65"></script>
+    <script defer src="dist/legacy.js?v=65"></script>
+</body>
+</html>

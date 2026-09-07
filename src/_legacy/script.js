@@ -4992,8 +4992,8 @@ async function verificarProteccionRutas() {
                     console.log('Sesión activa como superadmin, redirigiendo a superadmin');
                     window.location.href = 'superadmin.html';
                 } else if (session.rol === 'admin') {
-                    console.log('Sesión activa como admin, redirigiendo a admin');
-                    window.location.href = 'admin.html';
+                    console.log('Sesión activa como admin, redirigiendo al hub de proyectos');
+                    window.location.href = 'hub.html';
                 } else {
                     console.log('Sesión activa como cliente, redirigiendo a cliente');
                     window.location.href = 'cliente.html';
@@ -5800,12 +5800,20 @@ async function cargarTenants() {
     const container = document.getElementById('tenants-list');
     if (!container) return;
 
-    // Regla de negocio (2026-08): un tenant SOLO es visible en superadmin si
-    // tiene una suscripción VIGENTE (free_trial/pro/premium_anual/freemium en
-    // status active/trial). Los registros sin trial ni pago confirmado no
-    // aparecen (información no verídica).
+    // Regla de negocio (2026-08): un tenant de RESERVAS solo es visible en
+    // superadmin si tiene una suscripción VIGENTE (free_trial/pro/premium_anual/
+    // freemium en status active/trial). Los registros sin trial ni pago
+    // confirmado no aparecen (información no verídica).
+    // (2026-10) Los workspaces de VENTAS LIVE (proyecto='ventas_live') se
+    // muestran siempre que estén activos: hoy son gratuitos (vl_free en
+    // 'inactive' por diseño, igual que el freemium de reservas) y el
+    // superadmin debe poder verlos.
     const PLANES_VISIBLES = ['free_trial', 'pro', 'premium_anual', 'freemium'];
     const STATUS_VISIBLES = ['active', 'trial'];
+    const PROYECTO_DISPLAY = {
+        reservas: 'Reservas de Pymes',
+        ventas_live: 'Ventas Live'
+    };
 
     try {
         const { data: tenants, error } = await supabaseClient
@@ -5818,9 +5826,10 @@ async function cargarTenants() {
         
         if (error) throw error;
         const visibles = (tenants || []).filter(t =>
-            (t.subscriptions || []).some(s =>
+            (t.proyecto === 'ventas_live' && t.estado !== 'inactivo')
+            || (t.proyecto !== 'ventas_live' && (t.subscriptions || []).some(s =>
                 PLANES_VISIBLES.includes(s.plan) && STATUS_VISIBLES.includes(s.status)
-            )
+            ))
         );
         if (visibles.length === 0) {
             container.innerHTML = '<p>No hay tenants con suscripción activa (trial o plan pagado).</p>';
@@ -5831,7 +5840,8 @@ async function cargarTenants() {
             'freemium': 'Freemium',
             'free_trial': 'Free Trial',
             'pro': 'Pro',
-            'premium_anual': 'Premium'
+            'premium_anual': 'Premium',
+            'vl_free': 'Gratis'
         };
         
         let html = '';
@@ -5866,7 +5876,10 @@ async function cargarTenants() {
                     ${!activo ? '<div style="position:absolute;top:8px;right:8px;background:#e74c3c;color:#fff;padding:2px 10px;border-radius:4px;font-size:0.75rem;font-weight:600;">DESACTIVADO</div>' : ''}
                     <div class="tenant-header">
                         <h4>${escapeHtml(t.nombre_negocio)}</h4>
-                        <span class="badge ${planKey}">${planDisplay}</span>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+                            <span style="font-size:0.68rem;padding:2px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.25);color:#ced4da;background:rgba(255,255,255,0.05);white-space:nowrap;"><i class="fas fa-th-large"></i> ${PROYECTO_DISPLAY[t.proyecto] || 'Reservas de Pymes'}</span>
+                            <span class="badge ${planKey}">${planDisplay}</span>
+                        </div>
                     </div>
                     <p><i class="fas fa-envelope"></i> ${escapeHtml(t.email_contacto || 'N/A')}</p>
                     <p><i class="fas fa-calendar"></i> Registro: ${new Date(t.fecha_registro).toLocaleDateString()}</p>
@@ -6199,6 +6212,7 @@ function renderUsuarios(users) {
 // CONFIGURACIÓN MODAL TENANT - VERSIÓN CORREGIDA
 // ============================================
 let modalTenantInitialized = false;
+let proyectoSelChangeBound = false;
 
 function configurarModalTenant() {
     const modal = document.getElementById('tenant-modal');
@@ -6258,10 +6272,30 @@ function configurarModalTenant() {
             document.getElementById('tenant-email').value = '';
             document.getElementById('tenant-plan').value = 'freemium';
             document.getElementById('tenant-estado').value = 'activo';
+            const proyectoSel = document.getElementById('tenant-proyecto');
+            if (proyectoSel) {
+                proyectoSel.value = 'reservas';
+                proyectoSel.disabled = false; // al crear se puede elegir proyecto
+            }
             modal.style.display = 'flex';
         };
         btnNew._listener = abrirNuevo;
         btnNew.addEventListener('click', btnNew._listener);
+    }
+
+    // Al elegir "Ventas Live" en un tenant NUEVO, el plan pasa a vl_free solo
+    if (btnNew && !proyectoSelChangeBound) {
+        const pSel = document.getElementById('tenant-proyecto');
+        if (pSel) {
+            pSel.addEventListener('change', () => {
+                const editando = document.getElementById('tenant-id').value;
+                if (!editando && pSel.value === 'ventas_live') {
+                    const planSel = document.getElementById('tenant-plan');
+                    if (planSel) planSel.value = 'vl_free';
+                }
+            });
+        }
+        proyectoSelChangeBound = true;
     }
 
     // Manejo del botón Guardar (type="button" — no hay submit del form)
@@ -6281,6 +6315,15 @@ function configurarModalTenant() {
                 plan: document.getElementById('tenant-plan').value,
                 estado: document.getElementById('tenant-estado').value
             };
+            // Proyecto solo al CREAR (el workspace no se mueve entre proyectos
+            // al editar: cambiaría el alcance de sus datos y suscripción).
+            const proyectoSel = document.getElementById('tenant-proyecto');
+            if (!id && proyectoSel && proyectoSel.value) {
+                data.proyecto = proyectoSel.value;
+            }
+            // Un workspace de Ventas Live NO sincroniza plan con la lógica de
+            // reservas (sus planes se gestionan aparte cuando existan precios).
+            const esVl = !!(proyectoSel && proyectoSel.value === 'ventas_live');
 
             let result;
             try {
@@ -6316,7 +6359,8 @@ function configurarModalTenant() {
                 mostrarToast('Error: ' + (result.error.message || 'Error desconocido'), 'error');
             } else {
                 // Si se cambió el plan, sincronizar también la suscripción activa
-                if (id && data.plan) {
+                // (solo proyectos de reservas; Ventas Live gestiona sus planes aparte)
+                if (id && data.plan && !esVl) {
                     try {
                         // Buscar suscripción activa existente
                         const { data: existingSubs } = await supabaseClient
@@ -6393,6 +6437,22 @@ async function editarTenant(id) {
         document.getElementById('tenant-email').value = data.email_contacto;
         document.getElementById('tenant-plan').value = data.plan;
         document.getElementById('tenant-estado').value = data.estado;
+        const proyectoSel = document.getElementById('tenant-proyecto');
+        if (proyectoSel) {
+            proyectoSel.value = data.proyecto || 'reservas';
+            proyectoSel.disabled = true; // el proyecto no se cambia al editar
+        }
+        const planSel = document.getElementById('tenant-plan');
+        if (planSel) {
+            const esEdicionVl = (data.proyecto || 'reservas') === 'ventas_live';
+            if (esEdicionVl) {
+                planSel.value = 'vl_free'; // el plan vl se gestiona aparte
+                planSel.disabled = true;
+            } else {
+                planSel.value = data.plan;
+                planSel.disabled = false;
+            }
+        }
         modal.style.display = 'flex';
     }
 }

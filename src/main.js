@@ -173,6 +173,8 @@ async function syncJwtSession() {
         const esPlanes = document.getElementById('planes-container');
         const esTrabajador = document.querySelector('.worker-portal-body');
         const esInfoCliente = document.querySelector('.info-cliente-body');
+        const esHub = document.querySelector('.hub-screen');
+        const esVentasLive = document.querySelector('.ventas-live-screen');
 
         if (esLogin && !esPlanes) {
             try {
@@ -350,6 +352,27 @@ async function syncJwtSession() {
                 console.log('[main.js] Vista info compartida iniciada');
             } catch (e) {
                 console.warn('[main.js] InfoClienteView no disponible:', e.message);
+            }
+        }
+
+        if (esHub) {
+            try {
+                const { initHub, initHubModalEvents } = await import('./projects/ui/HubView.js');
+                initHub();
+                initHubModalEvents();
+                console.log('[main.js] Hub de proyectos iniciado');
+            } catch (e) {
+                console.warn('[main.js] HubView no disponible:', e.message);
+            }
+        }
+
+        if (esVentasLive) {
+            try {
+                const { initVentasLive } = await import('./ventas-live/ui/VentasLiveView.js');
+                initVentasLive();
+                console.log('[main.js] VentasLiveView iniciado');
+            } catch (e) {
+                console.warn('[main.js] VentasLiveView no disponible:', e.message);
             }
         }
 
