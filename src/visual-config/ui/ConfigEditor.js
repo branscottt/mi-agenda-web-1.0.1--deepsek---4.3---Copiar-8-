@@ -62,9 +62,18 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
             </div>
 
+            <!-- Ver cómo queda (móvil/tablet: abre la vitrina en overlay) -->
+            <button type="button" id="cfg-vitrina-btn" class="cfg-vitrina-btn">
+                <i class="fas fa-mobile-alt"></i> Ver cómo queda
+            </button>
+
+            <div class="config-layout">
+            <div class="config-controls">
+
             <!-- PASO 0: DATOS DEL NEGOCIO (nombre editable con límite anti-abuso) -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-store"></i> 0. Datos del Negocio</h4>
+                <p class="config-section-tagline">El nombre que ven tus clientes cuando reservan y en el directorio.</p>
                 <p class="field-hint" style="margin-bottom:10px;">El nombre aparece en la vista de tus clientes y en el Directorio Público. Si te registraste con Google, aquí puedes corregir el nombre automático (prefijo de tu email).</p>
                 <div class="input-with-label">
                     <label><i class="fas fa-tag"></i> Nombre del negocio</label>
@@ -81,6 +90,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 1: TEMAS RÁPIDOS -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-paint-roller"></i> 1. Temas Rápidos</h4>
+                <p class="config-section-tagline">Prueba looks completos al instante, sin tocar nada más.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Selecciona un tema para previsualizarlo al instante. Todos los colores se ajustarán automáticamente.</p>
                 <div class="temas-grid" id="temas-grid">
                     ${Object.entries(TEMAS_PREDEFINIDOS).map(([key, t]) => `
@@ -95,6 +105,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 2: COLORES -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-fill-drip"></i> 2. Colores</h4>
+                <p class="config-section-tagline">Cada color se ve en vivo mientras lo eliges.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Ajusta los colores principales de tu negocio. Cada color se aplica en tiempo real.</p>
                 <div class="config-grid">
                     <div class="color-swatch">
@@ -133,6 +144,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 3: LOGO -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-image"></i> 3. Logo</h4>
+                <p class="config-section-tagline">Tu marca en tu página y en tu tarjeta del directorio.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Sube el logo de tu negocio. Aparecerá en la vista de tus clientes.</p>
                 <div class="logo-input-row">
                     <input type="url" id="cfg-logo" class="config-input" value="${escapeAttr(config.logo_url || '')}" placeholder="https://ejemplo.com/logo.png" style="flex:1;">
@@ -155,6 +167,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 4: PORTADA / BANNER -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-panorama"></i> 4. Portada / Banner</h4>
+                <p class="config-section-tagline">La primera imagen que ven al entrar a tu página.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Imagen de portada que se muestra en la parte superior de tu perfil.</p>
                 <div class="logo-input-row">
                     <input type="url" id="cfg-cover" class="config-input" value="${escapeAttr(config.cover_url || '')}" placeholder="https://ejemplo.com/portada.jpg" style="flex:1;">
@@ -177,6 +190,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 5: REDES SOCIALES -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-share-alt"></i> 5. Redes Sociales</h4>
+                <p class="config-section-tagline">Que te sigan con un toque desde tu página.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Agrega los enlaces a tus redes sociales para que tus clientes puedan ver tus trabajos desde la sección "Mis Reservas".</p>
                 <div class="form-row two-cols">
                     <div class="input-with-label">
@@ -195,6 +209,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 6: UBICACIÓN DE LA PYME -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-map-marker-alt"></i> 6. Ubicación de tu negocio</h4>
+                <p class="config-section-tagline">Que lleguen sin preguntar: dirección y mapa en tu página.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Elige cómo funciona tu pyme: si tus clientes vienen a tu local, muestra tu ubicación con un mapa; si tú llevas el servicio al domicilio del cliente, pídele su dirección al reservar.</p>
                 <div class="ubicacion-opciones">
                     <label class="ubicacion-option">
@@ -222,6 +237,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             <!-- PASO 7: DIRECTORIO PÚBLICO Y RESEÑAS -->
             <div class="config-section">
                 <h4 class="config-section-title"><i class="fas fa-store"></i> 7. Directorio Público y Reseñas <span id="cfg-directorio-badge" class="cfg-directorio-badge" style="display:none;"></span></h4>
+                <p class="config-section-tagline">Que clientes nuevos te encuentren sin conocerte.</p>
                 <p class="field-hint" style="margin-bottom:10px;">Aparece en la página de inicio junto a otras pymes para que nuevos clientes te descubran y reserven contigo. Disponible en planes <strong>Pro, Premium Anual y Freemium</strong>.</p>
 
                 <label class="directorio-switch">
@@ -310,6 +326,20 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                     </button>
                 </div>
             </div>
+            </div><!-- /config-controls -->
+
+            <!-- VITRINA EN VIVO: cómo ven tus clientes tu página -->
+            <aside class="config-vitrina" aria-label="Vista previa: así ven tus clientes tu página">
+                <div class="config-vitrina-inner">
+                    <div class="config-vitrina-head">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>Así la ven tus clientes</span>
+                    </div>
+                    <div id="cfg-vitrina" class="cfg-vitrina"></div>
+                    <p class="config-vitrina-foot"><i class="fas fa-info-circle"></i> Cambia algo arriba y míralo aquí. Nada se publica hasta que tocas <strong>Guardar Cambios</strong>.</p>
+                </div>
+            </aside>
+            </div><!-- /config-layout -->
         </div>
     `;
 
@@ -549,6 +579,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 await subirFotoDirectorio(file);
             }
             renderFotosDirectorio();
+            actualizarVitrina();
         });
     }
 
@@ -561,9 +592,288 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             if (!Number.isNaN(idx) && _fotosDirectorio[idx]) {
                 _fotosDirectorio.splice(idx, 1);
                 renderFotosDirectorio();
+                actualizarVitrina();
             }
         });
     }
+
+    // --- VITRINA EN VIVO: el formulario se refleja en la maqueta de celular ---
+    actualizarVitrina();
+    if (!container.dataset.vitrinaBound) {
+        container.dataset.vitrinaBound = '1';
+        const refrescoVitrina = debounceVitrina(actualizarVitrina, 250);
+        container.addEventListener('input', refrescoVitrina);
+        container.addEventListener('change', refrescoVitrina);
+    }
+    document.getElementById('cfg-vitrina-btn')?.addEventListener('click', abrirVitrinaOverlay);
+}
+
+// ============================================================
+// VITRINA EN VIVO (maqueta de celular con la página pública)
+// ============================================================
+
+function debounceVitrina(fn, ms) {
+    let t = null;
+    return (...args) => {
+        if (t) clearTimeout(t);
+        t = setTimeout(() => { t = null; fn(...args); }, ms);
+    };
+}
+
+function nombreNegocioActual() {
+    const input = document.getElementById('cfg-nombre-negocio');
+    const valor = input && input.value ? input.value.trim() : '';
+    if (valor) return valor;
+    return _tenantData && _tenantData.nombre_negocio ? String(_tenantData.nombre_negocio) : 'Tu negocio';
+}
+
+function categoriaNombreDirectorio(categoriaId) {
+    if (!categoriaId) return '';
+    const cat = CATEGORIAS_DIRECTORIO.find(c => c.id === categoriaId);
+    return cat ? cat.nombre : '';
+}
+
+/** Lista de lo que falta para que la tarjeta del directorio luzca completa. */
+function faltantesTarjetaDirectorio(cfg) {
+    const faltantes = [];
+    if (!(cfg.logo_url || '').trim()) faltantes.push('el logo');
+    if (!cfg.directorio_categoria) faltantes.push('el rubro');
+    if (cfg.ubicacion_tipo === 'local' && !(cfg.direccion || '').trim()) faltantes.push('la dirección');
+    if (!(cfg.directorio_fotos || []).filter(Boolean).length && !(cfg.logo_url || '').trim()) faltantes.push('una foto');
+    return faltantes;
+}
+
+function renderVitrinaHtml(cfg) {
+    const nombre = nombreNegocioActual();
+    const tieneLocal = cfg.ubicacion_tipo === 'local';
+    const direccion = (cfg.direccion || '').trim();
+    const logoUrl = (cfg.logo_url || '').trim();
+    const coverUrl = (cfg.cover_url || '').trim();
+    const sinLogo = !logoUrl;
+    const tieneRedes = Boolean((cfg.instagram_url || '').trim() || (cfg.tiktok_url || '').trim());
+    const categoria = categoriaNombreDirectorio(cfg.directorio_categoria);
+    const tipoPyme = (cfg.directorio_tipo_pyme || '').trim();
+    const fotosDir = (Array.isArray(cfg.directorio_fotos) ? cfg.directorio_fotos : []).filter(Boolean);
+    const portadaDir = fotosDir[0] || logoUrl || '';
+    const dirActivo = cfg.directorio_activo === true;
+    const faltantes = faltantesTarjetaDirectorio(cfg);
+
+    let redesHtml = '';
+    if ((cfg.instagram_url || '').trim()) {
+        redesHtml += `<a class="pv-red" href="${escapeAttr(cfg.instagram_url.trim())}" target="_blank" rel="noopener noreferrer" title="Instagram"><i class="fab fa-instagram"></i></a>`;
+    }
+    if ((cfg.tiktok_url || '').trim()) {
+        redesHtml += `<a class="pv-red" href="${escapeAttr(cfg.tiktok_url.trim())}" target="_blank" rel="noopener noreferrer" title="TikTok"><i class="fab fa-tiktok"></i></a>`;
+    }
+
+    let ubicacionHtml = '';
+    if (tieneLocal) {
+        ubicacionHtml = direccion
+            ? `<div class="pv-card">
+                    <div class="pv-card-titulo"><i class="fas fa-map-marker-alt"></i> Cómo llegar</div>
+                    <div class="pv-mapa-slot"></div>
+                    <a class="pv-btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccion)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-directions"></i> Cómo llegar</a>
+                </div>`
+            : `<button type="button" class="pv-ghost pv-ghost-block" data-ghost="direccion" title="Escribe tu dirección en el paso 6">
+                    <i class="fas fa-map-marked-alt"></i> Aquí iría el mapa con tu dirección
+                    <small>Toca para escribirla</small>
+                </button>`;
+    } else if (cfg.ubicacion_tipo === 'domicilio') {
+        ubicacionHtml = `<div class="pv-card pv-card-muted"><i class="fas fa-truck"></i> Atiendes a domicilio: tus clientes te escriben su dirección al reservar.</div>`;
+    } else {
+        ubicacionHtml = `<button type="button" class="pv-ghost pv-ghost-block" data-ghost="ubicacion" title="Elige cómo atiendes en el paso 6">
+                <i class="fas fa-store"></i> ¿Dónde te encuentra la gente?
+                <small>Local o a domicilio: se ve en tu página</small>
+            </button>`;
+    }
+
+    let directorioHtml;
+    if (!dirActivo) {
+        directorioHtml = `<button type="button" class="pv-ghost pv-dir-lock" data-ghost="directorio" title="Actívalo en el paso 7">
+                <i class="fas fa-lock"></i> Aparece en el directorio
+                <small>Completa logo, rubro y ubicación y actívalo en el paso 7</small>
+            </button>`;
+    } else {
+        const aviso = faltantes.length
+            ? `<div class="pv-dir-nota"><i class="fas fa-info-circle"></i> Ya estás en el directorio. Para que tu tarjeta luzca completa falta: ${escapeHtml(faltantes.join(', '))}.</div>`
+            : `<div class="pv-dir-ok"><i class="fas fa-check-circle"></i> ¡Apareces en el directorio!</div>`;
+        directorioHtml = `${aviso}
+            <div class="pv-dir-card">
+                ${portadaDir ? `<div class="pv-dir-card-img"><img class="pv-img" src="${escapeAttr(portadaDir)}" alt=""></div>` : ''}
+                <div class="pv-dir-card-body">
+                    <strong>${escapeHtml(nombre)}</strong>
+                    <span>${escapeHtml(tipoPyme || categoria || 'Pyme')}</span>
+                    ${tieneLocal && direccion ? `<small><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccion)}</small>` : ''}
+                    <span class="pv-btn pv-btn-mini">Reservar hora</span>
+                </div>
+            </div>`;
+    }
+
+    return `
+        <div class="pv-phone" style="--pv-primary:${escapeAttr(cfg.primary_color)};--pv-secondary:${escapeAttr(cfg.secondary_color)};--pv-bg:${escapeAttr(cfg.bg_color)};--pv-card:${escapeAttr(cfg.card_bg)};--pv-text:${escapeAttr(cfg.text_color)};--pv-border:${escapeAttr(cfg.border_color)}">
+            <div class="pv-notch"></div>
+            <div class="pv-screen">
+                <div class="pv-cover">
+                    ${coverUrl ? `<img class="pv-img" src="${escapeAttr(coverUrl)}" alt="Portada">` : '<div class="pv-cover-ph"><i class="fas fa-store"></i></div>'}
+                </div>
+                <div class="pv-content">
+                    <div class="pv-brand">
+                        ${sinLogo
+                            ? `<button type="button" class="pv-ghost pv-ghost-logo" data-ghost="logo" title="Sube tu logo en el paso 3"><i class="fas fa-image"></i> Tu logo</button>`
+                            : `<img class="pv-img pv-logo" src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(nombre)}">`}
+                        <div class="pv-brand-txt">
+                            <strong>${escapeHtml(nombre)}</strong>
+                            ${categoria
+                                ? `<span>${escapeHtml(categoria)}</span>`
+                                : `<button type="button" class="pv-ghost pv-ghost-cat" data-ghost="categoria" title="Elige tu rubro en el paso 7"><i class="fas fa-tag"></i> Tu rubro</button>`}
+                        </div>
+                    </div>
+                    <div class="pv-redes">
+                        ${redesHtml}
+                        ${tieneRedes ? '' : `<button type="button" class="pv-ghost pv-ghost-redes" data-ghost="redes" title="Agrega tus redes en el paso 5"><i class="fab fa-instagram"></i> Tus redes</button>`}
+                    </div>
+                    <div class="pv-card">
+                        <div class="pv-card-titulo"><i class="fas fa-calendar-check"></i> Reserva con nosotros</div>
+                        <div class="pv-linea"></div>
+                        <div class="pv-linea corta"></div>
+                        <div class="pv-btn pv-btn-primario"><i class="fas fa-calendar-plus"></i> Reservar hora</div>
+                    </div>
+                    ${ubicacionHtml}
+                    <div class="pv-card pv-dir">${directorioHtml}</div>
+                    <p class="pv-marca">Organify</p>
+                </div>
+            </div>
+        </div>`;
+}
+
+let _mapaIframeNode = null;
+let _mapaIframeDir = '';
+let _vitrinaDirPrevio = null;
+
+/** Oculta imágenes rotas (sin handlers inline: CSP de hashes). */
+function poblarImagenes(cont) {
+    cont.querySelectorAll('img.pv-img').forEach(img => {
+        img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+    });
+}
+
+/** Reutiliza UN iframe de mapa: re-renderizar no lo recarga si la dirección no cambió. */
+function poblarMapa(cont, direccion) {
+    const slot = cont.querySelector('.pv-mapa-slot');
+    if (!slot) return;
+    const dir = (direccion || '').trim();
+    if (dir.length < 6) return;
+    if (_mapaIframeNode && _mapaIframeDir === dir) {
+        slot.appendChild(_mapaIframeNode);
+        return;
+    }
+    const iframe = document.createElement('iframe');
+    iframe.className = 'pv-mapa-frame';
+    iframe.loading = 'lazy';
+    iframe.title = 'Mapa de la dirección del negocio';
+    iframe.src = `https://www.google.com/maps?q=${encodeURIComponent(dir)}&output=embed`;
+    _mapaIframeNode = iframe;
+    _mapaIframeDir = dir;
+    slot.appendChild(iframe);
+}
+
+/** Click en un "fantasma" → lleva al control real y lo resalta. */
+function ghostTargetEl(tipo) {
+    const porId = {
+        logo: 'cfg-logo',
+        cover: 'cfg-cover',
+        redes: 'cfg-instagram',
+        categoria: 'cfg-directorio-categoria',
+        direccion: 'cfg-direccion',
+        directorio: 'cfg-directorio-activo'
+    };
+    if (porId[tipo]) return document.getElementById(porId[tipo]);
+    if (tipo === 'ubicacion') return document.querySelector('input[name="cfg-ubicacion-tipo"]');
+    return null;
+}
+
+function bindGhosts(cont) {
+    cont.querySelectorAll('[data-ghost]').forEach(ghost => {
+        ghost.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const target = ghostTargetEl(ghost.dataset.ghost);
+            if (!target) return;
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const seccion = target.closest('.config-section');
+            if (seccion) {
+                seccion.classList.remove('cfg-flash');
+                void seccion.offsetWidth; // reinicia la animación
+                seccion.classList.add('cfg-flash');
+                setTimeout(() => seccion.classList.remove('cfg-flash'), 2400);
+            }
+            if (typeof target.focus === 'function') {
+                try { target.focus({ preventScroll: true }); } catch (err) { /* no aplica */ }
+            }
+        });
+    });
+}
+
+/** Re-renderiza la maqueta desde el estado REAL del formulario. */
+function actualizarVitrina() {
+    const cont = document.getElementById('cfg-vitrina');
+    if (!cont) return;
+    const cfg = leerConfigForm();
+    const direccion = (cfg.direccion || '').trim();
+    const dirActivo = cfg.directorio_activo === true;
+
+    cont.innerHTML = renderVitrinaHtml(cfg);
+    poblarImagenes(cont);
+    poblarMapa(cont, direccion);
+    bindGhosts(cont);
+
+    if (_vitrinaDirPrevio === null) {
+        _vitrinaDirPrevio = dirActivo; // primera vez: sin celebración al abrir
+    } else if (dirActivo && !_vitrinaDirPrevio) {
+        const dirCard = cont.querySelector('.pv-dir');
+        if (dirCard) {
+            dirCard.classList.add('pv-pop');
+            setTimeout(() => dirCard.classList.remove('pv-pop'), 2400);
+        }
+        mostrarToast('🎉 ¡Tu negocio ya aparece en el Directorio Público!', 'success');
+    }
+    _vitrinaDirPrevio = dirActivo;
+}
+
+// --- Overlay para móvil/tablet (el aside solo se ve en pantallas anchas) ---
+
+function abrirVitrinaOverlay() {
+    cerrarVitrinaOverlay();
+    const cont = document.getElementById('cfg-vitrina');
+    if (!cont) return;
+    // Recordar el contenedor original (aside) para devolverlo al cerrar.
+    cont.__vitrinaOrigen = cont.parentNode;
+    const overlay = document.createElement('div');
+    overlay.className = 'cfg-vitrina-overlay';
+    overlay.innerHTML = `
+        <div class="cfg-vitrina-modal">
+            <header class="cfg-vitrina-modal-head">
+                <strong><i class="fas fa-mobile-alt"></i> Así la ven tus clientes</strong>
+                <button type="button" id="cfg-vitrina-cerrar" title="Cerrar" aria-label="Cerrar vista previa">&times;</button>
+            </header>
+            <div class="cfg-vitrina-modal-body"></div>
+        </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.cfg-vitrina-modal-body').appendChild(cont);
+    actualizarVitrina();
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrarVitrinaOverlay(); });
+    document.getElementById('cfg-vitrina-cerrar')?.addEventListener('click', cerrarVitrinaOverlay);
+}
+
+function cerrarVitrinaOverlay() {
+    const overlay = document.querySelector('.cfg-vitrina-overlay');
+    if (!overlay) return;
+    const body = overlay.querySelector('.cfg-vitrina-modal-body');
+    const cont = body && body.firstElementChild;
+    const origen = (cont && cont.__vitrinaOrigen) || document.querySelector('.config-vitrina .cfg-vitrina');
+    if (cont && origen && cont !== origen) origen.appendChild(cont);
+    overlay.remove();
+    actualizarVitrina();
 }
 
 // ============================================================

@@ -150,11 +150,15 @@ export async function deleteList(id) {
 // ========== COMPARTIR CON EL CLIENTE ==========
 
 /**
- * Resumen del contenido compartido por cliente (para Mis Clientes):
- * boards del tenant + cantidad de listas con compartida=true.
- * Devuelve: [{ cliente_email, board_id, token_compartido, listas_compartidas }]
+ * Resumen del contenido guardado en la ficha (tablero kanban) de cada
+ * cliente del tenant, para los badges de "Mis Clientes". Una sola pasada
+ * encadenada boards → listas → tarjetas → adjuntos (mismo patrón de
+ * getResumenCompartido, sin RPC nueva).
+ * Devuelve por board: { cliente_email, board_id, token_compartido,
+ *   listas_compartidas, n_listas, n_cards, n_adjuntos, n_fotos }
+ * (n_fotos = adjuntos cuyo tipo_mime es image/*).
  */
-export async function getResumenCompartido(tenantId) {
+export async function getResumenFichas(tenantId) {
     const supabase = getSupabase();
     if (!tenantId) return [];
 
@@ -168,19 +172,79 @@ export async function getResumenCompartido(tenantId) {
     const boardIds = boards.map(b => b.id);
     const { data: listas, error: errListas } = await supabase
         .from('kanban_lists')
-        .select('board_id')
-        .in('board_id', boardIds)
-        .eq('compartida', true);
+        .select('id, board_id, compartida')
+        .in('board_id', boardIds);
     if (errListas) throw errListas;
 
-    const contador = {};
-    (listas || []).forEach(l => { contador[l.board_id] = (contador[l.board_id] || 0) + 1; });
+    const boardDeLista = {};
+    (listas || []).forEach(l => { boardDeLista[l.id] = l.board_id; });
+    const listIds = (listas || []).map(l => l.id);
+
+    let cards = [];
+    if (listIds.length) {
+        const { data, error } = await supabase
+            .from('kanban_cards')
+            .select('id, list_id')
+            .in('list_id', listIds);
+        if (error) throw error;
+        cards = data || [];
+    }
+
+    const boardDeCard = {};
+    cards.forEach(c => { boardDeCard[c.id] = boardDeLista[c.list_id]; });
+    const cardIds = cards.map(c => c.id);
+
+    let adjuntos = [];
+    if (cardIds.length) {
+        const { data, error } = await supabase
+            .from('kanban_attachments')
+            .select('id, card_id, tipo_mime')
+            .in('card_id', cardIds);
+        if (error) throw error;
+        adjuntos = data || [];
+    }
+
+    const resumen = {};
+    boards.forEach(b => {
+        resumen[b.id] = { listas_compartidas: 0, n_listas: 0, n_cards: 0, n_adjuntos: 0, n_fotos: 0 };
+    });
+    (listas || []).forEach(l => {
+        const acc = resumen[l.board_id];
+        if (!acc) return;
+        acc.n_listas++;
+        if (l.compartida === true) acc.listas_compartidas++;
+    });
+    cards.forEach(c => {
+        const acc = resumen[boardDeCard[c.id]];
+        if (acc) acc.n_cards++;
+    });
+    adjuntos.forEach(a => {
+        const acc = resumen[boardDeCard[a.card_id]];
+        if (!acc) return;
+        acc.n_adjuntos++;
+        if ((a.tipo_mime || '').startsWith('image/')) acc.n_fotos++;
+    });
 
     return boards.map(b => ({
         cliente_email: (b.cliente_email || '').toLowerCase(),
         board_id: b.id,
         token_compartido: b.token_compartido,
-        listas_compartidas: contador[b.id] || 0
+        ...resumen[b.id]
+    }));
+}
+
+/**
+ * Resumen del contenido compartido por cliente (para Mis Clientes):
+ * boards del tenant + cantidad de listas con compartida=true.
+ * Devuelve: [{ cliente_email, board_id, token_compartido, listas_compartidas }]
+ */
+export async function getResumenCompartido(tenantId) {
+    const fichas = await getResumenFichas(tenantId);
+    return fichas.map(f => ({
+        cliente_email: f.cliente_email,
+        board_id: f.board_id,
+        token_compartido: f.token_compartido,
+        listas_compartidas: f.listas_compartidas
     }));
 }
 

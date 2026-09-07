@@ -165,8 +165,9 @@ let filtroActual = '';
 let mapaServicios = {};
 // Permiso de etiquetas de pago para trabajadores (master + lista blanca)
 let permisoEtiquetas = { permitir: false, trabajadores: [], trabajadoresLista: [] };
-// Resumen de contenido compartido por cliente: { email -> { board_id, token_compartido, listas_compartidas } }
-let compartidasPorEmail = {};
+// Resumen de la ficha (tablero) de cada cliente: { email -> { board_id, token_compartido,
+// listas_compartidas, n_listas, n_cards, n_adjuntos, n_fotos } }
+let fichasPorEmail = {};
 
 export async function renderClientListView(containerId = 'clientes-list-container') {
     const container = document.getElementById(containerId);
@@ -190,7 +191,7 @@ export async function renderClientListView(containerId = 'clientes-list-containe
                 .from('clientes_manuales')
                 .select('id, tenant_id, nombre, telefono, email, direccion, creado_en')
                 .eq('tenant_id', tenantId),
-            kanbanApi.getResumenCompartido(tenantId)
+            kanbanApi.getResumenFichas(tenantId)
         ]);
 
         // 1) Permiso de etiquetas de pago para trabajadores (master + lista blanca)
@@ -250,14 +251,14 @@ export async function renderClientListView(containerId = 'clientes-list-containe
         }
         fusionarClientesManuales(manuales);
 
-        // 6) Qué listas comparte el admin con cada cliente (para el botón de
-        // "Enviar información por WhatsApp" y el chip en la card).
-        compartidasPorEmail = {};
+        // 6) Resumen de la ficha de cada cliente: listas compartidas (chip + botón
+        // WhatsApp) y contenido guardado (tarjetas, fotos, archivos → badges).
+        fichasPorEmail = {};
         try {
             const resumen = rResumen.status === 'fulfilled' ? (rResumen.value || []) : [];
-            resumen.forEach(r => { compartidasPorEmail[r.cliente_email] = r; });
+            resumen.forEach(r => { fichasPorEmail[r.cliente_email] = r; });
         } catch (e) {
-            console.warn('[ClientListView] No se pudo leer listas compartidas:', e);
+            console.warn('[ClientListView] No se pudo leer el resumen de fichas:', e);
         }
 
         renderLista(container);
@@ -320,6 +321,7 @@ function renderLista(container) {
         <p style="color:var(--text-muted);font-size:0.78rem;margin:-8px 0 14px;">
             <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar. Los clientes que agregas manualmente se conservan hasta que tú los borres.
         </p>
+        ${renderHintFicha()}
         ${renderHelpBanner()}
         <div class="clientes-grid" id="clientes-grid">
             ${renderGridHtml(filtrados)}
@@ -332,6 +334,7 @@ function renderLista(container) {
     bindExport(container);
     bindAgregarCliente(container);
     bindHelpToggle(container);
+    bindHintFicha(container);
     bindTogglePermisoEtiquetas(container);
     bindHistorialButtons(container);
     bindClienteCards(container);
@@ -347,10 +350,10 @@ function renderHelpBanner() {
     try {
         const pref = localStorage.getItem('mis_clientes_help_visible');
         if (pref === null) {
-            // En pantallas chicas el banner (≈600px) entierra las tarjetas:
-            // primera visita en móvil = plegado. El usuario puede abrirlo y
-            // su preferencia queda guardada como siempre.
-            visible = !window.matchMedia('(max-width: 768px)').matches;
+            // Primera visita: plegado en todos los tamaños. El aviso de una
+            // línea (renderHintFicha) hace el descubrimiento; el detalle
+            // completo queda a un toque para quien lo quiera.
+            visible = false;
         } else {
             visible = pref !== '0';
         }
@@ -392,10 +395,65 @@ function bindHelpToggle(container) {
     });
 }
 
+/**
+ * Aviso de descubrimiento de la ficha: una línea que aparece la primera
+ * vez que el admin ve la lista con clientes y no vuelve a mostrarse
+ * (se marca al cerrarla). Es el empujón para tocar una tarjeta.
+ */
+const HINT_FICHA_KEY = 'mis_clientes_hint_ficha_visto';
+
+function renderHintFicha() {
+    let visto = false;
+    try { visto = localStorage.getItem(HINT_FICHA_KEY) === '1'; } catch (e) { /* sin almacenamiento */ }
+    if (visto) return '';
+    return `
+        <div class="clientes-hint-once" id="clientes-hint-once">
+            <i class="fas fa-hand-pointer"></i>
+            <span><strong>Toca a un cliente:</strong> su ficha guarda fotos, archivos y todo lo que le compartes.</span>
+            <button type="button" id="clientes-hint-cerrar" title="Entendido" aria-label="Cerrar aviso">&times;</button>
+        </div>
+    `;
+}
+
+function bindHintFicha(container) {
+    const btn = document.getElementById('clientes-hint-cerrar');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        try { localStorage.setItem(HINT_FICHA_KEY, '1'); } catch (e) { /* sin almacenamiento */ }
+        const hint = document.getElementById('clientes-hint-once');
+        if (hint) hint.remove();
+    });
+}
+
 function textoPermisoEtiquetas() {
     if (!permisoEtiquetas.permitir) return 'Desactivadas';
     if (permisoEtiquetas.trabajadores.length) return `${permisoEtiquetas.trabajadores.length} trabajador(es)`;
     return 'Todos los trabajadores';
+}
+
+/**
+ * Mini-badges del contenido guardado en la ficha del cliente (solo se
+ * muestran cuando hay algo: un cliente recién creado se ve simple, uno
+ * "trabajado" delata que adentro hay más). Fotos y archivos se cuentan
+ * por separado para no duplicar (n_fotos ⊂ n_adjuntos).
+ */
+function renderBadgesFicha(fichas) {
+    if (!fichas) return '';
+    const nFotos = fichas.n_fotos || 0;
+    const nDocs = (fichas.n_adjuntos || 0) - nFotos;
+    const nCards = fichas.n_cards || 0;
+    if (!nFotos && !nDocs && !nCards) return '';
+    const badges = [];
+    if (nFotos) {
+        badges.push(`<span class="cliente-ficha-badge cfb-foto" title="Fotos guardadas en su ficha"><i class="fas fa-image"></i> ${nFotos} foto${nFotos !== 1 ? 's' : ''}</span>`);
+    }
+    if (nDocs) {
+        badges.push(`<span class="cliente-ficha-badge cfb-archivo" title="Archivos en su ficha: PDF, Word, Excel y más"><i class="fas fa-paperclip"></i> ${nDocs} archivo${nDocs !== 1 ? 's' : ''}</span>`);
+    }
+    if (nCards) {
+        badges.push(`<span class="cliente-ficha-badge cfb-nota" title="Tarjetas en su tablero: notas, seguimientos y tareas"><i class="fas fa-sticky-note"></i> ${nCards} nota${nCards !== 1 ? 's' : ''}</span>`);
+    }
+    return `<div class="cliente-ficha-badges">${badges.join('')}</div>`;
 }
 
 function renderGridHtml(filtrados) {
@@ -406,10 +464,11 @@ function renderGridHtml(filtrados) {
             .filter(c => c.fecha >= hoyLocal)
             .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
 
-        // Información compartida con este cliente (botón WhatsApp / copiar enlace)
-        const comp = compartidasPorEmail[cl.email] || null;
-        const nComp = comp ? comp.listas_compartidas : 0;
-        const enlaceComp = (nComp > 0 && comp.token_compartido) ? kanbanApi.buildEnlaceCompartido(comp.token_compartido) : '';
+        // Contenido guardado en la ficha de este cliente (badges) + listas
+        // compartidas (botón WhatsApp / copiar enlace)
+        const fichas = fichasPorEmail[cl.email] || null;
+        const nComp = fichas ? fichas.listas_compartidas : 0;
+        const enlaceComp = (nComp > 0 && fichas.token_compartido) ? kanbanApi.buildEnlaceCompartido(fichas.token_compartido) : '';
 
         html += `
             <div class="cliente-card glass-panel cliente-card-clickable" data-email="${escapeHtml(cl.email)}" title="Clic para abrir el tablero del cliente: guarda notas, datos, archivos y estado de pago">
@@ -441,6 +500,7 @@ function renderGridHtml(filtrados) {
                             : `<span><i class="fas fa-user-plus"></i> Agregado: ${formatFechaCorta(cl.creadoEn)}</span>`}
                         ${proxCita ? `<span class="proxima-cita"><i class="fas fa-calendar-alt"></i> Próxima: ${formatFechaCorta(proxCita.fecha)} ${formatTimeDisplay(proxCita.hora)}</span>` : ''}
                     </div>
+                    ${renderBadgesFicha(fichas)}
                     ${nComp > 0 ? `
                     <div style="margin:4px 0 2px;">
                         <span class="cliente-compartido-chip" title="Listas que este cliente ve a través de su enlace"><i class="fas fa-eye"></i> ${nComp} lista${nComp !== 1 ? 's' : ''} compartida${nComp !== 1 ? 's' : ''}</span>
@@ -578,7 +638,7 @@ function bindClienteCards(container) {
             e.stopPropagation();
             const cl = clientesCache.find(c => c.email.toLowerCase() === btn.dataset.email.toLowerCase());
             if (!cl) return;
-            const comp = compartidasPorEmail[cl.email];
+            const comp = fichasPorEmail[cl.email];
             if (!comp) return;
             try {
                 let token = comp.token_compartido;
