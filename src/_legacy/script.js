@@ -6876,7 +6876,12 @@ async function crearServicio() {
         tipo_venta: camposPromo.tipo_venta,
         precio_individual: parseFloat(precio),
         num_sesiones: camposPromo.num_sesiones,
-        precio_promocion: camposPromo.precio_promocion
+        precio_promocion: camposPromo.precio_promocion,
+        // Modos de asignación avanzada (por día de semana / fecha específica)
+        assignment_mode: _assignmentMode,
+        weekday_modules: _weekdayModules,
+        date_specific_modules: _dateSpecificModules,
+        module_date_cupos: window.moduleDateCupos || {}
     };
 
     try {
@@ -9042,6 +9047,13 @@ function limpiarEstadoEdicion() {
     window.dispatchEvent(new CustomEvent('servicio-modulos-actualizados'));
 }
 window.limpiarEstadoEdicion = limpiarEstadoEdicion;
+
+// Puente para el chat v2 (módulo ES): puebla las excepciones de horario
+// por día de la semana ({ 0-6: [módulos] }) y por fecha ('YYYY-MM-DD').
+window.__svcChatSetAsignacion = (weekday, dateSpecific) => {
+    _weekdayModules = weekday || {};
+    _dateSpecificModules = dateSpecific || {};
+};
 
 /**
  * setAssignmentMode — cambia el modo de asignación de horarios

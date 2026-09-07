@@ -135,6 +135,10 @@ const DIAS_SEMANA = [
     { v: 1, label: 'Lun' }, { v: 2, label: 'Mar' }, { v: 3, label: 'Mié' },
     { v: 4, label: 'Jue' }, { v: 5, label: 'Vie' }, { v: 6, label: 'Sáb' }, { v: 0, label: 'Dom' }
 ];
+const NOMBRES_DIA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const nombreDia = (d) => NOMBRES_DIA[d] || ('Día ' + d);
+// Orden semanal Lun→Dom para listas estables de días.
+const ORDEN_DIAS = [1, 2, 3, 4, 5, 6, 0];
 const MESES_LABEL = { 1: '1 mes', 3: '3 meses', 6: '6 meses', 12: '1 año entero' };
 
 // ============================================================
@@ -298,7 +302,12 @@ function estadoInicial() {
         horaFin: '18:00',
         bloquesModo: 'corridos', // 'corridos'|'elegir'
         bloquesElegidos: null,
-        cupos: 1
+        cupos: 1,
+        // Excepciones de horario (jerarquía fecha > día > general en el legacy):
+        // excepcionesDias: { dia(0-6): [bloques] } | null = sin excepciones
+        excepcionesDias: null,
+        // fechasEspeciales: { 'YYYY-MM-DD': [bloques] } | null = sin fechas especiales
+        fechasEspeciales: null
     };
 }
 
@@ -792,10 +801,10 @@ function pasoHasta() {
     });
 }
 
-function pasoHorario() {
-    _state.paso = 10;
-    burbujaBot(`¿<strong>Entre qué horas</strong> trabajas este servicio?<br>
-        <span class="svcchat-sub">Después eliges si son bloques corridos o los marcas tú (descansos, clases puntuales, etc.).</span>`);
+// ── Reutilizable: rango de horas (selects inicio/fin) ─────────────────────
+// Pregunta entre qué horas se atiende y sigue con alRango(ini, fin).
+function preguntarRangoHoras(tituloHtml, iniDef, finDef, alRango) {
+    burbujaBot(tituloHtml);
     const form = document.createElement('form');
     form.className = 'svcchat-input-row svcchat-horas';
     form.innerHTML = `
@@ -809,13 +818,13 @@ function pasoHorario() {
     for (let h = 5; h <= 22; h++) {
         const v = String(h).padStart(2, '0') + ':00';
         const o = new Option(v, v);
-        if (v === _state.horaInicio) o.selected = true;
+        if (v === iniDef) o.selected = true;
         selIni.appendChild(o);
     }
     for (let h = 6; h <= 23; h++) {
         const v = String(h).padStart(2, '0') + ':00';
         const o = new Option(v, v);
-        if (v === _state.horaFin) o.selected = true;
+        if (v === finDef) o.selected = true;
         selFin.appendChild(o);
     }
     form.addEventListener('submit', (e) => {
@@ -826,48 +835,66 @@ function pasoHorario() {
             burbujaBot(`Necesitas al menos ${_state.duracion} min entre la hora de inicio y la de fin 😉`);
             return;
         }
-        _state.horaInicio = ini;
-        _state.horaFin = fin;
         selIni.disabled = true;
         selFin.disabled = true;
         form.querySelector('button').disabled = true;
         form.classList.add('svcchat-input-usado');
         burbujaUser(`${ini} a ${fin}`);
-        actualizarResumen();
-        pasoBloques();
+        alRango(ini, fin);
     });
     _el.conv.appendChild(form);
     scrollAbajo();
 }
 
-function pasoBloques() {
-    _state.paso = 11;
+// ── Reutilizable: bloques corridos vs elegidos a mano ─────────────────────
+// alFinal({ modo: 'corridos'|'elegir', elegidos: [hh:mm] | null })
+function preguntarTipoBloques(ini, fin, alFinal) {
     const dur = _state.duracion;
-    const candidatas = horasCandidatas(_state.horaInicio, _state.horaFin, dur);
+    const candidatas = horasCandidatas(ini, fin, dur);
     const corridos = candidatas.length;
     burbujaBot(`¿Cómo armamos los <strong>bloques de atención</strong>?<br>
-        <span class="svcchat-sub">Entre ${_state.horaInicio} y ${_state.horaFin}, corridos serían <strong>${corridos} bloques de ${dur} min</strong>. Si tienes descansos o solo atiendes a ciertas horas, elige tú los bloques.</span>`);
+        <span class="svcchat-sub">Entre ${ini} y ${fin}, corridos serían <strong>${corridos} bloques de ${dur} min</strong>. Si tienes descansos o solo atiendes a ciertas horas, elige tú los bloques.</span>`);
     bloqueOpciones([
         { valor: 'corridos', label: `Corridos (${corridos} bloques de ${dur} min)`, rec: true, hint: 'Uno tras otro, sin espacios.' },
         { valor: 'elegir', label: 'Elegir yo los bloques', hint: 'Marca solo las horas que trabajas.' }
     ], (valor) => {
         if (valor === 'elegir') {
-            _state.bloquesModo = 'elegir';
             burbujaUser('Elegir yo los bloques');
-            burbujaBot(`Marca los bloques que trabajas (de ${dur} min, entre ${_state.horaInicio} y ${_state.horaFin}):`);
+            burbujaBot(`Marca los bloques que trabajas (de ${dur} min, entre ${ini} y ${fin}):`);
             bloqueMultiSelect(candidatas.map(h => ({ valor: h, label: h })), (elegidos) => {
-                _state.bloquesElegidos = elegidos.slice().sort();
                 burbujaUser(`${elegidos.length} bloque(s): ${elegidos.join(', ')}`);
-                actualizarResumen();
-                pasoCupos();
+                alFinal({ modo: 'elegir', elegidos });
             }, { errorVacio: 'Marca al menos un bloque 😉' });
+        } else {
+            burbujaUser(`Corridos (${corridos} bloques de ${dur} min)`);
+            alFinal({ modo: 'corridos', elegidos: null });
+        }
+    });
+}
+
+function pasoHorario() {
+    _state.paso = 10;
+    preguntarRangoHoras(`¿<strong>Entre qué horas</strong> trabajas este servicio?<br>
+        <span class="svcchat-sub">Después eliges si son bloques corridos o los marcas tú (descansos, clases puntuales, etc.).</span>`, _state.horaInicio, _state.horaFin, (ini, fin) => {
+        _state.horaInicio = ini;
+        _state.horaFin = fin;
+        actualizarResumen();
+        pasoBloques();
+    });
+}
+
+function pasoBloques() {
+    _state.paso = 11;
+    preguntarTipoBloques(_state.horaInicio, _state.horaFin, ({ modo, elegidos }) => {
+        if (modo === 'elegir') {
+            _state.bloquesModo = 'elegir';
+            _state.bloquesElegidos = elegidos;
         } else {
             _state.bloquesModo = 'corridos';
             _state.bloquesElegidos = null;
-            burbujaUser(`Corridos (${corridos} bloques de ${dur} min)`);
-            actualizarResumen();
-            pasoCupos();
         }
+        actualizarResumen();
+        pasoCupos();
     });
 }
 
@@ -884,7 +911,7 @@ function pasoCupos() {
         _state.cupos = valor;
         burbujaUser(valor === 1 ? '1 cliente a la vez' : `${valor} clientes a la vez`);
         actualizarResumen();
-        pasoResumenFinal();
+        pasoVariacionHorarios();
     }, {
         conOtro: true,
         otroLabel: 'Otro número…',
@@ -901,6 +928,136 @@ function pasoCupos() {
 // ============================================================
 // Resumen final + acciones
 // ============================================================
+// ============================================================
+// Paso 13-14: horarios por día de la semana y fechas especiales
+// Jerarquía real del guardado: fecha específica > día de semana > general.
+// ============================================================
+function pasoVariacionHorarios() {
+    _state.paso = 13;
+    burbujaBot(`¿El horario de <strong>${etiquetaDias(_state)}</strong> es el mismo todas las semanas?<br><span class="svcchat-sub">Si algún día atiendes en otro horario (ej. el lunes solo hasta las 13:00) o con otros bloques, lo configuramos ahora.</span>`);
+    bloqueOpciones([
+        { valor: 'igual', label: 'Igual todos los días', rec: true },
+        { valor: 'variar', label: 'Cambia según el día' }
+    ], (valor) => {
+        if (valor === 'igual') {
+            _state.excepcionesDias = null;
+            _state.fechasEspeciales = null;
+            burbujaUser('Igual todos los días');
+            actualizarResumen();
+            pasoFechasEspeciales();
+            return;
+        }
+        burbujaUser('Cambia según el día');
+        _state.excepcionesDias = {};
+        const activos = diasEfectivos(_state);
+        const items = ORDEN_DIAS.filter(d => activos.includes(d)).map(d => ({ valor: d, label: nombreDia(d) }));
+        burbujaBot(`¿Qué días tienen <strong>otro horario</strong>?<br><span class="svcchat-sub">Los días que no marques quedan con el horario general (${_state.horaInicio} a ${_state.horaFin}).</span>`);
+        bloqueMultiSelect(items, (elegidos) => {
+            burbujaUser('Otro horario: ' + elegidos.map(d => nombreDia(d)).join(', '));
+            _state._diasPorPersonalizar = elegidos.slice().sort((a, b) => ORDEN_DIAS.indexOf(a) - ORDEN_DIAS.indexOf(b));
+            preguntarHorarioDeDia();
+        }, { errorVacio: 'Marca al menos un día con horario distinto 😉' });
+    });
+}
+
+// Pregunta el horario de cada día marcado, uno por uno (orden Lun→Dom).
+function preguntarHorarioDeDia() {
+    const lista = _state._diasPorPersonalizar;
+    if (!lista || !lista.length) {
+        _state._diasPorPersonalizar = null;
+        actualizarResumen();
+        pasoFechasEspeciales();
+        return;
+    }
+    const dia = lista.shift();
+    const nom = nombreDia(dia);
+    preguntarRangoHoras(`¿A qué horas atiende el <strong>${nom}</strong>?<br><span class="svcchat-sub">Así queda solo el ${nom}; los demás días siguen con lo conversado.</span>`, _state.horaInicio, _state.horaFin, (ini, fin) => {
+        preguntarTipoBloques(ini, fin, ({ modo, elegidos }) => {
+            _state.excepcionesDias[dia] = (modo === 'elegir')
+                ? elegidos.map(h => ({ startTime: h, endTime: minAHora(horaAMin(h) + _state.duracion), duration: _state.duracion, editable: true }))
+                : generarBloques(ini, fin, _state.duracion);
+            actualizarResumen();
+            preguntarHorarioDeDia();
+        });
+    });
+}
+
+function pasoFechasEspeciales() {
+    _state.paso = 14;
+    const desde = fechaDesdeISO(_state);
+    const hasta = fechaHastaISO(_state);
+    burbujaBot(`¿Alguna <strong>fecha puntual</strong> con otro horario?<br><span class="svcchat-sub">Ej: un festivo o un día con atención especial. La fecha debe caer en un día que atiendes y dentro de la vigencia (${fmtFechaLegible(desde)} → ${fmtFechaLegible(hasta)}).</span>`);
+    bloqueOpciones([
+        { valor: 'no', label: 'No, así está bien', rec: true },
+        { valor: 'si', label: 'Sí, agregar fechas…' }
+    ], (valor) => {
+        if (valor === 'no') {
+            _state.fechasEspeciales = null;
+            burbujaUser('No, así está bien');
+            pasoResumenFinal();
+            return;
+        }
+        burbujaUser('Sí, agregar fechas…');
+        _state.fechasEspeciales = _state.fechasEspeciales || {};
+        preguntarUnaFechaEspecial();
+    });
+}
+
+function preguntarUnaFechaEspecial() {
+    const desde = fechaDesdeISO(_state);
+    const hasta = fechaHastaISO(_state);
+    const ya = Object.keys(_state.fechasEspeciales || {}).filter(f => _state.fechasEspeciales[f] && _state.fechasEspeciales[f].length).length;
+    if (ya >= 20) {
+        burbujaBot('Llegaste a 20 fechas especiales (máximo por servicio). Puedes ajustarlas desde Mis Servicios → Editar 😉');
+        pasoResumenFinal();
+        return;
+    }
+    burbujaBot(ya
+        ? `¿Otra fecha especial? (${fmtFechaLegible(desde)} → ${fmtFechaLegible(hasta)})`
+        : 'Elige la fecha:');
+    bloqueFecha(desde, (f) => {
+        if (f > hasta) {
+            burbujaBot(`Esa fecha queda fuera de la vigencia (hasta ${fmtFechaLegible(hasta)}). Elige una anterior 😉`);
+            preguntarUnaFechaEspecial();
+            return;
+        }
+        const dia = new Date(f + 'T12:00:00').getDay();
+        if (!diasEfectivos(_state).includes(dia)) {
+            burbujaBot(`El ${fmtFechaLegible(f)} cae <strong>${nombreDia(dia)}</strong>, que no está en tus días de atención (${etiquetaDias(_state)}). Elige una fecha que caiga en esos días 😉`);
+            preguntarUnaFechaEspecial();
+            return;
+        }
+        if (_state.fechasEspeciales[f] && _state.fechasEspeciales[f].length) {
+            burbujaBot('Esa fecha ya tiene horario especial. Elige otra 😉');
+            preguntarUnaFechaEspecial();
+            return;
+        }
+        const nom = fmtFechaLegible(f);
+        burbujaUser('Fecha especial: ' + nom);
+        preguntarRangoHoras(`¿A qué horas atiendes el <strong>${nom}</strong>?`, _state.horaInicio, _state.horaFin, (ini, fin) => {
+            preguntarTipoBloques(ini, fin, ({ modo, elegidos }) => {
+                _state.fechasEspeciales[f] = (modo === 'elegir')
+                    ? elegidos.map(h => ({ startTime: h, endTime: minAHora(horaAMin(h) + _state.duracion), duration: _state.duracion, editable: true }))
+                    : generarBloques(ini, fin, _state.duracion);
+                actualizarResumen();
+                burbujaBot('¿Agregar <strong>otra fecha</strong> especial?');
+                bloqueOpciones([
+                    { valor: 'si', label: 'Sí, otra fecha' },
+                    { valor: 'no', label: 'No, listo', rec: true }
+                ], (v2) => {
+                    if (v2 === 'si') {
+                        burbujaUser('Sí, otra fecha');
+                        preguntarUnaFechaEspecial();
+                    } else {
+                        burbujaUser('No, listo');
+                        pasoResumenFinal();
+                    }
+                });
+            });
+        });
+    });
+}
+
 function pasoResumenFinal() {
     _state.paso = 99;
     const fechas = calcularFechas(diasEfectivos(_state), fechaDesdeISO(_state), fechaHastaISO(_state));
@@ -917,6 +1074,8 @@ function pasoResumenFinal() {
             <div class="svcchat-final-fila"><span>Disponible</span><strong>${etiquetaDias(_state)} · ${_state.horaInicio} a ${_state.horaFin}</strong></div>
             <div class="svcchat-final-fila"><span>Bloques</span><strong>${bloques.length} de ${_state.duracion} min${_state.bloquesModo === 'elegir' ? ' (elegidos)' : ''}</strong></div>
             <div class="svcchat-final-fila"><span>Cupos por bloque</span><strong>${_state.cupos} cliente${_state.cupos > 1 ? 's' : ''}</strong></div>
+            ${_state.excepcionesDias && Object.keys(_state.excepcionesDias).length ? `<div class="svcchat-final-fila"><span>Horario por día</span><strong>${etiquetaExcepcionesDias(_state)}</strong></div>` : ''}
+            ${_state.fechasEspeciales && Object.keys(_state.fechasEspeciales).length ? `<div class="svcchat-final-fila"><span>Fechas especiales</span><strong>${etiquetaFechasEspeciales(_state)}</strong></div>` : ''}
             <div class="svcchat-final-fila"><span>Vigencia</span><strong>${fmtFechaLegible(fechaDesdeISO(_state))} → ${fmtFechaLegible(fechaHastaISO(_state))} · ${fechas.length} día(s) con horario</strong></div>
         </div>
         <p class="svcchat-sub" style="margin-top:8px;">💡 Foto y descripción puedes agregarlas después desde Mis Servicios → Editar.</p>
@@ -942,6 +1101,24 @@ function etiquetaDias(s) {
     if (dias.length === 5 && !dias.includes(0) && !dias.includes(6)) return 'Lun a Vie';
     if (dias.length === 2 && dias.includes(0) && dias.includes(6)) return 'Sáb y Dom';
     return 'Días: ' + dias.map(v => (DIAS_SEMANA.find(d => d.v === v) || {}).label || v).join(', ');
+}
+
+// "Lun 2 bloq · Jue 1 bloq" — días con horario distinto al general.
+function etiquetaExcepcionesDias(s) {
+    const o = (s && s.excepcionesDias) || {};
+    const keys = Object.keys(o).filter(d => o[d] && o[d].length);
+    if (!keys.length) return '';
+    return keys
+        .sort((a, b) => ORDEN_DIAS.indexOf(+a) - ORDEN_DIAS.indexOf(+b))
+        .map(d => `${(DIAS_SEMANA.find(x => x.v === +d) || {}).label || d} ${o[d].length} bloq`)
+        .join(' · ');
+}
+
+// "24 de diciembre de 2026, 31 de diciembre de 2026" — fechas con horario propio.
+function etiquetaFechasEspeciales(s) {
+    const o = (s && s.fechasEspeciales) || {};
+    const keys = Object.keys(o).filter(f => o[f] && o[f].length);
+    return keys.length ? keys.map(f => fmtFechaLegible(f)).join(', ') : '';
 }
 
 // ============================================================
@@ -976,6 +1153,8 @@ function actualizarResumen() {
         ${fila('Horario', s.paso >= 10 ? `${s.horaInicio} a ${s.horaFin}` : '')}
         ${fila('Bloques', s.paso >= 11 ? `${bloquesDe(s).length} de ${s.duracion} min` : '')}
         ${fila('Cupos', s.paso >= 12 ? `${s.cupos} por bloque` : '')}
+        ${fila('Por día', s.paso >= 13 ? etiquetaExcepcionesDias(s) : '')}
+        ${fila('Fechas especiales', s.paso >= 14 ? etiquetaFechasEspeciales(s) : '')}
     `;
 }
 
@@ -1032,6 +1211,29 @@ function aplicarEnFormulario(fechas, bloques) {
     if (bloques && bloques.length) {
         window.serviceModules = bloques.map(b => ({ ...b, cupos: _state.cupos || b.cupos }));
         window.moduleDateCupos = {};
+        try {
+            // Excepciones por día de la semana / fecha específica (jerarquía
+            // fecha > día > general en el legacy; los cupos van inyectados).
+            if (typeof window.__svcChatSetAsignacion === 'function') {
+                const s = _state;
+                const cup = s.cupos || 1;
+                const wd = {};
+                const ds = {};
+                if (s.excepcionesDias) {
+                    Object.keys(s.excepcionesDias).forEach(d => {
+                        const mods = s.excepcionesDias[d];
+                        if (mods && mods.length) wd[d] = mods.map(m => ({ ...m, cupos: cup }));
+                    });
+                }
+                if (s.fechasEspeciales) {
+                    Object.keys(s.fechasEspeciales).forEach(f => {
+                        const mods = s.fechasEspeciales[f];
+                        if (mods && mods.length) ds[f] = mods.map(m => ({ ...m, cupos: cup }));
+                    });
+                }
+                window.__svcChatSetAsignacion(wd, ds);
+            }
+        } catch (e) { /* no crítico */ }
         try {
             if (typeof saveModulesToHiddenField === 'function') saveModulesToHiddenField();
         } catch (e) { /* no crítico */ }
