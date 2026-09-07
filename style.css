@@ -19786,3 +19786,48 @@ textarea.kanban-nueva-card-input {
     .admin-header .tenant-logo-header { height: 24px !important; }
     .admin-header .tenant-name-header { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* ============================================================
+   NOTIF POPOVER — header en 2 filas legibles (2026-09-07)
+   Bug: el grupo h4+"Ver tutorial"+"Probar avisos" (411px) no
+   cabía en el header de 338px → "Probar avisos" se veía a medias
+   y montado sobre la × (PC, móvil y tablet, popover 340 fijo).
+   Fix: fila 1 = título + ×; fila 2 = acciones (tutorial
+   secundario + "Probar avisos" como CTA destacado).
+   ============================================================ */
+.notif-popover-header {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 8px;
+    column-gap: 10px;
+    padding: 12px 14px;
+}
+/* El grupo contenedor (h4+botones, flex inline) se disuelve para
+   reordenar todo como items directos del header. Sin impacto en JS:
+   ni NotificationsTutorial ni AvisosPreview miden su geometría. */
+.notif-popover-header > div { display: contents !important; }
+.notif-popover-header h4 { order: 0; margin: 0; min-width: 0; }
+.notif-popover-header .notif-popover-close { order: 1; margin-left: auto; padding: 4px 8px; }
+/* Salto de fila garantizado tras la × (no depende del ancho de textos) */
+.notif-popover-header::after { content: ''; order: 2; flex: 1 1 100%; height: 0; }
+.notif-popover-header #btn-ver-tutorial-notif { order: 3; }
+.notif-popover-header #btn-probar-avisos { order: 4; margin-left: 0; }
+/* Tamaño táctil cómodo para ambos botones del header */
+#notif-popover .notif-popover-header .tutorial-btn { min-height: 36px; padding: 7px 14px; font-size: 0.82rem; }
+/* "Ver tutorial" pasa a secundario sutil para que el CTA destaque */
+#notif-popover .notif-popover-header #btn-ver-tutorial-notif {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8e9f2;
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+}
+#notif-popover .notif-popover-header #btn-ver-tutorial-notif:hover {
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+}
+#notif-popover .notif-popover-header #btn-ver-tutorial-notif.tutorial-btn-activo {
+    background: linear-gradient(135deg, #e5383b, #b5179e);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(229, 56, 59, 0.45);
+}
