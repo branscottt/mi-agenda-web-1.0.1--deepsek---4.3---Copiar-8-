@@ -7881,6 +7881,8 @@ async function editarServicio(id) {
     }
 
     mostrarMensaje(`Editando servicio: "${servicio.nombre}"`, "info");
+    // Avisar al chat (ServiceChat) para ofrecer la edición conversacional.
+    window.dispatchEvent(new CustomEvent('servicio-edicion-iniciada', { detail: { id: String(id) } }));
 }
 window.editarServicio = editarServicio;
 

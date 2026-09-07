@@ -130,6 +130,10 @@ let _publicando = false;
 let _modo = 'chat';  // 'chat' | 'form'
 let _tituloOriginal = null;
 let _observer = null;
+// ── Edición conversacional ──
+let _editando = false;        // true mientras se edita un servicio por chat
+let _editConvIniciada = false;// la conversación de edición ya se pintó
+let _editHookPuesto = false;  // listener del evento legacy (una sola vez)
 
 const DIAS_SEMANA = [
     { v: 1, label: 'Lun' }, { v: 2, label: 'Mar' }, { v: 3, label: 'Mié' },
@@ -202,6 +206,18 @@ export function initServicioChat() {
         });
         _observer.observe(section, { attributes: true, attributeFilter: ['style'] });
     }
+    // Edición conversacional: editarServicio (legacy) avisa cuando terminó de
+    // cargar el formulario → el chat aparece preguntando qué cambiar.
+    if (!_editHookPuesto) {
+        _editHookPuesto = true;
+        window.addEventListener('servicio-edicion-iniciada', () => {
+            setTimeout(() => {
+                if (estaEditando() && section && section.style.display !== 'none') {
+                    iniciarChatEdicion();
+                }
+            }, 350);
+        });
+    }
     if (section && section.style.display !== 'none' && !estaEditando()) {
         mostrarChat({ silencioso: true });
     }
@@ -223,6 +239,15 @@ function alternarModo() {
 function pintarCabeceraModo() {
     const header = document.getElementById('section-title-servicio');
     const btn = document.getElementById('btn-svc-modo');
+    if (_editando) {
+        if (header) header.innerHTML = _modo === 'chat'
+            ? '<i class="fas fa-comments"></i> Editando por chat'
+            : '<i class="fas fa-edit"></i> Editando Servicio (formulario completo)';
+        if (btn) btn.innerHTML = _modo === 'chat'
+            ? '<i class="fas fa-keyboard"></i> Ver formulario completo'
+            : '<i class="fas fa-comments"></i> Editar conversando';
+        return;
+    }
     if (_modo === 'chat') {
         if (header && _tituloOriginal) header.innerHTML = '<i class="fas fa-comments"></i> Crea tu servicio conversando';
         if (btn) btn.innerHTML = '<i class="fas fa-keyboard"></i> Rellenar manual';
@@ -241,6 +266,13 @@ function mostrarChat(opts) {
     form.style.display = 'none';
     _el.view.style.display = '';
 
+    if (_editando) {
+        // En edición el chat NO reinicia el form: continúa la conversación.
+        pintarCabeceraModo();
+        if (!_editConvIniciada) iniciarChatEdicion();
+        return;
+    }
+
     if (_state && _state.paso >= 1 && _state.paso < 99) {
         // Conversación a medias o copia en curso: continuar (no repintar).
         pintarCabeceraModo();
@@ -255,6 +287,8 @@ function mostrarChat(opts) {
     // Arranque fresco: reset del form (submit → crear, no actualizar).
     // OJO: limpiarEstadoEdicion() restaura el título legacy, por eso la
     // cabecera se pinta DESPUÉS del reset.
+    _editando = false;
+    _editConvIniciada = false;
     if (typeof window.limpiarEstadoEdicion === 'function') window.limpiarEstadoEdicion();
     _state = estadoInicial();
     _el.conv.innerHTML = '';
@@ -270,6 +304,15 @@ function mostrarChat(opts) {
 function mostrarForm() {
     const form = document.getElementById('service-form');
     if (!form || !_el) return;
+
+    if (_editando) {
+        // En edición, volver al formulario completo conserva todo lo cargado.
+        _modo = 'form';
+        form.style.display = '';
+        _el.view.style.display = 'none';
+        pintarCabeceraModo();
+        return;
+    }
 
     _modo = 'form';
     form.style.display = '';
@@ -801,6 +844,13 @@ function pasoHasta() {
     });
 }
 
+// Duración vigente: la del estado de creación o la del form real (edición).
+function duracionActual() {
+    if (_state && _state.duracion) return _state.duracion;
+    const dur = parseInt(document.getElementById('srv-duration')?.value, 10);
+    return (dur && dur >= 5 && dur <= 480) ? dur : 60;
+}
+
 // ── Reutilizable: rango de horas (selects inicio/fin) ─────────────────────
 // Pregunta entre qué horas se atiende y sigue con alRango(ini, fin).
 function preguntarRangoHoras(tituloHtml, iniDef, finDef, alRango) {
@@ -831,8 +881,8 @@ function preguntarRangoHoras(tituloHtml, iniDef, finDef, alRango) {
         e.preventDefault();
         const ini = selIni.value;
         const fin = selFin.value;
-        if (horaAMin(fin) - horaAMin(ini) < _state.duracion) {
-            burbujaBot(`Necesitas al menos ${_state.duracion} min entre la hora de inicio y la de fin 😉`);
+        if (horaAMin(fin) - horaAMin(ini) < duracionActual()) {
+            burbujaBot(`Necesitas al menos ${duracionActual()} min entre la hora de inicio y la de fin 😉`);
             return;
         }
         selIni.disabled = true;
@@ -849,7 +899,7 @@ function preguntarRangoHoras(tituloHtml, iniDef, finDef, alRango) {
 // ── Reutilizable: bloques corridos vs elegidos a mano ─────────────────────
 // alFinal({ modo: 'corridos'|'elegir', elegidos: [hh:mm] | null })
 function preguntarTipoBloques(ini, fin, alFinal) {
-    const dur = _state.duracion;
+    const dur = duracionActual();
     const candidatas = horasCandidatas(ini, fin, dur);
     const corridos = candidatas.length;
     burbujaBot(`¿Cómo armamos los <strong>bloques de atención</strong>?<br>
@@ -1056,6 +1106,416 @@ function preguntarUnaFechaEspecial() {
             });
         });
     });
+}
+
+// ============================================================
+// EDICIÓN CONVERSACIONAL
+// editarServicio() deja el form real cargado; este modo pregunta qué
+// cambiar, aplica cada cambio sobre el form/globals legacy y al final
+// llama actualizarServicio() (misma ruta que el botón GUARDAR CAMBIOS).
+// ============================================================
+function setCampoReal(id, valor) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = valor;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function tipoVentaActual() {
+    const sel = document.querySelector('input[name="srv-tipo-venta"]:checked');
+    return sel ? sel.value : 'sesion';
+}
+
+// Excepciones activas (días/fechas con horario propio) leídas del hidden
+// #service-modules que editarServicio serializó al cargar.
+function excepcionesActivas() {
+    try {
+        const hidden = document.getElementById('service-modules');
+        if (!hidden || !hidden.value) return { dias: 0, fechas: 0 };
+        const data = JSON.parse(hidden.value);
+        const dias = Object.keys(data.weekday || {}).filter(d => (data.weekday[d] || []).length).length;
+        const fechas = Object.keys(data.dateSpecific || {}).filter(f => (data.dateSpecific[f] || []).length).length;
+        return { dias, fechas };
+    } catch (e) { return { dias: 0, fechas: 0 }; }
+}
+
+// Refresca matriz + hidden + trabajadores tras mutar módulos/fechas.
+function refrescarModulosTrasCambio() {
+    try { if (typeof renderModulesList === 'function') renderModulesList(); } catch (e) { /* no crítico */ }
+    try { if (typeof saveModulesToHiddenField === 'function') saveModulesToHiddenField(); } catch (e) { /* no crítico */ }
+    window.dispatchEvent(new CustomEvent('servicio-modulos-actualizados'));
+}
+
+function fechasActuales() {
+    try {
+        if (typeof generarDisponibilidadFinal === 'function') {
+            return Object.keys(generarDisponibilidadFinal() || {}).sort();
+        }
+    } catch (e) { /* no crítico */ }
+    return [];
+}
+
+function iniciarChatEdicion() {
+    const form = document.getElementById('service-form');
+    if (!form || !_el) return;
+    _editando = true;
+    _editConvIniciada = true;
+    _modo = 'chat';
+    form.style.display = 'none';
+    _el.view.style.display = '';
+    const nombre = (document.getElementById('srv-name')?.value || '').trim();
+    _el.conv.innerHTML = '';
+    pintarCabeceraModo();
+    burbujaBot(`¡Vamos a editar <strong>${escapeHtml(nombre || 'tu servicio')}</strong>!<br><span class="svcchat-sub">Lo que ya tiene se queda igual hasta que lo cambies. Al final eliges si guardar.</span>`);
+    pintarResumenEdicion();
+    menuEdicion();
+    scrollAbajo();
+}
+
+function pintarResumenEdicion() {
+    const body = _el && _el.resumen;
+    if (!body) return;
+    const nombre = (document.getElementById('srv-name')?.value || '').trim();
+    const precioRaw = document.getElementById('srv-price')?.value;
+    const precio = precioRaw !== '' && precioRaw !== undefined ? fmtPrecio(parseFloat(precioRaw) || 0) : '';
+    const dur = duracionActual();
+    const ex = excepcionesActivas();
+    const nFechas = fechasActuales().length;
+    const fila = (k, v) => (v ? `<div class="svcchat-rsm-fila"><span>${k}</span><strong>${v}</strong></div>` : '');
+    body.innerHTML = `
+        <div class="svcchat-rsm-preview">
+            ${nombre ? `<div class="svcchat-rsm-nombre">${escapeHtml(nombre)}</div>` : ''}
+            ${precio ? `<div class="svcchat-rsm-precio">${precio}</div>` : ''}
+        </div>
+        ${fila('Duración', dur + ' min')}
+        ${fila('Fechas', nFechas ? nFechas + ' día(s) con horario' : '')}
+        ${fila('Horario propio', (ex.dias || ex.fechas) ? ex.dias + ' día(s) · ' + ex.fechas + ' fecha(s)' : '')}
+    `;
+}
+
+function menuEdicion() {
+    burbujaBot('¿Qué quieres cambiar?');
+    bloqueOpciones([
+        { valor: 'nombre', label: '📝 Nombre' },
+        { valor: 'precio', label: '💰 Precio' },
+        { valor: 'duracion', label: '⏱️ Duración de la sesión' },
+        { valor: 'dias', label: '📅 Días y vigencia' },
+        { valor: 'horario', label: '🕘 Horario y bloques' },
+        { valor: 'cupos', label: '👥 Cupos por bloque' },
+        { valor: 'descripcion', label: '📄 Descripción' },
+        { valor: 'avanzado', label: '⚙️ Algo más avanzado…', hint: 'Trabajadores, foto, horarios por día/fecha, promociones: se hace en el formulario completo.' },
+        { valor: 'cancelar', label: '✖️ Descartar y salir' }
+    ], (valor) => {
+        if (valor === 'nombre') return editarNombre();
+        if (valor === 'precio') return editarPrecio();
+        if (valor === 'duracion') return editarDuracion();
+        if (valor === 'dias') return editarDiasVigencia();
+        if (valor === 'horario') return editarHorarioGeneral();
+        if (valor === 'cupos') return editarCupos();
+        if (valor === 'descripcion') return editarDescripcion();
+        if (valor === 'avanzado') {
+            burbujaBot('Perfecto, eso se afina mejor en el <strong>formulario completo</strong> (trabajadores, foto, horarios por día/fecha, promociones…). Te dejo ahí 👇');
+            mostrarForm();
+            return;
+        }
+        cancelarEdicionChat();
+    });
+}
+
+function editarNombre() {
+    burbujaBot('¿Cuál es el <strong>nuevo nombre</strong>?');
+    bloqueInput('Nuevo nombre del servicio', {
+        validar: (v) => (v.trim().length >= 2 ? null : 'El nombre debe tener al menos 2 letras')
+    }, (valor) => {
+        const limpio = valor.trim();
+        setCampoReal('srv-name', limpio);
+        burbujaUser(limpio);
+        pintarResumenEdicion();
+        trasCambioEdicion();
+    });
+}
+
+function editarPrecio() {
+    const esPromo = tipoVentaActual() === 'promocion';
+    burbujaBot(esPromo
+        ? '¿Cuál es el <strong>nuevo precio de la sesión suelta</strong>?<br><span class="svcchat-sub">Si es gratis, escribe 0.</span>'
+        : '¿Cuál es el <strong>nuevo precio</strong>?<br><span class="svcchat-sub">Si el servicio es gratis, escribe 0.</span>');
+    bloqueInput(esPromo ? 'Precio sesión suelta ($)' : 'Precio ($)', {
+        inputmode: 'numeric',
+        validar: (v) => {
+            const n = parseFloat(String(v).replace(/[^0-9]/g, ''));
+            return (Number.isFinite(n) && n >= 0) ? null : 'Ingresa un precio (0 si es gratis)';
+        }
+    }, (valor) => {
+        const n = parseFloat(valor.replace(/[^0-9]/g, ''));
+        setCampoReal('srv-price', n);
+        burbujaUser(fmtPrecio(n));
+        if (!esPromo) { pintarResumenEdicion(); return trasCambioEdicion(); }
+        burbujaBot('¿Y el <strong>precio total del pack</strong>?<br><span class="svcchat-sub">Puede ser 0 si el pack también es gratis.</span>');
+        bloqueInput('Precio total del pack ($)', {
+            inputmode: 'numeric',
+            validar: (v) => {
+                const n2 = parseFloat(String(v).replace(/[^0-9]/g, ''));
+                return (Number.isFinite(n2) && n2 >= 0) ? null : 'Ingresa un precio (0 si es gratis)';
+            }
+        }, (valor2) => {
+            const n2 = parseFloat(valor2.replace(/[^0-9]/g, ''));
+            setCampoReal('srv-promo-precio', n2);
+            burbujaUser(fmtPrecio(n2) + ' el pack');
+            pintarResumenEdicion();
+            trasCambioEdicion();
+        });
+    });
+}
+
+function editarDuracion() {
+    burbujaBot('¿Cuánto dura <strong>cada sesión</strong> ahora?');
+    bloqueOpciones([
+        { valor: 30, label: '30 min' },
+        { valor: 45, label: '45 min' },
+        { valor: 60, label: '60 min', rec: true },
+        { valor: 90, label: '90 min' }
+    ], (valor) => {
+        aplicarDuracion(valor);
+    }, {
+        conOtro: true,
+        otroLabel: 'Otra duración…',
+        otroPlaceholder: 'Minutos (ej: 20, 75, 120)',
+        inputmode: 'numeric',
+        validarOtro: (v) => {
+            const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+            return (n && n >= 5 && n <= 480) ? null : 'Elige entre 5 y 480 minutos';
+        },
+        parseOtro: (v) => parseInt(v.replace(/[^0-9]/g, ''), 10)
+    });
+}
+
+function aplicarDuracion(min) {
+    setCampoReal('srv-duration', min);
+    burbujaUser(min + ' min');
+    burbujaBot('Listo ✓. Ojo: los bloques ya generados mantienen su duración actual; si quieres regenerarlos con la nueva, elige <strong>Horario y bloques</strong>.');
+    pintarResumenEdicion();
+    trasCambioEdicion();
+}
+
+function editarDiasVigencia() {
+    burbujaBot('¿Qué ajustamos de las <strong>fechas</strong>?');
+    bloqueOpciones([
+        { valor: 'dias', label: 'Los días de atención' },
+        { valor: 'vigencia', label: 'La vigencia (hasta cuándo)' },
+        { valor: 'ambos', label: 'Ambos' }
+    ], (valor) => {
+        burbujaUser(valor === 'dias' ? 'Los días de atención' : valor === 'vigencia' ? 'La vigencia' : 'Ambos');
+        if (valor === 'dias') editarDiasSolo();
+        else if (valor === 'vigencia') editarVigenciaSolo();
+        else { editarDiasSolo(() => editarVigenciaSolo()); }
+    });
+}
+
+function editarDiasSolo(despues) {
+    burbujaBot('¿Qué días de la semana atiende este servicio?<br><span class="svcchat-sub">Los días que quites dejarán de ofrecerse (las citas ya tomadas no se borran solas: revísalas en el tablero).</span>');
+    bloqueOpciones([
+        { valor: 'laborables', label: 'Lun a Vie' },
+        { valor: 'finde', label: 'Sáb y Dom' },
+        { valor: 'todos', label: 'Todos los días' }
+    ], (valor) => {
+        const lista = valor === 'laborables' ? [1, 2, 3, 4, 5] : valor === 'finde' ? [6, 0] : [0, 1, 2, 3, 4, 5, 6];
+        burbujaUser(valor === 'laborables' ? 'Lun a Vie' : valor === 'finde' ? 'Sáb y Dom' : 'Todos los días');
+        aplicarDias(lista, despues);
+    }, {
+        conOtro: true,
+        otroLabel: 'Elegir días…',
+        onOtro: () => {
+            burbujaUser('Elegir días…');
+            burbujaBot('Marca los días que atiende:');
+            bloqueMultiSelect(ORDEN_DIAS.map(d => ({ valor: d, label: nombreDia(d) })), (elegidos) => {
+                burbujaUser('Días: ' + elegidos.map(d => nombreDia(d)).join(', '));
+                aplicarDias(elegidos, despues);
+            }, { errorVacio: 'Marca al menos un día 😉' });
+        }
+    });
+}
+
+function aplicarDias(listaDias, despues) {
+    const actuales = fechasActuales();
+    const ini = actuales[0] || hoyISO();
+    const fin = actuales[actuales.length - 1] || sumarMesesClamp(hoyISO(), 3);
+    setCampoReal('range-start', ini);
+    setCampoReal('range-end', fin);
+    document.querySelectorAll('.dia-semana-checkbox').forEach(cb => { cb.checked = listaDias.includes(parseInt(cb.value, 10)); });
+    let ok = false;
+    try { if (typeof window.generarFechasPorRango === 'function') { window.generarFechasPorRango(); ok = true; } } catch (e) { /* validación del legacy */ }
+    if (ok) {
+        const n = fechasActuales().length;
+        burbujaBot(n ? `✓ Quedaron <strong>${n} día(s)</strong> con horario.` : 'No quedó ninguna fecha para esa combinación: prueba con más días o más vigencia 😉');
+    } else {
+        burbujaBot('El calendario marcó un aviso con esa combinación. Revisa en el formulario completo si quieres 😉');
+    }
+    window.moduleDateCupos = {};
+    try { if (typeof renderModulesList === 'function') renderModulesList(); } catch (e) { /* no crítico */ }
+    pintarResumenEdicion();
+    if (despues) despues(); else trasCambioEdicion();
+}
+
+function editarVigenciaSolo() {
+    const actuales = fechasActuales();
+    const ini = actuales[0] || hoyISO();
+    const fin = actuales[actuales.length - 1] || sumarMesesClamp(hoyISO(), 3);
+    burbujaBot('¿<strong>Hasta cuándo</strong> lo dejamos disponible?');
+    bloqueOpciones([
+        { valor: 1, label: '1 mes' },
+        { valor: 3, label: '3 meses' },
+        { valor: 6, label: '6 meses' },
+        { valor: 12, label: '1 año entero' }
+    ], (valor) => {
+        const hasta = sumarMesesClamp(ini, valor);
+        aplicarVigencia(ini, hasta);
+    }, {
+        conOtro: true,
+        otroLabel: 'Hasta una fecha exacta…',
+        onOtro: () => {
+            burbujaUser('Hasta una fecha exacta…');
+            burbujaBot('¿Hasta qué fecha?');
+            bloqueFecha(ini, (f) => aplicarVigencia(ini, f));
+        }
+    });
+}
+
+function aplicarVigencia(ini, hasta) {
+    if (hasta < ini) { burbujaBot('La fecha final debe ser posterior al inicio 😉'); return editarVigenciaSolo(); }
+    setCampoReal('range-start', ini);
+    setCampoReal('range-end', hasta);
+    burbujaUser('Hasta el ' + fmtFechaLegible(hasta));
+    let ok = false;
+    try { if (typeof window.generarFechasPorRango === 'function') { window.generarFechasPorRango(); ok = true; } } catch (e) { /* validación */ }
+    const n = fechasActuales().length;
+    burbujaBot(n ? `✓ Quedaron <strong>${n} día(s)</strong> con horario.` : 'No quedó ninguna fecha para esa vigencia 😉');
+    window.moduleDateCupos = {};
+    try { if (typeof renderModulesList === 'function') renderModulesList(); } catch (e) { /* no crítico */ }
+    pintarResumenEdicion();
+    trasCambioEdicion();
+}
+
+function editarHorarioGeneral() {
+    const ex = excepcionesActivas();
+    const mods = window.serviceModules || [];
+    const horas = mods.map(m => m.startTime || m.hora).filter(Boolean).sort();
+    const iniDef = horas[0] || '09:00';
+    const finDef = horas.length ? minAHora(horaAMin(horas[horas.length - 1]) + duracionActual()) : '18:00';
+    const cupPrev = mods.length ? (mods[0].cupos || 1) : 1;
+    burbujaBot('¿Entre qué horas atenderá de ahora en adelante?<br><span class="svcchat-sub">Cambia el horario general; si hay horarios propios por día o fecha, esos se mantienen.</span>');
+    preguntarRangoHoras('¿<strong>Entre qué horas</strong>?', iniDef, finDef, (ini, fin) => {
+        preguntarTipoBloques(ini, fin, ({ modo, elegidos }) => {
+            const dur = duracionActual();
+            const bloques = (modo === 'elegir')
+                ? elegidos.map(h => ({ startTime: h, endTime: minAHora(horaAMin(h) + dur), duration: dur, editable: true }))
+                : generarBloques(ini, fin, dur);
+            window.serviceModules = bloques.map(m => ({ ...m, cupos: cupPrev }));
+            window.moduleDateCupos = {};
+            refrescarModulosTrasCambio();
+            const avisoEx = (ex.dias || ex.fechas)
+                ? `<br><span class="svcchat-sub">Se mantienen ${ex.dias} día(s) y ${ex.fechas} fecha(s) con horario propio.</span>`
+                : '';
+            burbujaBot(`✓ Horario general: <strong>${bloques.length} bloque(s)</strong> de ${dur} min entre ${ini} y ${fin}.${avisoEx}`);
+            pintarResumenEdicion();
+            trasCambioEdicion();
+        });
+    });
+}
+
+function editarCupos() {
+    burbujaBot('¿A cuántos clientes atiende <strong>a la vez</strong> en cada bloque?<br><span class="svcchat-sub">Se aplica a todos los bloques del horario general.</span>');
+    bloqueOpciones([
+        { valor: 1, label: '1 cliente', rec: true },
+        { valor: 2, label: '2 clientes' },
+        { valor: 4, label: '4 clientes' },
+        { valor: 6, label: '6 clientes' }
+    ], (valor) => {
+        aplicarCupos(valor);
+    }, {
+        conOtro: true,
+        otroLabel: 'Otro número…',
+        otroPlaceholder: 'Cupos por bloque (ej: 3, 8, 10)',
+        inputmode: 'numeric',
+        validarOtro: (v) => {
+            const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+            return (n && n >= 1 && n <= 100) ? null : 'Elige entre 1 y 100';
+        },
+        parseOtro: (v) => parseInt(v.replace(/[^0-9]/g, ''), 10)
+    });
+}
+
+function aplicarCupos(n) {
+    (window.serviceModules || []).forEach(m => { m.cupos = n; });
+    window.moduleDateCupos = {};
+    refrescarModulosTrasCambio();
+    burbujaUser(n === 1 ? '1 cliente a la vez' : n + ' clientes a la vez');
+    burbujaBot(`✓ Cupos actualizados: <strong>${n} por bloque</strong>.`);
+    pintarResumenEdicion();
+    trasCambioEdicion();
+}
+
+function editarDescripcion() {
+    burbujaBot('¿Qué <strong>descripción</strong> le ponemos?<br><span class="svcchat-sub">Se ve en la tarjeta del servicio. Si no quieres cambiarla, escribe "no".</span>');
+    bloqueInput('Descripción (opcional)', {
+        validar: (v) => (v.trim().length <= 2000 ? null : 'Máximo 2000 caracteres')
+    }, (valor) => {
+        if (valor.trim().toLowerCase() === 'no') { burbujaUser('Sin cambios'); return trasCambioEdicion(); }
+        setCampoReal('srv-desc', valor.trim());
+        burbujaUser(valor.trim());
+        trasCambioEdicion();
+    });
+}
+
+function trasCambioEdicion() {
+    burbujaBot('¿Quieres cambiar <strong>algo más</strong>?');
+    bloqueOpciones([
+        { valor: 'otra', label: 'Sí, cambiar otra cosa' },
+        { valor: 'listo', label: 'No: con eso es suficiente — guardar ✓', rec: true }
+    ], (valor) => {
+        if (valor === 'otra') { burbujaUser('Sí, otra cosa'); menuEdicion(); }
+        else { burbujaUser('Guardar'); guardarEdicionChat(); }
+    });
+}
+
+function guardarEdicionChat() {
+    burbujaBot('Guardando cambios… <i class="fas fa-spinner fa-spin"></i>');
+    const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+    (async () => {
+        try {
+            if (typeof window.actualizarServicio === 'function') await window.actualizarServicio();
+        } catch (e) {
+            console.warn('[svcchat-edit] error al guardar:', e);
+        }
+        let ok = false;
+        for (let i = 0; i < 14; i++) {
+            await esperar(700);
+            const m = document.getElementById('section-mis-servicios');
+            if (m && m.style.display !== 'none') { ok = true; break; }
+        }
+        if (ok) {
+            _editando = false;
+            _editConvIniciada = false;
+            _el.conv.innerHTML = '';
+            return;
+        }
+        burbujaBot('⚠️ El formulario marcó un aviso (revisa abajo). Tus cambios quedaron aplicados: toca <strong>Ver formulario completo</strong> para corregir y pulsar GUARDAR CAMBIOS.');
+        setTimeout(() => { try { mostrarForm(); } catch (e) { /* no crítico */ } }, 800);
+    })();
+}
+
+function cancelarEdicionChat() {
+    burbujaUser('Descartar y salir');
+    _editando = false;
+    _editConvIniciada = false;
+    _el.conv.innerHTML = '';
+    try {
+        if (typeof window.cancelarEdicion === 'function') { window.cancelarEdicion(); return; }
+    } catch (e) { /* no crítico */ }
+    try {
+        if (typeof window.limpiarEstadoEdicion === 'function') window.limpiarEstadoEdicion();
+        if (typeof window.navigateTo === 'function') window.navigateTo('mis-servicios');
+    } catch (e) { /* no crítico */ }
 }
 
 function pasoResumenFinal() {
