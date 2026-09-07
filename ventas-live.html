@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        /* ===== VENTAS LIVE: shell del workspace ===== */
+        /* ===== VENTAS LIVE: espacio de trabajo ===== */
         .ventas-live-screen {
             min-height: 100vh;
             background: radial-gradient(ellipse at top, rgba(255, 109, 0, 0.10), transparent 55%), var(--bg, #0a0a0f);
@@ -25,12 +25,12 @@
         }
         .vl-topbar {
             width: 100%;
-            max-width: 980px;
+            max-width: 1060px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 16px;
-            margin-bottom: 40px;
+            margin-bottom: 22px;
         }
         .vl-brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.2rem; color: #f8f9fa; }
         .vl-brand .vl-logo {
@@ -50,12 +50,12 @@
         }
         .vl-actions .btn-top:hover { background: rgba(255, 255, 255, 0.13); }
         .vl-actions .btn-top.primary { background: linear-gradient(135deg, #ff6d00, #e8590c); border: none; box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35); }
-        .vl-main { width: 100%; max-width: 980px; }
+        .vl-main { width: 100%; max-width: 1060px; }
         .vl-workspace-head {
             background: var(--glass, rgba(20, 20, 30, 0.7));
             border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
             border-radius: 20px;
-            padding: 26px 28px;
+            padding: 20px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -63,9 +63,9 @@
             flex-wrap: wrap;
             backdrop-filter: blur(10px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            margin-bottom: 22px;
+            margin-bottom: 14px;
         }
-        .vl-workspace-head h1 { margin: 0; font-size: 1.5rem; color: #f8f9fa; display: flex; align-items: center; gap: 10px; }
+        .vl-workspace-head h1 { margin: 0; font-size: 1.25rem; color: #f8f9fa; display: flex; align-items: center; gap: 10px; }
         .vl-pill {
             display: inline-flex; align-items: center; gap: 6px;
             background: rgba(0, 184, 148, 0.14);
@@ -75,44 +75,120 @@
             font-size: 0.82rem; font-weight: 700;
         }
         .vl-loading { color: var(--muted, #adb5bd); padding: 60px 0; text-align: center; }
-        .vl-placeholder {
+
+        /* ===== Navegación por secciones ===== */
+        .vl-nav {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            background: var(--glass, rgba(20, 20, 30, 0.55));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px; padding: 8px;
+            margin-bottom: 18px;
+            backdrop-filter: blur(8px);
+        }
+        .vl-tab {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 18px; border-radius: 11px; border: none; cursor: pointer;
+            background: transparent; color: #adb5bd;
+            font-size: 0.9rem; font-weight: 700; font-family: inherit;
+            transition: all .15s ease; flex: 1 1 auto; justify-content: center;
+        }
+        .vl-tab:hover { background: rgba(255, 255, 255, 0.06); color: #f8f9fa; }
+        .vl-tab.active {
+            background: linear-gradient(135deg, #ff6d00, #e8590c);
+            color: #fff; box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35);
+        }
+        .vl-view { display: none; }
+        .vl-view.active { display: block; animation: vlFade .18s ease; }
+        @keyframes vlFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+        /* ===== MODO LIVE ===== */
+        .vl-live-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; align-items: start; }
+        .vl-card {
             background: var(--glass, rgba(20, 20, 30, 0.7));
             border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-            border-radius: 20px;
-            padding: 52px 30px;
-            text-align: center;
+            border-radius: 20px; padding: 22px;
             backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
-        .vl-placeholder-icon {
-            width: 84px; height: 84px; margin: 0 auto 18px;
-            border-radius: 24px;
-            display: grid; place-items: center;
-            background: linear-gradient(135deg, rgba(255, 109, 0, 0.25), rgba(232, 89, 12, 0.25));
-            border: 1px solid rgba(255, 109, 0, 0.4);
-            color: #ffa94d; font-size: 2.1rem;
+        .vl-card h2 { margin: 0 0 4px; font-size: 1rem; color: #f8f9fa; display: flex; align-items: center; gap: 8px; }
+        .vl-card .sub { color: var(--muted, #adb5bd); font-size: 0.82rem; margin-bottom: 16px; }
+        .vl-field { margin-bottom: 14px; }
+        .vl-field label { display: block; font-size: 0.8rem; font-weight: 700; color: #ced4da; margin-bottom: 6px; }
+        .vl-input-wrap { display: flex; align-items: center; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; overflow: hidden; transition: border .15s; }
+        .vl-input-wrap:focus-within { border-color: #ff6d00; }
+        .vl-input-prefix { padding: 0 6px 0 16px; font-weight: 700; color: #ffa94d; font-size: 1.1rem; }
+        .vl-input {
+            width: 100%; background: transparent; border: none; outline: none;
+            color: #f8f9fa; font-size: 1.25rem; font-weight: 600; font-family: inherit;
+            padding: 16px 16px 16px 4px;
         }
-        .vl-placeholder h2 { margin: 0 0 8px; color: #f8f9fa; font-size: 1.4rem; }
-        .vl-placeholder p { color: var(--muted, #adb5bd); max-width: 520px; margin: 0 auto; line-height: 1.6; font-size: 0.95rem; }
-        .vl-soon {
-            list-style: none; padding: 0; margin: 26px auto 0; max-width: 420px;
-            display: grid; gap: 10px; text-align: left;
+        .vl-input::placeholder { color: #6c757d; font-weight: 500; }
+        .vl-submit {
+            width: 100%; border: none; cursor: pointer;
+            background: linear-gradient(135deg, #ff6d00, #e8590c);
+            color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
+            padding: 18px; border-radius: 14px; margin-top: 6px;
+            box-shadow: 0 8px 24px rgba(255, 107, 26, 0.4);
+            transition: transform .1s ease, box-shadow .15s ease;
+            display: inline-flex; align-items: center; justify-content: center; gap: 10px;
         }
-        .vl-soon li {
-            display: flex; align-items: center; gap: 12px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px; padding: 12px 16px;
-            color: #ced4da; font-size: 0.9rem;
+        .vl-submit:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(255, 107, 26, 0.5); }
+        .vl-submit:active { transform: translateY(0); }
+        .vl-submit:disabled { opacity: .55; cursor: wait; transform: none; }
+
+        .vl-session {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+            background: rgba(255, 109, 0, 0.08);
+            border: 1px solid rgba(255, 109, 0, 0.3);
+            border-radius: 14px; padding: 12px 16px; margin-top: 16px;
         }
-        .vl-soon li i { color: #ffa94d; width: 20px; text-align: center; }
-        .vl-soon li .tag-soon {
-            margin-left: auto; font-size: 0.68rem; font-weight: 700;
-            color: #ffa94d; border: 1px solid rgba(255, 169, 77, 0.4);
-            padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+        .vl-session .live-tag { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #ffa94d; font-size: 0.9rem; }
+        .vl-session .live-tag .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff6d00; box-shadow: 0 0 10px #ff6d00; animation: vlPulse 1.4s infinite; }
+        @keyframes vlPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+        .vl-session .live-meta { color: #ced4da; font-size: 0.85rem; font-weight: 600; }
+        .vl-btn-ghost {
+            background: rgba(255, 255, 255, 0.07); color: #ced4da; border: 1px solid rgba(255,255,255,0.15);
+            padding: 7px 14px; border-radius: 9px; font-size: 0.78rem; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .vl-btn-ghost:hover { background: rgba(255, 255, 255, 0.13); color: #fff; }
+
+        .vl-client-mini { display: none; margin-top: 14px; }
+        .vl-client-mini.visible { display: block; }
+        .vl-client-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .vl-client-head .nick { font-size: 1.15rem; font-weight: 800; color: #f8f9fa; }
+        .vl-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+        .vl-badge.nuevo { background: rgba(120, 180, 255, 0.14); color: #a5d8ff; border: 1px solid rgba(120,180,255,.4); }
+        .vl-badge.confiable { background: rgba(0, 184, 148, 0.14); color: #7ff5d8; border: 1px solid rgba(0,184,148,.4); }
+        .vl-badge.problematico { background: rgba(255, 193, 7, 0.14); color: #ffe066; border: 1px solid rgba(255,193,7,.45); }
+        .vl-badge.bloqueado { background: rgba(230, 60, 60, 0.16); color: #ff9f9f; border: 1px solid rgba(230,60,60,.5); }
+        .vl-client-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+        .vl-cstat { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 10px 12px; }
+        .vl-cstat .k { font-size: 0.7rem; color: var(--muted, #adb5bd); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+        .vl-cstat .v { font-size: 1.05rem; font-weight: 800; color: #f8f9fa; margin-top: 2px; }
+        .vl-alert {
+            display: none; margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+            font-size: 0.85rem; font-weight: 600; line-height: 1.5;
+        }
+        .vl-alert.visible { display: block; }
+        .vl-alert.danger { background: rgba(230, 60, 60, 0.14); border: 1px solid rgba(230, 60, 60, 0.45); color: #ffb3b3; }
+        .vl-alert.warning { background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.4); color: #ffe066; }
+        .vl-ultima { margin-top: 12px; font-size: 0.85rem; color: #ced4da; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+        .vl-stat-big { text-align: center; }
+        .vl-stat-big .v { font-size: 1.7rem; font-weight: 800; color: #f8f9fa; line-height: 1.1; }
+        .vl-stat-big .k { font-size: 0.75rem; color: var(--muted, #adb5bd); font-weight: 700; }
+
+        .vl-empty { text-align: center; color: var(--muted, #adb5bd); padding: 40px 10px; font-size: 0.9rem; }
+
+        @media (max-width: 860px) {
+            .vl-live-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 720px) {
-            .vl-workspace-head { padding: 20px; }
-            .vl-workspace-head h1 { font-size: 1.2rem; }
+            .vl-workspace-head { padding: 16px 18px; }
+            .vl-workspace-head h1 { font-size: 1.05rem; }
+            .vl-tab { padding: 11px 10px; font-size: 0.8rem; }
+            .vl-card { padding: 18px; }
+            .vl-input { font-size: 1.1rem; }
         }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -139,21 +215,24 @@
                     <span class="vl-pill" id="vl-plan"><i class="fas fa-circle-notch fa-spin"></i></span>
                 </div>
 
-                <div class="vl-placeholder">
-                    <div class="vl-placeholder-icon"><i class="fas fa-bolt"></i></div>
-                    <h2>Estamos preparando tu espacio de Ventas Live</h2>
-                    <p>Muy pronto vas a poder conectar WhatsApp a tu web para atender y vender en vivo, con todo lo que necesitas para no perder ninguna venta.</p>
-                    <ul class="vl-soon">
-                        <li><i class="fas fa-whatsapp"></i> Conexión de WhatsApp a tu web <span class="tag-soon">Próximamente</span></li>
-                        <li><i class="fas fa-comments"></i> Atención y ventas en vivo <span class="tag-soon">Próximamente</span></li>
-                        <li><i class="fas fa-chart-line"></i> Historial de tus ventas <span class="tag-soon">Próximamente</span></li>
-                    </ul>
-                </div>
+                <nav class="vl-nav" id="vl-nav" aria-label="Secciones">
+                    <button class="vl-tab active" data-view="live" type="button"><i class="fas fa-bolt"></i> LIVE</button>
+                    <button class="vl-tab" data-view="procesos" type="button"><i class="fas fa-list-check"></i> Procesos</button>
+                    <button class="vl-tab" data-view="clientes" type="button"><i class="fas fa-users"></i> Clientes</button>
+                    <button class="vl-tab" data-view="envios" type="button"><i class="fas fa-truck-fast"></i> Envíos</button>
+                    <button class="vl-tab" data-view="finanzas" type="button"><i class="fas fa-chart-line"></i> Finanzas</button>
+                </nav>
+
+                <section class="vl-view active" id="vl-view-live"></section>
+                <section class="vl-view" id="vl-view-procesos"></section>
+                <section class="vl-view" id="vl-view-clientes"></section>
+                <section class="vl-view" id="vl-view-envios"></section>
+                <section class="vl-view" id="vl-view-finanzas"></section>
             </div>
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=65"></script>
+    <script type="module" src="dist/app.js?v=66"></script>
     <script defer src="dist/legacy.js?v=65"></script>
 </body>
 </html>
