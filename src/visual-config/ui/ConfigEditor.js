@@ -62,10 +62,10 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
             </div>
 
-            <!-- Acciones rápidas: chat "Dale vida a tu web" + vitrina en móvil -->
-            <div class="cfg-acciones-rapidas">
-                <button type="button" id="cfg-chat-btn" class="cfg-chat-btn" title="Responde 5 preguntas y tu página queda lista. Nada se publica hasta que tocas Guardar Cambios">
-                    <i class="fas fa-wand-magic-sparkles"></i> Dale vida a tu web <small>(2 min)</small>
+            <!-- Cabecera de modo: asistente ↔ formulario manual (+ vitrina en móvil) -->
+            <div class="cfg-modo-head">
+                <button type="button" id="cfg-modo-toggle" class="cfg-modo-toggle" title="Alternar entre el asistente conversacional y el formulario completo">
+                    <i class="fas fa-exchange-alt"></i> <span id="cfg-modo-toggle-txt">Cambiar a manual</span>
                 </button>
                 <button type="button" id="cfg-vitrina-btn" class="cfg-vitrina-btn">
                     <i class="fas fa-mobile-alt"></i> Ver cómo queda
@@ -73,7 +73,9 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             </div>
 
             <div class="config-layout">
-            <div class="config-controls">
+            <div class="config-left">
+            <section class="cfgchat-panel" id="cfg-chat-vista" aria-label="Asistente Dale vida a tu web"></section>
+            <div class="config-controls" id="config-controls">
 
             <!-- PASO 0: DATOS DEL NEGOCIO (nombre editable con límite anti-abuso) -->
             <div class="config-section">
@@ -332,6 +334,7 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
             </div><!-- /config-controls -->
+            </div><!-- /config-left -->
 
             <!-- VITRINA EN VIVO: cómo ven tus clientes tu página -->
             <aside class="config-vitrina" aria-label="Vista previa: así ven tus clientes tu página">
@@ -610,8 +613,13 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         container.addEventListener('input', refrescoVitrina);
         container.addEventListener('change', refrescoVitrina);
     }
+    // Modo de la sección: asistente conversacional (por defecto) ↔ formulario manual.
+    // El usuario ve el chat apenas entra a Datos de Admin, con la maqueta al lado.
+    aplicarModoDatos(cfgModoGuardado());
+    document.getElementById('cfg-modo-toggle')?.addEventListener('click', () => {
+        aplicarModoDatos(cfgModoGuardado() === 'manual' ? 'chat' : 'manual');
+    });
     document.getElementById('cfg-vitrina-btn')?.addEventListener('click', abrirVitrinaOverlay);
-    document.getElementById('cfg-chat-btn')?.addEventListener('click', abrirCfgChat);
 }
 
 // ============================================================
@@ -883,35 +891,66 @@ function cerrarVitrinaOverlay() {
 }
 
 // ============================================================
-// MINI-CHAT "DALE VIDA A TU WEB" (2 minutos, patrón conversación)
-// Cada respuesta enciende algo en la vitrina en vivo. Nada se guarda:
-// el usuario decide con "Guardar Cambios".
+// ASISTENTE "DALE VIDA A TU WEB" — vista por defecto de Datos de
+// Admin. Se monta INLINE (no es overlay) junto a la vitrina en vivo:
+// el usuario responde conversando y ve al lado cómo queda su web
+// (colores, nombre, mapa, redes, directorio). El botón "Cambiar a
+// manual" muestra el formulario clásico. Nada se publica hasta
+// tocar "Guardar Cambios".
 // ============================================================
 
-function abrirCfgChat() {
-    const overlay = document.createElement('div');
-    overlay.className = 'cfgchat-overlay';
-    overlay.innerHTML = `
-        <div class="cfgchat-modal">
-            <header class="cfgchat-head">
-                <div class="cfgchat-head-icono"><i class="fas fa-wand-magic-sparkles"></i></div>
-                <div class="cfgchat-head-txt">
-                    <strong>Dale vida a tu web</strong>
-                    <span>5 preguntas y ves el resultado al instante (nada se publica hasta Guardar Cambios)</span>
-                </div>
-                <button type="button" class="cfgchat-cerrar" id="cfgchat-cerrar" title="Cerrar" aria-label="Cerrar">&times;</button>
-            </header>
-            <div class="cfgchat-chat" id="cfgchat-chat"></div>
-            <div class="cfgchat-zona" id="cfgchat-zona"></div>
+const CFG_MODO_KEY = 'agendapro_datosadmin_vista';
+
+function cfgModoGuardado() {
+    try { return localStorage.getItem(CFG_MODO_KEY) === 'manual' ? 'manual' : 'chat'; } catch (e) { return 'chat'; }
+}
+
+/** Aplica chat/manual y (re)monta el asistente si hace falta. */
+function aplicarModoDatos(modo) {
+    const left = document.querySelector('.config-left');
+    if (left) {
+        left.classList.toggle('cfg-vista-manual', modo === 'manual');
+        left.classList.toggle('cfg-vista-chat', modo === 'chat');
+    }
+    const txt = document.getElementById('cfg-modo-toggle-txt');
+    if (txt) txt.textContent = modo === 'manual' ? 'Volver al asistente' : 'Cambiar a manual';
+    const vista = document.getElementById('cfg-chat-vista');
+    if (modo === 'chat' && vista && !vista.querySelector('.cfgchat-msg')) {
+        montarChatVista('cfg-chat-vista');
+    }
+    try { localStorage.setItem(CFG_MODO_KEY, modo); } catch (e) { /* sin almacenamiento */ }
+}
+
+function montarChatVista(containerId = 'cfg-chat-vista') {
+    const panel = document.getElementById(containerId);
+    if (!panel) return;
+    panel.innerHTML = `
+        <div class="cfgchat-head">
+            <div class="cfgchat-av"><i class="fas fa-wand-magic-sparkles"></i><span class="cfgchat-av-on"></span></div>
+            <div class="cfgchat-head-txt">
+                <strong>Dale vida a tu web</strong>
+                <span>Responde y mira a la derecha cómo va quedando. Cambia a manual cuando quieras tocar detalles.</span>
+            </div>
+            <div class="cfgchat-pasos" title="Progreso del asistente">
+                <span>Paso <strong id="cfgchat-paso-actual">1</strong> de 6</span>
+            </div>
         </div>
+        <div class="cfgchat-progress"><div class="cfgchat-progress-fill" id="cfgchat-bar-fill"></div></div>
+        <div class="cfgchat-chat" id="cfgchat-chat"></div>
+        <div class="cfgchat-zona" id="cfgchat-zona"></div>
     `;
-    document.body.appendChild(overlay);
     const chat = document.getElementById('cfgchat-chat');
     const zona = document.getElementById('cfgchat-zona');
+    const PASOS_TOTAL = 6;
+    let pasoActual = 0;
 
-    const cerrar = () => overlay.remove();
-    document.getElementById('cfgchat-cerrar').addEventListener('click', cerrar);
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) cerrar(); });
+    function setPaso(n) {
+        pasoActual = Math.min(n, PASOS_TOTAL);
+        const el = document.getElementById('cfgchat-paso-actual');
+        if (el) el.textContent = pasoActual;
+        const bar = document.getElementById('cfgchat-bar-fill');
+        if (bar) bar.style.width = `${(pasoActual / PASOS_TOTAL) * 100}%`;
+    }
 
     const scrollAbajo = () => { chat.scrollTop = chat.scrollHeight; };
 
@@ -952,8 +991,13 @@ function abrirCfgChat() {
         if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
     };
 
+    // El botón final reinicia el asistente (los valores ya quedaron aplicados
+    // en el formulario real y en la maqueta).
+    const cerrar = () => montarChatVista(containerId);
+
     // ── 1) Nombre ──
-    bot(`¡Hola! 👋 Voy a dejar tu página lista en 2 minutos.<br><br><strong>¿Qué nombre verán tus clientes?</strong>`);
+    setPaso(1);
+    bot(`<strong>¡Hola! 👋</strong> Voy a dejar tu página lista en 2 minutos.<span class="cfgchat-para"><i class="fas fa-info-circle"></i> Cada respuesta se aplica al instante en la maqueta de la derecha. Nada se publica hasta que tocas <strong>Guardar Cambios</strong>.</span><br><br><strong>¿Qué nombre verán tus clientes?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Es el nombre que ven al reservar en tu web y en el directorio.</span>`);
     const nombreInput = document.getElementById('cfg-nombre-negocio');
     const nombreActual = (nombreInput && !nombreInput.disabled) ? nombreInput.value : (_tenantData && _tenantData.nombre_negocio) || '';
     zonaHtml(`
@@ -977,7 +1021,8 @@ function abrirCfgChat() {
 
     // ── 2) Look / colores ──
     function pasoColor() {
-        bot(`<strong>¿Qué color te representa?</strong> Toca uno y mira la maqueta a la derecha (o arriba en el celular).`);
+        setPaso(2);
+        bot(`<strong>¿Qué color te representa?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Son los colores de tu marca: se aplican en toda tu página (botones, fondos y textos). Prueba uno y míralo en la maqueta.</span>`);
         zonaHtml(`
             <div class="cfgchat-temas">
                 ${Object.entries(TEMAS_PREDEFINIDOS).map(([key, t]) => `
@@ -1001,7 +1046,8 @@ function abrirCfgChat() {
 
     // ── 3) Ubicación ──
     function pasoUbicacion() {
-        bot(`<strong>¿Dónde te encuentra la gente?</strong>`);
+        setPaso(3);
+        bot(`<strong>¿Dónde te encuentra la gente?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> <strong>Tengo local:</strong> tus clientes ven tu dirección con mapa y "Cómo llegar". <strong>Voy a domicilio:</strong> ellos te escriben su dirección al reservar y la ves en cada cita.</span>`);
         zonaHtml(`
             <button type="button" class="cfgchat-opcion" data-ubi="local"><i class="fas fa-store"></i> Tengo local: que me ubiquen</button>
             <button type="button" class="cfgchat-opcion" data-ubi="domicilio"><i class="fas fa-truck"></i> Voy al domicilio del cliente</button>
@@ -1023,7 +1069,7 @@ function abrirCfgChat() {
     }
 
     function pasoDireccion() {
-        bot(`<strong>Escribe la dirección de tu local:</strong> en la maqueta verás aparecer el mapa.`);
+        bot(`<strong>Escribe la dirección de tu local:</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Con la dirección aparecen el mapa y el botón "Cómo llegar" en tu página.</span>`);
         zonaHtml(`
             <div class="cfgchat-fila">
                 <input type="text" id="cfgchat-dir" class="cfgchat-input" placeholder="Ej: Av. Providencia 1234, Santiago" value="${escapeAttr((leerConfigForm().direccion || '').trim())}">
@@ -1043,10 +1089,11 @@ function abrirCfgChat() {
 
     // ── 4) Redes ──
     function pasoRedes(redAnterior) {
+        setPaso(4);
         if (redAnterior === 'instagram') {
             bot(`<strong>¿Y tu TikTok?</strong> (o elige "No por ahora")`);
         } else {
-            bot(`<strong>¿Tienes redes para que te sigan desde tu página?</strong>`);
+            bot(`<strong>¿Tienes redes para que te sigan desde tu página?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Tus redes aparecen como botones en tu página: un toque y te siguen.</span>`);
         }
         zonaHtml(`
             <button type="button" class="cfgchat-opcion" data-red="instagram"><i class="fab fa-instagram"></i> Instagram</button>
@@ -1089,7 +1136,8 @@ function abrirCfgChat() {
 
     // ── 5) Directorio ──
     function pasoDirectorio() {
-        bot(`<strong>¿Quieres que clientes nuevos te encuentren?</strong> Aparecer en el Directorio Público de Organify es gratis según tu plan.`);
+        setPaso(5);
+        bot(`<strong>¿Quieres que clientes nuevos te encuentren?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Tu negocio aparece en la página de inicio de Organify, junto a otras pymes, con tu logo, tu rubro y su botón de reserva. Disponible según tu plan.</span>`);
         zonaHtml(`
             <button type="button" class="cfgchat-opcion" data-dir="1"><i class="fas fa-store"></i> Sí, quiero aparecer</button>
             <button type="button" class="cfgchat-opcion" data-dir="0"><i class="fas fa-hourglass-half"></i> Luego lo veo</button>
@@ -1118,10 +1166,31 @@ function abrirCfgChat() {
     }
 
     function pasoFinal() {
-        bot(`¡Tu web quedó así! 🎉 Mírala en la maqueta${window.innerWidth < 1100 ? ' tocando "Ver cómo queda"' : ' a la derecha'}.<br><br>Puedes cambiarlo cuando quieras. Cuando estés conforme, toca <strong>Guardar Cambios</strong> para publicarlo.`);
+        setPaso(6);
+        const cfgFin = leerConfigForm();
+        const resumen = [];
+        resumen.push(`<strong>Nombre:</strong> ${escapeHtml(nombreNegocioActual())}`);
+        const ubiFin = cfgFin.ubicacion_tipo === 'local'
+            ? 'Tienes local: dirección y mapa visibles'
+            : cfgFin.ubicacion_tipo === 'domicilio'
+                ? 'Vas a domicilio: el cliente escribe su dirección al reservar'
+                : 'Sin ubicación por ahora';
+        resumen.push(`<strong>Ubicación:</strong> ${escapeHtml(ubiFin)}`);
+        const redesFin = [];
+        if ((cfgFin.instagram_url || '').trim()) redesFin.push('Instagram');
+        if ((cfgFin.tiktok_url || '').trim()) redesFin.push('TikTok');
+        resumen.push(`<strong>Redes:</strong> ${redesFin.length ? escapeHtml(redesFin.join(' y ')) : 'sin redes por ahora (paso 5 del formulario)'}`);
+        resumen.push(`<strong>Directorio:</strong> ${cfgFin.directorio_activo ? 'activado: apareces para clientes nuevos' : 'pendiente: lo ves con candado 🔒 en la maqueta'}`);
+        bot(`¡Tu web quedó así! 🎉 Repasa en la maqueta lo que dejaste aplicado:<span class="cfgchat-resumen">${resumen.join('<br>')}</span>Puedes cambiarlo cuando quieras. Cuando estés conforme, toca <strong>Guardar Cambios</strong> en el formulario manual para publicarlo.`);
         zonaHtml(`
-            <button type="button" class="cfgchat-btn-ancho" id="cfgchat-fin">Entendido, ¡gracias!</button>
+            <button type="button" class="cfgchat-btn-ancho" id="cfgchat-manual">Ver formulario manual (para guardar)</button>
+            <button type="button" class="cfgchat-btn-sec" id="cfgchat-fin">Reiniciar el asistente</button>
         `);
+        document.getElementById('cfgchat-manual').addEventListener('click', () => {
+            aplicarModoDatos('manual');
+            const toggle = document.getElementById('cfg-modo-toggle');
+            if (toggle) window.scrollTo({ top: toggle.getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' });
+        });
         document.getElementById('cfgchat-fin').addEventListener('click', cerrar);
     }
 }
