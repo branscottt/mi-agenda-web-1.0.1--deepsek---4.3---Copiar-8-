@@ -62,10 +62,10 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 <span><strong>Así funciona:</strong> Elige un <strong>tema rápido</strong> (paso 1) para cambiar todo al instante, o personaliza colores y logo uno por uno (pasos 2–5). Usa <strong>"Guardar Cambios"</strong> solo cuando estés conforme.</span>
             </div>
 
-            <!-- Cabecera de modo: asistente ↔ formulario manual (+ vitrina en móvil) -->
+            <!-- Cabecera: abrir el asistente (modal) / ver la vitrina en móvil -->
             <div class="cfg-modo-head">
-                <button type="button" id="cfg-modo-toggle" class="cfg-modo-toggle" title="Alternar entre el asistente conversacional y el formulario completo">
-                    <i class="fas fa-exchange-alt"></i> <span id="cfg-modo-toggle-txt">Cambiar a manual</span>
+                <button type="button" id="cfg-modo-toggle" class="cfg-modo-toggle" title="Abrir el asistente: completa los datos de tu web conversando">
+                    <i class="fas fa-wand-magic-sparkles"></i> <span id="cfg-modo-toggle-txt">Volver al asistente</span>
                 </button>
                 <button type="button" id="cfg-vitrina-btn" class="cfg-vitrina-btn">
                     <i class="fas fa-mobile-alt"></i> Ver cómo queda
@@ -73,8 +73,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
             </div>
 
             <div class="config-layout">
-            <div class="config-left">
-            <section class="cfgchat-panel" id="cfg-chat-vista" aria-label="Asistente Dale vida a tu web"></section>
             <div class="config-controls" id="config-controls">
 
             <!-- PASO 0: DATOS DEL NEGOCIO (nombre editable con límite anti-abuso) -->
@@ -334,7 +332,6 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
                 </div>
             </div>
             </div><!-- /config-controls -->
-            </div><!-- /config-left -->
 
             <!-- VITRINA EN VIVO: cómo ven tus clientes tu página -->
             <aside class="config-vitrina" aria-label="Vista previa: así ven tus clientes tu página">
@@ -613,13 +610,24 @@ export async function initConfigEditor(containerId = 'visual-config-editor') {
         container.addEventListener('input', refrescoVitrina);
         container.addEventListener('change', refrescoVitrina);
     }
-    // Modo de la sección: asistente conversacional (por defecto) ↔ formulario manual.
-    // El usuario ve el chat apenas entra a Datos de Admin, con la maqueta al lado.
-    aplicarModoDatos(cfgModoGuardado());
-    document.getElementById('cfg-modo-toggle')?.addEventListener('click', () => {
-        aplicarModoDatos(cfgModoGuardado() === 'manual' ? 'chat' : 'manual');
-    });
+    // Asistente "Dale vida a tu web": MODAL que tapa la pantalla (estética del
+    // chat de crear servicios). Se abre SOLO al entrar a Datos de Admin.
+    construirModalAsistente();
+    document.getElementById('cfg-modo-toggle')?.addEventListener('click', abrirAsistenteModal);
     document.getElementById('cfg-vitrina-btn')?.addEventListener('click', abrirVitrinaOverlay);
+
+    // Auto-abrir al mostrar la sección y cerrar (devolviendo la vitrina al
+    // aside) al ocultarla. La conversación se conserva entre aperturas.
+    const seccionCfg = document.getElementById('section-personalizar');
+    if (seccionCfg && !container.dataset.cfgObserver) {
+        container.dataset.cfgObserver = '1';
+        const obsCfg = new MutationObserver(() => {
+            if (seccionCfg.style.display !== 'none') abrirAsistenteModal();
+            else cerrarAsistenteModal();
+        });
+        obsCfg.observe(seccionCfg, { attributes: true, attributeFilter: ['style'] });
+        if (seccionCfg.style.display !== 'none') abrirAsistenteModal();
+    }
 }
 
 // ============================================================
@@ -891,56 +899,113 @@ function cerrarVitrinaOverlay() {
 }
 
 // ============================================================
-// ASISTENTE "DALE VIDA A TU WEB" — vista por defecto de Datos de
-// Admin. Se monta INLINE (no es overlay) junto a la vitrina en vivo:
-// el usuario responde conversando y ve al lado cómo queda su web
-// (colores, nombre, mapa, redes, directorio). El botón "Cambiar a
-// manual" muestra el formulario clásico. Nada se publica hasta
-// tocar "Guardar Cambios".
+// ASISTENTE "DALE VIDA A TU WEB" — MODAL que tapa la pantalla,
+// con la estética del chat de crear servicios (svcchat):
+// conversación + vitrina en vivo al lado (desktop) o botón
+// "Ver cómo queda" (móvil/tablet). Se abre SOLO al entrar a
+// Datos de Admin. Cerrar = ver el formulario manual. Nada se
+// publica hasta tocar "Guardar Cambios".
 // ============================================================
 
-const CFG_MODO_KEY = 'agendapro_datosadmin_vista';
-
-function cfgModoGuardado() {
-    try { return localStorage.getItem(CFG_MODO_KEY) === 'manual' ? 'manual' : 'chat'; } catch (e) { return 'chat'; }
+function construirModalAsistente() {
+    if (document.getElementById('cfgchat-overlay')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'cfgchat-overlay';
+    wrap.className = 'cfgmo-overlay';
+    wrap.innerHTML = `
+        <div class="cfgmo-panel" role="dialog" aria-modal="true" aria-label="Asistente: Dale vida a tu web">
+            <header class="cfgmo-head">
+                <div class="cfgmo-av"><i class="fas fa-wand-magic-sparkles"></i><span class="cfgmo-av-on"></span></div>
+                <div class="cfgmo-head-txt">
+                    <strong>Dale vida a tu web</strong>
+                    <span>Responde y mira en vivo cómo va quedando tu página. Nada se publica hasta que tocas Guardar Cambios.</span>
+                </div>
+                <div class="cfgmo-pill" title="Progreso del asistente">Paso <strong id="cfgchat-paso-actual">1</strong> de 6</div>
+                <button type="button" class="cfgmo-btn cfgmo-btn-manual" id="cfgchat-head-manual" title="Ver el formulario completo"><i class="fas fa-keyboard"></i><span>Manual</span></button>
+                <button type="button" class="cfgmo-btn cfgmo-btn-ver" id="cfgchat-head-ver" title="Ver cómo queda tu página"><i class="fas fa-mobile-alt"></i><span>Ver cómo queda</span></button>
+                <button type="button" class="cfgmo-x" id="cfgchat-head-x" title="Cerrar y ver el formulario" aria-label="Cerrar asistente">&times;</button>
+            </header>
+            <div class="cfgmo-progress"><div class="cfgmo-progress-fill" id="cfgchat-bar-fill"></div></div>
+            <div class="cfgmo-body">
+                <div class="cfgmo-conv">
+                    <div class="cfgchat-chat" id="cfgchat-chat"></div>
+                    <div class="cfgchat-zona" id="cfgchat-zona"></div>
+                </div>
+                <div class="cfgmo-vitrina" id="cfgmo-vitrina"></div>
+            </div>
+        </div>`;
+    document.body.appendChild(wrap);
+    document.getElementById('cfgchat-head-manual').addEventListener('click', () => irAlManual('#cfg-modo-toggle'));
+    document.getElementById('cfgchat-head-x').addEventListener('click', () => irAlManual('#cfg-modo-toggle'));
+    document.getElementById('cfgchat-head-ver').addEventListener('click', abrirVitrinaOverlay);
+    // Sin cierre accidental: tocar fuera del modal NO lo cierra (no se pierde
+    // nada, pero se evita descartar la conversación por error).
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && wrap.classList.contains('cfgmo-abierto')) {
+            e.preventDefault();
+            irAlManual('#cfg-modo-toggle');
+        }
+    });
 }
 
-/** Aplica chat/manual y (re)monta el asistente si hace falta. */
-function aplicarModoDatos(modo) {
-    const left = document.querySelector('.config-left');
-    if (left) {
-        left.classList.toggle('cfg-vista-manual', modo === 'manual');
-        left.classList.toggle('cfg-vista-chat', modo === 'chat');
+function abrirAsistenteModal() {
+    const overlay = document.getElementById('cfgchat-overlay');
+    if (!overlay) return;
+    overlay.classList.add('cfgmo-abierto');
+    document.body.classList.add('cfgmo-lock');
+    // Si la conversación anterior ya terminó (paso 6), al reabrir se arranca
+    // limpio: lo aplicado ya vive en el formulario real y en la maqueta.
+    if (document.getElementById('cfgchat-manual')) {
+        reiniciarAsistente();
     }
-    const txt = document.getElementById('cfg-modo-toggle-txt');
-    if (txt) txt.textContent = modo === 'manual' ? 'Volver al asistente' : 'Cambiar a manual';
-    const vista = document.getElementById('cfg-chat-vista');
-    if (modo === 'chat' && vista && !vista.querySelector('.cfgchat-msg')) {
-        montarChatVista('cfg-chat-vista');
+    // La vitrina en vivo viaja al modal (columna derecha en desktop) y se
+    // devuelve al aside de la página al cerrar. El inner ya trae su propia
+    // cabecera ("Así la ven tus clientes") y el pie con la nota de guardado.
+    const inner = document.querySelector('.config-vitrina > .config-vitrina-inner');
+    const col = document.getElementById('cfgmo-vitrina');
+    if (inner && col && !col.contains(inner)) {
+        col.appendChild(inner);
     }
-    try { localStorage.setItem(CFG_MODO_KEY, modo); } catch (e) { /* sin almacenamiento */ }
+    actualizarVitrina();
+    montarChatVista();
 }
 
-function montarChatVista(containerId = 'cfg-chat-vista') {
-    const panel = document.getElementById(containerId);
-    if (!panel) return;
-    panel.innerHTML = `
-        <div class="cfgchat-head">
-            <div class="cfgchat-av"><i class="fas fa-wand-magic-sparkles"></i><span class="cfgchat-av-on"></span></div>
-            <div class="cfgchat-head-txt">
-                <strong>Dale vida a tu web</strong>
-                <span>Responde y mira a la derecha cómo va quedando. Cambia a manual cuando quieras tocar detalles.</span>
-            </div>
-            <div class="cfgchat-pasos" title="Progreso del asistente">
-                <span>Paso <strong id="cfgchat-paso-actual">1</strong> de 6</span>
-            </div>
-        </div>
-        <div class="cfgchat-progress"><div class="cfgchat-progress-fill" id="cfgchat-bar-fill"></div></div>
-        <div class="cfgchat-chat" id="cfgchat-chat"></div>
-        <div class="cfgchat-zona" id="cfgchat-zona"></div>
-    `;
+function cerrarAsistenteModal() {
+    const overlay = document.getElementById('cfgchat-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('cfgmo-abierto');
+    document.body.classList.remove('cfgmo-lock');
+    // Devolver la vitrina a su lugar en la página (modo manual).
+    const col = document.getElementById('cfgmo-vitrina');
+    const aside = document.querySelector('.config-vitrina');
+    const inner = col && col.querySelector('.config-vitrina-inner');
+    if (inner && aside && !aside.contains(inner)) aside.appendChild(inner);
+    actualizarVitrina();
+}
+
+/** Cierra el asistente (modo manual) y acerca el destino pedido. */
+function irAlManual(selector) {
+    cerrarAsistenteModal();
+    setTimeout(() => {
+        const el = document.querySelector(selector || '#cfg-preview-btn');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+}
+
+function reiniciarAsistente() {
     const chat = document.getElementById('cfgchat-chat');
     const zona = document.getElementById('cfgchat-zona');
+    if (chat) chat.innerHTML = '';
+    if (zona) zona.innerHTML = '';
+    montarChatVista();
+}
+
+/** Monta la conversación SOLO si está vacía (no pierde avance al reabrir). */
+function montarChatVista() {
+    const chat = document.getElementById('cfgchat-chat');
+    const zona = document.getElementById('cfgchat-zona');
+    if (!chat || !zona) return false;
+    if (chat.querySelector('.cfgchat-msg')) return true; // conversación en curso: conservar
     const PASOS_TOTAL = 6;
     let pasoActual = 0;
 
@@ -991,13 +1056,9 @@ function montarChatVista(containerId = 'cfg-chat-vista') {
         if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fn(); } });
     };
 
-    // El botón final reinicia el asistente (los valores ya quedaron aplicados
-    // en el formulario real y en la maqueta).
-    const cerrar = () => montarChatVista(containerId);
-
     // ── 1) Nombre ──
     setPaso(1);
-    bot(`<strong>¡Hola! 👋</strong> Voy a dejar tu página lista en 2 minutos.<span class="cfgchat-para"><i class="fas fa-info-circle"></i> Cada respuesta se aplica al instante en la maqueta de la derecha. Nada se publica hasta que tocas <strong>Guardar Cambios</strong>.</span><br><br><strong>¿Qué nombre verán tus clientes?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Es el nombre que ven al reservar en tu web y en el directorio.</span>`);
+    bot(`<strong>¡Hola! 👋</strong> Voy a dejar tu página lista en 2 minutos.<span class="cfgchat-para"><i class="fas fa-info-circle"></i> Cada respuesta se aplica al instante en la maqueta de tu página. Nada se publica hasta que tocas <strong>Guardar Cambios</strong>.</span><br><br><strong>¿Qué nombre verán tus clientes?</strong><span class="cfgchat-para"><i class="fas fa-info-circle"></i> Es el nombre que ven al reservar en tu web y en el directorio.</span>`);
     const nombreInput = document.getElementById('cfg-nombre-negocio');
     const nombreActual = (nombreInput && !nombreInput.disabled) ? nombreInput.value : (_tenantData && _tenantData.nombre_negocio) || '';
     zonaHtml(`
@@ -1186,16 +1247,11 @@ function montarChatVista(containerId = 'cfg-chat-vista') {
             <button type="button" class="cfgchat-btn-ancho" id="cfgchat-manual">Ver formulario manual (para guardar)</button>
             <button type="button" class="cfgchat-btn-sec" id="cfgchat-fin">Reiniciar el asistente</button>
         `);
-        document.getElementById('cfgchat-manual').addEventListener('click', () => {
-            aplicarModoDatos('manual');
-            const toggle = document.getElementById('cfg-modo-toggle');
-            if (toggle) window.scrollTo({ top: toggle.getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' });
-        });
-        document.getElementById('cfgchat-fin').addEventListener('click', cerrar);
+        document.getElementById('cfgchat-manual').addEventListener('click', () => irAlManual('#cfg-preview-btn'));
+        document.getElementById('cfgchat-fin').addEventListener('click', reiniciarAsistente);
     }
+    return false;
 }
-
-// ============================================================
 // DIRECTORIO: helpers (opciones de tipo, fotos, moderación)
 // ============================================================
 function renderOpcionesTipo(categoriaId, seleccionado) {
