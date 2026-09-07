@@ -76,6 +76,18 @@ async function renderVentasLive() {
         return;
     }
 
+    // Atajo directo a Reservas de Pymes (si el usuario también tiene ese
+    // workspace): si entró a Ventas Live por error o quiere cambiar al toque,
+    // no necesita volver al hub. admin.html resuelve solo el tenant correcto.
+    const wsRes = lista.find(ws => ws.proyecto === 'reservas');
+    const goReservasBtn = document.getElementById('vl-go-reservas');
+    if (wsRes && goReservasBtn) {
+        goReservasBtn.style.display = '';
+        goReservasBtn.addEventListener('click', () => {
+            window.location.href = 'admin.html';
+        });
+    }
+
     const loadingEl = document.getElementById('vl-loading');
     if (loadingEl) loadingEl.style.display = 'none';
     const contentEl = document.getElementById('vl-content');

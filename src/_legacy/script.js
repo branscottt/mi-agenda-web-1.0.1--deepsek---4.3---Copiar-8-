@@ -5292,20 +5292,41 @@ async function iniciarAdmin() {
     // ================================================================
     // PASO 2: BUSCAR TENANT EN BD (siempre priorizando BD sobre JWT)
     // ================================================================
+    // MULTI-PROYECTO: admin.html pertenece SIEMPRE al proyecto 'reservas'.
+    // Antes se tomaba el tenant más reciente por email SIN filtrar proyecto:
+    // un usuario con dos workspaces (Reservas + Ventas Live) resolvía el de
+    // Ventas Live y rebotaba a planes (bug verificado en prod: "no me deja
+    // entrar a Reservas de Pymes").
+    // Orden de resolución:
+    //   1) el tenant_id de la metadata de sesión, si es un tenant de reservas
+    //      (el hub lo mantiene apuntando al workspace de Reservas);
+    //   2) si no, el tenant de reservas más reciente del email (fallback).
     let tenantBD = null;
     let tenantError = null;
 
     try {
-        const result = await supabaseClient
-            .from('tenants')
-            .select('id, whatsapp, nombre_negocio')
-            .eq('email_contacto', session.email)
-            // Si hay tenants duplicados del mismo email (pruebas/errores), tomar el
-            // más reciente en vez de fallar: maybeSingle() con 2+ filas devuelve error
-            // 406 y el usuario ve "Error al verificar tu cuenta" sin poder entrar.
-            .order('fecha_registro', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        let result = null;
+        if (session.tenant_id) {
+            result = await supabaseClient
+                .from('tenants')
+                .select('id, whatsapp, nombre_negocio')
+                .eq('id', session.tenant_id)
+                .eq('proyecto', 'reservas')
+                .maybeSingle();
+        }
+        if (!result || !result.data) {
+            result = await supabaseClient
+                .from('tenants')
+                .select('id, whatsapp, nombre_negocio')
+                .eq('email_contacto', session.email)
+                .eq('proyecto', 'reservas')
+                // Si hay tenants duplicados del mismo email (pruebas/errores), tomar el
+                // más reciente en vez de fallar: maybeSingle() con 2+ filas devuelve error
+                // 406 y el usuario ve "Error al verificar tu cuenta" sin poder entrar.
+                .order('fecha_registro', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+        }
         tenantBD = result.data;
         tenantError = result.error;
     } catch (e) {
@@ -5396,6 +5417,15 @@ async function iniciarAdmin() {
 
     // Releer sesión fresca
     session = await getSession();
+
+    // El tenant real ya se resolvió (multi-proyecto). Antes, window.currentTenantId
+    // quedaba con el tenant_id viejo de la metadata (podía ser el de Ventas Live)
+    // y SuscripcionManager verificaba la suscripción del workspace equivocado →
+    // rebote a planes aunque el de Reservas tuviera plan activo.
+    window.currentTenantId = tenantBD.id;
+    if (session && session.tenant_id !== tenantBD.id) {
+        session.tenant_id = tenantBD.id;
+    }
 
     // --- SUBCASO B1: SIN WHATSAPP → redirigir a planes.html para ingresarlo ---
     if (!tenantBD.whatsapp) {
