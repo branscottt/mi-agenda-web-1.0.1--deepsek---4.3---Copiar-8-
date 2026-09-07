@@ -22,6 +22,8 @@
 
 const MAX_FECHAS = 400; // tope defensivo (1 año "todos los días" ≈ 366)
 const CLP = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+// Precio 0 = servicio gratuito: se muestra "Gratis" (el resto como $CLP).
+const fmtPrecio = (n) => (n === 0 ? 'Gratis' : CLP(n));
 
 function fmtLocal(d) {
     const p = (x) => String(x).padStart(2, '0');
@@ -611,18 +613,18 @@ function pasoPrecio() {
     _state.paso = 4;
     const esPromo = _state.modalidad === 'promocion';
     burbujaBot(esPromo
-        ? '¿Cuánto cobras por <strong>una sesión suelta</strong>? (el cliente también podrá pagar el pack completo)'
-        : '¿Cuánto cobras por sesión?');
+        ? '¿Cuánto cobras por <strong>una sesión suelta</strong>? (el cliente también podrá pagar el pack completo)<br><span class="svcchat-sub">Si es gratis, escribe 0.</span>'
+        : '¿Cuánto cobras por sesión?<br><span class="svcchat-sub">Si el servicio es gratis, escribe 0.</span>');
     bloqueInput(esPromo ? 'Precio de la sesión suelta ($)' : 'Precio de la sesión ($)', {
         inputmode: 'numeric',
         validar: (v) => {
             const n = parseFloat(String(v).replace(/[^0-9]/g, ''));
-            return (!n || n <= 0) ? 'Ingresa un precio mayor a 0' : null;
+            return (Number.isFinite(n) && n >= 0) ? null : 'Ingresa un precio (0 si es gratis)';
         }
     }, (valor) => {
         const n = parseFloat(valor.replace(/[^0-9]/g, ''));
         _state.precioSesion = n;
-        burbujaUser(CLP(n));
+        burbujaUser(fmtPrecio(n));
         if (esPromo) pasoPrecioPack();
         else { actualizarResumen(); pasoDuracion(); }
     });
@@ -636,15 +638,18 @@ function precioPackSugerido() {
 function pasoPrecioPack() {
     _state.paso = 5;
     const sugerido = precioPackSugerido();
-    burbujaBot(`¿Cuánto cuesta el pack de <strong>${_state.numSesiones}</strong>?<br>
-        <span class="svcchat-sub">Sugerencia: ${CLP(sugerido)} — con 15% de descuento ganas lo mismo y el cliente paga por adelantado.</span>`);
+    burbujaBot(sugerido > 0
+        ? `¿Cuánto cuesta el pack de <strong>${_state.numSesiones}</strong>?<br>
+        <span class="svcchat-sub">Sugerencia: ${CLP(sugerido)} — con 15% de descuento ganas lo mismo y el cliente paga por adelantado.</span>`
+        : `¿Cuánto cuesta el pack de <strong>${_state.numSesiones}</strong>?<br>
+        <span class="svcchat-sub">Como la sesión es gratis, el pack también puede serlo.</span>`);
     bloqueOpciones([
-        { valor: 'sugerido', label: `Usar ${CLP(sugerido)} (15% off)`, rec: true },
+        { valor: 'sugerido', label: sugerido > 0 ? `Usar ${CLP(sugerido)} (15% off)` : 'Gratis también ($0)', rec: true },
         { valor: 'otro', label: 'Poner otro precio' }
     ], (valor) => {
         if (valor === 'sugerido') {
             _state.precioPack = sugerido;
-            burbujaUser(CLP(sugerido));
+            burbujaUser(fmtPrecio(sugerido));
             actualizarResumen();
             pasoDuracion();
         } else {
@@ -653,15 +658,15 @@ function pasoPrecioPack() {
                 inputmode: 'numeric',
                 validar: (v) => {
                     const n = parseFloat(String(v).replace(/[^0-9]/g, ''));
-                    return (!n || n <= 0) ? 'Ingresa un precio mayor a 0' : null;
+                    return (Number.isFinite(n) && n >= 0) ? null : 'Ingresa un precio (0 si es gratis)';
                 }
             }, (valor2) => {
                 const n2 = parseFloat(valor2.replace(/[^0-9]/g, ''));
-                if (n2 >= (_state.precioSesion || 0) * _state.numSesiones) {
+                if ((_state.precioSesion || 0) > 0 && n2 >= (_state.precioSesion || 0) * _state.numSesiones) {
                     burbujaBot('Ese precio no tiene descuento (es mayor o igual al valor real). Usa el sugerido o un precio menor 😉');
                 }
                 _state.precioPack = n2;
-                burbujaUser(CLP(n2));
+                burbujaUser(fmtPrecio(n2));
                 actualizarResumen();
                 pasoDuracion();
             });
@@ -907,7 +912,7 @@ function pasoResumenFinal() {
         <div class="svcchat-tarjeta-final">
             <div class="svcchat-final-nombre"><i class="fas fa-tag"></i> ${escapeHtml(_state.nombre)}</div>
             <div class="svcchat-final-fila"><span>Modalidad</span><strong>${esPromo ? `Pack de ${_state.numSesiones} sesiones` : 'Sesión suelta'}</strong></div>
-            <div class="svcchat-final-fila"><span>Precio</span><strong>${esPromo ? `${CLP(_state.precioSesion)} sesión · ${CLP(_state.precioPack)} el pack` : CLP(_state.precioSesion)}</strong></div>
+            <div class="svcchat-final-fila"><span>Precio</span><strong>${esPromo ? `${fmtPrecio(_state.precioSesion)} sesión · ${fmtPrecio(_state.precioPack)} el pack` : fmtPrecio(_state.precioSesion)}</strong></div>
             <div class="svcchat-final-fila"><span>Duración</span><strong>${_state.duracion} min</strong></div>
             <div class="svcchat-final-fila"><span>Disponible</span><strong>${etiquetaDias(_state)} · ${_state.horaInicio} a ${_state.horaFin}</strong></div>
             <div class="svcchat-final-fila"><span>Bloques</span><strong>${bloques.length} de ${_state.duracion} min${_state.bloquesModo === 'elegir' ? ' (elegidos)' : ''}</strong></div>
@@ -962,7 +967,7 @@ function actualizarResumen() {
     body.innerHTML = `
         <div class="svcchat-rsm-preview">
             ${s.nombre ? `<div class="svcchat-rsm-nombre">${escapeHtml(s.nombre)}</div>` : '<div class="svcchat-rsm-vacio">[Nombre del servicio]</div>'}
-            ${s.precioSesion ? `<div class="svcchat-rsm-precio">${CLP(s.precioSesion)}${esPromo ? ' · pack ' + CLP(s.precioPack) : ''}</div>` : ''}
+            ${s.precioSesion != null ? `<div class="svcchat-rsm-precio">${fmtPrecio(s.precioSesion)}${esPromo && s.precioPack != null ? ' · pack ' + fmtPrecio(s.precioPack) : ''}</div>` : ''}
             ${s.duracion ? `<div class="svcchat-rsm-chip">${s.duracion} min</div>` : ''}
         </div>
         ${fila('Modalidad', esPromo ? `Pack de ${s.numSesiones}` : (s.paso >= 2 ? 'Sesión suelta' : ''))}
@@ -984,7 +989,7 @@ function aplicarEnFormulario(fechas, bloques) {
         if (el) el.value = val;
     };
     if (s.nombre) setVal('srv-name', s.nombre);
-    if (s.precioSesion) setVal('srv-price', s.precioSesion);
+    if (s.precioSesion != null) setVal('srv-price', s.precioSesion);
     if (s.duracion) setVal('srv-duration', s.duracion);
     setVal('srv-desc', '');
     setVal('srv-image-url', '');
@@ -999,7 +1004,7 @@ function aplicarEnFormulario(fechas, bloques) {
         radioPromo.checked = true;
         radioPromo.dispatchEvent(new Event('change', { bubbles: true }));
         if (s.numSesiones) setVal('srv-promo-sesiones', s.numSesiones);
-        if (s.precioPack) setVal('srv-promo-precio', s.precioPack);
+        if (s.precioPack != null) setVal('srv-promo-precio', s.precioPack);
         const pp = document.getElementById('srv-promo-precio');
         if (pp) pp.dispatchEvent(new Event('input', { bubbles: true }));
     } else if (radioSesion) {

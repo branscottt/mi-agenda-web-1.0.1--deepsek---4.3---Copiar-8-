@@ -6765,10 +6765,12 @@ function leerCamposPromocion() {
     if (tipo !== 'promocion') {
         return { tipo_venta: 'sesion', num_sesiones: null, precio_promocion: null };
     }
+    const rawPromo = document.getElementById('srv-promo-precio')?.value;
     return {
         tipo_venta: 'promocion',
         num_sesiones: parseInt(document.getElementById('srv-promo-sesiones')?.value, 10) || null,
-        precio_promocion: parseFloat(document.getElementById('srv-promo-precio')?.value) || null
+        // 0 es válido (pack gratis): solo vacío/ausente se guarda como null.
+        precio_promocion: (rawPromo === undefined || rawPromo === '') ? null : (parseFloat(rawPromo) || 0)
     };
 }
 
@@ -6777,9 +6779,10 @@ function validarCamposPromocion() {
     if (tipo !== 'promocion') return null;
     const ind = parseFloat(document.getElementById('srv-price')?.value) || 0;
     const n = parseInt(document.getElementById('srv-promo-sesiones')?.value, 10) || 0;
-    const promo = parseFloat(document.getElementById('srv-promo-precio')?.value) || 0;
+    const rawPromo = document.getElementById('srv-promo-precio')?.value;
+    const promo = (rawPromo === undefined || rawPromo === '') ? NaN : parseFloat(rawPromo);
     if (!n || n < 2) return '⚠️ La promoción debe incluir al menos 2 sesiones.';
-    if (!promo || promo <= 0) return '⚠️ Ingresa el precio total de la promoción.';
+    if (!Number.isFinite(promo) || promo < 0) return '⚠️ Ingresa el precio total de la promoción (0 si es gratis).';
     if (ind > 0 && promo > ind * n) return '⚠️ El precio de la promoción supera el valor real (precio sesión × N). Revisa los valores.';
     return null;
 }
@@ -7759,7 +7762,7 @@ async function editarServicio(id) {
     const srvPromoSes = document.getElementById('srv-promo-sesiones');
     if (srvPromoSes) srvPromoSes.value = servicio.num_sesiones || '';
     const srvPromoPrecio = document.getElementById('srv-promo-precio');
-    if (srvPromoPrecio) srvPromoPrecio.value = servicio.precio_promocion || '';
+    if (srvPromoPrecio) srvPromoPrecio.value = servicio.precio_promocion ?? '';
     actualizarUIFormularioServicio();
 
     if (servicio.fechas && servicio.fechas.length > 0) {
@@ -10479,7 +10482,7 @@ async function duplicarServicio(id) {
     // Cargar formulario con los datos del original pero sin ID (creación)
     document.getElementById('srv-name').value = original.nombre + ' (copia)';
     // categoría: 'general' (asignado por defecto al guardar)
-    document.getElementById('srv-price').value = original.precio || '';
+    document.getElementById('srv-price').value = original.precio ?? '';
     document.getElementById('srv-image-url').value = original.imagen || '';
     // Resetear file input al duplicar
     const fileInputDup = document.getElementById('srv-image-file');
