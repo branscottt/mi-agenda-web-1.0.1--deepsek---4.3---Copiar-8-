@@ -261,6 +261,13 @@ async function syncJwtSession() {
                 const { initAdminTour } = await import('./tutorial/ui/AdminTour.js');
                 initAdminTour();
 
+                // Invitación de descubrimiento a Mis Clientes: 1 vez por tenant,
+                // cuando ya hay clientes reales (reservas/ventas) pero el admin
+                // todavía no ha guardado nada de ellos (0 fichas con contenido,
+                // 0 clientes manuales). Nunca obliga; no compite con el tour.
+                const { initInvitacionClientes } = await import('./clients/ui/InvitacionClientes.js');
+                initInvitacionClientes();
+
                 // Módulo MFA — banner de configuración 2FA (no modifica HTML/CSS)
                 const { initMfaSetup } = await import('./auth/ui/MfaSetup.js');
                 initMfaSetup();
