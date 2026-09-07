@@ -7,6 +7,10 @@
 // (server-side), nunca desde el tenant_id del JWT.
 
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
+import { vlApi } from '../domain/vlApi.js';
+import { abrirModal, cerrarModal } from './vlModales.js';
+import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { escapeHtml } from '../../shared/infrastructure/formatters.js';
 
 const PLAN_LABELS = { vl_free: 'Gratis' };
 
@@ -97,6 +101,7 @@ async function renderVentasLive() {
     // Router de secciones
     wireNav();
     activarVista('live');
+    pintarWhatsappYConfig();
 
     // Puente Procesos → ficha del cliente (pestaña Clientes)
     window.__vlIrAFicha = async (clienteId) => {
@@ -124,6 +129,93 @@ function wireNav() {
             tab.classList.add('active');
             activarVista(tab.dataset.view);
         });
+    });
+}
+
+// Nombre y WhatsApp del espacio (propios de Ventas Live)
+function pintarWhatsapp(whatsapp) {
+    const sub = document.getElementById('vl-ws-sub');
+    const waEl = document.getElementById('vl-whatsapp');
+    if (!sub || !waEl) return;
+    if (whatsapp) {
+        waEl.textContent = whatsapp;
+        sub.classList.remove('sin-numero');
+    } else {
+        waEl.textContent = 'Sin número configurado';
+        sub.classList.add('sin-numero');
+    }
+}
+
+async function pintarWhatsappYConfig() {
+    const btn = document.getElementById('vl-config-btn');
+    const info = await vlApi.workspaceInfo();
+    if (info.ok && info.data) {
+        pintarWhatsapp(info.data.whatsapp);
+        if (info.data.nombre_negocio) {
+            const nombreEl = document.getElementById('vl-nombre');
+            if (nombreEl) nombreEl.textContent = info.data.nombre_negocio;
+        }
+    } else {
+        pintarWhatsapp('');
+    }
+    if (btn) {
+        // Datos SIEMPRE frescos al abrir (evita revertir cambios con caché vieja)
+        btn.addEventListener('click', async () => {
+            const fresh = await vlApi.workspaceInfo();
+            const nombreEl = document.getElementById('vl-nombre');
+            abrirModalConfig({
+                nombre: (fresh.ok && fresh.data && fresh.data.nombre_negocio) || (nombreEl ? nombreEl.textContent : '') || '',
+                whatsapp: (fresh.ok && fresh.data && fresh.data.whatsapp) || ''
+            });
+        });
+    }
+}
+
+function abrirModalConfig(ws) {
+    abrirModal({
+        titulo: '⚙️ Configurar este espacio',
+        sub: 'Ventas Live tiene su propio nombre y su propio WhatsApp, independientes del proyecto Reservas.',
+        html: `
+            <div class="vl-form-row">
+                <label for="vw-nombre">Nombre del espacio</label>
+                <input class="vl-control" id="vw-nombre" value="${escapeHtml(ws.nombre || '')}" maxlength="60">
+            </div>
+            <div class="vl-form-row">
+                <label for="vw-whatsapp">WhatsApp a cargo</label>
+                <input class="vl-control" id="vw-whatsapp" value="${escapeHtml(ws.whatsapp || '')}" placeholder="+56 9 …">
+                <div style="font-size:0.75rem;color:var(--muted,#adb5bd);margin-top:5px;">
+                    El número que recibirá los mensajes de tus clientes. Vacío = conserva el actual.
+                </div>
+            </div>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vw-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn primary" id="vw-ok" type="button"><i class="fas fa-save"></i> Guardar</button>
+            </div>`,
+        onMount: (modal, { marcarSucio }) => {
+            const nombreEl = modal.querySelector('#vw-nombre');
+            const waEl = modal.querySelector('#vw-whatsapp');
+            [nombreEl, waEl].forEach(el => el.addEventListener('input', marcarSucio));
+            modal.querySelector('#vw-cancelar').addEventListener('click', () => cerrarModal(true));
+            modal.querySelector('#vw-ok').addEventListener('click', guardar);
+            nombreEl.focus();
+            async function guardar() {
+                const nombre = nombreEl.value.trim();
+                const whatsapp = waEl.value.trim();
+                if (nombre.length < 2) { mostrarToast('El nombre debe tener al menos 2 caracteres', 'warning'); return; }
+                const digits = whatsapp.replace(/\D/g, '');
+                if (whatsapp && digits.length < 8) { mostrarToast('WhatsApp inválido (mínimo 8 dígitos)', 'warning'); return; }
+                const btn = modal.querySelector('#vw-ok');
+                btn.disabled = true;
+                const res = await vlApi.actualizarWorkspace(nombre, whatsapp);
+                btn.disabled = false;
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo guardar', 'error'); return; }
+                cerrarModal(true);
+                const nombreElH = document.getElementById('vl-nombre');
+                if (nombreElH && res.data && res.data.nombre_negocio) nombreElH.textContent = res.data.nombre_negocio;
+                pintarWhatsapp(res.data && res.data.whatsapp ? res.data.whatsapp : whatsapp);
+                mostrarToast('Espacio actualizado ✔', 'success');
+            }
+        }
     });
 }
 

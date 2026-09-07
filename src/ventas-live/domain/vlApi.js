@@ -65,7 +65,12 @@ export const vlApi = {
     agregarGasto: (tipo, concepto, monto, fecha = null) =>
         callRpc('vl_agregar_gasto', { p_tipo: tipo, p_concepto: concepto, p_monto: monto, p_fecha: fecha }),
     eliminarGasto: (gastoId) => callRpc('vl_eliminar_gasto', { p_gasto_id: gastoId }),
-    guardarConfig: (params) => callRpc('vl_guardar_config', params)
+    guardarConfig: (params) => callRpc('vl_guardar_config', params),
+
+    // ---- Config del workspace (nombre y WhatsApp propios del proyecto) ----
+    workspaceInfo: () => callRpc('vl_workspace_info'),
+    actualizarWorkspace: (nombre, whatsapp) =>
+        callRpc('vl_actualizar_workspace', { p_nombre_negocio: nombre, p_whatsapp: whatsapp })
 };
 
 export const CATEGORIA_INFO = {
