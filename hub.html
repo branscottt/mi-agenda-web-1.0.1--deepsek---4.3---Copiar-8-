@@ -96,13 +96,16 @@
             transform: scale(1.02);
         }
         .project-card.dimmed {
-            opacity: 0.38;
-            filter: grayscale(0.75) blur(1px);
-            transform: scale(0.96);
-            pointer-events: none;
+            opacity: 0.55;
+            filter: grayscale(0.6) blur(0.5px);
+            transform: scale(0.97);
             user-select: none;
         }
-        .project-card.dimmed .card-cta { pointer-events: none; }
+        /* Las cards atenuadas SIGUEN siendo clickeables: el swap solo reordena
+           el énfasis visual. Antes tenían pointer-events:none y, tras pulsar
+           "Quiero ver X", el proyecto real quedaba atrás e INACCESIBLE (no se
+           podía volver a Reservas de Pymes). El modal de creación ya pide
+           confirmación, así que no hay riesgo de crear por accidente. */
         .project-icon {
             width: 74px;
             height: 74px;
