@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://dfcfimipkfhitlsyixqu.supabase.co" crossorigin>
-    <title>Organify — Agenda online para tu negocio</title>
-    <meta name="description" content="Organify: agenda online, página propia para tus clientes, recordatorios automáticos y directorio local. Prueba gratis 14 días, sin tarjeta.">
+    <title>Organify — Plataforma para pymes: Reservas y Ventas Live</title>
+    <meta name="description" content="Organify es una plataforma de herramientas digitales para pymes: Reservas de Pymes (agenda online con página propia y recordatorios) y Ventas Live (registro, cobro y envíos para vender en vivo). Prueba gratis 14 días, sin tarjeta.">
     <link rel="canonical" href="https://agenda-pro-red.vercel.app/">
-    <meta property="og:title" content="Organify — Agenda online para tu negocio">
-    <meta property="og:description" content="Agenda online, página propia para tus clientes, recordatorios automáticos y directorio local. Prueba gratis 14 días, sin tarjeta.">
+    <meta property="og:title" content="Organify — Plataforma para pymes: Reservas y Ventas Live">
+    <meta property="og:description" content="Reservas de Pymes: agenda online con página propia y recordatorios. Ventas Live: registro, cobro y envíos para vender en vivo por redes. Prueba gratis 14 días, sin tarjeta.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://agenda-pro-red.vercel.app/">
     <script type="application/ld+json">
@@ -16,26 +16,31 @@
         "@context": "https://schema.org",
         "@type": "Organization",
         "name": "Organify",
-        "description": "Agenda online para pymes y profesionales: reservas, recordatorios automáticos y directorio local.",
+        "description": "Plataforma de herramientas digitales para pymes: Reservas de Pymes (agenda online con página propia, recordatorios y directorio) y Ventas Live (registro, cobro y envíos para ventas en vivo por redes).",
         "url": "https://agenda-pro-red.vercel.app/"
     }
     </script>
     <style>
-        /* ===== TOKENS REALES DE LA WEB (style.css :root) ===== */
+        /* ===== TOKENS REALES DE LA WEB (style.css :root) + acento Ventas Live (hub.html) ===== */
         :root {
             --primary: #9d4edd;
             --primary-dark: #7b2cbf;
             --primary-light: #c77dff;
             --primary-glow: rgba(157, 78, 221, 0.4);
-            --secondary: #ff6d00;
+            --vl: #ff6d00;
+            --vl-dark: #e8590c;
+            --vl-light: #ffa94d;
+            --vl-glow: rgba(255, 107, 26, 0.4);
+            --success: #00b894;
             --bg: #0a0a0f;
             --bg-darker: #050508;
             --glass: rgba(20, 20, 30, 0.7);
+            --glass-soft: rgba(255, 255, 255, 0.04);
             --glass-border: rgba(255, 255, 255, 0.1);
             --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             --text: #f8f9fa;
             --muted: #adb5bd;
-            --success: #00b894;
+            --faint: #8b8fa3;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -44,138 +49,179 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg);
             color: var(--text);
-            line-height: 1.6;
+            line-height: 1.65;
             background-image:
-                radial-gradient(circle at 10% 15%, rgba(157, 78, 221, 0.14) 0%, transparent 22%),
-                radial-gradient(circle at 90% 10%, rgba(199, 125, 255, 0.10) 0%, transparent 20%),
-                radial-gradient(circle at 85% 85%, rgba(255, 109, 0, 0.06) 0%, transparent 22%);
+                radial-gradient(circle at 10% 12%, rgba(157, 78, 221, 0.16) 0%, transparent 24%),
+                radial-gradient(circle at 92% 6%, rgba(199, 125, 255, 0.10) 0%, transparent 20%),
+                radial-gradient(circle at 82% 92%, rgba(255, 109, 0, 0.07) 0%, transparent 24%);
             background-attachment: fixed;
         }
         a { text-decoration: none; color: inherit; }
-
-        .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-
-        /* ===== NAVBAR ===== */
-        .nav {
-            position: sticky; top: 0; z-index: 50;
-            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            background: rgba(10, 10, 15, 0.75);
-            border-bottom: 1px solid var(--glass-border);
-        }
-        .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
-        .logo { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
-        .logo span {
-            background: linear-gradient(135deg, var(--primary-light), var(--primary));
-            -webkit-background-clip: text; background-clip: text; color: transparent;
-        }
-        .nav-links { display: flex; gap: 26px; font-size: 0.92rem; color: var(--muted); font-weight: 500; }
-        .nav-links a:hover { color: var(--primary-light); }
-        .nav-right { display: flex; gap: 12px; align-items: center; }
-        .btn {
-            display: inline-block; padding: 12px 26px; border-radius: 12px;
-            font-weight: 700; font-size: 0.97rem; cursor: pointer;
-            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-            text-align: center;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--primary-light));
-            color: #fff;
-            box-shadow: 0 6px 22px var(--primary-glow);
-        }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(199, 125, 255, 0.5); }
-        .btn-ghost {
-            background: var(--glass); color: var(--text);
-            border: 1px solid var(--glass-border);
-            backdrop-filter: blur(8px);
-        }
-        .btn-ghost:hover { border-color: var(--primary-light); color: var(--primary-light); transform: translateY(-2px); }
-        .btn-lg { padding: 15px 34px; font-size: 1.02rem; }
-        .btn-sm { padding: 9px 18px; font-size: 0.88rem; }
-        .nav-login { color: var(--muted); font-weight: 600; font-size: 0.9rem; padding: 8px 4px; }
-        .nav-login:hover { color: var(--primary-light); }
-        @media (max-width: 760px) { .nav-links { display: none; } }
-
-        /* ===== HERO ===== */
-        .hero { padding: 76px 0 70px; }
-        .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 52px; align-items: center; }
-        .badge {
-            display: inline-flex; align-items: center; gap: 8px;
-            background: rgba(157, 78, 221, 0.12);
-            border: 1px solid rgba(199, 125, 255, 0.35);
-            color: var(--primary-light);
-            font-size: 0.8rem; font-weight: 700; letter-spacing: 0.4px;
-            padding: 6px 14px; border-radius: 999px; margin-bottom: 20px;
-        }
-        .badge .dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: var(--success); box-shadow: 0 0 10px var(--success);
-        }
-        .hero h1 { font-size: clamp(2.1rem, 4.6vw, 3.3rem); line-height: 1.1; letter-spacing: -1px; font-weight: 800; }
-        .hero h1 em {
+        img { max-width: 100%; }
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+        section { padding: 72px 0; scroll-margin-top: 76px; }
+        .sec-head { text-align: center; max-width: 720px; margin: 0 auto 48px; }
+        .sec-head h2 { font-size: clamp(1.7rem, 3.2vw, 2.35rem); letter-spacing: -0.6px; line-height: 1.15; font-weight: 800; }
+        .sec-head h2 em, h1 em {
             font-style: normal;
             background: linear-gradient(120deg, var(--primary-light), var(--primary));
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
-        .hero p.sub { margin-top: 18px; font-size: 1.08rem; color: var(--muted); max-width: 520px; }
-        .hero-ctas { margin-top: 30px; display: flex; gap: 14px; flex-wrap: wrap; }
-        .hero-note { margin-top: 16px; font-size: 0.85rem; color: #8b8fa3; }
-        .hero-note strong { color: var(--primary-light); }
+        .sec-head p { margin-top: 14px; color: var(--muted); font-size: 1.02rem; }
 
-        /* Mock de reserva (glass, como la app) */
-        .mock {
+        .eyebrow {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 0.74rem; font-weight: 800; letter-spacing: 1.6px;
+            text-transform: uppercase; margin-bottom: 16px;
+        }
+        .eyebrow::before { content: ""; width: 26px; height: 2px; border-radius: 2px; background: currentColor; opacity: .8; }
+
+        .btn {
+            display: inline-block; padding: 13px 28px; border-radius: 13px;
+            font-weight: 700; font-size: 0.98rem; cursor: pointer; text-align: center;
+            border: 1px solid transparent;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+        }
+        .btn-lg { padding: 15px 34px; font-size: 1.02rem; }
+        .btn-sm { padding: 9px 18px; font-size: 0.88rem; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #fff; box-shadow: 0 6px 22px var(--primary-glow);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(199, 125, 255, 0.5); }
+        .btn-vl {
+            background: linear-gradient(135deg, var(--vl), var(--vl-dark));
+            color: #fff; box-shadow: 0 6px 22px var(--vl-glow);
+        }
+        .btn-vl:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255, 107, 26, 0.5); }
+        .btn-ghost {
+            background: var(--glass); color: var(--text);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        }
+        .btn-ghost:hover { border-color: var(--primary-light); color: var(--primary-light); transform: translateY(-2px); }
+
+        /* ===== NAVBAR ===== */
+        .nav {
+            position: sticky; top: 0; z-index: 60;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            background: rgba(10, 10, 15, 0.78);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; }
+        .logo { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
+        .logo span {
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .nav-links { display: flex; gap: 24px; font-size: 0.9rem; color: var(--muted); font-weight: 500; }
+        .nav-links a { transition: color .15s ease; }
+        .nav-links a:hover { color: var(--primary-light); }
+        .nav-right { display: flex; gap: 12px; align-items: center; }
+        .nav-login { color: var(--muted); font-weight: 600; font-size: 0.9rem; padding: 8px 4px; white-space: nowrap; }
+        .nav-login:hover { color: var(--primary-light); }
+        @media (max-width: 940px) { .nav-links { display: none; } }
+
+        /* ===== HERO ===== */
+        .hero { padding: 84px 0 74px; }
+        .hero-grid { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 56px; align-items: center; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 9px;
+            background: rgba(157, 78, 221, 0.12);
+            border: 1px solid rgba(199, 125, 255, 0.35);
+            color: var(--primary-light);
+            font-size: 0.8rem; font-weight: 700; letter-spacing: 0.3px;
+            padding: 6px 15px; border-radius: 999px; margin-bottom: 22px;
+        }
+        .badge .dot {
+            width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+            background: var(--success); box-shadow: 0 0 10px var(--success);
+            animation: dot-pulse 2.4s ease-in-out infinite;
+        }
+        @keyframes dot-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+        .hero h1 { font-size: clamp(2.05rem, 4.5vw, 3.15rem); line-height: 1.12; letter-spacing: -1.2px; font-weight: 800; }
+        .hero h1 .grad-2 {
+            background: linear-gradient(120deg, var(--vl-light), var(--vl));
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .hero p.sub { margin-top: 20px; font-size: 1.09rem; color: var(--muted); max-width: 560px; }
+        .hero p.sub strong { color: var(--text); }
+        .hero-ctas { margin-top: 32px; display: flex; gap: 14px; flex-wrap: wrap; }
+        .hero-note { margin-top: 18px; font-size: 0.86rem; color: var(--faint); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+        .hero-note b { color: var(--primary-light); font-weight: 700; }
+
+        /* Mock hub "Mis Proyectos" (estructura real de hub.html) */
+        .hubmock {
+            position: relative;
             background: var(--glass);
             backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
             border: 1px solid var(--glass-border);
-            border-radius: 20px; padding: 26px;
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 60px rgba(157, 78, 221, 0.12);
-            max-width: 400px; margin-left: auto;
+            border-radius: 22px; padding: 22px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 70px rgba(157, 78, 221, 0.10);
+            max-width: 470px; margin-left: auto;
         }
-        .mock-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-        .mock-avatar {
-            width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
-            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+        .hubmock-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 0 4px; }
+        .hubmock-logo {
+            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 1.1rem; box-shadow: 0 4px 14px var(--primary-glow);
+            font-size: 1.05rem; box-shadow: 0 4px 14px var(--primary-glow);
         }
-        .mock-head strong { display: block; font-size: 0.98rem; }
-        .mock-head small { color: var(--muted); font-size: 0.8rem; }
-        .mock-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 14px; border-radius: 12px;
-            background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.05);
-            margin-bottom: 10px;
+        .hubmock-head strong { display: block; font-size: 0.98rem; line-height: 1.25; }
+        .hubmock-head small { color: var(--muted); font-size: 0.78rem; }
+        .hubmock-card {
+            display: flex; gap: 14px; align-items: flex-start;
+            background: rgba(255, 255, 255, 0.035);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px; padding: 15px 16px; margin-bottom: 11px;
+            transition: border-color .15s ease, background .15s ease;
         }
-        .mock-row .d { font-size: 0.85rem; color: var(--muted); }
-        .mock-row .v { font-size: 0.85rem; font-weight: 700; color: var(--text); }
-        .mock-cta {
-            display: block; text-decoration: none;
-            margin-top: 16px; text-align: center; padding: 12px; border-radius: 12px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
-            font-weight: 700; font-size: 0.92rem;
-            box-shadow: 0 6px 18px var(--primary-glow);
+        .hubmock-card:hover { border-color: rgba(199, 125, 255, 0.45); background: rgba(255, 255, 255, 0.055); }
+        .hubmock-ico {
+            width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 1.15rem;
         }
-        .mock-tag {
-            display: inline-block; margin-top: 12px; font-size: 0.75rem;
-            color: var(--success); background: rgba(0, 184, 148, 0.12);
-            border: 1px solid rgba(0, 184, 148, 0.3);
-            border-radius: 999px; padding: 4px 12px; font-weight: 600;
+        .hubmock-ico.reservas { background: linear-gradient(135deg, var(--primary-dark), var(--primary-light)); box-shadow: 0 5px 16px var(--primary-glow); }
+        .hubmock-ico.vl { background: linear-gradient(135deg, var(--vl-dark), var(--vl-light)); box-shadow: 0 5px 16px var(--vl-glow); }
+        .hubmock-card h4 { font-size: 0.95rem; font-weight: 700; line-height: 1.3; }
+        .hubmock-card p { font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin-top: 3px; }
+        .hubmock-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 0.64rem; font-weight: 800; letter-spacing: 0.6px;
+            padding: 3px 10px; border-radius: 999px; margin-top: 7px;
         }
-        .mock-float {
+        .hubmock-pill.activo { background: rgba(0, 184, 148, 0.13); border: 1px solid rgba(0, 184, 148, 0.45); color: #6ff5d3; }
+        .hubmock-pill.prox { background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.25); color: var(--muted); }
+        .hubmock-next {
+            display: flex; gap: 14px; align-items: center;
+            border: 1px dashed rgba(255, 255, 255, 0.18);
+            border-radius: 16px; padding: 13px 16px;
+        }
+        .hubmock-next .plus {
+            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+            border: 1px dashed rgba(255, 255, 255, 0.3);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; color: var(--muted); font-weight: 300;
+        }
+        .hubmock-next b { display: block; font-size: 0.86rem; font-weight: 700; }
+        .hubmock-next span { font-size: 0.78rem; color: var(--muted); }
+        .hubmock-float {
             position: absolute; background: var(--glass); border: 1px solid var(--glass-border);
-            border-radius: 12px; padding: 10px 14px; font-size: 0.78rem;
-            box-shadow: var(--glass-shadow); backdrop-filter: blur(10px);
-            display: flex; align-items: center; gap: 8px;
+            border-radius: 13px; padding: 10px 15px; font-size: 0.8rem;
+            box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            display: flex; align-items: center; gap: 8px; font-weight: 600;
         }
-        .mock-wrap { position: relative; }
-        @media (max-width: 900px) {
-            .hero-grid { grid-template-columns: 1fr; padding-top: 10px; }
-            .mock { margin: 0 auto; }
-            .mock-float { display: none; }
+        .hubmock-float small { color: var(--muted); font-weight: 500; }
+        .hubmock-wrap { position: relative; padding: 8px 0; }
+        @media (max-width: 960px) {
+            .hero-grid { grid-template-columns: 1fr; gap: 44px; }
+            .hubmock { margin: 0 auto; }
+            .hubmock-float { display: none; }
         }
 
         /* ===== BARRA DE CONFIANZA ===== */
-        .trust { padding: 0 0 58px; text-align: center; }
-        .trust p { color: var(--muted); font-size: 0.9rem; margin-bottom: 18px; }
+        .trust { padding: 0 0 66px; text-align: center; }
+        .trust p { color: var(--muted); font-size: 0.92rem; margin-bottom: 20px; }
         .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
         .chip {
             background: var(--glass); border: 1px solid var(--glass-border);
@@ -183,75 +229,241 @@
             font-size: 0.85rem; font-weight: 600; color: var(--muted);
             transition: all .15s ease;
         }
-        .chip:hover { border-color: var(--primary-light); color: var(--primary-light); }
+        .chip:hover { border-color: var(--primary-light); color: var(--primary-light); transform: translateY(-1px); }
 
-        /* ===== SECCIONES ===== */
-        section { padding: 64px 0; }
-        .sec-head { text-align: center; max-width: 660px; margin: 0 auto 46px; }
-        .sec-head h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); letter-spacing: -0.5px; font-weight: 800; }
-        .sec-head h2 em {
-            font-style: normal;
-            background: linear-gradient(120deg, var(--primary-light), var(--primary));
-            -webkit-background-clip: text; background-clip: text; color: transparent;
+        /* ===== SHOWCASE DE PRODUCTOS ===== */
+        .split { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr); gap: 58px; align-items: center; }
+        .split.rev .media { order: 2; }
+        .split.rev .texto { order: 1; }
+        @media (max-width: 960px) {
+            .split, .split.rev { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+            .split.rev .media, .split.rev .texto { order: 0; }
         }
-        .sec-head p { margin-top: 12px; color: var(--muted); }
-
-        /* Beneficios */
-        .benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .benefit {
-            background: var(--glass); border: 1px solid var(--glass-border);
-            border-radius: 16px; padding: 26px;
-            backdrop-filter: blur(10px);
-            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+        .split .texto h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); letter-spacing: -0.6px; line-height: 1.15; font-weight: 800; }
+        .split .texto > p { margin-top: 16px; color: var(--muted); font-size: 1.01rem; }
+        .feat-list { list-style: none; margin: 24px 0 8px; }
+        .feat-list li { display: flex; gap: 12px; padding: 7px 0; font-size: 0.94rem; }
+        .feat-list .fi {
+            width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0; margin-top: 1px;
+            display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
         }
-        .benefit:hover { transform: translateY(-4px); border-color: rgba(199, 125, 255, 0.4); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4); }
-        .benefit .ico {
-            width: 46px; height: 46px; border-radius: 12px; margin-bottom: 16px;
-            background: linear-gradient(135deg, rgba(157, 78, 221, 0.25), rgba(199, 125, 255, 0.15));
-            border: 1px solid rgba(199, 125, 255, 0.25);
-            display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+        .feat-list .fi.purple { background: rgba(157, 78, 221, 0.16); border: 1px solid rgba(199, 125, 255, 0.3); }
+        .feat-list .fi.orange { background: rgba(255, 109, 0, 0.14); border: 1px solid rgba(255, 169, 77, 0.32); }
+        .feat-list b { font-weight: 700; color: var(--text); }
+        .feat-list span.txt { color: #c9c9d6; }
+        .split .texto .cta-row { margin-top: 26px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+        .mini-note { margin-top: 14px; font-size: 0.83rem; color: var(--faint); }
+        .mini-note b { color: var(--primary-light); font-weight: 700; }
+        .sec-reservas .eyebrow, .split.reservas .eyebrow { color: var(--primary-light); }
+        .sec-vl { background: linear-gradient(180deg, transparent, rgba(255, 109, 0, 0.045) 50%, transparent); }
+        .sec-vl .eyebrow { color: var(--vl-light); }
+        .sec-vl .sec-head h2 em { background: linear-gradient(120deg, var(--vl-light), var(--vl)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .sec-vl .split h2 em { background: linear-gradient(120deg, var(--vl-light), var(--vl)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+        /* Mock de reserva (glass; datos REALES vía home-directorio.js) */
+        .mock {
+            background: var(--glass);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px; padding: 24px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 60px rgba(157, 78, 221, 0.12);
+            max-width: 420px;
         }
-        .benefit h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
-        .benefit p { font-size: 0.9rem; color: var(--muted); }
-        @media (max-width: 900px) { .benefits { grid-template-columns: 1fr; } }
+        @media (min-width: 961px) { .split.reservas .media { justify-self: start; } }
+        .mock-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+        .mock-avatar {
+            width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 1.1rem; box-shadow: 0 4px 14px var(--primary-glow);
+        }
+        .mock-head strong { display: block; font-size: 0.98rem; line-height: 1.3; }
+        .mock-head small { color: var(--muted); font-size: 0.8rem; }
+        .mock-row {
+            display: flex; justify-content: space-between; align-items: center; gap: 12px;
+            padding: 11px 14px; border-radius: 12px;
+            background: var(--glass-soft); border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 9px;
+        }
+        .mock-row .d { font-size: 0.84rem; color: var(--muted); }
+        .mock-row .v { font-size: 0.84rem; font-weight: 700; color: var(--text); text-align: right; }
+        .mock-cta {
+            display: block; margin-top: 15px; text-align: center; padding: 12px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
+            font-weight: 700; font-size: 0.92rem;
+            box-shadow: 0 6px 18px var(--primary-glow);
+            transition: transform .15s ease;
+        }
+        .mock-cta:hover { transform: translateY(-2px); }
+        .mock-tag {
+            display: inline-block; margin-top: 12px; font-size: 0.75rem;
+            color: var(--success); background: rgba(0, 184, 148, 0.12);
+            border: 1px solid rgba(0, 184, 148, 0.3);
+            border-radius: 999px; padding: 4px 12px; font-weight: 600;
+        }
+        .mock-wrap { position: relative; }
+        .mock-float {
+            position: absolute; background: var(--glass); border: 1px solid var(--glass-border);
+            border-radius: 12px; padding: 9px 13px; font-size: 0.78rem;
+            box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            display: flex; align-items: center; gap: 7px; font-weight: 600; white-space: nowrap;
+        }
+        @media (max-width: 960px) { .mock { margin: 0 auto; } .mock-float { display: none; } }
 
-        /* Mock página del negocio */
-        .showcase { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 52px; align-items: center; }
-        .showcase .mock { margin: 0; }
-        .showcase ul { list-style: none; margin-top: 8px; }
-        .showcase li { padding: 7px 0; color: var(--muted); font-size: 0.95rem; display: flex; gap: 10px; }
-        .showcase li::before { content: "✓"; color: var(--success); font-weight: 800; }
-        .showcase .btn { margin-top: 22px; }
-        @media (max-width: 900px) { .showcase { grid-template-columns: 1fr; } }
+        /* Mock MODO LIVE (Ventas Live; ilustración genérica, sin datos reales de tenant) */
+        .vlmock {
+            position: relative;
+            background: var(--glass);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 169, 77, 0.25);
+            border-radius: 20px; overflow: hidden;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 70px rgba(255, 109, 0, 0.10);
+            max-width: 430px;
+        }
+        @media (min-width: 961px) { .split.vl .media { justify-self: end; } }
+        .vlmock-top {
+            background: linear-gradient(135deg, var(--vl-dark), var(--vl));
+            padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .vlmock-top b { font-size: 0.92rem; display: flex; align-items: center; gap: 8px; color: #fff; }
+        .vlmock-live {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(0, 0, 0, 0.25); color: #fff;
+            font-size: 0.7rem; font-weight: 800; letter-spacing: 0.6px;
+            padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+        }
+        .vlmock-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #ff8787; animation: dot-pulse 1.4s ease-in-out infinite; }
+        .vlmock-body { padding: 16px 18px 18px; }
+        .vlmock-row {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--glass-soft); border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px; padding: 10px 13px; margin-bottom: 9px;
+        }
+        .vlmock-user {
+            width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.72rem; font-weight: 800; color: #fff;
+        }
+        .vlmock-row .u1 { background: linear-gradient(135deg, #f76707, #ffd43b); }
+        .vlmock-row .u2 { background: linear-gradient(135deg, #7b2cbf, #c77dff); }
+        .vlmock-row .u3 { background: linear-gradient(135deg, #0ca678, #63e6be); }
+        .vlmock-row .info { flex: 1; min-width: 0; overflow: hidden; }
+        .vlmock-row .info b { display: block; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .vlmock-row .info small { color: var(--muted); font-size: 0.72rem; }
+        .vlmock-row .precio { font-size: 0.82rem; font-weight: 800; white-space: nowrap; }
+        .vlmock-row .estado {
+            font-size: 0.62rem; font-weight: 800; letter-spacing: 0.4px;
+            padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+        }
+        .estado.wait { background: rgba(255, 169, 77, 0.14); border: 1px solid rgba(255, 169, 77, 0.4); color: var(--vl-light); }
+        .estado.abono { background: rgba(255, 217, 61, 0.10); border: 1px solid rgba(255, 217, 61, 0.35); color: #ffe066; }
+        .estado.pagado { background: rgba(0, 184, 148, 0.13); border: 1px solid rgba(0, 184, 148, 0.4); color: #6ff5d3; }
+        .vlmock-foot {
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.14);
+            margin-top: 13px; padding: 12px 2px 0; font-size: 0.82rem;
+        }
+        .vlmock-foot b { font-size: 0.95rem; }
+        .vlmock-foot span { color: var(--muted); font-size: 0.78rem; }
+        .vlmock-float {
+            position: absolute; background: var(--glass); border: 1px solid rgba(255, 169, 77, 0.3);
+            border-radius: 13px; padding: 10px 14px; font-size: 0.78rem;
+            box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            display: flex; align-items: center; gap: 8px; font-weight: 600; max-width: 240px;
+        }
+        .vlmock-float small { color: var(--muted); font-weight: 500; }
+        @media (max-width: 960px) { .vlmock { margin: 0 auto; } .vlmock-float { display: none; } }
 
-        /* Pasos */
+        /* ===== PASOS ===== */
         .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .step { text-align: center; padding: 26px 18px; }
+        .step { text-align: center; padding: 28px 18px; }
         .step .num {
             width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 50%;
             background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
             font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
             box-shadow: 0 8px 20px var(--primary-glow);
         }
-        .step h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
-        .step p { font-size: 0.9rem; color: var(--muted); }
+        .step h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+        .step p { font-size: 0.9rem; color: var(--muted); max-width: 300px; margin: 0 auto; }
         @media (max-width: 900px) { .steps { grid-template-columns: 1fr; } }
 
-        /* Planes */
+        /* ===== DIRECTORIO EN VIVO (carrusel marketing; home-directorio.js) ===== */
+        .home-directorio-grid { max-width: 1100px; margin: 0 auto; }
+        .home-directorio-grid .empty { text-align: center; color: var(--muted); padding: 30px; }
+        .home-marquee {
+            overflow: hidden; padding: 6px 0 10px;
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+        }
+        .home-marquee-track {
+            display: flex; width: max-content;
+            animation: home-marquee-scroll var(--marquee-duration, 30s) linear infinite;
+            will-change: transform;
+        }
+        .home-marquee:hover .home-marquee-track { animation-play-state: paused; }
+        .home-marquee-group { display: flex; gap: 20px; margin-right: 20px; }
+        .home-marquee .dir-card { width: 280px; flex-shrink: 0; }
+        @keyframes home-marquee-scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(calc(-100% / var(--marquee-copies, 2))); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .home-marquee-track { animation: none; }
+            .home-marquee { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+        }
+        @media (max-width: 640px) { .home-marquee .dir-card { width: 240px; } }
+        .dir-card {
+            background: var(--glass); border: 1px solid var(--glass-border);
+            border-radius: 16px; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            display: flex; flex-direction: column;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+        }
+        .dir-card:hover { transform: translateY(-4px); border-color: rgba(199, 125, 255, 0.4); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4); }
+        .dir-card-cover {
+            height: 120px;
+            background: linear-gradient(135deg, rgba(157, 78, 221, 0.25), rgba(199, 125, 255, 0.12));
+            display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
+        }
+        .dir-card-cover img { width: 100%; height: 100%; object-fit: cover; }
+        .dir-card-body { padding: 18px; display: flex; flex-direction: column; flex: 1; }
+        .dir-card-body h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 4px; }
+        .dir-card-cat { font-size: 0.8rem; color: var(--primary-light); font-weight: 600; margin-bottom: 6px; }
+        .dir-card-dir { font-size: 0.8rem; color: var(--faint); margin-bottom: 10px; }
+        .dir-card-stars { font-size: 0.88rem; color: #f5b301; letter-spacing: 2px; margin-bottom: 14px; }
+        .dir-card-stars .count { color: var(--faint); font-size: 0.78rem; letter-spacing: 0; margin-left: 6px; }
+        .dir-card-resena {
+            background: rgba(255, 255, 255, 0.04); border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--primary-light);
+            border-radius: 8px; padding: 7px 9px; margin-bottom: 12px;
+        }
+        .dir-card-resena-head { font-size: 0.75rem; font-weight: 700; color: var(--primary-light); display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+        .dir-card-mini-stars { color: #f5b301; letter-spacing: 1px; font-size: 0.68rem; }
+        .dir-card-resena-texto {
+            font-size: 0.78rem; color: var(--text); opacity: 0.88;
+            line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .dir-card .btn-reservar {
+            margin-top: auto; display: block; text-align: center; padding: 11px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
+            font-weight: 700; font-size: 0.92rem;
+            box-shadow: 0 6px 18px var(--primary-glow);
+            transition: transform .15s ease;
+        }
+        .dir-card .btn-reservar:hover { transform: translateY(-2px); }
+        .center-link { text-align: center; margin-top: 30px; }
+
+        /* ===== PLANES ===== */
         .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1000px; margin: 0 auto; align-items: stretch; }
         .plan {
             background: var(--glass); border: 1px solid var(--glass-border);
             border-radius: 18px; padding: 30px 26px;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
             display: flex; flex-direction: column;
             transition: transform .15s ease, box-shadow .15s ease;
         }
-        .plan:hover { transform: translateY(-4px); }
-        .plan.featured {
-            border-color: rgba(199, 125, 255, 0.55);
-            box-shadow: 0 18px 50px rgba(157, 78, 221, 0.22);
-            position: relative;
-        }
+        .plan:hover { transform: translateY(-4px); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35); }
+        .plan.featured { border-color: rgba(199, 125, 255, 0.55); box-shadow: 0 18px 50px rgba(157, 78, 221, 0.22); position: relative; }
         .plan .tag {
             position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
             background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
@@ -274,22 +486,25 @@
         }
         @media (max-width: 900px) { .plans { grid-template-columns: 1fr; max-width: 430px; } }
 
-        /* FAQ */
-        .faq { max-width: 760px; margin: 0 auto; }
+        /* ===== FAQ ===== */
+        .faq { max-width: 780px; margin: 0 auto; }
         .faq details {
             background: var(--glass); border: 1px solid var(--glass-border);
-            border-radius: 14px; padding: 18px 22px; margin-bottom: 12px;
-            backdrop-filter: blur(8px);
+            border-radius: 15px; padding: 18px 22px; margin-bottom: 12px;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            transition: border-color .15s ease;
         }
+        .faq details[open] { border-color: rgba(199, 125, 255, 0.35); }
         .faq summary {
-            cursor: pointer; font-weight: 700; font-size: 0.98rem;
-            list-style: none; display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; font-weight: 700; font-size: 0.99rem; list-style: none;
+            display: flex; justify-content: space-between; align-items: center; gap: 14px;
         }
-        .faq summary::after { content: "+"; color: var(--primary-light); font-size: 1.3rem; }
+        .faq summary::-webkit-details-marker { display: none; }
+        .faq summary::after { content: "+"; color: var(--primary-light); font-size: 1.35rem; font-weight: 500; flex-shrink: 0; }
         .faq details[open] summary::after { content: "−"; }
-        .faq details p { margin-top: 12px; color: var(--muted); font-size: 0.92rem; }
+        .faq details p { margin-top: 12px; color: var(--muted); font-size: 0.93rem; }
+        .faq details p strong { color: var(--text); }
 
-        /* Tipos de pyme en FAQ */
         .tipos-grid { margin-top: 16px; }
         .tipo-cat {
             font-size: 0.75rem; font-weight: 700; color: var(--primary-light);
@@ -306,118 +521,52 @@
         }
         .tipo-chip:hover { border-color: var(--primary-light); color: var(--primary-light); }
 
-        /* CTA final */
+        /* ===== CTA FINAL ===== */
         .cta-final {
-            text-align: center; border-radius: 24px; max-width: 920px; margin: 0 auto;
-            padding: 64px 40px; color: #fff; position: relative; overflow: hidden;
-            background: linear-gradient(135deg, var(--primary-dark), var(--primary) 55%, var(--primary-light));
+            text-align: center; border-radius: 26px; max-width: 940px; margin: 0 auto;
+            padding: 66px 42px; color: #fff; position: relative; overflow: hidden;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary) 52%, var(--primary-light));
             box-shadow: 0 24px 70px rgba(123, 44, 191, 0.4);
         }
         .cta-final::before {
             content: ""; position: absolute; inset: 0;
-            background: radial-gradient(600px 240px at 80% -20%, rgba(255, 255, 255, 0.22), transparent 60%);
+            background: radial-gradient(640px 250px at 82% -22%, rgba(255, 255, 255, 0.22), transparent 60%),
+                        radial-gradient(420px 200px at 8% 120%, rgba(255, 169, 77, 0.25), transparent 60%);
         }
         .cta-final h2 { font-size: clamp(1.7rem, 3.2vw, 2.3rem); font-weight: 800; letter-spacing: -0.6px; position: relative; }
-        .cta-final p { margin: 14px auto 30px; opacity: 0.92; max-width: 500px; position: relative; }
+        .cta-final p { margin: 14px auto 30px; opacity: 0.94; max-width: 540px; position: relative; font-size: 1.02rem; }
         .btn-white {
-            background: #fff; color: var(--primary-dark); padding: 15px 36px; border-radius: 12px;
-            font-weight: 800; font-size: 1.02rem; position: relative;
+            background: #fff; color: var(--primary-dark); padding: 15px 38px; border-radius: 13px;
+            font-weight: 800; font-size: 1.02rem; position: relative; display: inline-block;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            transition: transform .15s ease;
         }
         .btn-white:hover { transform: translateY(-2px); }
 
-        /* Directorio en vivo: TODAS las pymes en carrusel infinito (marketing) */
-        .home-directorio-grid {
-            max-width: 1100px; margin: 0 auto;
-        }
-        .home-directorio-grid .empty { text-align: center; color: var(--muted); padding: 30px; }
-        .home-marquee {
-            overflow: hidden;
-            padding: 6px 0 10px;
-            -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-            mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-        }
-        .home-marquee-track {
-            display: flex;
-            width: max-content;
-            animation: home-marquee-scroll var(--marquee-duration, 30s) linear infinite;
-            will-change: transform;
-        }
-        .home-marquee:hover .home-marquee-track { animation-play-state: paused; }
-        .home-marquee-group { display: flex; gap: 20px; margin-right: 20px; }
-        .home-marquee .dir-card { width: 280px; flex-shrink: 0; }
-        @keyframes home-marquee-scroll {
-            from { transform: translateX(0); }
-            to { transform: translateX(calc(-100% / var(--marquee-copies, 2))); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .home-marquee-track { animation: none; }
-            .home-marquee { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
-        }
-        @media (max-width: 640px) {
-            .home-marquee .dir-card { width: 240px; }
-        }
-        .dir-card {
-            background: var(--glass); border: 1px solid var(--glass-border);
-            border-radius: 16px; overflow: hidden; backdrop-filter: blur(10px);
-            display: flex; flex-direction: column;
-            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-        }
-        .dir-card:hover { transform: translateY(-4px); border-color: rgba(199, 125, 255, 0.4); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4); }
-        .dir-card-cover {
-            height: 120px;
-            background: linear-gradient(135deg, rgba(157, 78, 221, 0.25), rgba(199, 125, 255, 0.12));
-            display: flex; align-items: center; justify-content: center; font-size: 2.4rem;
-        }
-        .dir-card-cover img { width: 100%; height: 100%; object-fit: cover; }
-        .dir-card-body { padding: 18px; display: flex; flex-direction: column; flex: 1; }
-        .dir-card-body h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 4px; }
-        .dir-card-cat { font-size: 0.8rem; color: var(--primary-light); font-weight: 600; margin-bottom: 6px; }
-        .dir-card-dir { font-size: 0.8rem; color: #8b8fa3; margin-bottom: 10px; }
-        .dir-card-stars { font-size: 0.88rem; color: #f5b301; letter-spacing: 2px; margin-bottom: 14px; }
-        .dir-card-stars .count { color: #8b8fa3; font-size: 0.78rem; letter-spacing: 0; margin-left: 6px; }
-        .dir-card-resena {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--glass-border);
-            border-left: 3px solid var(--primary-light);
-            border-radius: 8px;
-            padding: 7px 9px;
-            margin-bottom: 12px;
-        }
-        .dir-card-resena-head {
-            font-size: 0.75rem; font-weight: 700; color: var(--primary-light);
-            display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
-        }
-        .dir-card-mini-stars { color: #f5b301; letter-spacing: 1px; font-size: 0.68rem; }
-        .dir-card-resena-texto {
-            font-size: 0.78rem; color: var(--text); opacity: 0.88;
-            line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical; overflow: hidden;
-        }
-        .dir-card .btn-reservar {
-            margin-top: auto; display: block; text-align: center; padding: 11px; border-radius: 12px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff;
-            font-weight: 700; font-size: 0.92rem;
-            box-shadow: 0 6px 18px var(--primary-glow);
-            transition: transform .15s ease;
-        }
-        .dir-card .btn-reservar:hover { transform: translateY(-2px); }
-
         footer {
-            padding: 36px 0; text-align: center; color: #8b8fa3; font-size: 0.85rem;
-            border-top: 1px solid var(--glass-border); margin-top: 30px;
+            padding: 38px 0 44px; text-align: center; color: var(--faint); font-size: 0.85rem;
+            border-top: 1px solid var(--glass-border); margin-top: 34px;
         }
-        footer a { color: var(--primary-light); font-weight: 600; }
+        footer .foot-links { display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: center; margin-bottom: 12px; font-size: 0.88rem; }
+        footer a { color: var(--primary-light); font-weight: 600; transition: color .15s ease; }
+        footer a:hover { color: var(--primary-light); text-decoration: underline; }
+        footer .foot-brand { font-weight: 800; font-size: 1rem; letter-spacing: -0.3px; margin-bottom: 4px; color: var(--text); }
+        footer .foot-brand span { background: linear-gradient(135deg, var(--primary-light), var(--primary)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { animation: none !important; transition: none !important; }
+            html { scroll-behavior: auto; }
+        }
     </style>
 </head>
 <body>
 
     <nav class="nav">
         <div class="container nav-inner">
-            <div class="logo">Organi<span>fy</span></div>
+            <a class="logo" href="#top" aria-label="Organify — Inicio">Organi<span>fy</span></a>
             <div class="nav-links">
-                <a href="#beneficios">Beneficios</a>
-                <a href="#demo">Tu página</a>
+                <a href="#reservas">Reservas</a>
+                <a href="#ventas-live">Ventas Live</a>
                 <a href="#planes">Planes</a>
                 <a href="#faq">Preguntas</a>
                 <a href="directorio.html">Directorio</a>
@@ -429,126 +578,206 @@
         </div>
     </nav>
 
-    <header class="hero">
+    <header class="hero" id="top">
         <div class="container hero-grid">
             <div>
-                <span class="badge"><span class="dot"></span> Agenda online para pymes y profesionales</span>
-                <h1>Tu negocio, <em>agendado solo</em> mientras tú atiendes</h1>
-                <p class="sub">Organify te da una página propia para que tus clientes reserven en línea, con recordatorios automáticos, tu equipo conectado y presencia en el directorio local.</p>
+                <span class="badge"><span class="dot"></span> Plataforma de herramientas digitales para pymes</span>
+                <h1>Reservas sin caos. Ventas en vivo <span class="grad-2">sin perder el control.</span></h1>
+                <p class="sub">Organify crea una solución para cada tipo de pyme: <strong>Reservas de Pymes</strong>, para negocios que venden horas o servicios, y <strong>Ventas Live</strong>, para quienes venden en vivo por redes. Una cuenta gratis, el proyecto que tu negocio necesita.</p>
                 <div class="hero-ctas">
                     <a class="btn btn-primary btn-lg" href="login.html">Probar gratis 14 días</a>
-                    <a class="btn btn-ghost btn-lg" href="#planes">Ver planes</a>
+                    <a class="btn btn-ghost btn-lg" href="#reservas">Ver soluciones</a>
                 </div>
-                <p class="hero-note">✓ Sin tarjeta para empezar · ✓ Activa tu negocio en menos de 2 minutos · <strong>$15.000/mes</strong> cuando decidas seguir</p>
+                <p class="hero-note">
+                    <span>✓ Sin tarjeta para empezar</span>
+                    <span>✓ Activa tu proyecto en minutos</span>
+                    <span>✓ <b>Nuevas soluciones en camino</b></span>
+                </p>
             </div>
-            <div class="mock-wrap">
-                <div class="mock">
-                    <div class="mock-head">
-                        <div class="mock-avatar">M</div>
+            <div class="hubmock-wrap">
+                <div class="hubmock">
+                    <div class="hubmock-head">
+                        <div class="hubmock-logo">🧩</div>
                         <div>
-                            <strong>Miu Street Workout</strong>
-                            <small>Entrenador personal · Organify</small>
+                            <strong>Mis Proyectos</strong>
+                            <small>Elige con qué proyecto trabajar hoy</small>
                         </div>
                     </div>
-                    <div class="mock-row"><span class="d">Servicio</span><span class="v" id="mock-servicio-nombre">Entrenador personal</span></div>
-                    <div class="mock-row"><span class="d">Fecha</span><span class="v">Jueves 10 · 18:00</span></div>
-                    <div class="mock-row"><span class="d">Precio</span><span class="v" id="mock-servicio-precio">…</span></div>
-                    <a class="mock-cta" href="/p/miu-street-workout-training">Reservar hora</a>
-                    <span class="mock-tag">✓ Confirmación y recordatorio automáticos</span>
+                    <div class="hubmock-card">
+                        <div class="hubmock-ico reservas">📅</div>
+                        <div>
+                            <h4>Reservas de Pymes</h4>
+                            <p>Agenda online: turnos, recordatorios y página propia para tus clientes.</p>
+                            <span class="hubmock-pill activo">● DISPONIBLE</span>
+                        </div>
+                    </div>
+                    <div class="hubmock-card" style="border-color: rgba(255,169,77,0.35);">
+                        <div class="hubmock-ico vl">⚡</div>
+                        <div>
+                            <h4>Ventas Live</h4>
+                            <p>Registro de prendas en el LIVE, cobro, envíos y finanzas.</p>
+                            <span class="hubmock-pill activo">● DISPONIBLE</span>
+                        </div>
+                    </div>
+                    <div class="hubmock-next">
+                        <div class="plus">+</div>
+                        <div>
+                            <b>Próxima solución</b>
+                            <span>Organify sigue sumando herramientas para otros tipos de pyme.</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="mock-float" style="top:-18px; right:-8px;">🔔 <strong>Recordatorio enviado</strong></div>
-                <div class="mock-float" style="bottom:-16px; left:-14px;">✅ <strong>Cita confirmada</strong></div>
+                <div class="hubmock-float" style="top:-16px; right:2px;">🆕 <span>Ventas Live ya está aquí</span></div>
+                <div class="hubmock-float" style="bottom:-18px; left:-8px;">✓ <span>Una cuenta para todos tus proyectos</span></div>
             </div>
         </div>
     </header>
 
     <div class="trust">
         <div class="container">
-            <p>Hecho para negocios de servicios — los que ya están en el directorio de Organify</p>
+            <p>Cada proyecto de Organify está hecho para cómo trabaja un tipo de pyme. Encuentra el tuyo:</p>
             <div class="chips">
                 <span class="chip">💆 Estética y belleza</span>
                 <span class="chip">🩺 Salud y bienestar</span>
                 <span class="chip">🏋️ Deporte y clases</span>
                 <span class="chip">✂️ Barberías y peluquerías</span>
                 <span class="chip">🔧 Servicios a domicilio</span>
+                <span class="chip">🛍️ Venta de ropa en vivo</span>
+                <span class="chip">📦 Productos por redes</span>
                 <span class="chip">🎨 Profesionales y creativos</span>
             </div>
         </div>
     </div>
 
-    <section id="beneficios">
-        <div class="container">
-            <div class="sec-head">
-                <h2>Todo lo que necesitas para <em>no perder clientes</em></h2>
-                <p>Deja de coordinar por WhatsApp y mensajes sueltos. Organify centraliza tus reservas, tus clientes y tu equipo.</p>
+    <!-- ============ PROYECTO 1: RESERVAS DE PYMES ============ -->
+    <section id="reservas" style="background: linear-gradient(180deg, transparent, rgba(157,78,221,0.05) 50%, transparent);">
+        <div class="container split reservas">
+            <div class="texto">
+                <span class="eyebrow">Solución 1 · Reservas de Pymes</span>
+                <h2>Tu agenda online, <em>mientras tú atiendes</em></h2>
+                <p>Para negocios de servicios que venden horas: estética, salud, deporte, clases, reparaciones y consultas profesionales. Organify te da una página propia para que tus clientes reserven solos, sin WhatsApp ni mensajes sueltos.</p>
+                <ul class="feat-list">
+                    <li><span class="fi purple">📅</span><span class="txt"><b>Agenda online 24/7:</b> tus clientes reservan a cualquier hora y tú ves los cupos por día en tiempo real.</span></li>
+                    <li><span class="fi purple">🛒</span><span class="txt"><b>Página propia con carrito:</b> un enlace para tu Instagram y WhatsApp, con catálogo, precios y reserva de varios servicios.</span></li>
+                    <li><span class="fi purple">🔔</span><span class="txt"><b>Recordatorios automáticos:</b> menos ausencias — el cliente recibe el aviso de su cita y tú te enteras de cada reserva al instante.</span></li>
+                    <li><span class="fi purple">🗂️</span><span class="txt"><b>Clientes organizados:</b> fichas, historial, etiquetas de pago y tablero kanban para saber en qué está cada cliente.</span></li>
+                    <li><span class="fi purple">👥</span><span class="txt"><b>Tu equipo conectado:</b> trabajadores con su propio horario y acceso, sin pisarse ni duplicar citas.</span></li>
+                    <li><span class="fi purple">📍</span><span class="txt"><b>Directorio local con reseñas:</b> apareces con tu categoría y botón de reserva directa.</span></li>
+                </ul>
+                <div class="cta-row">
+                    <a class="btn btn-primary" href="login.html">Empezar con Reservas</a>
+                    <a class="btn btn-ghost" href="directorio.html">Ver el directorio</a>
+                </div>
+                <p class="mini-note">Prueba gratis 14 días, sin tarjeta · después <b>$15.000/mes</b> o <b>$140.000/año</b> cuando decidas seguir.</p>
             </div>
-            <div class="benefits">
-                <div class="benefit">
-                    <div class="ico">📅</div>
-                    <h3>Agenda online 24/7</h3>
-                    <p>Tus clientes reservan solos, a cualquier hora, desde tu página. Tú ves los cupos por hora en tiempo real.</p>
-                </div>
-                <div class="benefit">
-                    <div class="ico">🛒</div>
-                    <h3>Página propia con carrito</h3>
-                    <p>Un enlace para tu Instagram y WhatsApp con tu catálogo, precios y reserva con carrito de varios servicios.</p>
-                </div>
-                <div class="benefit">
-                    <div class="ico">🔔</div>
-                    <h3>Recordatorios automáticos</h3>
-                    <p>Menos ausencias: tu cliente recibe el aviso de su cita y tú te enteras de cada reserva al instante.</p>
-                </div>
-                <div class="benefit">
-                    <div class="ico">🗂️</div>
-                    <h3>Clientes organizados</h3>
-                    <p>Fichas, historial, etiquetas de pago y tablero kanban para saber en qué está cada cliente y qué le falta.</p>
-                </div>
-                <div class="benefit">
-                    <div class="ico">📍</div>
-                    <h3>Directorio local con reseñas</h3>
-                    <p>Apareces en el directorio de Organify con tu categoría, reseñas de clientes y botón de reserva directa.</p>
-                </div>
-                <div class="benefit">
-                    <div class="ico">👥</div>
-                    <h3>Tu equipo conectado</h3>
-                    <p>Agrega trabajadores con su propio horario y acceso. Coordinen citas sin duplicar ni pisarse.</p>
+            <div class="media">
+                <div class="mock-wrap">
+                    <div class="mock">
+                        <div class="mock-head">
+                            <div class="mock-avatar">M</div>
+                            <div>
+                                <strong>Miu Street Workout</strong>
+                                <small>Mi página · Organify</small>
+                            </div>
+                        </div>
+                        <div class="mock-row"><span class="d">Servicio</span><span class="v" id="mock-servicio-nombre">Entrenador personal</span></div>
+                        <div class="mock-row"><span class="d">Precio</span><span class="v" id="mock-servicio-precio">…</span></div>
+                        <div id="mock-demo-list">
+                            <div class="mock-row"><span class="d">Cargando servicios reales…</span><span class="v"></span></div>
+                        </div>
+                        <a class="mock-cta" href="/p/miu-street-workout-training">Agendar cita</a>
+                        <span class="mock-tag">✓ Confirmación y recordatorio automáticos</span>
+                    </div>
+                    <div class="mock-float" style="top:-16px; right:-6px;">🔔 <span>Recordatorio enviado</span></div>
+                    <div class="mock-float" style="bottom:-16px; left:-14px;">✅ <span>Cita confirmada</span></div>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="demo" style="background: linear-gradient(180deg, transparent, rgba(157,78,221,0.05) 50%, transparent);">
-        <div class="container showcase">
-            <div>
-                <div class="sec-head" style="text-align:left; margin:0 0 26px;">
-                    <h2>Así se ve <em>tu página</em> para tus clientes</h2>
-                    <p>Cada negocio tiene su propia página con tu logo, tus colores y tus servicios. Tú la compartes con un enlace.</p>
-                </div>
-                <ul>
-                    <li>Catálogo con precios y duración de cada servicio</li>
-                    <li>Carrito: el cliente agrega varios servicios y agenda en un clic</li>
-                    <li>Confirmación y recordatorio automáticos por cada cita</li>
-                    <li>Tu marca: logo, colores y estilos personalizados</li>
-                </ul>
-                <a class="btn btn-primary" href="directorio.html">Ver el directorio real</a>
-            </div>
-            <div class="mock">
-                <div class="mock-head">
-                    <div class="mock-avatar">M</div>
-                    <div>
-                        <strong>Miu Street Workout</strong>
-                        <small>Mi página · Organify</small>
+    <!-- ============ PROYECTO 2: VENTAS LIVE ============ -->
+    <section id="ventas-live" class="sec-vl">
+        <div class="container split vl">
+            <div class="media">
+                <div class="vlmock">
+                    <div class="vlmock-top">
+                        <b>⚡ MODO LIVE</b>
+                        <span class="vlmock-live">EN VIVO · 12 MIN</span>
+                    </div>
+                    <div class="vlmock-body">
+                        <div class="vlmock-row">
+                            <span class="vlmock-user u1">MV</span>
+                            <div class="info"><b>@maria.vt · Pantalón cargo</b><small>Registrado hace 1 min</small></div>
+                            <span class="precio">$12.990</span>
+                            <span class="estado wait">⏳ ESPERANDO PAGO</span>
+                        </div>
+                        <div class="vlmock-row">
+                            <span class="vlmock-user u2">CO</span>
+                            <div class="info"><b>@cami_ok · Polerón oversize</b><small>Abonó $5.000 de $9.990</small></div>
+                            <span class="estado abono">🟡 ABONÓ</span>
+                        </div>
+                        <div class="vlmock-row">
+                            <span class="vlmock-user u3">PV</span>
+                            <div class="info"><b>@pipe_vt · Gorro tejido</b><small>Pagado · va a envío</small></div>
+                            <span class="precio">$7.990</span>
+                            <span class="estado pagado">✓ PAGADO</span>
+                        </div>
+                        <div class="vlmock-foot">
+                            <span>3 prendas · sin planillas</span>
+                            <b>$30.970</b>
+                        </div>
                     </div>
                 </div>
-                <div id="mock-demo-list">
-                    <div class="mock-row"><span class="d">Cargando servicios reales…</span><span class="v"></span></div>
+            </div>
+            <div class="texto">
+                <span class="eyebrow">Solución 2 · Ventas Live</span>
+                <h2>Vende en vivo <em>sin que se te escape nada</em></h2>
+                <p>Para pymes que venden por redes en vivo (TikTok, WhatsApp): el LIVE va rápido y el desorden también. Ventas Live registra cada prenda al instante y se encarga del resto: cobro, envíos y finanzas.</p>
+                <ul class="feat-list">
+                    <li><span class="fi orange">⚡</span><span class="txt"><b>Registro exprés en el LIVE:</b> escribes el @ del cliente y el precio; la prenda queda anotada al instante, con su comprador.</span></li>
+                    <li><span class="fi orange">🧾</span><span class="txt"><b>Cuenta corriente por cliente:</b> saldo, abonos y pagos pendientes siempre a la vista — sabes a quién cobrarle y cuánto.</span></li>
+                    <li><span class="fi orange">✅</span><span class="txt"><b>Confirmación de pagos:</b> total, parcial o presencial. Nada de capturas de pantalla ni hojas de cálculo.</span></li>
+                    <li><span class="fi orange">🛍️</span><span class="txt"><b>Bolsa y acumulación:</b> el cliente suma prendas entre LIVE y LIVE y paga después; nada se pierde.</span></li>
+                    <li><span class="fi orange">📦</span><span class="txt"><b>Envíos programados:</b> tareas para hoy y mañana, empresa elegida (Chilexpress, Starken, Blue Express, Paket) y datos listos para copiar.</span></li>
+                    <li><span class="fi orange">📊</span><span class="txt"><b>Finanzas del negocio:</b> inversión, gastos, ganancia y flujo de caja separados, para saber si el LIVE dejó ganancia real.</span></li>
+                    <li><span class="fi orange">💬</span><span class="txt"><b>Pedidos por WhatsApp con el bot del panel:</b> conecta tu número y el bot identifica al cliente del @ y arma su pedido conversando.</span></li>
+                </ul>
+                <div class="cta-row">
+                    <a class="btn btn-vl" href="login.html">Probar Ventas Live gratis</a>
                 </div>
-                <a class="mock-cta" href="/p/miu-street-workout-training">Agendar cita</a>
-                <span class="mock-tag">✓ Carrito: agrega y agenda varios servicios</span>
+                <p class="mini-note" style="color: var(--faint);">Se activa desde <b style="color: var(--vl-light);">Mis Proyectos</b> en tu cuenta de Organify, con su plan gratuito incluido.</p>
             </div>
         </div>
     </section>
 
+    <!-- ============ PASOS ============ -->
+    <section>
+        <div class="container">
+            <div class="sec-head">
+                <h2>En <em>3 pasos</em> estás operando</h2>
+                <p>El mismo camino para ambos proyectos: crea tu cuenta, elige tu solución y empieza hoy.</p>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="num">1</div>
+                    <h3>Crea tu cuenta</h3>
+                    <p>Regístrate con tu correo y activa tu prueba gratis de 14 días. Sin tarjeta y en menos de 2 minutos.</p>
+                </div>
+                <div class="step">
+                    <div class="num">2</div>
+                    <h3>Elige tu proyecto</h3>
+                    <p>¿Vendes horas o servicios? Reservas de Pymes. ¿Vendes en vivo por redes? Ventas Live. Entra a "Mis Proyectos" y elige.</p>
+                </div>
+                <div class="step">
+                    <div class="num">3</div>
+                    <h3>Comparte y opera</h3>
+                    <p>Reservas: comparte tu página y recibe reservas solas. Ventas Live: abre tu panel en el próximo LIVE y registra cada venta en un toque.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ DIRECTORIO EN VIVO ============ -->
     <section id="directorio-vivo">
         <div class="container">
             <div class="sec-head">
@@ -558,42 +787,18 @@
             <div class="home-directorio-grid" id="home-directorio-grid">
                 <p class="empty">Cargando directorio...</p>
             </div>
-            <div style="text-align:center; margin-top:28px;">
+            <div class="center-link">
                 <a class="btn btn-ghost" href="directorio.html">Ver el directorio completo</a>
             </div>
         </div>
     </section>
 
-    <section>
-        <div class="container">
-            <div class="sec-head">
-                <h2>En <em>3 pasos</em> estás recibiendo reservas</h2>
-            </div>
-            <div class="steps">
-                <div class="step">
-                    <div class="num">1</div>
-                    <h3>Crea tu cuenta</h3>
-                    <p>Regístrate con tu correo, ponle nombre a tu negocio y activa tu prueba gratis de 14 días. Sin tarjeta.</p>
-                </div>
-                <div class="step">
-                    <div class="num">2</div>
-                    <h3>Configura tus servicios</h3>
-                    <p>Agrega lo que ofreces, sus precios, duración y tus horarios. En minutos, no en días.</p>
-                </div>
-                <div class="step">
-                    <div class="num">3</div>
-                    <h3>Comparte tu enlace</h3>
-                    <p>Pon tu página de Organify en tu bio y en tu WhatsApp. Tus clientes reservan solos y tú solo atiendes.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
+    <!-- ============ PLANES ============ -->
     <section id="planes">
         <div class="container">
             <div class="sec-head">
                 <h2>Planes simples, <em>sin costos ocultos</em></h2>
-                <p>Empieza gratis y paga solo cuando tu negocio esté funcionando con Organify.</p>
+                <p>Planes de Reservas de Pymes. Empieza gratis y paga solo cuando tu negocio ya esté funcionando con Organify.</p>
             </div>
             <div class="plans">
                 <div class="plan">
@@ -601,7 +806,7 @@
                     <div class="price">$0</div>
                     <div class="per">14 días · sin tarjeta</div>
                     <ul>
-                        <li>Todas las funciones de Organify</li>
+                        <li>Todas las funciones de Reservas de Pymes</li>
                         <li>Agenda y catálogo ilimitados</li>
                         <li>Página para tus clientes</li>
                         <li>Recordatorios automáticos</li>
@@ -639,12 +844,21 @@
         </div>
     </section>
 
+    <!-- ============ FAQ ============ -->
     <section id="faq">
         <div class="container">
             <div class="sec-head">
                 <h2>Preguntas <em>frecuentes</em></h2>
             </div>
             <div class="faq">
+                <details>
+                    <summary>¿Reservas de Pymes y Ventas Live son productos aparte?</summary>
+                    <p>Son proyectos distintos dentro de <strong>una misma cuenta de Organify</strong>. Al iniciar sesión ves "Mis Proyectos" y eliges con cuál trabajar: cada proyecto tiene su propio panel y sus propios datos. Ventas Live se activa desde ahí, con su plan gratuito incluido.</p>
+                </details>
+                <details>
+                    <summary>¿Cuál de los dos me sirve a mí?</summary>
+                    <p>Si vendes <strong>horas o servicios</strong> —estética, salud, deporte, clases, reparaciones a domicilio, consultas profesionales—, tu solución es Reservas de Pymes. Si vendes <strong>productos en vivo por redes</strong> (TikTok, WhatsApp), como ropa o accesorios, tu solución es Ventas Live: registro de cada prenda, cobro, envíos y finanzas. ¿No encajas en ninguno? Organify es una plataforma: sigue sumando soluciones para otros tipos de pyme.</p>
+                </details>
                 <details>
                     <summary>¿Necesito tarjeta para probar Organify?</summary>
                     <p>No. Activas tu prueba gratis de 14 días sin tarjeta y con todas las funciones. Solo cuando decidas continuar eliges un plan de pago.</p>
@@ -655,7 +869,7 @@
                 </details>
                 <details>
                     <summary>¿Sirve para mi tipo de negocio?</summary>
-                    <p>Si vendes horas o servicios —estética, salud, deporte, clases, reparaciones a domicilio, consultas profesionales— Organify está hecho para ti. Estos son los rubros que puedes elegir en el directorio:</p>
+                    <p>Si vendes horas o servicios —estética, salud, deporte, clases, reparaciones a domicilio, consultas profesionales— Reservas de Pymes está hecho para ti. Estos son los rubros que puedes elegir en el directorio:</p>
                     <div class="tipos-grid">
                         <div class="tipo-cat">Salud y Bienestar Clínico</div>
                         <div class="tipo-chips">
@@ -717,16 +931,23 @@
     <section>
         <div class="container">
             <div class="cta-final">
-                <h2>¿Listo para organizar tu negocio?</h2>
-                <p>Únete a las pymes que ya reciben reservas en línea, reducen ausencias y se ven más profesionales con Organify.</p>
-                <a class="btn btn-white" href="login.html">Probar gratis 14 días</a>
+                <h2>¿Listo para ordenar tu pyme?</h2>
+                <p>Crea tu cuenta gratis y elige el proyecto que tu negocio necesita: Reservas de Pymes o Ventas Live. Sin tarjeta, listo en minutos.</p>
+                <a class="btn-white" href="login.html">Probar gratis 14 días</a>
             </div>
         </div>
     </section>
 
     <footer>
         <div class="container">
-            <p>© 2026 Organify · <a href="login.html">Iniciar sesión</a> · <a href="login.html">Crear cuenta</a> · <a href="directorio.html">Directorio de pymes</a></p>
+            <div class="foot-links">
+                <a href="login.html">Iniciar sesión</a>
+                <a href="login.html">Crear cuenta</a>
+                <a href="directorio.html">Directorio de pymes</a>
+                <a href="#reservas">Reservas de Pymes</a>
+                <a href="#ventas-live">Ventas Live</a>
+            </div>
+            <p>© 2026 Organify · Plataforma de herramientas digitales para pymes</p>
         </div>
     </footer>
 
