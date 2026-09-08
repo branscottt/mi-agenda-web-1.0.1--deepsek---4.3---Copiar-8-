@@ -11,8 +11,12 @@ import { vlApi } from '../domain/vlApi.js';
 import { abrirModal, cerrarModal } from './vlModales.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
+import { getAppConfig } from '../../shared/infrastructure/config.js';
 
 const PLAN_LABELS = { vl_free: 'Gratis' };
+
+// URL pública del webhook de WhatsApp (la misma que se pega en Meta).
+const WA_WEBHOOK_URL = (getAppConfig().supabaseUrl || '').replace(/\/+$/, '') + '/functions/v1/wa-webhook';
 
 // Todas las vistas están implementadas (Live, Procesos, Clientes,
 // Envíos, Finanzas).
@@ -181,6 +185,123 @@ async function pintarWhatsappYConfig() {
             });
         });
     }
+
+    // Botón WhatsApp (bot automático): estado + wizard de conexión
+    const waBtn = document.getElementById('vl-wa-btn');
+    const conn = await vlApi.waConexionInfo();
+    if (conn.ok && conn.data) pintarEstadoWa(conn.data);
+    if (waBtn) {
+        waBtn.addEventListener('click', async () => {
+            const fresh = await vlApi.waConexionInfo();
+            abrirModalWhatsApp(fresh.ok && fresh.data ? fresh.data : {});
+        });
+    }
+}
+
+function pintarEstadoWa(conn) {
+    const btn = document.getElementById('vl-wa-btn');
+    if (!btn) return;
+    const on = !!conn && conn.wa_estado === 'conectado';
+    btn.style.color = on ? '#25d366' : '';
+    btn.style.borderColor = on ? 'rgba(37, 211, 102, 0.6)' : '';
+    btn.title = on ? 'Bot de WhatsApp conectado' : 'Conectar WhatsApp (bot automático)';
+}
+
+// Wizard "Conectar WhatsApp": pegar los 4 valores de Meta Cloud API.
+// El token y el app secret solo se escriben (vacío = conserva el actual);
+// la lectura enmascarada (vl_wa_conexion_info) NUNCA los devuelve.
+function abrirModalWhatsApp(conn) {
+    const conectado = conn.wa_estado === 'conectado';
+    const pill = conectado
+        ? '<span class="vl-badge confiable" id="vww-pill">🟢 Conectado</span>'
+        : '<span class="vl-badge problematico" id="vww-pill">⚪ Desconectado</span>';
+
+    abrirModal({
+        titulo: '🤖 Conectar WhatsApp',
+        sub: 'El bot responde solo a tus clientes (Cloud API de Meta). Los valores se guardan solo del lado del servidor y el token nunca se vuelve a mostrar.',
+        html: `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                <span style="font-size:0.82rem;font-weight:700;color:#ced4da;">Estado:</span> ${pill}
+            </div>
+
+            <div class="vl-form-row">
+                <label for="vww-phone">ID del número (phone_number_id)</label>
+                <input class="vl-control" id="vww-phone" value="${escapeHtml(conn.wa_phone_id || '')}" placeholder="123456789012345" autocomplete="off">
+                <div style="font-size:0.75rem;color:var(--muted,#adb5bd);margin-top:5px;">Lo copiaste en WhatsApp Manager → tu número → "ID del número".</div>
+            </div>
+            <div class="vl-form-row">
+                <label for="vww-token">Token de acceso ${conn.tiene_token ? '<span style="color:#7ff5d8;font-weight:700;">✓ guardado</span>' : ''}</label>
+                <input class="vl-control" id="vww-token" type="password" placeholder="EAA…" autocomplete="off">
+                <div style="font-size:0.75rem;color:var(--muted,#adb5bd);margin-top:5px;">Vacío = conserva el actual. ¿Token vencido? Pega el nuevo aquí.</div>
+            </div>
+            <div class="vl-form-row">
+                <label for="vww-verify">Verify token</label>
+                <input class="vl-control" id="vww-verify" value="${escapeHtml(conn.wa_verify_token || '')}" placeholder="el texto secreto que inventaste" autocomplete="off">
+                <div style="font-size:0.75rem;color:var(--muted,#adb5bd);margin-top:5px;">Es el mismo que pegarás en Meta al configurar el webhook.</div>
+            </div>
+            <div class="vl-form-row">
+                <label for="vww-secret">App secret ${conn.tiene_app_secret ? '<span style="color:#7ff5d8;font-weight:700;">✓ guardado</span>' : ''}</label>
+                <input class="vl-control" id="vww-secret" type="password" placeholder="secreto de la app de Meta" autocomplete="off">
+                <div style="font-size:0.75rem;color:var(--muted,#adb5bd);margin-top:5px;">Vacío = conserva el actual.</div>
+            </div>
+
+            <div class="vl-form-row">
+                <label>URL del webhook (pégala en Meta)</label>
+                <div style="display:flex;gap:8px;">
+                    <input class="vl-control" id="vww-url" readonly value="${escapeHtml(WA_WEBHOOK_URL)}" style="flex:1;font-size:0.78rem;">
+                    <button class="vl-btn" id="vww-copiar" type="button" title="Copiar URL"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px 14px;font-size:0.78rem;color:var(--muted,#adb5bd);line-height:1.7;">
+                <b style="color:#ced4da;">Para terminar en Meta (una vez):</b><br>
+                1. developers.facebook.com → tu app → WhatsApp → Configuración → Webhook.<br>
+                2. Pega la URL de arriba y el verify token → "Verificar y guardar".<br>
+                3. Suscríbete al campo <b style="color:#ced4da;">messages</b>.<br>
+                Listo: cada mensaje que reciba tu número entra solo al sistema.
+            </div>
+
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vww-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn primary" id="vww-ok" type="button"><i class="fas fa-save"></i> Guardar conexión</button>
+            </div>`,
+        ancho: '560px',
+        onMount: (modal, { marcarSucio }) => {
+            const phoneEl = modal.querySelector('#vww-phone');
+            const tokenEl = modal.querySelector('#vww-token');
+            const verifyEl = modal.querySelector('#vww-verify');
+            const secretEl = modal.querySelector('#vww-secret');
+            [phoneEl, tokenEl, verifyEl, secretEl].forEach(el => el.addEventListener('input', marcarSucio));
+            modal.querySelector('#vww-cancelar').addEventListener('click', () => cerrarModal(true));
+            modal.querySelector('#vww-copiar').addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(WA_WEBHOOK_URL);
+                    mostrarToast('URL copiada ✔', 'success');
+                } catch (_) {
+                    mostrarToast('No se pudo copiar; selecciónala manualmente', 'warning');
+                }
+            });
+            modal.querySelector('#vww-ok').addEventListener('click', guardar);
+            phoneEl.focus();
+
+            async function guardar() {
+                const btn = modal.querySelector('#vww-ok');
+                btn.disabled = true;
+                const res = await vlApi.guardarConfigWa({
+                    p_phone_id: phoneEl.value.trim(),
+                    p_token: tokenEl.value.trim(),
+                    p_verify_token: verifyEl.value.trim(),
+                    p_app_secret: secretEl.value.trim()
+                });
+                btn.disabled = false;
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo guardar la conexión', 'error'); return; }
+                cerrarModal(true);
+                const conn2 = await vlApi.waConexionInfo();
+                if (conn2.ok && conn2.data) pintarEstadoWa(conn2.data);
+                mostrarToast('Conexión guardada ✔', 'success');
+            }
+        }
+    });
 }
 
 function abrirModalConfig(ws) {

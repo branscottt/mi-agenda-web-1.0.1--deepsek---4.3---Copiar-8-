@@ -403,6 +403,10 @@ verify_jwt = true
 [functions.mercadopago-webhook]
 verify_jwt = false
 
+# wa-webhook: pública (sin JWT) porque la llama Meta (WhatsApp Cloud API)
+[functions.wa-webhook]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
