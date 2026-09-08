@@ -13,8 +13,8 @@ y hora con cupos disponibles del servicio. El color es un semáforo:
 | Color / Efecto | Clase CSS | Significado | Regla |
 |---|---|---|---|
 | **Sin brillo** (normal) | (ninguna) | Hay disponibilidad, pero la próxima cita posible es en **más de 24 h** | diferencia > 24 h |
-| **Morado flúor** `#b300ff` con pulso | `.urgent-soon` | **"Próximo"** — la próxima cita posible es **entre 2 y 24 horas**. La card respira con un pulso morado (2 s) | 2 h < diferencia ≤ 24 h |
-| **Rojo flúor** `#ff1744` con pulso + sello `⚠️ URGENTE` | `.urgent-now` | **"URGENTE"** — la próxima cita posible es en **menos de 2 horas**. Pulso rojo rápido (1.5 s), borde 3px y badge flotante | diferencia < 2 h |
+| **Violeta suave estático** + chip `Próximas 24 h` | `.urgent-soon` | **Aviso "Próximas 24 h"** — la próxima cita posible (o próxima reserva) está **entre 2 y 24 horas**. Borde violeta suave y brillo estático sutil, **sin pulso** | 2 h < diferencia ≤ 24 h |
+| **Violeta del tema, más presente** + chip `Muy pronto` | `.urgent-now` | **Aviso "Muy pronto"** — la próxima cita posible (o próxima reserva) es en **menos de 2 horas**. Borde 2px del tema y brillo estático. **Sin rojo, sin sello URGENTE, sin parpadeo**: es un aviso, no una alerta de error (tooltip en el chip lo explica) | diferencia < 2 h |
 | **No aparece en el listado** | (se elimina) | El servicio **no tiene fechas futuras con cupos**: todas pasaron o cupos en 0. La card se quita de la lista y se crea/limpia un aviso en la campana de notificaciones (solo si el servicio está activo) | sin fecha futura con cupo > 0 |
 
 > ⚠️ Comportamiento actual (2026-08): las cards expiradas ya NO se muestran
@@ -24,12 +24,19 @@ y hora con cupos disponibles del servicio. El color es un semáforo:
 > para editar y agregar fechas. Si TODOS los servicios expiran, se muestra el
 > estado vacío "No hay servicios con fechas futuras".
 
+> 🎨 Cambio UX (2026-09): el sistema pasó de "MORADO/ROJO FLÚOR con pulso" a
+> avisos informativos **violeta del tema, sin parpadeo y sin rojo**. El rojo
+> queda solo para acciones destructivas (botones Eliminar). No reintroducir
+> `pulse-purple`/`pulse-red` ni `#ff1744`/`#b300ff` en estos estados.
+
 Detalles técnicos del CSS (style.css):
 
-- `.urgent-soon`: `border: 2px solid #b300ff` + `box-shadow: 0 0 15px #b300ff` +
-  animación `pulse-purple` (2s, ease-in-out). El título también se tiñe de morado.
-- `.urgent-now`: `border: 3px solid #ff1744` + `box-shadow: 0 0 20px #ff1744, 0 0 40px rgba(...)` +
-  animación `pulse-red` (1.5s) + `::after` con `⚠️ URGENTE`.
+- `.urgent-soon`: `border: 1px solid rgba(157,78,221,0.55)` + brillo estático
+  `box-shadow: 0 0 14px rgba(157,78,221,0.14)`. Chip `.service-urgent-badge.urgent-soon`
+  "Próximas 24 h". **Sin animación**.
+- `.urgent-now`: `border: 2px solid rgba(157,78,221,0.9)` + brillo estático
+  `box-shadow: 0 0 18px rgba(157,78,221,0.28)`. Chip `.service-urgent-badge.urgent-now`
+  "Muy pronto" con tooltip explicativo. **Sin animación, sin ::after**.
 - **Hover (solo escritorio)**: la card se eleva 5px con borde y sombra morados
   (`box-shadow: 0 10px 25px rgba(157,78,221,0.2)`).
 
@@ -39,9 +46,9 @@ En pantallas pequeñas el brillo completo se sustituye por una **barra de estado
 en el borde izquierdo** de la card (más limpio, sin saturar):
 
 - Borde **verde** → servicio Activo (`.service-status.active`)
-- Borde **rojo** → servicio Inactivo (`.service-status.inactive`)
-- Borde **naranja** → urgencia (`.urgent-now` usa `--warning-color`, `.urgent-soon` usa `#f39c12`)
-- El badge de urgencia se muestra mini arriba a la izquierda de la imagen.
+- Borde **ámbar** → servicio Inactivo/pausado (`.service-status.inactive`) — no es rojo: inactivo es una decisión del admin, no un error
+- Borde **violeta** → aviso de próxima reserva/turno (`.urgent-now` más intenso, `.urgent-soon` más suave)
+- El chip de aviso se muestra mini arriba a la izquierda de la imagen.
 
 ---
 
@@ -67,7 +74,7 @@ en el borde izquierdo** de la card (más limpio, sin saturar):
 
 4. **Render**: se genera el HTML de cada card con:
    - Clases de estado: `urgent-now` o `urgent-soon`.
-   - Badges: `URGENTE`, `Próximo`, `Destacado`, `Activo/Inactivo`.
+   - Badges: `Muy pronto`, `Próximas 24 h`, `Destacado`, `Activo/Inactivo`.
    - Metadatos: fechas (próximas 3), horarios, duración, cupo mínimo por turno.
 
 5. **Binding de botones** (fix CSP): los 4 botones de cada card se bindean con
@@ -94,7 +101,7 @@ en el borde izquierdo** de la card (más limpio, sin saturar):
    cupos y el desglose fecha por fecha con horarios y cupos.
 
 9. **Filtros**: los selectores superiores permiten filtrar por estado
-   (Activos/Inactivos) y por urgencia (Próximos 2-24h / Urgentes <2h / Sin urgencia).
+   (Activos/Inactivos) y por aviso (Próximas 24 h / Muy pronto / Sin urgencia).
    El botón "¿Cómo funcionan estas cards?" alterna la guía (se cierra al hacer
    clic fuera). "Actualizar" recarga la lista.
 

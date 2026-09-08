@@ -7362,8 +7362,8 @@ async function cargarServiciosExistentes() {
                     ${servicio.activo ? 'Activo' : 'Inactivo'}
                 </div>
                 
-                ${estadoUrgencia === 'urgent-now' ? '<span class="service-urgent-badge urgent-now"><i class="fas fa-exclamation-circle"></i> URGENTE</span>' : ''}
-                ${estadoUrgencia === 'urgent-soon' ? '<span class="service-urgent-badge urgent-soon"><i class="fas fa-clock"></i> Próximo</span>' : ''}
+                ${estadoUrgencia === 'urgent-now' ? '<span class="service-urgent-badge urgent-now" title="Tu próxima reserva o turno libre está a menos de 2 horas. No es una alerta: es un aviso para que te prepares."><i class="fas fa-exclamation-circle"></i> Muy pronto</span>' : ''}
+                ${estadoUrgencia === 'urgent-soon' ? '<span class="service-urgent-badge urgent-soon" title="Tu próxima reserva o turno libre está entre 2 y 24 horas."><i class="fas fa-clock"></i> Próximas 24 h</span>' : ''}
                 ${estadoUrgencia === 'expirado' ? '<span class="service-urgent-badge expirado"><i class="fas fa-hourglass-end"></i> Sin fechas</span>' : ''}
             </div>
             
@@ -10914,7 +10914,7 @@ async function _renderCitasBase(contenedorId, opciones = {}) {
             return;
         }
         
-        html += `<tr data-id="${c.id}" class="${urgenciaClass}" data-urgencia="${estadoUrgencia}">`;
+        html += `<tr data-id="${c.id}" class="${urgenciaClass}" data-urgencia="${estadoUrgencia}"${estadoUrgencia === 'urgent-now' ? ' title="Reserva en menos de 2 horas (aviso informativo)"' : estadoUrgencia === 'urgent-soon' ? ' title="Reserva en las próximas 24 horas (aviso informativo)"' : ''}>`;
         html += `<td>${escapeHtml(nombre)}</td>`;
         html += `<td>${escapeHtml(telefono)}</td>`;
         html += `<td>${escapeHtml(servicio)}${editado}</td>`;
@@ -11130,6 +11130,8 @@ async function renderAdminAppointments() {
                     <span><i class="fas fa-clock"></i> ${hora}</span>
                     <span><i class="fas fa-tag"></i> ${escapeHtml(servicio)}</span>
                 </div>
+                ${estadoUrgencia === 'urgent-now' ? '<span class="apt-urgencia muy-pronto" title="Esta reserva es en menos de 2 horas. No es una alerta: solo avisa para que te prepares."><i class="fas fa-exclamation-circle"></i> Muy pronto — menos de 2 h</span>' : ''}
+                ${estadoUrgencia === 'urgent-soon' ? '<span class="apt-urgencia" title="Esta reserva está entre 2 y 24 horas."><i class="fas fa-clock"></i> Próximas 24 h</span>' : ''}
                 ${esPasada ? '<span class="apt-pasada-chip"><i class="fas fa-hourglass-end"></i> Pasó su hora — ¿se realizó? Marca el check para sumarla</span>' : ''}
                 ${direccionCliente ? `<a class="apt-direccion" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(direccionCliente)}" target="_blank" rel="noopener noreferrer" title="Ver dirección en Google Maps / Cómo llegar"><i class="fas fa-map-marker-alt"></i> ${escapeHtml(direccionCliente)}</a>` : ''}
                 ${estadoPago ? `<div class="apt-estado-pago" title="Estado de pago"><span class="apt-estado-dot" style="background:${estadoPago.color}"></span> ${estadoPago.nombre}</div>` : ''}

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>Organify - Panel Admin</title>
-    <link rel="stylesheet" href="style.css?v=64">
+    <link rel="stylesheet" href="style.css?v=65">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 
@@ -143,7 +143,7 @@
                                 </div>
                                 <div class="notif-info-step">
                                     <span class="notif-dot notif-dot-verde"></span>
-                                    <div><strong class="notif-verde-text">Verde fluor — Recordatorio de reserva (WhatsApp):</strong> cuando faltan 24 horas para la reserva aparece en verde fluor para que recuerdes la cita. Presiona <b>WHATSAPP</b> y se abrirá el mensaje ya escrito recordando la cita: solo envíalo.</div>
+                                    <div><strong class="notif-verde-text">Verde — Recordatorio de reserva (WhatsApp):</strong> cuando faltan 24 horas para la reserva aparece en verde para que recuerdes la cita. Presiona <b>WHATSAPP</b> y se abrirá el mensaje ya escrito recordando la cita: solo envíalo.</div>
                                 </div>
                                 <ul class="notif-info-list">
                                     <li>La información (cliente, servicio, fecha y hora) se arma sola: tú solo presionas y envías.</li>
@@ -723,8 +723,8 @@
                                 </select>
                                 <select id="filter-urgency" class="filter-select" style="margin-left:5px;" aria-label="Filtrar servicios por urgencia">
                                     <option value="all">Todos los estados</option>
-                                    <option value="urgent-soon">Próximos (2-24h)</option>
-                                    <option value="urgent-now">Urgentes (&lt;2h)</option>
+                                    <option value="urgent-soon">Próximas 24 h (2-24h)</option>
+                                    <option value="urgent-now">Muy pronto (&lt;2h)</option>
                                     <option value="normal">Sin urgencia</option>
                                 </select>
                             </div>
@@ -737,18 +737,19 @@
                     <div class="guia-dashboard" id="guia-servicios" style="display:none;">
                         <h4><i class="fas fa-palette"></i> ¿Qué significan los colores de las cards?</h4>
                         <p>
-                            El <strong>borde y el brillo</strong> de cada card te dicen qué tan pronto hay disponibilidad
-                            para reservar ese servicio. Es un semáforo calculado con la próxima fecha y hora con cupos:
+                            El <strong>borde y el brillo suave</strong> de cada card te avisan con calma qué tan pronto
+                            hay disponibilidad para reservar ese servicio (o qué tan pronto llega tu próxima reserva).
+                            No es una alerta de error: pasa el mouse por el chip para ver la explicación:
                         </p>
                         <ul class="guia-pasos" style="list-style:none;padding-left:0;">
-                            <li><strong style="color:#b300ff;">▣ Morado brillante (pulso):</strong> "Próximo" — la próxima cita posible está <strong>entre 2 y 24 horas</strong>. La card respira en morado para que la veas.</li>
-                            <li><strong style="color:#ff1744;">▣ Rojo brillante + sello "⚠️ URGENTE":</strong> la próxima cita posible está a <strong>menos de 2 horas</strong>. Es la card más urgente de atender.</li>
-                            <li><strong style="color:#e74c3c;">▣ Gris atenuado + sello "EXPIRADO":</strong> el servicio <strong>no tiene fechas futuras con cupos</strong> (todo pasado o cupos en 0).</li>
+                            <li><strong style="color:#d9a8ff;">▣ Violeta (chip "Muy pronto"):</strong> la próxima cita posible está a <strong>menos de 2 horas</strong>. La card se marca para que la tengas presente.</li>
+                            <li><strong style="color:#c77dff;">▣ Violeta suave (chip "Próximas 24 h"):</strong> la próxima cita posible está <strong>entre 2 y 24 horas</strong>. Simple aviso de que se viene una reserva.</li>
+                            <li><strong style="color:#fdcb6e;">▣ Ámbar (chip "Sin fechas"):</strong> el servicio <strong>no tiene fechas futuras con cupos</strong> (todo pasado o cupos en 0).</li>
                             <li><strong style="color:#f8f9fa;">▣ Sin brillo (normal):</strong> hay disponibilidad, pero la próxima cita posible está a <strong>más de 24 horas</strong>. Todo en orden.</li>
                         </ul>
                         <p style="font-size:0.85rem;color:var(--text-muted);">
                             <i class="fas fa-mobile-alt"></i> En el celular el brillo se convierte en una <strong>barra de color en el borde izquierdo</strong>:
-                            verde = Activo · rojo = Inactivo · naranja = urgencia.
+                            verde = Activo · ámbar = Inactivo (pausado a propósito) · violeta = aviso de próxima reserva o turno.
                         </p>
 
                         <h4><i class="fas fa-list-ol"></i> Cómo funcionan las cards, paso a paso</h4>
@@ -774,7 +775,7 @@
                                 Un servicio oculto <em>no aparece</em> en la vista de tus clientes, pero conserva sus datos.
                             </li>
                             <li>
-                                <strong>Filtros superiores</strong> — "Activos/Inactivos" y "Próximos (2-24h) / Urgentes (&lt;2h) / Sin urgencia"
+                                <strong>Filtros superiores</strong> — "Activos/Inactivos" y "Próximas 24 h / Muy pronto / Sin urgencia"
                                 te dejan ver solo lo que te interesa.
                             </li>
                         </ol>
@@ -1161,7 +1162,7 @@
     </div>
 
     <script type="module" src="dist/app.js?v=69"></script>
-    <script defer src="dist/legacy.js?v=67"></script>
+    <script defer src="dist/legacy.js?v=68"></script>
 
     <!-- Containers para modulos modernos (display:none, coexisten con legacy) -->
     <div id="notif-badge" style="display:none"></div>
