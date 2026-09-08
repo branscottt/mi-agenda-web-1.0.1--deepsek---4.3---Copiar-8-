@@ -20660,3 +20660,162 @@ body.cfgmo-lock { overflow: hidden; }
     .invcl-btn-ghost { order: 2; }
     .invcl-chip { font-size: .78rem; padding: 6px 11px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   CHAT CREAR SERVICIO v3 — foto de tarjeta + recorte + volver a
+   una respuesta (ServiceChat.js, 2026-09). Solo aditivo.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Burbuja de usuario: texto + botón "volver a esta respuesta" */
+.svcchat-burbuja.svcchat-user { display: flex; align-items: center; gap: 8px; }
+.svcchat-user-text { min-width: 0; }
+.svcchat-user-volver {
+    flex: 0 0 auto; width: 26px; height: 26px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 0.68rem; cursor: pointer;
+    background: rgba(255,255,255,0.06); color: var(--text-muted, #9b9fb4);
+    border: 1px solid rgba(255,255,255,0.12); opacity: 0.9;
+    transition: all .15s ease;
+}
+.svcchat-user-volver:hover {
+    color: #fff; opacity: 1;
+    background: rgba(157,78,221,0.28); border-color: rgba(157,78,221,0.6);
+}
+@media (max-width: 480px) {
+    .svcchat-user-volver { width: 30px; height: 30px; font-size: 0.75rem; }
+}
+
+/* Ronda respondida: control atenuado (se rehabilita al volver) */
+.svcchat-ctl-usado { opacity: 0.55; }
+.svcchat-ctl-usado .svcchat-opt, .svcchat-ctl-usado .svcchat-chip,
+.svcchat-ctl-usado .svcchat-btn-enviar, .svcchat-ctl-usado .svcchat-input { cursor: default; }
+
+/* Opción elegida: anillo violeta que persiste al reabrir la ronda */
+.svcchat-opt-elegida {
+    background: rgba(157,78,221,0.18) !important;
+    box-shadow: inset 0 0 0 2px rgba(157,78,221,0.75) !important;
+}
+.svcchat-opt-elegida .svcchat-opt-texto::after { content: ' ✓'; }
+
+/* Destello al reabrir una pregunta (volver a una respuesta) */
+.svcchat-reabierta { animation: svcchat-reabrir 1.5s ease; }
+@keyframes svcchat-reabrir {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(199,125,255,0); }
+    20% { box-shadow: 0 0 0 3px rgba(199,125,255,.65); }
+    60% { box-shadow: 0 0 0 3px rgba(199,125,255,.12); }
+}
+
+/* Foto en el resumen lateral (así está quedando tu servicio) */
+.svcchat-rsm-img {
+    width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+    border-radius: 10px; margin: 0 0 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0,0,0,0.25);
+}
+.svcchat-rsm-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Foto en la tarjeta final del resumen */
+.svcchat-tarjeta-final { overflow: hidden; }
+.svcchat-final-img {
+    width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+    border-radius: 10px; margin: 0 0 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0,0,0,0.25);
+}
+.svcchat-final-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Burbuja con la foto en vivo */
+.svcchat-foto-titulo { font-weight: 700; margin-bottom: 4px; }
+.svcchat-foto-preview {
+    width: min(380px, 100%); aspect-ratio: 16 / 9; overflow: hidden;
+    border-radius: 12px; margin: 6px 0 2px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(0,0,0,0.25);
+}
+.svcchat-foto-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── Modal de ajuste/recorte de foto ─────────────────────────── */
+.svcchat-crop-ov {
+    position: fixed; inset: 0; z-index: 20000;
+    background: rgba(8, 6, 18, 0.78);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; animation: svcchat-in .18s ease;
+}
+.svcchat-crop-card {
+    width: min(680px, 100%); max-height: 92vh; overflow-y: auto;
+    background: linear-gradient(160deg, #211a30, #191424);
+    border: 1px solid rgba(157,78,221,0.4);
+    border-radius: 18px; padding: 16px 16px 14px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.65);
+    display: flex; flex-direction: column; gap: 12px;
+}
+.svcchat-crop-head { display: flex; align-items: flex-start; gap: 12px; }
+.svcchat-crop-titulos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.svcchat-crop-titulos strong { color: #fff; font-size: 0.98rem; }
+.svcchat-crop-titulos strong i { color: #c77dff; margin-right: 4px; }
+.svcchat-crop-titulos span { color: var(--text-muted, #9b9fb4); font-size: 0.8rem; line-height: 1.45; }
+.svcchat-crop-cerrar {
+    flex: 0 0 auto; width: 32px; height: 32px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px; cursor: pointer; font-size: 0.9rem;
+    background: rgba(255,255,255,0.06); color: var(--text-muted, #9b9fb4);
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: all .15s ease;
+}
+.svcchat-crop-cerrar:hover { color: #fff; background: rgba(255,255,255,0.14); }
+.svcchat-crop-stage {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    overflow: hidden; border-radius: 12px; cursor: grab;
+    touch-action: none; user-select: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    background:
+        conic-gradient(#262033 0 25%, #191424 0 50%) 0 0 / 22px 22px;
+}
+.svcchat-crop-stage.svcchat-crop-drag { cursor: grabbing; }
+.svcchat-crop-stage img {
+    position: absolute; left: 0; top: 0; max-width: none;
+    will-change: transform; user-select: none; -webkit-user-drag: none;
+}
+.svcchat-crop-zoomrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.svcchat-crop-zoomrow input[type="range"] {
+    flex: 1; min-width: 140px; accent-color: #9d4edd; height: 6px; cursor: pointer;
+}
+.svcchat-crop-zoombtn {
+    flex: 0 0 auto; width: 34px; height: 34px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px; cursor: pointer; font-size: 0.8rem;
+    background: rgba(255,255,255,0.08); color: #e8e9f2;
+    border: 1px solid rgba(255,255,255,0.16);
+    transition: all .15s ease;
+}
+.svcchat-crop-zoombtn:hover { background: rgba(157,78,221,0.3); }
+.svcchat-crop-reset {
+    margin-left: auto; padding: 8px 14px; border-radius: 10px;
+    cursor: pointer; font-size: 0.8rem; font-weight: 600;
+    background: none; color: var(--text-muted, #9b9fb4);
+    border: 1px dashed rgba(255,255,255,0.22);
+    transition: all .15s ease;
+}
+.svcchat-crop-reset:hover { color: #fff; border-color: rgba(157,78,221,0.6); background: rgba(157,78,221,0.15); }
+.svcchat-crop-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.svcchat-crop-btn {
+    border-radius: 12px; padding: 11px 18px; font-weight: 700; font-size: 0.9rem;
+    cursor: pointer; border: 1px solid transparent; transition: all .15s ease;
+}
+.svcchat-crop-cancel {
+    background: rgba(255,255,255,0.08); color: #e8e9f2;
+    border-color: rgba(255,255,255,0.16);
+}
+.svcchat-crop-cancel:hover { background: rgba(255,255,255,0.15); }
+.svcchat-crop-ok {
+    background: linear-gradient(135deg, #7b2ff7, #9d4edd); color: #fff;
+    box-shadow: 0 4px 14px rgba(157,78,221,0.35);
+}
+.svcchat-crop-ok:hover { box-shadow: 0 6px 18px rgba(157,78,221,0.55); filter: brightness(1.08); }
+@media (max-width: 520px) {
+    .svcchat-crop-ov { padding: 10px; }
+    .svcchat-crop-card { padding: 12px 10px 10px; border-radius: 14px; }
+    .svcchat-crop-actions .svcchat-crop-btn { flex: 1 1 auto; text-align: center; }
+    .svcchat-crop-zoomrow input[type="range"] { min-width: 90px; }
+}

@@ -20,6 +20,8 @@
 // el avance parcial al formulario (no se pierde nada).
 // ============================================================
 
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
+
 const MAX_FECHAS = 400; // tope defensivo (1 año "todos los días" ≈ 366)
 const CLP = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
 // Precio 0 = servicio gratuito: se muestra "Gratis" (el resto como $CLP).
@@ -134,6 +136,14 @@ let _observer = null;
 let _editando = false;        // true mientras se edita un servicio por chat
 let _editConvIniciada = false;// la conversación de edición ya se pintó
 let _editHookPuesto = false;  // listener del evento legacy (una sola vez)
+
+// ── Foto de tarjeta + rondas ("volver a una respuesta anterior") ────────
+let _rondas = [];               // rondas de pregunta vivas: { ctl, respondida }
+let _fotoSubiendo = false;      // true mientras sube una foto (bloquea volver)
+let _guardandoEdicionChat = false;
+let _inputFoto = null;          // input[type=file] oculto reutilizable (fuera del conv)
+let _fotoFuenteData = null;     // dataURL del archivo original (para re-encuadrar)
+let _burbujaFotoPreview = null; // burbuja con la foto en vivo (se actualiza al reajustar)
 
 const DIAS_SEMANA = [
     { v: 1, label: 'Lun' }, { v: 2, label: 'Mar' }, { v: 3, label: 'Mié' },
@@ -291,7 +301,7 @@ function mostrarChat(opts) {
     _editConvIniciada = false;
     if (typeof window.limpiarEstadoEdicion === 'function') window.limpiarEstadoEdicion();
     _state = estadoInicial();
-    _el.conv.innerHTML = '';
+    limpiarConv();
     pintarCabeceraModo();
     pintarBienvenida();
     actualizarResumen();
@@ -350,7 +360,9 @@ function estadoInicial() {
         // excepcionesDias: { dia(0-6): [bloques] } | null = sin excepciones
         excepcionesDias: null,
         // fechasEspeciales: { 'YYYY-MM-DD': [bloques] } | null = sin fechas especiales
-        fechasEspeciales: null
+        fechasEspeciales: null,
+        // Foto de la tarjeta: URL pública ya subida (null = sin foto).
+        imagenUrl: null
     };
 }
 
@@ -405,8 +417,105 @@ function burbujaBot(html, extraCls) {
 function burbujaUser(texto) {
     const div = document.createElement('div');
     div.className = 'svcchat-burbuja svcchat-user';
-    div.textContent = texto;
+    const txt = document.createElement('span');
+    txt.className = 'svcchat-user-text';
+    txt.textContent = texto;
+    div.appendChild(txt);
+    // Botón para volver a la pregunta que originó esta respuesta.
+    const volver = document.createElement('button');
+    volver.type = 'button';
+    volver.className = 'svcchat-user-volver';
+    volver.title = 'Volver a esta respuesta para corregirla';
+    volver.setAttribute('aria-label', 'Volver a esta respuesta');
+    volver.innerHTML = '<i class="fas fa-undo-alt"></i>';
+    volver.addEventListener('click', () => {
+        const ctl = ctlDeBurbuja(div);
+        if (ctl) volverARonda(ctl);
+    });
+    div.appendChild(volver);
     _el.conv.appendChild(div);
+    scrollAbajo();
+    return div;
+}
+
+// ── Rondas: infraestructura para "volver a una respuesta anterior" ──────
+// Cada control de pregunta (opciones/input/fecha/multiselect/horas) se
+// registra como una "ronda". Responder la marca como usada (el control queda
+// deshabilitado y atenuado); volver a una burbuja de respuesta reabre su
+// ronda: recorta la conversación posterior y deja el control listo para
+// responder de nuevo (con la respuesta previa visible para corregirla).
+function limpiarConv() {
+    if (_el && _el.conv) _el.conv.innerHTML = '';
+    _rondas = [];
+    _fotoFuenteData = null;
+    _burbujaFotoPreview = null;
+}
+
+function registrarRonda(ctl, responder) {
+    ctl.dataset.svcctl = '1';
+    const ronda = { ctl, respondida: false };
+    _rondas.push(ronda);
+    return (...args) => {
+        if (!ronda.respondida) {
+            ronda.respondida = true;
+            marcarControlUsado(ctl);
+        }
+        return responder(...args);
+    };
+}
+
+function marcarControlUsadoDe(ctl) {
+    const r = _rondas.find(x => x.ctl === ctl);
+    if (r && !r.respondida) {
+        r.respondida = true;
+        marcarControlUsado(ctl);
+    }
+}
+
+function marcarControlUsado(ctl) {
+    ctl.classList.add('svcchat-ctl-usado');
+    ctl.querySelectorAll('button, input, select, textarea').forEach(el => { el.disabled = true; });
+}
+
+function rehabilitarControl(ctl) {
+    ctl.classList.remove('svcchat-ctl-usado', 'svcchat-input-usado', 'svcchat-input-error');
+    ctl.querySelectorAll('button, input, select, textarea').forEach(el => { el.disabled = false; });
+    ctl.querySelectorAll('.svcchat-input-usado, .svcchat-input-error').forEach(el => el.classList.remove('svcchat-input-usado', 'svcchat-input-error'));
+    // El botón "Otro…" pudo quedar oculto al desplegar su input libre.
+    ctl.querySelectorAll('.svcchat-opt-otro').forEach(b => { b.style.display = ''; });
+    // Si quedó un input-libre respondido a la vista, se limpia (se reabre con "Otro…").
+    ctl.querySelectorAll('.svcchat-otro-row').forEach(r => r.remove());
+}
+
+function ctlDeBurbuja(burbuja) {
+    let nodo = burbuja.previousSibling;
+    while (nodo) {
+        if (nodo.nodeType === 1 && nodo.dataset && nodo.dataset.svcctl === '1') return nodo;
+        nodo = nodo.previousSibling;
+    }
+    return null;
+}
+
+function volverARonda(ctl) {
+    if (!ctl || _publicando || _fotoSubiendo || _guardandoEdicionChat) return;
+    const idx = _rondas.findIndex(r => r.ctl === ctl);
+    if (idx < 0) return;
+    // Recortar el DOM: todo lo posterior a esta pregunta se descarta
+    // (respuestas, burbujas del bot, resumen final…). Al re-responder,
+    // el flujo vuelve a preguntar lo siguiente en orden.
+    let nodo = ctl.nextSibling;
+    while (nodo) {
+        const sig = nodo.nextSibling;
+        nodo.remove();
+        nodo = sig;
+    }
+    _rondas.length = idx + 1;
+    const ronda = _rondas[idx];
+    ronda.respondida = false;
+    rehabilitarControl(ctl);
+    // Destello suave para ubicar la pregunta reabierta.
+    ctl.classList.add('svcchat-reabierta');
+    setTimeout(() => ctl.classList.remove('svcchat-reabierta'), 1600);
     scrollAbajo();
 }
 
@@ -420,6 +529,8 @@ function bloqueOpciones(opciones, alElegir, opts) {
     opts = opts || {};
     const wrap = document.createElement('div');
     wrap.className = 'svcchat-opciones';
+    // Listener real de respuesta; se envuelve al registrar la ronda.
+    let responder = (...args) => alElegir(...args);
 
     const crearBoton = (op) => {
         const b = document.createElement('button');
@@ -431,7 +542,12 @@ function bloqueOpciones(opciones, alElegir, opts) {
         // El botón "Otro…" NO dispara alElegir: su comportamiento lo maneja el
         // listener extra (input libre / onOtro). Evita avanzar con '__otro__'.
         if (op.valor !== '__otro__') {
-            b.addEventListener('click', () => alElegir(op.valor, op));
+            b.addEventListener('click', () => {
+                // Marca visual de la opción elegida (orienta al reabrir la ronda).
+                wrap.querySelectorAll('.svcchat-opt-elegida').forEach(x => x.classList.remove('svcchat-opt-elegida'));
+                b.classList.add('svcchat-opt-elegida');
+                responder(op.valor, op);
+            });
         }
         return b;
     };
@@ -447,6 +563,8 @@ function bloqueOpciones(opciones, alElegir, opts) {
             // Comportamiento propio (multiselect / fecha…)
             b.addEventListener('click', () => {
                 b.style.display = 'none';
+                // Los presets pasan a "usados": la respuesta vendrá del sub-control.
+                marcarControlUsadoDe(wrap);
                 opts.onOtro();
             });
         } else {
@@ -477,11 +595,13 @@ function bloqueOpciones(opciones, alElegir, opts) {
                 input.disabled = true;
                 form.querySelector('button').disabled = true;
                 form.classList.add('svcchat-input-usado');
-                alElegir(opts.parseOtro ? opts.parseOtro(val) : val, { otro: true, texto: val });
+                responder(opts.parseOtro ? opts.parseOtro(val) : val, { otro: true, texto: val });
             });
             wrap.appendChild(form);
         }
     }
+
+    responder = registrarRonda(wrap, responder);
 
     _el.conv.appendChild(wrap);
     scrollAbajo();
@@ -499,6 +619,7 @@ function bloqueInput(placeholder, opts, alEnviar) {
     const input = form.querySelector('input');
     const validar = opts.validar || ((v) => (v.trim().length ? null : 'Escribe un valor'));
     const btn = form.querySelector('button');
+    let responder = (...a) => alEnviar(...a);
     form.addEventListener('submit', (e) => {
         e.preventDefault();
         const err = validar(input.value);
@@ -511,9 +632,10 @@ function bloqueInput(placeholder, opts, alEnviar) {
         input.disabled = true;
         btn.disabled = true;
         form.classList.add('svcchat-input-usado');
-        alEnviar(input.value.trim());
+        responder(input.value.trim());
     });
     input.addEventListener('input', () => input.classList.remove('svcchat-input-error'));
+    responder = registrarRonda(form, responder);
     _el.conv.appendChild(form);
     setTimeout(() => { input.focus(); }, 60);
     scrollAbajo();
@@ -529,6 +651,7 @@ function bloqueFecha(minISO, alEnviar) {
         <button type="submit" class="svcchat-btn-enviar">Usar fecha</button>
     `;
     const input = form.querySelector('input');
+    let responder = (...a) => alEnviar(...a);
     form.addEventListener('submit', (e) => {
         e.preventDefault();
         if (!input.value) {
@@ -544,8 +667,9 @@ function bloqueFecha(minISO, alEnviar) {
         input.disabled = true;
         form.querySelector('button').disabled = true;
         form.classList.add('svcchat-input-usado');
-        alEnviar(input.value);
+        responder(input.value);
     });
+    responder = registrarRonda(form, responder);
     _el.conv.appendChild(form);
     setTimeout(() => {
         try { if (input.showPicker) input.showPicker(); }
@@ -581,13 +705,15 @@ function bloqueMultiSelect(items, alConfirmar, opts) {
     btn.textContent = 'Continuar';
     wrap.appendChild(grid);
     wrap.appendChild(btn);
+    let confirmar = (...a) => alConfirmar(...a);
     btn.addEventListener('click', () => {
         if (!elegidos.size) {
             burbujaBot(opts.errorVacio || 'Elige al menos una opción 😉');
             return;
         }
-        alConfirmar([...elegidos]);
+        confirmar([...elegidos]);
     });
+    confirmar = registrarRonda(wrap, confirmar);
     _el.conv.appendChild(wrap);
     scrollAbajo();
     return wrap;
@@ -865,6 +991,7 @@ function preguntarRangoHoras(tituloHtml, iniDef, finDef, alRango) {
     `;
     const selIni = form.querySelector('#svcchat-h-ini');
     const selFin = form.querySelector('#svcchat-h-fin');
+    let responder = (...a) => alRango(...a);
     for (let h = 5; h <= 22; h++) {
         const v = String(h).padStart(2, '0') + ':00';
         const o = new Option(v, v);
@@ -890,8 +1017,9 @@ function preguntarRangoHoras(tituloHtml, iniDef, finDef, alRango) {
         form.querySelector('button').disabled = true;
         form.classList.add('svcchat-input-usado');
         burbujaUser(`${ini} a ${fin}`);
-        alRango(ini, fin);
+        responder(ini, fin);
     });
+    responder = registrarRonda(form, responder);
     _el.conv.appendChild(form);
     scrollAbajo();
 }
@@ -1044,7 +1172,7 @@ function pasoFechasEspeciales() {
         if (valor === 'no') {
             _state.fechasEspeciales = null;
             burbujaUser('No, así está bien');
-            pasoResumenFinal();
+            pasoFoto();
             return;
         }
         burbujaUser('Sí, agregar fechas…');
@@ -1059,7 +1187,7 @@ function preguntarUnaFechaEspecial() {
     const ya = Object.keys(_state.fechasEspeciales || {}).filter(f => _state.fechasEspeciales[f] && _state.fechasEspeciales[f].length).length;
     if (ya >= 20) {
         burbujaBot('Llegaste a 20 fechas especiales (máximo por servicio). Puedes ajustarlas desde Mis Servicios → Editar 😉');
-        pasoResumenFinal();
+        pasoFoto();
         return;
     }
     burbujaBot(ya
@@ -1100,11 +1228,389 @@ function preguntarUnaFechaEspecial() {
                         preguntarUnaFechaEspecial();
                     } else {
                         burbujaUser('No, listo');
-                        pasoResumenFinal();
+                        pasoFoto();
                     }
                 });
             });
         });
+    });
+}
+
+// ============================================================
+// FOTO DE LA TARJETA (paso 15) — elegir, recortar/encuadrar y confirmar
+// ============================================================
+function pasoFoto() {
+    _state.paso = 15;
+    const ya = _state.imagenUrl;
+    burbujaBot(`¿Quieres ponerle <strong>foto a la tarjeta</strong>?<br>
+        <span class="svcchat-sub">Es lo primero que ven tus clientes al reservar${ya ? ' (ya tienes una: puedes ajustarla o reemplazarla)' : ''}. La foto es opcional.</span>`);
+    const opciones = [];
+    if (ya && _fotoFuenteData) opciones.push({ valor: 'ajustar', label: '🔍 Ajustar el encuadre actual' });
+    opciones.push({ valor: 'subir', label: ya ? '📷 Reemplazar con otra foto' : '📷 Subir una foto' });
+    opciones.push({ valor: 'no', label: ya ? '🚫 Quitar la foto' : 'Sin foto, seguir', rec: !ya });
+    bloqueOpciones(opciones, (valor) => {
+        if (valor === 'no') {
+            burbujaUser(ya ? 'Quitar la foto' : 'Sin foto, seguir');
+            if (ya) {
+                _state.imagenUrl = null;
+                if (_burbujaFotoPreview && _burbujaFotoPreview.isConnected) _burbujaFotoPreview.remove();
+                _burbujaFotoPreview = null;
+            }
+            actualizarResumen();
+            return pasoResumenFinal();
+        }
+        burbujaUser(valor === 'ajustar' ? 'Ajustar el encuadre' : 'Subir una foto');
+        fotoPrepararYRecortar();
+    });
+}
+
+// Subir/reemplazar/ajustar: garantiza una fuente en memoria y abre el modal.
+async function fotoPrepararYRecortar() {
+    const origen = _state.imagenUrl;
+    if (!_fotoFuenteData) {
+        const file = await elegirArchivoFoto();
+        if (!file) {
+            burbujaBot(origen
+                ? 'Ok, dejamos la foto como estaba.'
+                : 'Ok, sin foto por ahora. Puedes reintentar tocando ↩ en tu respuesta.');
+            return pasoResumenFinal();
+        }
+        const dataUrl = await leerArchivoDataURL(file);
+        if (!dataUrl) {
+            burbujaBot('⚠️ No se pudo leer esa imagen (usa JPG, PNG o WebP de hasta 10 MB).');
+            return pasoResumenFinal();
+        }
+        _fotoFuenteData = dataUrl;
+    }
+    const blob = await abrirAjusteFoto(_fotoFuenteData);
+    if (!blob) {
+        burbujaBot(origen
+            ? 'Ok, dejamos la foto como estaba.'
+            : 'Ok, sin foto por ahora. Puedes reintentar tocando ↩ en tu respuesta.');
+        return pasoResumenFinal();
+    }
+    await fotoSubirYCerrarPregunta(blob, false);
+}
+
+// Re-encuadre desde la pregunta "¿Cómo quedó?": deja la pregunta abierta.
+async function fotoReajustar() {
+    if (!_fotoFuenteData) {
+        const file = await elegirArchivoFoto();
+        if (!file) { reabrirUltimaPregunta(); return; }
+        const dataUrl = await leerArchivoDataURL(file);
+        if (!dataUrl) { reabrirUltimaPregunta(); return burbujaBot('⚠️ No se pudo leer esa imagen.'); }
+        _fotoFuenteData = dataUrl;
+    }
+    const blob = await abrirAjusteFoto(_fotoFuenteData);
+    if (!blob) { reabrirUltimaPregunta(); return; } // cancela: foto como estaba
+    const est = burbujaBot('Subiendo la foto… <i class="fas fa-spinner fa-spin"></i>');
+    const url = await subirFotoServicio(blob);
+    if (!url) {
+        est.innerHTML = '⚠️ No se pudo subir la foto (revisa tu conexión). Elige "Ajustar el encuadre" para reintentar.';
+        reabrirUltimaPregunta();
+        return;
+    }
+    est.remove();
+    _state.imagenUrl = url;
+    actualizarResumen();
+    if (_burbujaFotoPreview && _burbujaFotoPreview.isConnected) {
+        const img = _burbujaFotoPreview.querySelector('img');
+        if (img) img.src = url;
+    } else {
+        _burbujaFotoPreview = burbujaBot(`<div class="svcchat-foto-titulo"><i class="fas fa-image"></i> Así se ve la foto en la tarjeta:</div>
+            <div class="svcchat-foto-preview"><img src="${url}" alt="Foto del servicio"></div>`);
+    }
+    reabrirUltimaPregunta();
+}
+
+function reabrirUltimaPregunta() {
+    const r = _rondas[_rondas.length - 1];
+    if (r && r.respondida) {
+        r.respondida = false;
+        rehabilitarControl(r.ctl);
+    }
+    scrollAbajo();
+}
+
+// Sube el recorte, muestra la foto en vivo y (si no estaba preguntado) consulta.
+async function fotoSubirYCerrarPregunta(blob, yaPreguntado) {
+    const est = burbujaBot('Subiendo la foto… <i class="fas fa-spinner fa-spin"></i>');
+    const url = await subirFotoServicio(blob);
+    if (!url) {
+        est.innerHTML = '⚠️ No se pudo subir la foto (revisa tu conexión). Puedes reintentar con ↩ en tu respuesta.';
+        return;
+    }
+    est.remove();
+    _state.imagenUrl = url;
+    actualizarResumen();
+    if (_burbujaFotoPreview && _burbujaFotoPreview.isConnected) {
+        const img = _burbujaFotoPreview.querySelector('img');
+        if (img) img.src = url;
+    } else {
+        _burbujaFotoPreview = burbujaBot(`<div class="svcchat-foto-titulo"><i class="fas fa-image"></i> Así se ve la foto en la tarjeta:</div>
+            <div class="svcchat-foto-preview"><img src="${url}" alt="Foto del servicio"></div>`);
+    }
+    if (yaPreguntado) return; // la pregunta "¿cómo quedó?" ya está abierta
+    burbujaBot('¿Cómo quedó?');
+    bloqueOpciones([
+        { valor: 'ok', label: '✓ Se ve bien, continuar', rec: true },
+        { valor: 'ajustar', label: 'Ajustar el encuadre' },
+        { valor: 'quitar', label: 'Quitar la foto' }
+    ], (valor) => {
+        if (valor === 'ok') { burbujaUser('Se ve bien ✓'); return pasoResumenFinal(); }
+        if (valor === 'quitar') {
+            burbujaUser('Quitar la foto');
+            _state.imagenUrl = null;
+            if (_burbujaFotoPreview && _burbujaFotoPreview.isConnected) _burbujaFotoPreview.remove();
+            _burbujaFotoPreview = null;
+            actualizarResumen();
+            burbujaBot('Listo, sin foto. La tarjeta mostrará la inicial del servicio con un color de fondo.');
+            return pasoResumenFinal();
+        }
+        burbujaUser('Ajustar el encuadre');
+        fotoReajustar();
+    });
+}
+
+// ── Helpers de archivo / subida ──────────────────────────────────────────
+function elegirArchivoFoto() {
+    return new Promise((resolve) => {
+        if (!_inputFoto) {
+            _inputFoto = document.createElement('input');
+            _inputFoto.type = 'file';
+            _inputFoto.accept = 'image/*';
+            _inputFoto.style.display = 'none';
+            document.body.appendChild(_inputFoto);
+        }
+        _inputFoto.value = '';
+        _inputFoto.onchange = () => {
+            const file = _inputFoto.files && _inputFoto.files[0];
+            _inputFoto.onchange = null;
+            if (!file) return resolve(null);
+            if (file.size > 10 * 1024 * 1024) {
+                burbujaBot('⚠️ La imagen pesa más de 10 MB: elige una más liviana.');
+                return resolve(null);
+            }
+            if (!file.type || !file.type.startsWith('image/')) {
+                burbujaBot('⚠️ Ese archivo no es una imagen (usa JPG, PNG o WebP).');
+                return resolve(null);
+            }
+            resolve(file);
+        };
+        _inputFoto.click();
+    });
+}
+
+function leerArchivoDataURL(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result || null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+    });
+}
+
+// Sube al bucket service-images/<tenant>/ (misma convención que el legacy).
+async function subirFotoServicio(blob) {
+    _fotoSubiendo = true;
+    try {
+        const supabase = getSupabase();
+        if (!supabase) {
+            console.error('[svcchat] Cliente Supabase no disponible para subir foto');
+            return null;
+        }
+        let tenantId = null;
+        try {
+            const { data } = await supabase.rpc('get_user_tenant_id');
+            tenantId = data || null;
+        } catch (e) {
+            console.warn('[svcchat] tenant canónico no disponible, uso JWT:', e);
+        }
+        tenantId = tenantId || window.currentTenantId || 'public';
+        const fileName = `servicio-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+        const filePath = `${tenantId}/${fileName}`;
+        const { error } = await supabase.storage
+            .from('service-images')
+            .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+        if (error) throw error;
+        const { data: urlData } = supabase.storage.from('service-images').getPublicUrl(filePath);
+        return (urlData && urlData.publicUrl) || null;
+    } catch (e) {
+        console.error('[svcchat] Error subiendo foto:', e);
+        return null;
+    } finally {
+        _fotoSubiendo = false;
+    }
+}
+
+// ── Modal de ajuste/recorte (canvas vanilla, sin librerías externas) ─────
+// Visor con la proporción de la tarjeta (16:9): arrastrar encuadra y el
+// slider acerca/aleja. Al confirmar exporta un JPEG de ~800px de ancho.
+function abrirAjusteFoto(dataUrl) {
+    return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.className = 'svcchat-crop-ov';
+        ov.innerHTML = `
+            <div class="svcchat-crop-card" role="dialog" aria-modal="true" aria-label="Ajustar la foto de la tarjeta">
+                <div class="svcchat-crop-head">
+                    <div class="svcchat-crop-titulos">
+                        <strong><i class="fas fa-crop-alt"></i> Ajusta la foto de la tarjeta</strong>
+                        <span>Arrastra la foto para encuadrarla y usa el zoom para acercar o alejar.</span>
+                    </div>
+                    <button type="button" class="svcchat-crop-cerrar" aria-label="Cancelar" title="Cancelar"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="svcchat-crop-stage" id="svcchat-crop-stage">
+                    <img id="svcchat-crop-img" alt="Foto a ajustar">
+                </div>
+                <div class="svcchat-crop-zoomrow">
+                    <button type="button" class="svcchat-crop-zoombtn" id="svcchat-crop-out" title="Alejar"><i class="fas fa-minus"></i></button>
+                    <input type="range" id="svcchat-crop-zoom" min="1" max="4" step="0.01" value="1" aria-label="Zoom">
+                    <button type="button" class="svcchat-crop-zoombtn" id="svcchat-crop-in" title="Acercar"><i class="fas fa-plus"></i></button>
+                    <button type="button" class="svcchat-crop-reset" id="svcchat-crop-reset">Restablecer</button>
+                </div>
+                <div class="svcchat-crop-actions">
+                    <button type="button" class="svcchat-crop-btn svcchat-crop-cancel" id="svcchat-crop-cancel">Cancelar</button>
+                    <button type="button" class="svcchat-crop-btn svcchat-crop-ok" id="svcchat-crop-ok"><i class="fas fa-check"></i> Usar esta foto</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(ov);
+
+        const stage = ov.querySelector('#svcchat-crop-stage');
+        const img = ov.querySelector('#svcchat-crop-img');
+        const slider = ov.querySelector('#svcchat-crop-zoom');
+
+        let z = 1;
+        let tx = 0;
+        let ty = 0;
+        let fit = 1;     // escala base: la imagen cubre el visor con z=1
+        let stW = 0;
+        let stH = 0;
+        let natW = 0;
+        let natH = 0;
+        let dispW = 0;
+        let dispH = 0;
+        let cerrado = false;
+
+        const medir = () => {
+            const r = stage.getBoundingClientRect();
+            stW = r.width;
+            stH = r.height;
+        };
+        const aplicar = () => {
+            dispW = natW * fit * z;
+            dispH = natH * fit * z;
+            const maxTx = Math.max(0, (dispW - stW) / 2);
+            const maxTy = Math.max(0, (dispH - stH) / 2);
+            tx = Math.min(maxTx, Math.max(-maxTx, tx));
+            ty = Math.min(maxTy, Math.max(-maxTy, ty));
+            img.style.width = dispW + 'px';
+            img.style.height = dispH + 'px';
+            img.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+        };
+        const setZoom = (nz, anclarCentro) => {
+            const cxn = anclarCentro ? (stW / 2 - tx) / dispW : null;
+            const cyn = anclarCentro ? (stH / 2 - ty) / dispH : null;
+            z = Math.min(4, Math.max(1, nz));
+            slider.value = String(z);
+            if (anclarCentro && cxn != null) {
+                dispW = natW * fit * z;
+                dispH = natH * fit * z;
+                tx = stW / 2 - cxn * dispW;
+                ty = stH / 2 - cyn * dispH;
+            }
+            aplicar();
+        };
+        const terminar = (resultado) => {
+            if (cerrado) return;
+            cerrado = true;
+            ov.remove();
+            document.removeEventListener('keydown', onKey);
+            window.removeEventListener('resize', onResize);
+            resolve(resultado);
+        };
+
+        img.onload = () => {
+            natW = img.naturalWidth;
+            natH = img.naturalHeight;
+            medir();
+            fit = Math.max(stW / natW, stH / natH);
+            aplicar();
+        };
+        img.src = dataUrl;
+
+        // Arrastre (mouse y táctil vía Pointer Events).
+        let arrastrando = false;
+        let iniX = 0;
+        let iniY = 0;
+        let iniTx = 0;
+        let iniTy = 0;
+        stage.addEventListener('pointerdown', (e) => {
+            if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
+            arrastrando = true;
+            stage.classList.add('svcchat-crop-drag');
+            iniX = e.clientX;
+            iniY = e.clientY;
+            iniTx = tx;
+            iniTy = ty;
+            try { stage.setPointerCapture(e.pointerId); } catch (err) { /* no crítico */ }
+            e.preventDefault();
+        });
+        stage.addEventListener('pointermove', (e) => {
+            if (!arrastrando) return;
+            tx = iniTx + (e.clientX - iniX);
+            ty = iniTy + (e.clientY - iniY);
+            aplicar();
+        });
+        const soltar = () => {
+            arrastrando = false;
+            stage.classList.remove('svcchat-crop-drag');
+        };
+        stage.addEventListener('pointerup', soltar);
+        stage.addEventListener('pointercancel', soltar);
+
+        slider.addEventListener('input', () => setZoom(parseFloat(slider.value) || 1, true));
+        ov.querySelector('#svcchat-crop-in').addEventListener('click', () => setZoom(z + 0.2, true));
+        ov.querySelector('#svcchat-crop-out').addEventListener('click', () => setZoom(z - 0.2, true));
+        ov.querySelector('#svcchat-crop-reset').addEventListener('click', () => {
+            z = 1;
+            slider.value = '1';
+            tx = 0;
+            ty = 0;
+            aplicar();
+        });
+        ov.querySelector('#svcchat-crop-cancel').addEventListener('click', () => terminar(null));
+        ov.querySelector('.svcchat-crop-cerrar').addEventListener('click', () => terminar(null));
+        ov.addEventListener('click', (e) => { if (e.target === ov) terminar(null); });
+        ov.querySelector('#svcchat-crop-ok').addEventListener('click', () => {
+            if (!natW) return;
+            try {
+                const factor = natW / dispW; // px de imagen natural por px en pantalla
+                const sx = Math.max(0, (-tx) * factor);
+                const sy = Math.max(0, (-ty) * factor);
+                const sw = Math.min(natW - sx, stW * factor);
+                const sh = Math.min(natH - sy, stH * factor);
+                if (sw < 4 || sh < 4) return;
+                const cw = 800;
+                const ch = Math.max(1, Math.round(cw * sh / sw));
+                const canvas = document.createElement('canvas');
+                canvas.width = cw;
+                canvas.height = ch;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+                canvas.toBlob((blob) => terminar(blob || null), 'image/jpeg', 0.82);
+            } catch (err) {
+                console.error('[svcchat] Error recortando foto:', err);
+                terminar(null);
+            }
+        });
+
+        const onKey = (e) => { if (e.key === 'Escape') terminar(null); };
+        const onResize = () => { medir(); aplicar(); };
+        document.addEventListener('keydown', onKey);
+        window.addEventListener('resize', onResize);
     });
 }
 
@@ -1164,7 +1670,7 @@ function iniciarChatEdicion() {
     form.style.display = 'none';
     _el.view.style.display = '';
     const nombre = (document.getElementById('srv-name')?.value || '').trim();
-    _el.conv.innerHTML = '';
+    limpiarConv();
     pintarCabeceraModo();
     burbujaBot(`¡Vamos a editar <strong>${escapeHtml(nombre || 'tu servicio')}</strong>!<br><span class="svcchat-sub">Lo que ya tiene se queda igual hasta que lo cambies. Al final eliges si guardar.</span>`);
     pintarResumenEdicion();
@@ -1181,8 +1687,10 @@ function pintarResumenEdicion() {
     const dur = duracionActual();
     const ex = excepcionesActivas();
     const nFechas = fechasActuales().length;
+    const imgUrl = (document.getElementById('srv-image-url')?.value || '').trim();
     const fila = (k, v) => (v ? `<div class="svcchat-rsm-fila"><span>${k}</span><strong>${v}</strong></div>` : '');
     body.innerHTML = `
+        ${imgUrl ? `<div class="svcchat-rsm-img"><img src="${imgUrl}" alt="Foto del servicio"></div>` : ''}
         <div class="svcchat-rsm-preview">
             ${nombre ? `<div class="svcchat-rsm-nombre">${escapeHtml(nombre)}</div>` : ''}
             ${precio ? `<div class="svcchat-rsm-precio">${precio}</div>` : ''}
@@ -1203,7 +1711,8 @@ function menuEdicion() {
         { valor: 'horario', label: '🕘 Horario y bloques' },
         { valor: 'cupos', label: '👥 Cupos por bloque' },
         { valor: 'descripcion', label: '📄 Descripción' },
-        { valor: 'avanzado', label: '⚙️ Algo más avanzado…', hint: 'Trabajadores, foto, horarios por día/fecha, promociones: se hace en el formulario completo.' },
+        { valor: 'foto', label: '📷 Foto de la tarjeta', hint: 'Elige, recorta y encuadra la foto' },
+        { valor: 'avanzado', label: '⚙️ Algo más avanzado…', hint: 'Trabajadores, horarios por día/fecha, promociones: se hace en el formulario completo.' },
         { valor: 'cancelar', label: '✖️ Descartar y salir' }
     ], (valor) => {
         if (valor === 'nombre') return editarNombre();
@@ -1213,8 +1722,9 @@ function menuEdicion() {
         if (valor === 'horario') return editarHorarioGeneral();
         if (valor === 'cupos') return editarCupos();
         if (valor === 'descripcion') return editarDescripcion();
+        if (valor === 'foto') return editarFotoChat();
         if (valor === 'avanzado') {
-            burbujaBot('Perfecto, eso se afina mejor en el <strong>formulario completo</strong> (trabajadores, foto, horarios por día/fecha, promociones…). Te dejo ahí 👇');
+            burbujaBot('Perfecto, eso se afina mejor en el <strong>formulario completo</strong> (trabajadores, horarios por día/fecha, promociones…). Te dejo ahí 👇');
             mostrarForm();
             return;
         }
@@ -1467,6 +1977,62 @@ function editarDescripcion() {
     });
 }
 
+function editarFotoChat() {
+    const actual = (document.getElementById('srv-image-url')?.value || '').trim();
+    const opciones = [{ valor: 'subir', label: '📷 Elegir y recortar una foto' }];
+    if (actual) opciones.push({ valor: 'quitar', label: '🗑️ Quitar la foto actual' });
+    opciones.push({ valor: 'no', label: 'No tocar la foto' });
+    burbujaBot(`¿Qué hacemos con la <strong>foto de la tarjeta</strong>?${actual ? '<br><span class="svcchat-sub">Recuerda: puedes recortarla y encuadrarla a tu gusto.</span>' : ''}`);
+    bloqueOpciones(opciones, (valor) => {
+        if (valor === 'no') {
+            burbujaUser('No tocar la foto');
+            return menuEdicion();
+        }
+        if (valor === 'quitar') {
+            burbujaUser('Quitar la foto actual');
+            setCampoReal('srv-image-url', '');
+            try { if (typeof window._actualizarPreview === 'function') window._actualizarPreview(''); } catch (e) { /* no crítico */ }
+            burbujaBot('✓ Foto quitada: la tarjeta mostrará la inicial con un color de fondo.');
+            pintarResumenEdicion();
+            return trasCambioEdicion();
+        }
+        burbujaUser('Elegir y recortar una foto');
+        editarFotoSubir();
+    });
+}
+
+async function editarFotoSubir() {
+    const file = await elegirArchivoFoto();
+    if (!file) {
+        burbujaBot('Ok, dejamos la foto como está.');
+        return trasCambioEdicion();
+    }
+    const dataUrl = await leerArchivoDataURL(file);
+    if (!dataUrl) {
+        burbujaBot('⚠️ No se pudo leer esa imagen (usa JPG, PNG o WebP de hasta 10 MB).');
+        return trasCambioEdicion();
+    }
+    _fotoFuenteData = dataUrl;
+    const blob = await abrirAjusteFoto(_fotoFuenteData);
+    if (!blob) {
+        burbujaBot('Ok, dejamos la foto como está.');
+        return trasCambioEdicion();
+    }
+    const est = burbujaBot('Subiendo la foto… <i class="fas fa-spinner fa-spin"></i>');
+    const url = await subirFotoServicio(blob);
+    if (!url) {
+        est.innerHTML = '⚠️ No se pudo subir la foto (revisa tu conexión). Puedes reintentar eligiendo <strong>Foto de la tarjeta</strong> de nuevo.';
+        return;
+    }
+    est.remove();
+    setCampoReal('srv-image-url', url);
+    try { if (typeof window._actualizarPreview === 'function') window._actualizarPreview(url); } catch (e) { /* no crítico */ }
+    burbujaBot(`<div class="svcchat-foto-preview"><img src="${url}" alt="Foto del servicio"></div>
+        <span class="svcchat-sub">✓ Foto actualizada: así se verá en la tarjeta.</span>`);
+    pintarResumenEdicion();
+    trasCambioEdicion();
+}
+
 function trasCambioEdicion() {
     burbujaBot('¿Quieres cambiar <strong>algo más</strong>?');
     bloqueOpciones([
@@ -1480,6 +2046,7 @@ function trasCambioEdicion() {
 
 function guardarEdicionChat() {
     burbujaBot('Guardando cambios… <i class="fas fa-spinner fa-spin"></i>');
+    _guardandoEdicionChat = true;
     const esperar = (ms) => new Promise(r => setTimeout(r, ms));
     (async () => {
         try {
@@ -1493,10 +2060,11 @@ function guardarEdicionChat() {
             const m = document.getElementById('section-mis-servicios');
             if (m && m.style.display !== 'none') { ok = true; break; }
         }
+        _guardandoEdicionChat = false;
         if (ok) {
             _editando = false;
             _editConvIniciada = false;
-            _el.conv.innerHTML = '';
+            limpiarConv();
             return;
         }
         burbujaBot('⚠️ El formulario marcó un aviso (revisa abajo). Tus cambios quedaron aplicados: toca <strong>Ver formulario completo</strong> para corregir y pulsar GUARDAR CAMBIOS.');
@@ -1508,7 +2076,7 @@ function cancelarEdicionChat() {
     burbujaUser('Descartar y salir');
     _editando = false;
     _editConvIniciada = false;
-    _el.conv.innerHTML = '';
+    limpiarConv();
     try {
         if (typeof window.cancelarEdicion === 'function') { window.cancelarEdicion(); return; }
     } catch (e) { /* no crítico */ }
@@ -1527,6 +2095,7 @@ function pasoResumenFinal() {
     burbujaBot(`
         <div class="svcchat-msg-titulo">¡Listo! 🎉 Así quedó tu servicio</div>
         <div class="svcchat-tarjeta-final">
+            ${_state.imagenUrl ? `<div class="svcchat-final-img"><img src="${_state.imagenUrl}" alt="Foto del servicio"></div>` : ''}
             <div class="svcchat-final-nombre"><i class="fas fa-tag"></i> ${escapeHtml(_state.nombre)}</div>
             <div class="svcchat-final-fila"><span>Modalidad</span><strong>${esPromo ? `Pack de ${_state.numSesiones} sesiones` : 'Sesión suelta'}</strong></div>
             <div class="svcchat-final-fila"><span>Precio</span><strong>${esPromo ? `${fmtPrecio(_state.precioSesion)} sesión · ${fmtPrecio(_state.precioPack)} el pack` : fmtPrecio(_state.precioSesion)}</strong></div>
@@ -1538,7 +2107,7 @@ function pasoResumenFinal() {
             ${_state.fechasEspeciales && Object.keys(_state.fechasEspeciales).length ? `<div class="svcchat-final-fila"><span>Fechas especiales</span><strong>${etiquetaFechasEspeciales(_state)}</strong></div>` : ''}
             <div class="svcchat-final-fila"><span>Vigencia</span><strong>${fmtFechaLegible(fechaDesdeISO(_state))} → ${fmtFechaLegible(fechaHastaISO(_state))} · ${fechas.length} día(s) con horario</strong></div>
         </div>
-        <p class="svcchat-sub" style="margin-top:8px;">💡 Foto y descripción puedes agregarlas después desde Mis Servicios → Editar.</p>
+        <p class="svcchat-sub" style="margin-top:8px;">💡 La descripción puedes agregarla después desde Mis Servicios → Editar. Si quieres corregir algo, toca ↩ en cualquiera de tus respuestas.</p>
     `);
 
     const acciones = document.createElement('div');
@@ -1602,6 +2171,7 @@ function actualizarResumen() {
     }
 
     body.innerHTML = `
+        ${s.imagenUrl ? `<div class="svcchat-rsm-img"><img src="${s.imagenUrl}" alt="Foto del servicio"></div>` : ''}
         <div class="svcchat-rsm-preview">
             ${s.nombre ? `<div class="svcchat-rsm-nombre">${escapeHtml(s.nombre)}</div>` : '<div class="svcchat-rsm-vacio">[Nombre del servicio]</div>'}
             ${s.precioSesion != null ? `<div class="svcchat-rsm-precio">${fmtPrecio(s.precioSesion)}${esPromo && s.precioPack != null ? ' · pack ' + fmtPrecio(s.precioPack) : ''}</div>` : ''}
@@ -1713,6 +2283,12 @@ function aplicarAvanceEnFormulario() {
         bloques = bloquesDe(s);
     }
     aplicarEnFormulario(fechas, bloques);
+    // La foto conversada viaja al form (hidden srv-image-url + preview legacy).
+    if (s.imagenUrl) {
+        const imgHidden = document.getElementById('srv-image-url');
+        if (imgHidden) imgHidden.value = s.imagenUrl;
+        try { if (typeof window._actualizarPreview === 'function') window._actualizarPreview(s.imagenUrl); } catch (e) { /* no crítico */ }
+    }
 }
 
 // Prefill completo + verificación de paridad (para Publicar).
@@ -1798,6 +2374,13 @@ async function publicar(crearCopia) {
     const crearSection = document.getElementById('section-crear-servicio');
     let exito = false;
     try {
+        // Foto elegida por chat → el form legacy la toma del hidden. Va DESPUÉS
+        // de rellenarFormularioReal() (que limpia srv-image-url) y antes del submit.
+        if (_state && _state.imagenUrl) {
+            const imgHidden = document.getElementById('srv-image-url');
+            if (imgHidden) imgHidden.value = _state.imagenUrl;
+            try { if (typeof window._actualizarPreview === 'function') window._actualizarPreview(_state.imagenUrl); } catch (e) { /* no crítico */ }
+        }
         if (typeof window.crearServicio === 'function') {
             await window.crearServicio();
         }
@@ -1812,7 +2395,7 @@ async function publicar(crearCopia) {
     if (exito) {
         // Servicio creado: reset para la próxima visita.
         _state = null;
-        _el.conv.innerHTML = '';
+        limpiarConv();
         if (crearCopia && copiaBase) {
             setTimeout(() => {
                 if (typeof window.navigateTo === 'function') window.navigateTo('crear-servicio');
@@ -1820,7 +2403,7 @@ async function publicar(crearCopia) {
                 _state = { ...estadoInicial(), ...copiaBase, paso: 1 };
                 // mostrarChat (vía observer/navegación) continúa la copia sin repintar.
                 if (_modo !== 'chat') mostrarChat({ silencioso: true });
-                _el.conv.innerHTML = '';
+                limpiarConv();
                 burbujaBot('¡Publicado! 🎉 Ahora creemos <strong>otro parecido</strong> con los mismos datos.');
                 _state.paso = 0;
                 pasoNombre('¿Cómo se llama esta copia?');
