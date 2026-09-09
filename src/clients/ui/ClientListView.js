@@ -192,6 +192,32 @@ let permisoEtiquetas = { permitir: false, trabajadores: [], trabajadoresLista: [
 // listas_compartidas, n_listas, n_cards, n_adjuntos, n_fotos } }
 let fichasPorEmail = {};
 
+/** Botón "Traer/Importar clientes y archivos" → Centro de Mudanza (MudanzaModal.js). */
+function bindMudanza(container) {
+    const btn = container.querySelector('#mudanza-clientes-btn, #mudanza-clientes-btn-empty');
+    if (btn) btn.addEventListener('click', abrirMudanza);
+}
+
+async function abrirMudanza() {
+    try {
+        const { abrirCentroMudanza } = await import('./MudanzaModal.js');
+        const clientes = (clientesCache || []).map(c => ({
+            nombre: c.nombre || '',
+            email: c.email || '',
+            telefono: c.telefono || ''
+        }));
+        await abrirCentroMudanza({
+            clientes,
+            onTerminado: () => {
+                try { renderClientListView(); } catch (e) { /* sin listado */ }
+            }
+        });
+    } catch (err) {
+        console.error('[ClientListView] Error abriendo Centro de Mudanza:', err);
+        mostrarToast('No se pudo abrir el Centro de Mudanza', 'error');
+    }
+}
+
 export async function renderClientListView(containerId = 'clientes-list-container') {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -317,12 +343,16 @@ function renderLista(container) {
                     <button class="btn-secondary btn-small" id="agregar-cliente-btn-empty" title="Formulario completo: datos de contacto y reserva opcional">
                         <i class="fas fa-user-plus"></i> Agregar con formulario
                     </button>
+                    <button class="btn-primary btn-small" id="mudanza-clientes-btn-empty" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón">
+                        <i class="fas fa-truck-moving"></i> Traer mis clientes y archivos
+                    </button>
                 </div>
                 <p style="color:var(--text-muted,#999);font-size:0.75rem;margin-top:10px;"><i class="fas fa-info-circle"></i> También se puede tocar "Crear mi primer cliente" las veces que quieras: cada conversación agrega un cliente.</p>
             </div>
         `;
         bindAgregarCliente(container);
         bindPrimerCliente(container);
+        bindMudanza(container);
         return;
     }
 
@@ -334,6 +364,9 @@ function renderLista(container) {
                 <i class="fas fa-search"></i>
                 <input type="text" id="clientes-search-input" placeholder="Buscar por nombre, email o teléfono..." value="${escapeHtml(filtroActual)}">
             </div>
+            <button class="btn-primary btn-small" id="mudanza-clientes-btn" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón (se distribuyen solos a cada cliente)">
+                <i class="fas fa-truck-moving"></i> Importar clientes y archivos
+            </button>
             <button class="btn-primary btn-small" id="agregar-cliente-btn" title="Agregar un cliente que ya tenías antes de la web y asignarle una reserva si quieres">
                 <i class="fas fa-user-plus"></i> Agregar cliente
             </button>
@@ -363,6 +396,7 @@ function renderLista(container) {
     bindSearch(container);
     bindExport(container);
     bindAgregarCliente(container);
+    bindMudanza(container);
     bindHelpToggle(container);
     bindHintFicha(container);
     bindTogglePermisoEtiquetas(container);

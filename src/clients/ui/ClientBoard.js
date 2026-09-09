@@ -85,6 +85,7 @@ let board = null;          // board actual
 let lists = [];            // [{ id, titulo, posicion, cards: [...] }]
 let citasCliente = [];     // [{ id, fecha, hora, servicio, precio }]
 let clienteActual = null;
+let tenantIdBoard = null;    // tenant del board abierto (para la vista Archivos)
 let clientesDelTenant = []; // [{ nombre, email, ... }] para aplicar estilos a todos
 let cardModalAbierto = false;
 let cardModalCard = null;  // card cuyo modal está abierto (para refrescar badges al cerrar)
@@ -152,6 +153,7 @@ export async function abrirInformacionCliente(cliente, citas, clientes) {
     }
 
     clienteActual = cliente;
+    tenantIdBoard = tenantId;
     citasCliente = Array.isArray(citas) ? citas : [];
     clientesDelTenant = Array.isArray(clientes) ? clientes : [];
     tokenCompartido = null;
@@ -201,6 +203,10 @@ function renderBoardModal() {
                     <button class="kanban-estilos-btn" id="kanban-usar-estilo" title="Aplicar un estilo de listas guardado">
                         <i class="fas fa-layer-group"></i><span class="kanban-estilos-txt"> Usar estilo</span>
                     </button>
+                    ${!deps.adjuntosSoloLectura ? `
+                    <button class="kanban-estilos-btn" id="kanban-archivos" title="Archivos del cliente: subir Word/Excel/PDF o enlazar su carpeta de Drive. Al editarlos, las versiones anteriores quedan guardadas.">
+                        <i class="fas fa-folder-open"></i><span class="kanban-estilos-txt"> Archivos</span>
+                    </button>` : ''}
                     ${deps.compartirHabilitado ? `
                     <button class="kanban-estilos-btn" id="kanban-compartir" title="Elige qué listas ve el cliente (solo esas) y copia su enlace para enviárselo por WhatsApp">
                         <i class="fas fa-eye"></i><span class="kanban-estilos-txt"> Lo que ve el cliente</span>
@@ -236,12 +242,35 @@ function renderBoardModal() {
     bindEstilos();
     bindEliminarCliente();
     bindCompartir();
+    bindArchivos();
     const editarContactoBtn = document.getElementById('kanban-editar-contacto');
     if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
 
     // Ficha vacía: ideas concretas según el rubro del negocio (chips que
     // explican para qué sirve cada cosa y dónde queda guardada).
     if (!lists.length) cargarChipsIdeas().catch(() => {});
+}
+
+// ========== ARCHIVOS DEL CLIENTE (solo vista admin) ==========
+
+/** Botón "Archivos" del header → overlay de archivos de nivel cliente. */
+function bindArchivos() {
+    const btn = document.getElementById('kanban-archivos');
+    if (!btn || deps.adjuntosSoloLectura) return;
+    btn.addEventListener('click', async () => {
+        try {
+            const { abrirArchivosCliente } = await import('./ArchivosCliente.js');
+            await abrirArchivosCliente({
+                cliente: {
+                    email: clienteActual ? clienteActual.email : '',
+                    nombre: clienteActual ? (clienteActual.nombre || '') : ''
+                }
+            });
+        } catch (err) {
+            console.error('[ClientBoard] Error abriendo archivos del cliente:', err);
+            mostrarToast('No se pudieron abrir los archivos', 'error');
+        }
+    });
 }
 
 // ========== ELIMINAR CLIENTE (solo admin) ==========
