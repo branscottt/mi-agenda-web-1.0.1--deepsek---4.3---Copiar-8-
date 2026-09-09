@@ -243,12 +243,56 @@ function renderBoardModal() {
     bindEliminarCliente();
     bindCompartir();
     bindArchivos();
+    bindSugerenciaListas();
     const editarContactoBtn = document.getElementById('kanban-editar-contacto');
     if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
 
     // Ficha vacía: ideas concretas según el rubro del negocio (chips que
     // explican para qué sirve cada cosa y dónde queda guardada).
     if (!lists.length) cargarChipsIdeas().catch(() => {});
+}
+
+// ========== SUGERENCIA DE LISTAS TÍPICAS (ficha vacía, solo admin) ==========
+
+/** "¿Arrancamos con listas típicas?" → crea Por hacer / En seguimiento / Hecho en 1 clic. */
+function bindSugerenciaListas() {
+    const cont = document.getElementById('kanban-listas-sugerencia');
+    if (!cont || deps.adjuntosSoloLectura) return;
+    const email = clienteActual ? String(clienteActual.email || '').trim().toLowerCase() : '';
+    try {
+        // El admin ya la descartó o la usó para este cliente → no volver a preguntar.
+        if (email && localStorage.getItem(`kb_listas_off_${email}`)) { cont.remove(); return; }
+    } catch (e) { /* sin storage */ }
+
+    const crear = cont.querySelector('#kanban-listas-crear');
+    const no = cont.querySelector('#kanban-listas-no');
+
+    if (crear) crear.addEventListener('click', async () => {
+        if (!board) return;
+        try { if (email) localStorage.setItem(`kb_listas_off_${email}`, '1'); } catch (e) { /* sin storage */ }
+        crear.disabled = true;
+        crear.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
+        try {
+            const titulos = ['Por hacer', 'En seguimiento', 'Hecho'];
+            for (let i = 0; i < titulos.length; i++) {
+                await deps.kanbanApi.createList(board.id, titulos[i], i);
+            }
+            const datos = await deps.kanbanApi.getBoardData(board.id);
+            lists = datos.lists || [];
+            renderBoardModal();
+            mostrarToast('Listas creadas: renombralas con un clic en el título', 'success');
+        } catch (err) {
+            console.error('[ClientBoard] Error creando listas típicas:', err);
+            crear.disabled = false;
+            crear.innerHTML = 'Crear "Por hacer · En seguimiento · Hecho"';
+            mostrarToast('No se pudieron crear las listas', 'error');
+        }
+    });
+
+    if (no) no.addEventListener('click', () => {
+        try { if (email) localStorage.setItem(`kb_listas_off_${email}`, '1'); } catch (e) { /* sin storage */ }
+        cont.remove();
+    });
 }
 
 // ========== ARCHIVOS DEL CLIENTE (solo vista admin) ==========
@@ -545,6 +589,12 @@ function renderListasHtml() {
                 <i class="fas fa-folder-open"></i>
                 <h4>Sin secciones todavía</h4>
                 <p>Guarda aquí la información de este cliente: crea listas (ej. "Historia clínica", "Seguimiento", "Documentos") y tarjetas con notas y checklists, y adjunta archivos (fotos, PDF, Word, Excel… hasta 100 MB). También puedes marcar su estado de pago y vincular tarjetas a sus citas.</p>
+                ${!deps.adjuntosSoloLectura ? `
+                <div id="kanban-listas-sugerencia" style="display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0 2px;padding:10px 12px;border-radius:12px;border:1px solid rgba(157,78,221,0.25);background:rgba(157,78,221,0.07);">
+                    <span style="font-size:0.8rem;"><i class="fas fa-bolt" style="color:var(--primary-color,#9d4edd);"></i> ¿Arrancamos con listas típicas? Las renombrás o borrás cuando quieras.</span>
+                    <button type="button" id="kanban-listas-crear" style="padding:6px 12px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-color,#9d4edd),#7b2cbf);color:#fff;font-size:0.76rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Crear "Por hacer · En seguimiento · Hecho"</button>
+                    <button type="button" id="kanban-listas-no" style="background:none;border:none;color:var(--text-muted,#999);font-size:0.74rem;cursor:pointer;text-decoration:underline;">Ahora no</button>
+                </div>` : ''}
                 <div class="kanban-chip-ideas" id="kanban-chip-ideas"></div>
             </div>
         `;
