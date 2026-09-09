@@ -200,6 +200,19 @@ export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
         const ultima = (a) => (a.versiones && a.versiones.length ? a.versiones[0] : null);
 
         let html = `
+            <div id="acf-guia" style="display:none;margin-bottom:12px;padding:12px 14px;border-radius:12px;border:1px solid rgba(0,184,148,0.25);background:linear-gradient(135deg, rgba(0,184,148,0.08), rgba(157,78,221,0.05));">
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <i class="fas fa-folder-open" style="color:#00b894;margin-top:2px;"></i>
+                    <div style="flex:1;font-size:0.78rem;line-height:1.55;color:var(--text-color,#e0e0e0);">
+                        <strong style="font-size:0.82rem;">Acá viven los archivos de este cliente.</strong>
+                        <div style="margin-top:4px;color:var(--text-muted,#bbb);">
+                            Subí los que ya tenés (Word, Excel, PDF…) o agregá el enlace de su carpeta de Drive. Para editar un archivo subido: abrilo con "Editar / Descargar", trabajá en tu celu o computadora y al volver tocá <strong>"Subir versión nueva"</strong> — la anterior queda guardada por si acaso.
+                        </div>
+                    </div>
+                    <button id="acf-guia-cerrar" style="background:none;border:none;color:var(--text-muted,#999);cursor:pointer;font-size:0.9rem;padding:2px;" title="Entendido">&times;</button>
+                </div>
+            </div>
+
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
                 <button class="btn-primary btn-small" id="acf-subir" style="gap:6px;"><i class="fas fa-upload"></i> Subir archivo(s)</button>
                 <button class="btn-secondary btn-small" id="acf-drive" style="gap:6px;"><i class="fas fa-cloud"></i> Agregar enlace de Drive</button>
@@ -238,6 +251,21 @@ export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
             <div id="acf-lista" style="display:flex;flex-direction:column;gap:8px;"></div>
         `;
         $contenido.innerHTML = html;
+
+        // Mini-guía de primer uso (una sola vez por usuario, descartable).
+        const guia = $('acf-guia');
+        if (guia) {
+            let visto = false;
+            try { visto = !!localStorage.getItem('agendapro_archivos_guia_v1'); } catch (e) { /* sin storage */ }
+            if (!visto) {
+                guia.style.display = 'block';
+                const cerrarGuia = guia.querySelector('#acf-guia-cerrar');
+                if (cerrarGuia) cerrarGuia.addEventListener('click', () => {
+                    try { localStorage.setItem('agendapro_archivos_guia_v1', '1'); } catch (e) { /* sin storage */ }
+                    guia.style.display = 'none';
+                });
+            }
+        }
 
         // ---- lista ----
         const $lista = $('acf-lista');

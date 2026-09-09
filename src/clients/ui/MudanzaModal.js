@@ -202,6 +202,23 @@ async function poolLimit(items, limite, fn) {
 
 // ========== Modal ==========
 
+// Memoria del mapeo por negocio: si el admin ajustó columnas una vez,
+// la próxima importación con la misma cantidad de columnas reusa su mapeo
+// (no vuelve a preguntar). Guardado por tenant en localStorage.
+function leerMapeoGuardado(tenantId) {
+    try {
+        const raw = localStorage.getItem(`agendapro_mudanza_mapeo_${tenantId}`);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+function guardarMapeo(tenantId, mapa, colCount, esEncabezado, userTouched) {
+    try {
+        localStorage.setItem(`agendapro_mudanza_mapeo_${tenantId}`, JSON.stringify({
+            mapa, colCount, esEncabezado, userTouched: userTouched === true, guardadoEn: Date.now()
+        }));
+    } catch (e) { /* localStorage lleno o no disponible */ }
+}
+
 /**
  * Abre el Centro de Mudanza.
  * @param {object} opts
@@ -252,6 +269,19 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                 </div>
                 <div id="mud-pasos" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;"></div>
             </header>
+
+            <div id="mud-guia" style="display:none;margin:12px 20px 0;padding:12px 14px;border-radius:12px;border:1px solid rgba(0,184,148,0.25);background:linear-gradient(135deg, rgba(0,184,148,0.08), rgba(157,78,221,0.05));">
+                <div style="display:flex;gap:10px;align-items:flex-start;">
+                    <i class="fas fa-hands-helping" style="color:#00b894;margin-top:2px;"></i>
+                    <div style="flex:1;font-size:0.78rem;line-height:1.55;color:var(--text-color,#e0e0e0);">
+                        <strong style="font-size:0.82rem;">¿Primera vez? La mudanza es así de simple:</strong>
+                        <div style="margin-top:4px;color:var(--text-muted,#bbb);">
+                            1) Pegá tus clientes de Excel o Sheets (o subí el CSV) · 2) Subí <strong>todos</strong> sus archivos juntos: si el archivo se llama "María - historia.docx", la web lo manda sola a la carpeta de María · 3) Lo que no reconozca, lo asignás con un toque en "Mandar a:". Nada se pierde: todo se puede rehacer.
+                        </div>
+                    </div>
+                    <button id="mud-guia-cerrar" style="background:none;border:none;color:var(--text-muted,#999);cursor:pointer;font-size:0.9rem;padding:2px;" title="Entendido">&times;</button>
+                </div>
+            </div>
 
             <div style="padding:16px 20px;flex:1;" id="mud-cuerpo"></div>
 
@@ -435,9 +465,16 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
 
         const det = detectarColumnas(filas);
         state.esEncabezado = det.esEncabezado;
-        state.mapa = det.mapa;
         state.filasBruto = det.esEncabezado ? filas.slice(1) : filas;
         state.colCount = Math.max(...state.filasBruto.map(f => f.length).concat(0), 0);
+        // Mapeo inicial: el ajustado por el admin en una importación anterior
+        // (misma cantidad de columnas) tiene prioridad sobre la detección.
+        const guardado = leerMapeoGuardado(tenantId);
+        if (guardado && guardado.userTouched && guardado.colCount === state.colCount && guardado.mapa) {
+            state.mapa = guardado.mapa;
+        } else {
+            state.mapa = det.mapa;
+        }
         state.resumenImport = null;
         state.importado = false;
         renderPreparacion();
@@ -539,6 +576,8 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         $res.querySelectorAll('select[data-campo]').forEach(sel => {
             sel.addEventListener('change', () => {
                 state.mapa[sel.dataset.campo] = Number(sel.value);
+                // Recordar el ajuste por negocio: la próxima vez ya no pregunta.
+                guardarMapeo(tenantId, { ...state.mapa }, state.colCount, state.esEncabezado, true);
                 const filas = state.filasBruto.map(filaACliente);
                 const total = filas.filter(c => c.nombre).length;
                 const btn = $res.querySelector('#mud1-importar');
@@ -1092,7 +1131,23 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     }
 
     // ========== Arranque ==========
+    pintarGuiaMudanza();
     pintarPasos();
     renderCuerpo();
     pintarFooter();
+
+    /** Mini-guía de primer uso (una sola vez por usuario, descartable). */
+    function pintarGuiaMudanza() {
+        const el = $('mud-guia');
+        if (!el) return;
+        try {
+            if (localStorage.getItem('agendapro_mudanza_guia_v1')) return;
+        } catch (e) { return; }
+        el.style.display = 'block';
+        const cerrar = el.querySelector('#mud-guia-cerrar');
+        if (cerrar) cerrar.addEventListener('click', () => {
+            try { localStorage.setItem('agendapro_mudanza_guia_v1', '1'); } catch (e) { /* sin storage */ }
+            el.style.display = 'none';
+        });
+    }
 }
