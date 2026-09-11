@@ -9,7 +9,10 @@ import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
 import { burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
-import { initConversacionesDrawer, refrescarContador, toggleConversaciones } from './ConversacionesDrawer.js';
+import {
+    initConversacionesDrawer, refrescarContador, toggleConversaciones,
+    notificacionesEstado, activarNotificaciones, desactivarNotificaciones
+} from './ConversacionesDrawer.js';
 
 let _built = false;
 let _guardando = false;
@@ -82,6 +85,9 @@ function buildDOM() {
                                 <i class="fas fa-comments"></i> Conversaciones
                                 <span class="vl-conv-badge" id="lv-chat-conv-n" style="display:none;">0</span>
                             </button>
+                            <button class="vl-btn" id="lv-chat-bell" type="button" title="Avísame en el navegador cuando haya algo que revisar">
+                                <i class="fas fa-bell"></i> <span id="lv-chat-bell-t">Avisos</span>
+                            </button>
                             <button class="vl-btn" id="lv-chat-modo" type="button" style="display:none;"></button>
                         </div>
                     </div>
@@ -145,6 +151,41 @@ function buildDOM() {
         }
     });
     $('lv-chat-conv').addEventListener('click', toggleConversaciones);
+    $('lv-chat-bell').addEventListener('click', alternarAvisos);
+}
+
+// ── Avisos de escritorio (qué pasó + qué hacer) ─────────────────────
+async function alternarAvisos() {
+    const est = notificacionesEstado();
+    if (!est.soportado) {
+        mostrarToast('Este navegador no soporta avisos de escritorio', 'error');
+        return;
+    }
+    if (est.activas) {
+        desactivarNotificaciones();
+        pintarAvisos();
+        mostrarToast('Avisos del navegador apagados', 'success');
+        return;
+    }
+    const r = await activarNotificaciones();
+    if (!r.ok) {
+        mostrarToast(r.error || 'No se pudieron activar los avisos', 'error');
+        return;
+    }
+    pintarAvisos();
+    mostrarToast('Listo: te aviso acá cuando haya algo que revisar', 'success');
+}
+
+function pintarAvisos() {
+    const btn = $('lv-chat-bell');
+    const txt = $('lv-chat-bell-t');
+    if (!btn) return;
+    const est = notificacionesEstado();
+    btn.classList.toggle('activo', est.activas);
+    if (txt) txt.textContent = est.activas ? 'Avisos ON' : 'Avisos';
+    btn.title = est.activas
+        ? 'Te estoy avisando en el navegador. Clic para apagar.'
+        : 'Avísame en el navegador cuando haya algo que revisar';
 }
 
 export function initLiveView() {
@@ -155,6 +196,7 @@ export function initLiveView() {
     refrescarTodo();
     iniciarPollChat();
     refrescarContador();
+    pintarAvisos();
 }
 
 // Se llama cada vez que se activa la pestaña LIVE
@@ -163,6 +205,7 @@ export function activarLiveView() {
     refrescarTodo();
     iniciarPollChat();
     refrescarContador();
+    pintarAvisos();
 }
 
 // Refresca el chat del cliente visible cada 15 s (solo con LIVE a la vista).

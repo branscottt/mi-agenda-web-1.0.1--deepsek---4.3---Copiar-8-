@@ -438,6 +438,16 @@
             50%      { box-shadow: 0 0 9px 3px rgba(255,193,7,0.45); }
         }
         @media (prefers-reduced-motion: reduce) { .vl-conv-badge.aviso { animation: none; } }
+        /* Banner del aviso dentro del chat: qué pasó + qué hacer */
+        .vl-aviso-banner {
+            background: rgba(255,193,7,0.10); border: 1px solid rgba(255,193,7,0.38);
+            border-radius: 10px; padding: 10px 12px; margin: 0 0 12px;
+        }
+        .vl-aviso-titulo { color: #ffe066; font-weight: 700; font-size: 0.86rem; line-height: 1.35; }
+        .vl-aviso-accion { color: #ced4da; font-size: 0.81rem; margin-top: 4px; line-height: 1.4; }
+        .vl-aviso-accion b { color: #ffe066; }
+        /* Botón "Avisos" encendido */
+        .vl-btn.activo { border-color: rgba(255,193,7,0.6); color: #ffe066; }
 
         @media (max-width: 860px) {
             .vl-drawer { width: 92vw; }
@@ -494,7 +504,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=83"></script>
+    <script type="module" src="dist/app.js?v=84"></script>
     <script defer src="dist/legacy.js?v=68"></script>
 </body>
 </html>

@@ -15,17 +15,49 @@ export const ESTADO_CHAT = {
     listo: 'Listo'
 };
 
-// Avisos que el bot dejó para que los revise una persona, con el nombre
-// que se muestra en el chip del chat (el detalle va en el tooltip).
-export const AVISO_CHAT = {
-    comprobante: 'Comprobante',
-    pago: 'Dijo que pagó',
-    sin_cliente: 'Revisar chat',
-    sin_courier: 'Elegir courier',
-    no_entendido: 'No se entendió',
-    usuario_no_encontrado: 'Usuario no encontrado',
-    usuario_no_confirmado: 'Usuario no confirmado'
+// Avisos que el bot dejó para que los revise una persona.
+//   label  = nombre corto (chip del chat)
+//   accion = QUÉ HAY QUE HACER (se muestra en el banner del chat y en la
+//            notificación del navegador; el "qué pasó" es el detalle, que
+//            lo escribe el cerebro y es distinto en cada caso)
+export const AVISO_INFO = {
+    comprobante: {
+        label: 'Comprobante',
+        accion: 'Revisa la foto/archivo que mandó, comprueba el pago en tu cuenta y avanza el proceso.'
+    },
+    pago: {
+        label: 'Dijo que pagó',
+        accion: 'Comprueba la transferencia en tu cuenta y respóndele confirmando.'
+    },
+    sin_cliente: {
+        label: 'Revisar chat',
+        accion: 'Abre el chat, pregúntale de nuevo su usuario de TikTok y respóndele tú.'
+    },
+    sin_courier: {
+        label: 'Elegir courier',
+        accion: 'Elige el courier (blue o paket) y respóndele para cerrar la entrega.'
+    },
+    no_entendido: {
+        label: 'No se entendió',
+        accion: 'Lee el chat y respóndele tú lo que necesita.'
+    },
+    usuario_no_encontrado: {
+        label: 'Usuario no encontrado',
+        accion: 'Busca al cliente a mano y respóndele tú por acá.'
+    },
+    usuario_no_confirmado: {
+        label: 'Usuario no confirmado',
+        accion: 'Pregúntale su usuario correcto y respóndele tú.'
+    }
 };
+
+export function avisoLabel(tipo) {
+    return (AVISO_INFO[tipo] && AVISO_INFO[tipo].label) || tipo || '';
+}
+
+export function avisoAccion(tipo) {
+    return (AVISO_INFO[tipo] && AVISO_INFO[tipo].accion) || '';
+}
 
 /** Hora del mensaje: solo hora si es de hoy, si no fecha + hora. */
 export function fmtHora(iso) {

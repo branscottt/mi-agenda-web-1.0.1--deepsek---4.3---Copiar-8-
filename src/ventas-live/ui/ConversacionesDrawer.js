@@ -16,10 +16,14 @@
 import { vlApi } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { ESTADO_CHAT, AVISO_CHAT, fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
+import {
+    ESTADO_CHAT, avisoLabel, avisoAccion,
+    fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo
+} from './chatComun.js';
 
 const REFRESCO_ABIERTO_MS = 15000;
 const REFRESCO_BADGE_MS = 30000;
+const NOTIF_KEY = 'vl_notif_avisos';
 
 let _built = false;
 let _abierto = false;
@@ -30,6 +34,9 @@ let _enviando = false;
 let _onBadge = null;
 let _timerAbierto = null;
 let _timerBadge = null;
+let _notifActivas = false;   // avisos del navegador (los activa el usuario)
+let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
+let _sinLeerPrev = 0;
 
 function $(id) { return document.getElementById(id); }
 
@@ -39,6 +46,8 @@ function $(id) { return document.getElementById(id); }
  */
 export function initConversacionesDrawer({ onBadge } = {}) {
     _onBadge = onBadge || null;
+
+    try { _notifActivas = localStorage.getItem(NOTIF_KEY) === '1'; } catch (e) { _notifActivas = false; }
 
     if (!_built) {
         const el = document.createElement('div');
@@ -134,6 +143,107 @@ function iniciarContadorBadge() {
     }, REFRESCO_BADGE_MS);
 }
 
+// ── Avisos del navegador ────────────────────────────────────────────
+/** Estado actual de los avisos de escritorio. */
+export function notificacionesEstado() {
+    const soportado = typeof Notification !== 'undefined';
+    return {
+        soportado,
+        permiso: soportado ? Notification.permission : 'unsupported',
+        activas: _notifActivas && soportado && Notification.permission === 'granted'
+    };
+}
+
+/** Pide permiso al navegador (necesita un clic del usuario). */
+export async function activarNotificaciones() {
+    if (typeof Notification === 'undefined') {
+        return { ok: false, error: 'Este navegador no soporta avisos de escritorio' };
+    }
+    let permiso = Notification.permission;
+    if (permiso === 'default') {
+        try { permiso = await Notification.requestPermission(); } catch (e) { permiso = 'denied'; }
+    }
+    if (permiso !== 'granted') {
+        return { ok: false, error: 'No diste permiso. Actívalos desde el candado de la barra de direcciones.' };
+    }
+    _notifActivas = true;
+    if (_avisosVistos === null) _avisosVistos = new Set();
+    try { localStorage.setItem(NOTIF_KEY, '1'); } catch (e) { /* modo privado */ }
+    return { ok: true };
+}
+
+/** Apaga los avisos de escritorio (el permiso del navegador se mantiene). */
+export function desactivarNotificaciones() {
+    _notifActivas = false;
+    try { localStorage.setItem(NOTIF_KEY, '0'); } catch (e) { /* modo privado */ }
+}
+
+/** Aviso abierto del chat (para el banner del hilo). */
+function avisoDelChat(chatId) {
+    const c = _chats.find(x => x.id === chatId);
+    if (!c || !c.tiene_aviso || !c.aviso_tipo) return null;
+    return { tipo: c.aviso_tipo, detalle: c.aviso_detalle || '' };
+}
+
+/**
+ * Compara los avisos de esta carga con los de la anterior y lanza la
+ * notificación de escritorio de los NUEVOS (dice qué pasó y qué hacer).
+ */
+function revisarAvisosNuevos() {
+    const claves = new Set();
+    _chats.forEach(c => { if (c.tiene_aviso && c.aviso_tipo) claves.add(c.id + '|' + c.aviso_tipo); });
+
+    // Primera carga: se registra lo que ya había sin avisar (no spamear al abrir)
+    if (_avisosVistos === null) {
+        _avisosVistos = claves;
+        return;
+    }
+
+    const nuevos = _chats.filter(c => c.tiene_aviso && c.aviso_tipo && !_avisosVistos.has(c.id + '|' + c.aviso_tipo));
+    _avisosVistos = claves;
+
+    if (!_notifActivas || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+
+    if (nuevos.length > 0) {
+        notificar(nuevos[0], true);
+        return;
+    }
+    // Sin avisos nuevos: si llegaron mensajes sin leer, avisa igual
+    const totalSinLeer = _chats.reduce((a, c) => a + (Number(c.sin_leer) || 0), 0);
+    if (totalSinLeer > _sinLeerPrev) {
+        const conMensajes = _chats.find(c => Number(c.sin_leer) > 0);
+        if (conMensajes) notificar(conMensajes, false);
+    }
+}
+
+function notificar(chat, esAviso) {
+    const quien = chat.tiktok_user ? '@' + chat.tiktok_user : (chat.nombre_real || chat.wa_id || 'Cliente');
+    let titulo;
+    let cuerpo;
+    if (esAviso) {
+        titulo = '⚠️ ' + avisoLabel(chat.aviso_tipo) + ' — ' + quien;
+        cuerpo = (chat.aviso_detalle || '') +
+                 (avisoAccion(chat.aviso_tipo) ? '\nQué hacer: ' + avisoAccion(chat.aviso_tipo) : '');
+    } else {
+        titulo = '💬 ' + quien + ' te escribió';
+        cuerpo = chat.ultimo_mensaje || '';
+    }
+
+    try {
+        const n = new Notification(titulo, {
+            body: cuerpo,
+            tag: 'vl-' + chat.id + '-' + (esAviso ? chat.aviso_tipo : 'msg'),
+            renotify: true
+        });
+        n.onclick = () => {
+            try { window.focus(); } catch (e) { /* ignore */ }
+            abrirConversaciones();
+            abrirChat(chat.id);
+            n.close();
+        };
+    } catch (e) { /* el navegador puede bloquear el constructor */ }
+}
+
 // ── Lista de conversaciones ─────────────────────────────────────────
 async function cargarChats({ silencioso = false } = {}) {
     const body = $('vld-body');
@@ -151,6 +261,10 @@ async function cargarChats({ silencioso = false } = {}) {
     // Avisos abiertos: aunque el chat esté leído, sigue habiendo algo que revisar
     const porRevisar = _chats.reduce((a, c) => a + (c.tiene_aviso ? 1 : 0), 0);
     if (_onBadge) _onBadge(sinLeer + porRevisar, { sinLeer, porRevisar });
+
+    // Avisos nuevos -> notificación de escritorio (qué pasó + qué hacer)
+    revisarAvisosNuevos();
+    _sinLeerPrev = sinLeer;
 
     if (_abierto && !_chatId) renderLista();
 }
@@ -177,7 +291,7 @@ function renderLista() {
         const noLeido = nuevo ? `<span class="vl-conv-noleido">${Number(c.sin_leer)}</span>` : '';
         // Aviso que dejó el bot: qué hay que revisar en este chat
         const aviso = c.aviso_tipo
-            ? `<span class="vl-conv-chip aviso" title="${escapeHtml(c.aviso_detalle || '')}">⚠️ ${escapeHtml(AVISO_CHAT[c.aviso_tipo] || c.aviso_tipo)}</span>`
+            ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + (c.aviso_detalle || '') + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
             : '';
         return `
             <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}" data-chat="${escapeHtml(c.id)}" type="button">
@@ -205,6 +319,8 @@ async function abrirChat(chatId) {
     _chatMeta = null;
     const body = $('vld-body');
     if (body) body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>';
+    // Asegura el aviso del chat antes de pintar el hilo (banner de qué hacer)
+    if (_chats.length === 0) await cargarChats({ silencioso: true });
     await cargarHilo(chatId);
 }
 
@@ -222,7 +338,15 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const mensajes = (res.data && Array.isArray(res.data.mensajes)) ? res.data.mensajes : [];
     if (!_chatMeta) { volverALista(); return; }
 
-    body.innerHTML = `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
+    const av = avisoDelChat(chatId);
+    const banner = av
+        ? `<div class="vl-aviso-banner">
+               <div class="vl-aviso-titulo">⚠️ ${escapeHtml(avisoLabel(av.tipo))}${av.detalle ? ' — ' + escapeHtml(av.detalle) : ''}</div>
+               ${avisoAccion(av.tipo) ? `<div class="vl-aviso-accion"><b>Qué hacer:</b> ${escapeHtml(avisoAccion(av.tipo))}</div>` : ''}
+           </div>`
+        : '';
+
+    body.innerHTML = banner + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
     autoScrollAbajo($('vld-hilo'), { forzar: !silencioso });
 
     pintarModoChat();
