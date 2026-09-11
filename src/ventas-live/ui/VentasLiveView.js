@@ -30,7 +30,7 @@ export function initVentasLive() {
     renderVentasLive().catch(e => {
         console.error('[VentasLiveView] Error:', e);
         const loading = document.getElementById('vl-loading');
-        if (loading) loading.innerHTML = '<i class="fas fa-exclamation-triangle"></i> No se pudo cargar tu espacio. <a href="ventas-live.html" style="color:#ffa94d;">Reintentar</a>';
+        if (loading) loading.innerHTML = '<i class="fas fa-exclamation-triangle"></i> No se pudo cargar tu espacio. <a href="ventas-live.html" style="color:#c77dff;">Reintentar</a>';
     });
 }
 
@@ -418,7 +418,7 @@ async function activarVista(nombre) {
     if (pend) {
         cont.innerHTML = `
             <div class="vl-card" style="text-align:center;padding:44px 24px;">
-                <div style="font-size:2rem;color:#ffa94d;margin-bottom:14px;"><i class="fas ${pend.icono}"></i></div>
+                <div style="font-size:2rem;color:#c77dff;margin-bottom:14px;"><i class="fas ${pend.icono}"></i></div>
                 <h2 style="margin:0 0 8px;color:#f8f9fa;font-size:1.15rem;">${pend.titulo}</h2>
                 <p style="color:var(--muted,#adb5bd);max-width:480px;margin:0 auto;line-height:1.6;font-size:0.9rem;">${pend.texto}</p>
                 <span class="vl-badge nuevo" style="margin-top:16px;">Próximamente</span>

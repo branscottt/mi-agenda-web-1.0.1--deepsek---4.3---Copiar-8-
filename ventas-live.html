@@ -17,7 +17,7 @@
         /* ===== VENTAS LIVE: espacio de trabajo ===== */
         .ventas-live-screen {
             min-height: 100vh;
-            background: radial-gradient(ellipse at top, rgba(255, 109, 0, 0.10), transparent 55%), var(--bg, #0a0a0f);
+            background: radial-gradient(ellipse at top, rgba(157, 78, 221, 0.16), transparent 55%), var(--bg, #0a0a0f);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -36,9 +36,9 @@
         .vl-brand .vl-logo {
             width: 42px; height: 42px; border-radius: 12px;
             display: grid; place-items: center;
-            background: linear-gradient(135deg, #ff6d00, #e8590c);
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
             color: #fff; font-size: 1.15rem;
-            box-shadow: 0 4px 18px rgba(255, 107, 26, 0.45);
+            box-shadow: 0 4px 18px rgba(157, 78, 221, 0.45);
         }
         .vl-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
         .vl-actions .btn-top {
@@ -49,7 +49,7 @@
             transition: background .15s ease;
         }
         .vl-actions .btn-top:hover { background: rgba(255, 255, 255, 0.13); }
-        .vl-actions .btn-top.primary { background: linear-gradient(135deg, #ff6d00, #e8590c); border: none; box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35); }
+        .vl-actions .btn-top.primary { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border: none; box-shadow: 0 4px 14px rgba(157, 78, 221, 0.35); }
         .vl-main { width: 100%; max-width: 1060px; }
         .vl-workspace-head {
             background: var(--glass, rgba(20, 20, 30, 0.7));
@@ -105,8 +105,8 @@
         }
         .vl-tab:hover { background: rgba(255, 255, 255, 0.06); color: #f8f9fa; }
         .vl-tab.active {
-            background: linear-gradient(135deg, #ff6d00, #e8590c);
-            color: #fff; box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35);
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+            color: #fff; box-shadow: 0 4px 14px rgba(157, 78, 221, 0.35);
         }
         .vl-view { display: none; }
         .vl-view.active { display: block; animation: vlFade .18s ease; }
@@ -126,8 +126,8 @@
         .vl-field { margin-bottom: 14px; }
         .vl-field label { display: block; font-size: 0.8rem; font-weight: 700; color: #ced4da; margin-bottom: 6px; }
         .vl-input-wrap { display: flex; align-items: center; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; overflow: hidden; transition: border .15s; }
-        .vl-input-wrap:focus-within { border-color: #ff6d00; }
-        .vl-input-prefix { padding: 0 6px 0 16px; font-weight: 700; color: #ffa94d; font-size: 1.1rem; }
+        .vl-input-wrap:focus-within { border-color: #9d4edd; }
+        .vl-input-prefix { padding: 0 6px 0 16px; font-weight: 700; color: #c77dff; font-size: 1.1rem; }
         .vl-input {
             width: 100%; background: transparent; border: none; outline: none;
             color: #f8f9fa; font-size: 1.25rem; font-weight: 600; font-family: inherit;
@@ -136,25 +136,25 @@
         .vl-input::placeholder { color: #6c757d; font-weight: 500; }
         .vl-submit {
             width: 100%; border: none; cursor: pointer;
-            background: linear-gradient(135deg, #ff6d00, #e8590c);
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
             color: #fff; font-size: 1.15rem; font-weight: 800; font-family: inherit;
             padding: 18px; border-radius: 14px; margin-top: 6px;
-            box-shadow: 0 8px 24px rgba(255, 107, 26, 0.4);
+            box-shadow: 0 8px 24px rgba(157, 78, 221, 0.42);
             transition: transform .1s ease, box-shadow .15s ease;
             display: inline-flex; align-items: center; justify-content: center; gap: 10px;
         }
-        .vl-submit:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(255, 107, 26, 0.5); }
+        .vl-submit:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(157, 78, 221, 0.55); }
         .vl-submit:active { transform: translateY(0); }
         .vl-submit:disabled { opacity: .55; cursor: wait; transform: none; }
 
         .vl-session {
             display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-            background: rgba(255, 109, 0, 0.08);
-            border: 1px solid rgba(255, 109, 0, 0.3);
+            background: rgba(157, 78, 221, 0.10);
+            border: 1px solid rgba(157, 78, 221, 0.35);
             border-radius: 14px; padding: 12px 16px; margin-top: 16px;
         }
-        .vl-session .live-tag { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #ffa94d; font-size: 0.9rem; }
-        .vl-session .live-tag .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff6d00; box-shadow: 0 0 10px #ff6d00; animation: vlPulse 1.4s infinite; }
+        .vl-session .live-tag { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #c77dff; font-size: 0.9rem; }
+        .vl-session .live-tag .dot { width: 9px; height: 9px; border-radius: 50%; background: #9d4edd; box-shadow: 0 0 10px #9d4edd; animation: vlPulse 1.4s infinite; }
         @keyframes vlPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
         .vl-session .live-meta { color: #ced4da; font-size: 0.85rem; font-weight: 600; }
         .vl-btn-ghost {
@@ -213,7 +213,7 @@
         }
         .vl-chip .n { background: rgba(255,255,255,0.12); border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; }
         .vl-chip:hover { background: rgba(255,255,255,0.1); color: #f8f9fa; }
-        .vl-chip.active { background: linear-gradient(135deg, #ff6d00, #e8590c); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(255,107,26,.3); }
+        .vl-chip.active { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(157,78,221,.32); }
         .vl-chip.active .n { background: rgba(255,255,255,0.22); }
 
         /* ===== Filas de proceso / cliente ===== */
@@ -243,8 +243,8 @@
             transition: all .15s ease;
         }
         .vl-btn:hover { background: rgba(255,255,255,0.13); }
-        .vl-btn.primary { background: linear-gradient(135deg, #ff6d00, #e8590c); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(255,107,26,.3); }
-        .vl-btn.primary:hover { box-shadow: 0 6px 18px rgba(255,107,26,.45); }
+        .vl-btn.primary { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(157,78,221,.32); }
+        .vl-btn.primary:hover { box-shadow: 0 6px 18px rgba(157,78,221,.48); }
         .vl-btn.success { background: rgba(0,184,148,0.16); border-color: rgba(0,184,148,0.5); color: #7ff5d8; }
         .vl-btn.success:hover { background: rgba(0,184,148,0.26); }
         .vl-btn.danger { background: rgba(230,60,60,0.14); border-color: rgba(230,60,60,0.5); color: #ff9f9f; }
@@ -259,7 +259,7 @@
             display: flex; align-items: center; justify-content: center; padding: 20px;
         }
         .vl-modal {
-            background: #16161f; border: 1px solid rgba(255,255,255,0.14);
+            background: #16141f; border: 1px solid rgba(255,255,255,0.14);
             border-radius: 20px; padding: 22px; width: 100%; max-width: 480px;
             max-height: 86vh; overflow-y: auto;
             box-shadow: 0 24px 70px rgba(0,0,0,0.55);
@@ -274,8 +274,8 @@
             color: #f8f9fa; font-size: 0.95rem; font-family: inherit;
             padding: 10px 12px; outline: none;
         }
-        .vl-control:focus { border-color: #ff6d00; }
-        .vl-control option { background: #1c1c28; color: #f8f9fa; }
+        .vl-control:focus { border-color: #9d4edd; }
+        .vl-control option { background: #1c1630; color: #f8f9fa; }
         .vl-form-row { margin-bottom: 12px; }
         .vl-form-row label { display: block; font-size: 0.78rem; font-weight: 700; color: #ced4da; margin-bottom: 5px; }
         .vl-monto-grande { font-size: 1.5rem !important; font-weight: 800; }
@@ -287,10 +287,10 @@
             transition: all .15s ease; font-weight: 600;
         }
         .vl-opcion:hover { background: rgba(255,255,255,0.08); }
-        .vl-opcion.sel { border-color: #ff6d00; background: rgba(255,109,0,0.12); color: #fff; }
+        .vl-opcion.sel { border-color: #9d4edd; background: rgba(157,78,221,0.14); color: #fff; }
         .vl-check-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px dashed rgba(255,255,255,0.08); font-size: 0.9rem; color: #e9ecef; }
         .vl-check-item:last-child { border-bottom: none; }
-        .vl-check-item input { width: 18px; height: 18px; accent-color: #ff6d00; }
+        .vl-check-item input { width: 18px; height: 18px; accent-color: #9d4edd; }
 
         /* ===== Tabla ficha cliente ===== */
         .vl-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -326,79 +326,87 @@
         }
 
         /* ===== Burbujas de conversación (las usa el chat del LIVE) ===== */
-        .vl-fila-msg { display: flex; flex-direction: column; max-width: 78%; }
+        .vl-fila-msg { display: flex; flex-direction: column; max-width: 80%; }
         .vl-fila-msg.in { align-self: flex-start; align-items: flex-start; }
         .vl-fila-msg.out { align-self: flex-end; align-items: flex-end; }
         .vl-msg-autor { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-        .vl-fila-msg.in .vl-msg-autor { color: #ffa94d; }
-        .vl-fila-msg.out .vl-msg-autor { color: #8696a0; }
+        .vl-fila-msg.in .vl-msg-autor { color: #c77dff; }
+        .vl-fila-msg.out .vl-msg-autor { color: #a89bb8; }
 
-        .vl-burbuja { border-radius: 10px; padding: 8px 12px 6px; max-width: 100%; box-shadow: 0 1px 1px rgba(0,0,0,0.28); }
-        .vl-burbuja .vl-burbuja-txt { font-size: 0.9rem; line-height: 1.48; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; }
-        .vl-burbuja .vl-burbuja-hora { font-size: 0.66rem; margin-top: 3px; text-align: right; }
-        .vl-burbuja.in { background: #202c33; color: #e9edef; border-top-left-radius: 2px; }
+        .vl-burbuja { border-radius: 12px; padding: 9px 13px 7px; max-width: 100%; box-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+        .vl-burbuja .vl-burbuja-txt { font-size: 0.92rem; line-height: 1.5; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; }
+        .vl-burbuja .vl-burbuja-hora { font-size: 0.66rem; margin-top: 4px; text-align: right; }
+        .vl-burbuja.in { background: #241d38; color: #e9edef; border-top-left-radius: 3px; }
         .vl-burbuja.in .vl-burbuja-txt { color: #e9edef; }
-        .vl-burbuja.in .vl-burbuja-hora { color: #8696a0; }
-        .vl-burbuja.out { background: linear-gradient(135deg, #e8590c, #c2410c); border-top-right-radius: 2px; }
+        .vl-burbuja.in .vl-burbuja-hora { color: #a89bb8; }
+        .vl-burbuja.out { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border-top-right-radius: 3px; }
         .vl-burbuja.out .vl-burbuja-txt { color: #ffffff; }
-        .vl-burbuja.out .vl-burbuja-hora { color: rgba(255,255,255,0.75); }
+        .vl-burbuja.out .vl-burbuja-hora { color: rgba(255,255,255,0.78); }
 
         @media (max-width: 860px) {
-            .vl-fila-msg { max-width: 88%; }
+            .vl-fila-msg { max-width: 90%; }
         }
 
-        /* ===== Chat del cliente dentro de MODO LIVE ===== */
-        .vl-chat-mini-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        /* ===== Chat del cliente dentro de MODO LIVE =====
+           Con aire adentro (padding) y alto cómodo para leer el hilo
+           mientras se carga el pedido. */
+        .vl-chat-mini-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
         .vl-chat-mini-scroll {
-            margin-top: 10px; padding: 12px; border-radius: 12px;
-            background-color: #0b141a;
-            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.016) 0 2px, transparent 2px 9px);
-            display: flex; flex-direction: column; gap: 8px;
-            min-height: 120px; max-height: 400px; overflow-y: auto;
+            margin-top: 12px; padding: 14px; border-radius: 14px;
+            background-color: #0b0912;
+            background-image: repeating-linear-gradient(45deg, rgba(157,78,221,0.05) 0 2px, transparent 2px 10px);
+            border: 1px solid rgba(157, 78, 221, 0.18);
+            display: flex; flex-direction: column; gap: 10px;
+            min-height: 140px; max-height: min(48vh, 440px); overflow-y: auto;
         }
         .vl-chat-mini-scroll:empty { display: none; }
-        .vl-chat-mini-scroll .vl-burbuja .vl-burbuja-txt { font-size: 0.85rem; }
-        .vl-chat-mini-scroll .vl-burbuja { padding: 7px 10px 5px; }
+        .vl-chat-mini-scroll .vl-burbuja .vl-burbuja-txt { font-size: 0.88rem; }
+        .vl-chat-mini-scroll .vl-burbuja { padding: 8px 11px 6px; }
         .vl-chat-mini-scroll .vl-msg-autor { font-size: 0.6rem; margin-bottom: 3px; }
-        .vl-chat-mini-vacio { color: #8696a0; font-size: 0.82rem; text-align: center; padding: 16px 8px; line-height: 1.5; }
-        .vl-chat-mini-composer { display: flex; gap: 8px; margin-top: 10px; }
-        .vl-chat-mini-composer .vl-control { flex: 1; background: #2a3942; border-color: transparent; color: #e9edef; min-height: 42px; }
-        .vl-chat-mini-composer .vl-control::placeholder { color: #8696a0; }
-        .vl-chat-mini-composer .vl-control:focus { border-color: #ff6d00; }
-        .vl-chat-mini-composer .vl-btn { flex-shrink: 0; padding: 10px 14px; }
+        .vl-chat-mini-vacio { color: #a89bb8; font-size: 0.85rem; text-align: center; padding: 24px 12px; line-height: 1.6; }
+        .vl-chat-mini-composer { display: flex; gap: 8px; margin-top: 12px; }
+        .vl-chat-mini-composer .vl-control { flex: 1; background: #241b38; border-color: transparent; color: #e9edef; min-height: 44px; }
+        .vl-chat-mini-composer .vl-control::placeholder { color: #a89bb8; }
+        .vl-chat-mini-composer .vl-control:focus { border-color: #9d4edd; }
+        .vl-chat-mini-composer .vl-btn { flex-shrink: 0; padding: 10px 14px; min-height: 44px; }
         .vl-chat-mini-acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         /* Resalta la tarjeta cuando hay una conversación abierta */
-        #lv-chat-card.con-chat { border-color: rgba(37, 211, 102, 0.45); }
+        #lv-chat-card.con-chat { border-color: rgba(157, 78, 221, 0.45); }
 
         /* ===== Cajón lateral de conversaciones (sobrepuesto al LIVE) =====
-           Se abre pegado al borde derecho: la columna de "Registrar venta"
-           queda siempre visible y usable, así se carga el pedido y se lee
-           el chat al mismo tiempo. Sin fondo opaco: no bloquea lo de atrás. */
+           Panel FLOTANTE: se separa de los bordes (margen 14px), con
+           esquinas redondeadas y ancho cómodo de lectura, así el chat no
+           queda pegado al canto de la pantalla y se ve completo en web,
+           tablet y móvil. Sigue sin fondo opaco: lo de atrás no se bloquea. */
         .vl-drawer {
-            position: fixed; top: 0; right: 0; height: 100vh; width: min(440px, 40vw);
-            background: #12121a; border-left: 1px solid rgba(255,255,255,0.12);
-            box-shadow: -18px 0 50px rgba(0,0,0,0.5);
+            position: fixed; top: 14px; right: 14px; height: calc(100vh - 28px);
+            width: min(520px, calc(100vw - 28px));
+            background: #12101c;
+            border: 1px solid rgba(157, 78, 221, 0.30);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.55);
             display: flex; flex-direction: column; z-index: 8600;
-            transform: translateX(102%); visibility: hidden;
+            transform: translateX(calc(100% + 24px)); visibility: hidden;
             transition: transform .22s ease, visibility .22s;
         }
-        .vl-drawer.abierto { transform: translateX(0); visibility: visible; border-top-left-radius: 14px; }
+        .vl-drawer.abierto { transform: translateX(0); visibility: visible; }
 
-        .vl-drawer-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #1f2c34; flex-shrink: 0; }
+        .vl-drawer-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #1c1530; flex-shrink: 0; }
         .vld-titulo { flex: 1; min-width: 0; font-weight: 800; color: #e9edef; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .vld-icon {
             background: transparent; border: none; color: #adb5bd; cursor: pointer; font-family: inherit;
             font-size: 1rem; padding: 6px 9px; border-radius: 8px; line-height: 1;
         }
         .vld-icon:hover { background: rgba(255,255,255,0.08); color: #f8f9fa; }
-        .vld-sub { padding: 8px 14px; color: #8696a0; font-size: 0.76rem; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
-        .vld-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 12px 16px; }
-        .vld-hilo { display: flex; flex-direction: column; gap: 8px; }
-        .vld-foot { display: flex; gap: 8px; padding: 10px 12px; background: #1f2c34; border-top: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
-        .vld-foot .vl-control { flex: 1; background: #2a3942; border-color: transparent; color: #e9edef; min-height: 42px; }
-        .vld-foot .vl-control::placeholder { color: #8696a0; }
-        .vld-foot .vl-control:focus { border-color: #ff6d00; }
-        .vld-foot .vl-btn { flex-shrink: 0; padding: 10px 14px; }
+        .vld-sub { padding: 9px 16px; color: #a89bb8; font-size: 0.78rem; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+        .vld-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 18px; }
+        .vld-hilo { display: flex; flex-direction: column; gap: 10px; }
+        .vld-foot { display: flex; gap: 8px; padding: 11px 14px; background: #1c1530; border-top: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+        .vld-foot .vl-control { flex: 1; background: #241b38; border-color: transparent; color: #e9edef; min-height: 44px; }
+        .vld-foot .vl-control::placeholder { color: #a89bb8; }
+        .vld-foot .vl-control:focus { border-color: #9d4edd; }
+        .vld-foot .vl-btn { flex-shrink: 0; padding: 10px 14px; min-height: 44px; }
 
         .vl-conv-item {
             display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
@@ -407,11 +415,11 @@
             transition: background .15s ease, border .15s ease;
         }
         .vl-conv-item:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.2); }
-        .vl-conv-item.activo { border-color: #ff6d00; background: rgba(255,109,0,0.10); }
+        .vl-conv-item.activo { border-color: #9d4edd; background: rgba(157,78,221,0.12); }
         .vl-conv-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .vl-conv-nombre { font-weight: 800; color: #f8f9fa; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .vl-conv-hora { color: #adb5bd; font-size: 0.7rem; flex-shrink: 0; }
-        .vl-conv-num { color: #ffa94d; font-size: 0.74rem; font-weight: 700; margin-top: 1px; }
+        .vl-conv-num { color: #c77dff; font-size: 0.74rem; font-weight: 700; margin-top: 1px; }
         .vl-conv-msg {
             color: #ced4da; font-size: 0.81rem; margin-top: 4px; line-height: 1.4;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -419,9 +427,9 @@
         .vl-conv-foot { display: flex; align-items: center; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
         .vl-conv-chip { font-size: 0.66rem; font-weight: 700; color: #adb5bd; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 8px; }
         .vl-conv-chip.humano { background: rgba(0,184,148,0.16); border: 1px solid rgba(0,184,148,0.45); color: #7ff5d8; }
-        .vl-conv-chip.bot { background: rgba(255,109,0,0.14); border: 1px solid rgba(255,109,0,0.4); color: #ffa94d; }
-        .vl-conv-noleido { margin-left: auto; background: #ff6d00; color: #fff; font-size: 0.68rem; font-weight: 800; border-radius: 999px; padding: 2px 8px; }
-        .vl-conv-badge { background: #ff6d00; color: #fff; font-size: 0.64rem; font-weight: 800; border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+        .vl-conv-chip.bot { background: rgba(157,78,221,0.16); border: 1px solid rgba(157,78,221,0.45); color: #c77dff; }
+        .vl-conv-noleido { margin-left: auto; background: #9d4edd; color: #fff; font-size: 0.68rem; font-weight: 800; border-radius: 999px; padding: 2px 8px; }
+        .vl-conv-badge { background: #9d4edd; color: #fff; font-size: 0.64rem; font-weight: 800; border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
         /* Aviso del bot: informativo, no destructivo (ámbar suave, sin parpadeo) */
         .vl-conv-chip.aviso {
             background: rgba(255,193,7,0.14); border: 1px solid rgba(255,193,7,0.4);
@@ -449,8 +457,34 @@
         /* Botón "Avisos" encendido */
         .vl-btn.activo { border-color: rgba(255,193,7,0.6); color: #ffe066; }
 
+        /* ===== Ajustes para tablet y móvil =====
+           El cajón ya no queda pegado al borde (su ancho sale de
+           min(520px, 100vw - 28px)); en pantallas chicas la navegación se
+           desliza en UNA fila en vez de apretarse en dos líneas, los
+           botones ganan altura táctil y el chat mantiene alto cómodo. */
         @media (max-width: 860px) {
-            .vl-drawer { width: 92vw; }
+            .vl-drawer { top: 10px; right: 10px; height: calc(100vh - 20px); width: calc(100vw - 20px); border-radius: 16px; }
+            .vl-live-grid { gap: 14px; }
+        }
+        @media (max-width: 720px) {
+            .vl-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+            .vl-nav::-webkit-scrollbar { display: none; }
+            .vl-tab { flex: 0 0 auto; padding: 10px 15px; font-size: 0.86rem; }
+            .vl-btn, .vl-btn-ghost, .vld-icon { min-height: 40px; }
+            .vl-control { font-size: 16px; }      /* sin zoom automático en iOS */
+            .vl-topbar { gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+            .vl-actions { width: 100%; justify-content: flex-start; }
+            .vl-actions .btn-top { padding: 9px 13px; font-size: 0.8rem; }
+            .vl-chat-mini-scroll { max-height: 52vh; }
+            .vl-workspace-head { padding: 16px; }
+            .vld-body { padding: 12px 12px 16px; }
+            .vl-modal { padding: 18px; }
+        }
+        @media (max-width: 430px) {
+            .vl-brand { font-size: 1.05rem; }
+            .vl-actions .btn-top { padding: 8px 11px; font-size: 0.76rem; }
+            .vl-chat-mini-acciones { width: 100%; }
+            .vl-chat-mini-acciones .vl-btn { flex: 1 1 auto; justify-content: center; }
         }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -504,7 +538,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=87"></script>
+    <script type="module" src="dist/app.js?v=88"></script>
     <script defer src="dist/legacy.js?v=71"></script>
 </body>
 </html>

@@ -107,13 +107,18 @@ export function abrirConversaciones() {
     _abierto = true;
     const el = $('vl-drawer');
     if (el) {
+        // Panel flotante: deja el mismo margen con los bordes que la CSS
+        // (14px en web/tablet, 10px en móvil) para que el chat no quede
+        // pegado al canto de la pantalla.
+        const MARGEN = window.matchMedia('(max-width: 860px)').matches ? 10 : 14;
         // Arranca justo debajo de la barra superior para no tapar
         // "Mis proyectos" / "Cerrar sesión". Se recalcula al abrir (si la
         // página está scrolleada, la barra ya salió de vista → arranca arriba).
         const tb = document.querySelector('.vl-topbar');
-        const top = tb ? Math.max(0, Math.round(tb.getBoundingClientRect().bottom)) : 0;
+        const bordeBarra = tb ? Math.round(tb.getBoundingClientRect().bottom) : 0;
+        const top = Math.max(MARGEN, bordeBarra + 8);
         el.style.top = top + 'px';
-        el.style.height = `calc(100vh - ${top}px)`;
+        el.style.height = `calc(100vh - ${top}px - ${MARGEN}px)`;
         el.classList.add('abierto');
         el.setAttribute('aria-hidden', 'false');
     }
