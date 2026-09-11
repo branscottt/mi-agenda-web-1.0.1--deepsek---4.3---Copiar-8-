@@ -186,6 +186,8 @@ function bindPrimerCliente(container) {
 let clientesCache = [];
 let filtroActual = '';
 let mapaServicios = {};
+// Tenant actual de la vista (para las claves de localStorage de la bienvenida)
+let tenantIdActual = null;
 // Permiso de etiquetas de pago para trabajadores (master + lista blanca)
 let permisoEtiquetas = { permitir: false, trabajadores: [], trabajadoresLista: [] };
 // Resumen de la ficha (tablero) de cada cliente: { email -> { board_id, token_compartido,
@@ -196,6 +198,91 @@ let fichasPorEmail = {};
 function bindMudanza(container) {
     const btn = container.querySelector('#mudanza-clientes-btn, #mudanza-clientes-btn-empty');
     if (btn) btn.addEventListener('click', abrirMudanza);
+}
+
+/** Abre la mini-guía interactiva "Cómo funciona Mis Clientes". */
+async function abrirGuia() {
+    try {
+        const { abrirMisClientesGuia } = await import('./MisClientesGuia.js');
+        abrirMisClientesGuia({ onImportar: abrirMudanza });
+    } catch (err) {
+        console.error('[ClientListView] Error abriendo la guía:', err);
+        mostrarToast('No se pudo abrir la guía', 'error');
+    }
+}
+
+// ========== BIENVENIDA / DESCUBRIMIENTO ==========
+// Tarjeta llamativa ARRIBA de la sección (visible sin bajar) que enseña lo que
+// se puede hacer. Es el reemplazo visible del aviso de una línea: se muestra
+// hasta que el admin la cierra, y REAPARECE sola cuando entran clientes nuevos
+// y todavía no guardó nada de ellos (el momento en que la sección tiene valor).
+
+const HERO_KEY_PREFIJO = 'agendapro_mc_hero_';
+const CONTEO_KEY_PREFIJO = 'agendapro_mc_conteo_';
+
+function leerLS(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function escribirLS(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } }
+
+/** ¿El admin ya guardó algo? (clientes manuales o contenido en alguna ficha) */
+function hayDatosGuardados() {
+    if ((clientesCache || []).some(c => c.origen === 'manual')) return true;
+    return Object.values(fichasPorEmail || {}).some(f => (f.n_cards || 0) > 0 || (f.n_adjuntos || 0) > 0);
+}
+
+function renderBienvenida() {
+    if (!clientesCache.length) return ''; // el estado vacío ya enseña
+    const tid = tenantIdActual || 'na';
+    const descartada = leerLS(HERO_KEY_PREFIJO + tid) === '1';
+    const conteoKey = CONTEO_KEY_PREFIJO + tid;
+    const previo = Number(leerLS(conteoKey) || 0);
+    const nAhora = clientesCache.length;
+    const nuevos = previo > 0 ? Math.max(0, nAhora - previo) : 0;
+    escribirLS(conteoKey, String(nAhora));
+
+    const sinDatos = !hayDatosGuardados();
+    // Rearmar: la había cerrado, pero llegaron clientes nuevos y sigue sin
+    // guardar nada → volvemos a ofrecerla (y queda visible hasta cerrarla).
+    if (descartada && nuevos > 0 && sinDatos) escribirLS(HERO_KEY_PREFIJO + tid, '0');
+    if (descartada && !(nuevos > 0 && sinDatos)) return '';
+
+    const chipNuevos = nuevos > 0
+        ? `<span class="mc-hero-nuevo"><i class="fas fa-bell"></i> ${nuevos === 1 ? '1 cliente nuevo' : nuevos + ' clientes nuevos'} desde tu última visita</span>`
+        : '';
+
+    return `
+        <div class="mc-hero" id="mc-hero">
+            <button type="button" class="mc-hero-x" id="mc-hero-x" title="Cerrar (puedes reabrirla desde “¿Cómo funciona?”)" aria-label="Cerrar">&times;</button>
+            <div class="mc-hero-top">
+                <div class="mc-hero-badge"><i class="fas fa-star"></i></div>
+                <div class="mc-hero-txt">
+                    <strong>Cada cliente tiene una ficha que lo guarda todo</strong>
+                    <span>Notas, archivos, fotos, checklists y envío por WhatsApp — en un solo lugar y sin cargar nada a mano. ${chipNuevos}</span>
+                </div>
+            </div>
+            <div class="mc-hero-pasos">
+                <span class="mc-hero-paso"><i class="fas fa-hand-pointer"></i> Toca a un cliente</span>
+                <span class="mc-hero-paso"><i class="fas fa-folder-open"></i> Guarda notas y archivos</span>
+                <span class="mc-hero-paso"><i class="fab fa-whatsapp"></i> Envíale su info</span>
+            </div>
+            <div class="mc-hero-ctas">
+                <button type="button" class="btn-llamativo" id="mc-hero-como"><i class="fas fa-graduation-cap"></i> Ver cómo funciona (30 seg)</button>
+                <button type="button" class="btn-suave" id="mc-hero-mudanza"><i class="fas fa-truck-moving"></i> Traer mis clientes y archivos</button>
+            </div>
+        </div>
+    `;
+}
+
+function bindBienvenida(container) {
+    const como = container.querySelector('#mc-hero-como');
+    if (como) como.addEventListener('click', abrirGuia);
+    const mud = container.querySelector('#mc-hero-mudanza');
+    if (mud) mud.addEventListener('click', abrirMudanza);
+    const x = container.querySelector('#mc-hero-x');
+    if (x) x.addEventListener('click', () => {
+        escribirLS(HERO_KEY_PREFIJO + (tenantIdActual || 'na'), '1');
+        const hero = document.getElementById('mc-hero');
+        if (hero) hero.remove();
+    });
 }
 
 async function abrirMudanza() {
@@ -226,6 +313,7 @@ export async function renderClientListView(containerId = 'clientes-list-containe
 
     try {
         const tenantId = await getCurrentTenantId();
+        tenantIdActual = tenantId;
 
         // Las lecturas de la vista son INDEPENDIENTES entre sí: se lanzan en
         // paralelo (antes eran secuenciales → ~6 round-trips encadenados por
@@ -343,8 +431,11 @@ function renderLista(container) {
                     <button class="btn-secondary btn-small" id="agregar-cliente-btn-empty" title="Formulario completo: datos de contacto y reserva opcional">
                         <i class="fas fa-user-plus"></i> Agregar con formulario
                     </button>
-                    <button class="btn-primary btn-small" id="mudanza-clientes-btn-empty" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón">
+                    <button class="btn-llamativo btn-small" id="mudanza-clientes-btn-empty" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón">
                         <i class="fas fa-truck-moving"></i> Traer mis clientes y archivos
+                    </button>
+                    <button class="btn-suave btn-small" id="guia-clientes-btn-empty" title="¿Qué se puede hacer en Mis Clientes? Te lo muestro con ejemplos, en 30 segundos">
+                        <i class="fas fa-graduation-cap"></i> Ver cómo funciona
                     </button>
                 </div>
                 <p style="color:var(--text-muted,#999);font-size:0.75rem;margin-top:10px;"><i class="fas fa-info-circle"></i> También se puede tocar "Crear mi primer cliente" las veces que quieras: cada conversación agrega un cliente.</p>
@@ -353,19 +444,25 @@ function renderLista(container) {
         bindAgregarCliente(container);
         bindPrimerCliente(container);
         bindMudanza(container);
+        const guiaEmpty = container.querySelector('#guia-clientes-btn-empty');
+        if (guiaEmpty) guiaEmpty.addEventListener('click', abrirGuia);
         return;
     }
 
     const filtrados = getFiltrados();
 
     let html = `
+        ${renderBienvenida()}
         <div class="clientes-header-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
             <div class="search-box" style="flex:1;min-width:200px;">
                 <i class="fas fa-search"></i>
                 <input type="text" id="clientes-search-input" placeholder="Buscar por nombre, email o teléfono..." value="${escapeHtml(filtroActual)}">
             </div>
-            <button class="btn-primary btn-small" id="mudanza-clientes-btn" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón (se distribuyen solos a cada cliente)">
+            <button class="btn-llamativo btn-small" id="mudanza-clientes-btn" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón (se distribuyen solos a cada cliente)">
                 <i class="fas fa-truck-moving"></i> Importar clientes y archivos
+            </button>
+            <button class="btn-suave btn-small" id="guia-clientes-btn" title="¿Qué se puede hacer en Mis Clientes? Te lo muestro con ejemplos, en 30 segundos">
+                <i class="fas fa-graduation-cap"></i> ¿Cómo funciona?
             </button>
             <button class="btn-primary btn-small" id="agregar-cliente-btn" title="Agregar un cliente que ya tenías antes de la web y asignarle una reserva si quieres">
                 <i class="fas fa-user-plus"></i> Agregar cliente
@@ -384,7 +481,6 @@ function renderLista(container) {
         <p style="color:var(--text-muted);font-size:0.78rem;margin:-8px 0 14px;">
             <i class="fas fa-info-circle"></i> Los clientes solo se eliminan si los borras tú o llevan más de ${MESES_SIN_RESERVAR_PARA_ELIMINAR} meses sin reservar. Los clientes que agregas manualmente se conservan hasta que tú los borres.
         </p>
-        ${renderHintFicha()}
         ${renderHelpBanner()}
         <div class="clientes-grid" id="clientes-grid">
             ${renderGridHtml(filtrados)}
@@ -397,9 +493,11 @@ function renderLista(container) {
     bindExport(container);
     bindAgregarCliente(container);
     bindMudanza(container);
+    bindBienvenida(container);
     bindHelpToggle(container);
-    bindHintFicha(container);
     bindTogglePermisoEtiquetas(container);
+    const guiaBtn = container.querySelector('#guia-clientes-btn');
+    if (guiaBtn) guiaBtn.addEventListener('click', abrirGuia);
     bindHistorialButtons(container);
     bindClienteCards(container);
 }
@@ -456,36 +554,6 @@ function bindHelpToggle(container) {
         body.style.display = visible ? 'none' : 'block';
         if (chevron) chevron.style.transform = visible ? '' : 'rotate(180deg)';
         try { localStorage.setItem('mis_clientes_help_visible', visible ? '0' : '1'); } catch (e) { /* sin almacenamiento */ }
-    });
-}
-
-/**
- * Aviso de descubrimiento de la ficha: una línea que aparece la primera
- * vez que el admin ve la lista con clientes y no vuelve a mostrarse
- * (se marca al cerrarla). Es el empujón para tocar una tarjeta.
- */
-const HINT_FICHA_KEY = 'mis_clientes_hint_ficha_visto';
-
-function renderHintFicha() {
-    let visto = false;
-    try { visto = localStorage.getItem(HINT_FICHA_KEY) === '1'; } catch (e) { /* sin almacenamiento */ }
-    if (visto) return '';
-    return `
-        <div class="clientes-hint-once" id="clientes-hint-once">
-            <i class="fas fa-hand-pointer"></i>
-            <span><strong>Toca a un cliente:</strong> su ficha guarda fotos, archivos y todo lo que le compartes.</span>
-            <button type="button" id="clientes-hint-cerrar" title="Entendido" aria-label="Cerrar aviso">&times;</button>
-        </div>
-    `;
-}
-
-function bindHintFicha(container) {
-    const btn = document.getElementById('clientes-hint-cerrar');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-        try { localStorage.setItem(HINT_FICHA_KEY, '1'); } catch (e) { /* sin almacenamiento */ }
-        const hint = document.getElementById('clientes-hint-once');
-        if (hint) hint.remove();
     });
 }
 

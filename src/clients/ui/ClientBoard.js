@@ -218,6 +218,7 @@ function renderBoardModal() {
                 </div>
                 <button class="kanban-btn-close" id="kanban-cerrar" title="Cerrar"><i class="fas fa-times"></i></button>
             </header>
+            ${renderSugerenciaListasHtml()}
             <div class="kanban-board" id="kanban-board">
                 ${renderListasHtml()}
                 <div class="kanban-add-list" id="kanban-add-list">
@@ -254,6 +255,28 @@ function renderBoardModal() {
 
 // ========== SUGERENCIA DE LISTAS TÍPICAS (ficha vacía, solo admin) ==========
 
+/**
+ * Franja destacada arriba del tablero: se ve apenas se abre la ficha, sin
+ * tener que bajar (antes vivía dentro del estado vacío del board y quedaba
+ * fuera de la vista, sobre todo en móvil).
+ */
+function renderSugerenciaListasHtml() {
+    if (lists.length || deps.adjuntosSoloLectura) return '';
+    return `
+        <div id="kanban-listas-sugerencia" class="kanban-sugerencia-listas">
+            <div class="ksl-ico"><i class="fas fa-bolt"></i></div>
+            <div class="ksl-txt">
+                <strong>¿Arrancamos con listas típicas?</strong>
+                <span>Creamos <b>Por hacer</b>, <b>En seguimiento</b> y <b>Hecho</b> de una vez. Las renombras o borras cuando quieras.</span>
+            </div>
+            <div class="ksl-acc">
+                <button type="button" id="kanban-listas-crear" class="ksl-btn"><i class="fas fa-wand-magic-sparkles"></i> Crear las 3 listas</button>
+                <button type="button" id="kanban-listas-no" class="ksl-no">Ahora no</button>
+            </div>
+        </div>
+    `;
+}
+
 /** "¿Arrancamos con listas típicas?" → crea Por hacer / En seguimiento / Hecho en 1 clic. */
 function bindSugerenciaListas() {
     const cont = document.getElementById('kanban-listas-sugerencia');
@@ -284,7 +307,7 @@ function bindSugerenciaListas() {
         } catch (err) {
             console.error('[ClientBoard] Error creando listas típicas:', err);
             crear.disabled = false;
-            crear.innerHTML = 'Crear "Por hacer · En seguimiento · Hecho"';
+            crear.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Crear las 3 listas';
             mostrarToast('No se pudieron crear las listas', 'error');
         }
     });
@@ -589,12 +612,6 @@ function renderListasHtml() {
                 <i class="fas fa-folder-open"></i>
                 <h4>Sin secciones todavía</h4>
                 <p>Guarda aquí la información de este cliente: crea listas (ej. "Historia clínica", "Seguimiento", "Documentos") y tarjetas con notas y checklists, y adjunta archivos (fotos, PDF, Word, Excel… hasta 100 MB). También puedes marcar su estado de pago y vincular tarjetas a sus citas.</p>
-                ${!deps.adjuntosSoloLectura ? `
-                <div id="kanban-listas-sugerencia" style="display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0 2px;padding:10px 12px;border-radius:12px;border:1px solid rgba(157,78,221,0.25);background:rgba(157,78,221,0.07);">
-                    <span style="font-size:0.8rem;"><i class="fas fa-bolt" style="color:var(--primary-color,#9d4edd);"></i> ¿Arrancamos con listas típicas? Las renombrás o borrás cuando quieras.</span>
-                    <button type="button" id="kanban-listas-crear" style="padding:6px 12px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-color,#9d4edd),#7b2cbf);color:#fff;font-size:0.76rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Crear "Por hacer · En seguimiento · Hecho"</button>
-                    <button type="button" id="kanban-listas-no" style="background:none;border:none;color:var(--text-muted,#999);font-size:0.74rem;cursor:pointer;text-decoration:underline;">Ahora no</button>
-                </div>` : ''}
                 <div class="kanban-chip-ideas" id="kanban-chip-ideas"></div>
             </div>
         `;

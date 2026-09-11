@@ -26,6 +26,10 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import * as kanbanApi from '../../api/kanbanApi.js';
 
 const KEY_PREFIJO = 'agendapro_inv_clientes_';
+// Conteo de clientes reales la última vez que se evaluó: si aparece gente
+// nueva que reservó y el admin sigue sin guardar nada, la invitación REAPARECE
+// (no es "una vez y nunca más": el momento valioso se repite solo).
+const KEY_CONTEO = 'agendapro_inv_clientes_conteo_';
 const TOUR_KEY_PREFIJO = 'agendapro_tour_';
 const REAPARECER_MS = 3 * 24 * 60 * 60 * 1000; // "Ahora no" → vuelve en 3 días
 const ESPERA_TOUR_MAX_MS = 90 * 1000; // cuánto esperar a que cierre el tour
@@ -62,6 +66,14 @@ function postergar() {
     try { localStorage.setItem(claveInv(), 'postergada:' + Date.now()); } catch (e) { /* sin almacenamiento */ }
 }
 
+function leerConteo() {
+    try { return Number(localStorage.getItem(KEY_CONTEO + tenantIdActual) || 0); } catch (e) { return 0; }
+}
+
+function guardarConteo(n) {
+    try { localStorage.setItem(KEY_CONTEO + tenantIdActual, String(n)); } catch (e) { /* sin almacenamiento */ }
+}
+
 // ─────────────────────────────────────────────
 // DECISIÓN (solo corre cuando puede aparecer)
 // ─────────────────────────────────────────────
@@ -71,14 +83,8 @@ function emailClave(e) {
 
 async function decidirMostrar() {
     const es = estadoGuardado();
-    if (!es) {
-        // Nunca mostrada: seguimos (las puertas del tour se evalúan antes).
-    } else if (es.visto) {
-        return; // ya la vio: nunca más
-    } else if (es.postergadaHasta > Date.now()) {
-        return; // "Ahora no" reciente: esperar
-    }
-    // (si la postergación ya venció, seguimos)
+    // "Ahora no" reciente: esperar (aplica tanto si está postergada como si no).
+    if (es && !es.visto && es.postergadaHasta > Date.now()) return;
 
     const [rCitas, rVentas, rManuales, rFichas] = await Promise.allSettled([
         getAllCitas(),
@@ -113,9 +119,14 @@ async function decidirMostrar() {
     }
     if (rFichas.status === 'fulfilled') {
         const hayContenido = (rFichas.value || []).some(f => (f.n_cards || 0) > 0 || (f.n_adjuntos || 0) > 0);
-        if (hayContenido) return; // ya guardó notas/archivos → conoce la ficha
+        if (hayContenido) { guardarConteo(emails.size); return; } // ya guardó notas/archivos → conoce la ficha
     }
 
+    // Ya la vio alguna vez: solo volver a mostrarla si aparecieron clientes
+    // NUEVOS desde la última evaluación (alguien reservó y sigue sin datos).
+    if (es && es.visto && emails.size <= leerConteo()) return;
+
+    guardarConteo(emails.size);
     mostrarInvitacion(emails.size);
 }
 
@@ -208,7 +219,14 @@ function mostrarInvitacion(nClientes) {
 
     const btnComo = document.getElementById('invcl-como');
     const btnComoTxt = btnComo.querySelector('span');
-    btnComo.addEventListener('click', () => {
+    btnComo.addEventListener('click', async () => {
+        // Guía interactiva completa (4 pasos, con ejemplos). Si por lo que sea
+        // no carga el chunk, cae al resumen inline de 3 pasos.
+        try {
+            const { abrirMisClientesGuia } = await import('./MisClientesGuia.js');
+            abrirMisClientesGuia({});
+            return;
+        } catch (e) { /* fallback abajo */ }
         const guia = document.getElementById('invcl-guia');
         if (!guia) return;
         guiaAbierta = !guiaAbierta;
