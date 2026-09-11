@@ -366,8 +366,66 @@
         .vl-chat-mini-composer .vl-control::placeholder { color: #8696a0; }
         .vl-chat-mini-composer .vl-control:focus { border-color: #ff6d00; }
         .vl-chat-mini-composer .vl-btn { flex-shrink: 0; padding: 10px 14px; }
+        .vl-chat-mini-acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         /* Resalta la tarjeta cuando hay una conversación abierta */
         #lv-chat-card.con-chat { border-color: rgba(37, 211, 102, 0.45); }
+
+        /* ===== Cajón lateral de conversaciones (sobrepuesto al LIVE) =====
+           Se abre pegado al borde derecho: la columna de "Registrar venta"
+           queda siempre visible y usable, así se carga el pedido y se lee
+           el chat al mismo tiempo. Sin fondo opaco: no bloquea lo de atrás. */
+        .vl-drawer {
+            position: fixed; top: 0; right: 0; height: 100vh; width: min(440px, 40vw);
+            background: #12121a; border-left: 1px solid rgba(255,255,255,0.12);
+            box-shadow: -18px 0 50px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; z-index: 8600;
+            transform: translateX(102%); visibility: hidden;
+            transition: transform .22s ease, visibility .22s;
+        }
+        .vl-drawer.abierto { transform: translateX(0); visibility: visible; border-top-left-radius: 14px; }
+
+        .vl-drawer-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #1f2c34; flex-shrink: 0; }
+        .vld-titulo { flex: 1; min-width: 0; font-weight: 800; color: #e9edef; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vld-icon {
+            background: transparent; border: none; color: #adb5bd; cursor: pointer; font-family: inherit;
+            font-size: 1rem; padding: 6px 9px; border-radius: 8px; line-height: 1;
+        }
+        .vld-icon:hover { background: rgba(255,255,255,0.08); color: #f8f9fa; }
+        .vld-sub { padding: 8px 14px; color: #8696a0; font-size: 0.76rem; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+        .vld-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 12px 16px; }
+        .vld-hilo { display: flex; flex-direction: column; gap: 8px; }
+        .vld-foot { display: flex; gap: 8px; padding: 10px 12px; background: #1f2c34; border-top: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+        .vld-foot .vl-control { flex: 1; background: #2a3942; border-color: transparent; color: #e9edef; min-height: 42px; }
+        .vld-foot .vl-control::placeholder { color: #8696a0; }
+        .vld-foot .vl-control:focus { border-color: #ff6d00; }
+        .vld-foot .vl-btn { flex-shrink: 0; padding: 10px 14px; }
+
+        .vl-conv-item {
+            display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 11px 12px; margin-bottom: 8px;
+            transition: background .15s ease, border .15s ease;
+        }
+        .vl-conv-item:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.2); }
+        .vl-conv-item.activo { border-color: #ff6d00; background: rgba(255,109,0,0.10); }
+        .vl-conv-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .vl-conv-nombre { font-weight: 800; color: #f8f9fa; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vl-conv-hora { color: #adb5bd; font-size: 0.7rem; flex-shrink: 0; }
+        .vl-conv-num { color: #ffa94d; font-size: 0.74rem; font-weight: 700; margin-top: 1px; }
+        .vl-conv-msg {
+            color: #ced4da; font-size: 0.81rem; margin-top: 4px; line-height: 1.4;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .vl-conv-foot { display: flex; align-items: center; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+        .vl-conv-chip { font-size: 0.66rem; font-weight: 700; color: #adb5bd; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 8px; }
+        .vl-conv-chip.humano { background: rgba(0,184,148,0.16); border: 1px solid rgba(0,184,148,0.45); color: #7ff5d8; }
+        .vl-conv-chip.bot { background: rgba(255,109,0,0.14); border: 1px solid rgba(255,109,0,0.4); color: #ffa94d; }
+        .vl-conv-noleido { margin-left: auto; background: #ff6d00; color: #fff; font-size: 0.68rem; font-weight: 800; border-radius: 999px; padding: 2px 8px; }
+        .vl-conv-badge { background: #ff6d00; color: #fff; font-size: 0.64rem; font-weight: 800; border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+
+        @media (max-width: 860px) {
+            .vl-drawer { width: 92vw; }
+        }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -420,7 +478,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=80"></script>
+    <script type="module" src="dist/app.js?v=81"></script>
     <script defer src="dist/legacy.js?v=68"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
 import { burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
+import { initConversacionesDrawer, refrescarContador, toggleConversaciones } from './ConversacionesDrawer.js';
 
 let _built = false;
 let _guardando = false;
@@ -76,7 +77,13 @@ function buildDOM() {
                 <div class="vl-card" style="margin-top:16px;" id="lv-chat-card">
                     <div class="vl-chat-mini-head">
                         <h2 style="margin:0;"><i class="fab fa-whatsapp"></i> Chat del cliente</h2>
-                        <button class="vl-btn" id="lv-chat-modo" type="button" style="display:none;"></button>
+                        <div class="vl-chat-mini-acciones">
+                            <button class="vl-btn" id="lv-chat-conv" type="button" title="Ver todas las conversaciones">
+                                <i class="fas fa-comments"></i> Conversaciones
+                                <span class="vl-conv-badge" id="lv-chat-conv-n" style="display:none;">0</span>
+                            </button>
+                            <button class="vl-btn" id="lv-chat-modo" type="button" style="display:none;"></button>
+                        </div>
                     </div>
                     <div class="sub" id="lv-chat-sub">Escribe un @usuario conocido para ver su conversación acá.</div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
@@ -114,6 +121,18 @@ function buildDOM() {
         if (e.key === 'Enter') { e.preventDefault(); enviarChat(); }
     });
     $('lv-chat-modo').addEventListener('click', cambiarModoChat);
+
+    // Cajón "Conversaciones": lista quién escribió y permite abrir el chat
+    // SIN tapar la columna de registrar ventas.
+    initConversacionesDrawer({
+        onBadge: (n) => {
+            const badge = $('lv-chat-conv-n');
+            if (!badge) return;
+            badge.textContent = String(n);
+            badge.style.display = n > 0 ? 'inline-block' : 'none';
+        }
+    });
+    $('lv-chat-conv').addEventListener('click', toggleConversaciones);
 }
 
 export function initLiveView() {
@@ -123,6 +142,7 @@ export function initLiveView() {
     }
     refrescarTodo();
     iniciarPollChat();
+    refrescarContador();
 }
 
 // Se llama cada vez que se activa la pestaña LIVE
@@ -130,6 +150,7 @@ export function activarLiveView() {
     if (!_built) return;
     refrescarTodo();
     iniciarPollChat();
+    refrescarContador();
 }
 
 // Refresca el chat del cliente visible cada 15 s (solo con LIVE a la vista).
