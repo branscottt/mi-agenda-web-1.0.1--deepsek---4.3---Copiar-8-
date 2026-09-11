@@ -148,7 +148,9 @@ async function cargarChats({ silencioso = false } = {}) {
     _chats = (res.data && Array.isArray(res.data.chats)) ? res.data.chats : [];
 
     const sinLeer = _chats.reduce((a, c) => a + (Number(c.sin_leer) || 0), 0);
-    if (_onBadge) _onBadge(sinLeer);
+    // Avisos abiertos: aunque el chat esté leído, sigue habiendo algo que revisar
+    const porRevisar = _chats.reduce((a, c) => a + (c.tiene_aviso ? 1 : 0), 0);
+    if (_onBadge) _onBadge(sinLeer + porRevisar, { sinLeer, porRevisar });
 
     if (_abierto && !_chatId) renderLista();
 }

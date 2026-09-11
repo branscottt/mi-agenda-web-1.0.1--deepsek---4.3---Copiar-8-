@@ -125,11 +125,23 @@ function buildDOM() {
     // Cajón "Conversaciones": lista quién escribió y permite abrir el chat
     // SIN tapar la columna de registrar ventas.
     initConversacionesDrawer({
-        onBadge: (n) => {
+        onBadge: (n, extra) => {
             const badge = $('lv-chat-conv-n');
             if (!badge) return;
+            const porRevisar = Number(extra && extra.porRevisar) || 0;
+            const sinLeer = Number(extra && extra.sinLeer) || 0;
             badge.textContent = String(n);
             badge.style.display = n > 0 ? 'inline-block' : 'none';
+            // Aviso del bot = algo que revisar: badge ámbar con brillo suave
+            badge.classList.toggle('aviso', porRevisar > 0);
+
+            const btn = $('lv-chat-conv');
+            if (btn) {
+                const partes = [];
+                if (sinLeer) partes.push(sinLeer + ' mensaje' + (sinLeer === 1 ? '' : 's') + ' sin leer');
+                if (porRevisar) partes.push(porRevisar + ' por revisar (comprobante / pago / usuario)');
+                btn.title = partes.length ? partes.join(' · ') : 'Ver todas las conversaciones';
+            }
         }
     });
     $('lv-chat-conv').addEventListener('click', toggleConversaciones);

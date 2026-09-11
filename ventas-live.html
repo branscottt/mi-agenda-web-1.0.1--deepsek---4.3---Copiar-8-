@@ -428,6 +428,16 @@
             color: #ffe066; cursor: help;
         }
         .vl-conv-item.con-aviso { border-left: 3px solid rgba(255,193,7,0.55); }
+        /* Badge "algo por revisar": ámbar con brillo suave (nunca rojo ni parpadeo) */
+        .vl-conv-badge.aviso {
+            background: #ffc107; color: #10171f;
+            animation: vlBrilloSuave 2.6s ease-in-out infinite;
+        }
+        @keyframes vlBrilloSuave {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.30); }
+            50%      { box-shadow: 0 0 9px 3px rgba(255,193,7,0.45); }
+        }
+        @media (prefers-reduced-motion: reduce) { .vl-conv-badge.aviso { animation: none; } }
 
         @media (max-width: 860px) {
             .vl-drawer { width: 92vw; }
@@ -484,7 +494,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=82"></script>
+    <script type="module" src="dist/app.js?v=83"></script>
     <script defer src="dist/legacy.js?v=68"></script>
 </body>
 </html>
