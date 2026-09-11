@@ -60,6 +60,14 @@ export const AVISO_INFO = {
     entrega_blue: {
         label: 'Envío por Blue',
         accion: 'Crea el pedido en Blue Express: el envío lo paga el cliente al recibir.'
+    },
+    paket_region: {
+        label: 'Paket fuera de Santiago',
+        accion: 'Paket solo cubre la RM: elige Blue o coordina el envío a mano y respóndele al cliente.'
+    },
+    sin_pedido: {
+        label: 'Sin pedido cargado',
+        accion: 'Mira lo que mandó en el chat, revísalo en la web y escríbele tú (el bot no responde eso solo).'
     }
 };
 
