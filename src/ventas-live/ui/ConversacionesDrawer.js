@@ -16,7 +16,7 @@
 import { vlApi } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { ESTADO_CHAT, fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
+import { ESTADO_CHAT, AVISO_CHAT, fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
 
 const REFRESCO_ABIERTO_MS = 15000;
 const REFRESCO_BADGE_MS = 30000;
@@ -173,8 +173,12 @@ function renderLista() {
             ? '<span class="vl-conv-chip humano">👤 Tú</span>'
             : '<span class="vl-conv-chip bot">🤖 Bot</span>';
         const noLeido = nuevo ? `<span class="vl-conv-noleido">${Number(c.sin_leer)}</span>` : '';
+        // Aviso que dejó el bot: qué hay que revisar en este chat
+        const aviso = c.aviso_tipo
+            ? `<span class="vl-conv-chip aviso" title="${escapeHtml(c.aviso_detalle || '')}">⚠️ ${escapeHtml(AVISO_CHAT[c.aviso_tipo] || c.aviso_tipo)}</span>`
+            : '';
         return `
-            <button class="vl-conv-item${nuevo ? ' activo' : ''}" data-chat="${escapeHtml(c.id)}" type="button">
+            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}" data-chat="${escapeHtml(c.id)}" type="button">
                 <div class="vl-conv-top">
                     <span class="vl-conv-nombre">${escapeHtml(nombre)}</span>
                     <span class="vl-conv-hora">${escapeHtml(fmtHora(c.ultimo_en))}</span>
@@ -182,7 +186,7 @@ function renderLista() {
                 <div class="vl-conv-num">${escapeHtml(sub)}</div>
                 <div class="vl-conv-msg">${escapeHtml(c.ultimo_mensaje || '')}</div>
                 <div class="vl-conv-foot">
-                    <span class="vl-conv-chip">${escapeHtml(ESTADO_CHAT[c.estado] || c.estado)}</span>
+                    ${aviso}<span class="vl-conv-chip">${escapeHtml(ESTADO_CHAT[c.estado] || c.estado)}</span>
                     ${modo}${noLeido}
                 </div>
             </button>`;

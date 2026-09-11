@@ -8,11 +8,23 @@ import { escapeHtml } from '../../shared/infrastructure/formatters.js';
 export const ESTADO_CHAT = {
     nuevo: 'Nuevo',
     esperando_tiktok: 'Esperando @TikTok',
+    esperando_confirmar_usuario: 'Confirmando usuario',
     esperando_tipo_entrega: 'Eligiendo entrega',
-    esperando_ciudad: 'Envío: ciudad',
-    esperando_comuna: 'Envío: comuna',
-    esperando_direccion: 'Envío: dirección',
+    esperando_datos_envio: 'Esperando datos de envío',
+    esperando_forma_pago: 'Presencial: cómo paga',
     listo: 'Listo'
+};
+
+// Avisos que el bot dejó para que los revise una persona, con el nombre
+// que se muestra en el chip del chat (el detalle va en el tooltip).
+export const AVISO_CHAT = {
+    comprobante: 'Comprobante',
+    pago: 'Dijo que pagó',
+    sin_cliente: 'Revisar chat',
+    sin_courier: 'Elegir courier',
+    no_entendido: 'No se entendió',
+    usuario_no_encontrado: 'Usuario no encontrado',
+    usuario_no_confirmado: 'Usuario no confirmado'
 };
 
 /** Hora del mensaje: solo hora si es de hoy, si no fecha + hora. */
