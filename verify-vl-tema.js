@@ -54,7 +54,58 @@ const FIXTURES = {
                     ventas: { hoy: 124000 }, pagos: { hoy: 78000 }, pendiente_total: 46000 },
     vl_wa_chats_listar: { chats: CHATS },
     vl_wa_chat_hilo: { chat: CHATS[0], mensajes: MENSAJES },
-    vl_wa_chat_por_cliente: { chat_id: 'c1', modo: 'bot' }
+    vl_wa_chat_por_cliente: { chat_id: 'c1', modo: 'bot' },
+
+    // ── Secciones Procesos / Clientes / Envíos / Finanzas ──
+    vl_panel_procesos: {
+        conteos: { esperando_pago: 2, pagado_sin_decision: 1, envio_programado: 1 },
+        procesos: [
+            { proceso_id: 'p1', grupo: 'esperando_pago', estado: 'esperando_pago', dias_espera: 1, prendas: 2, total: 16000, pagado: 0, saldo: 16000, envio: {},
+              cliente: { tiktok_user: 'maria_tt', nombre_real: 'María López', whatsapp: '+56 9 1111 2222' } },
+            { proceso_id: 'p2', grupo: 'esperando_pago', estado: 'pago_parcial', dias_espera: 4, prendas: 1, total: 12000, pagado: 6000, saldo: 6000, envio: {},
+              cliente: { tiktok_user: 'jorge_v', nombre_real: null, whatsapp: '+56 9 3333 4444' } },
+            { proceso_id: 'p3', grupo: 'pagado_sin_decision', estado: 'pagado', dias_espera: 0, prendas: 3, total: 24000, pagado: 24000, saldo: 0, envio: {},
+              cliente: { tiktok_user: 'sofi.cl', nombre_real: 'Sofía Ramírez', whatsapp: '+56 9 5555 6666' } },
+            { proceso_id: 'p4', grupo: 'envio_programado', estado: 'envio_programado', dias_espera: 0, prendas: 2, total: 18000, pagado: 18000, saldo: 0,
+              envio: { empresa: 'blue_express', tracking: 'BX123456', fecha_programada: '2026-09-12' },
+              cliente: { tiktok_user: 'cami_tt', nombre_real: 'Camila Soto', whatsapp: '+56 9 7777 8888' } }
+        ]
+    },
+    vl_envios_pendientes: {
+        grupos: {
+            hoy: [{ proceso_id: 'p4', tipo: 'envio', empresa: 'blue_express', tracking: 'BX123456', fecha_programada: '2026-09-11', envio_estado: 'pendiente',
+                    cliente: { tiktok_user: 'cami_tt', nombre_real: 'Camila Soto', whatsapp: '+56 9 7777 8888', direccion: 'Av. Providencia 1234', comuna: 'Providencia', ciudad: 'Santiago' } }],
+            manana: [{ proceso_id: 'p5', tipo: 'presencial', empresa: null, tracking: null, fecha_programada: '2026-09-12', envio_estado: 'pendiente',
+                       cliente: { tiktok_user: 'jorge_v', nombre_real: null, whatsapp: '+56 9 3333 4444', direccion: 'Calle Falsa 123', comuna: 'Valparaíso', ciudad: 'Valparaíso' } }],
+            proximos: [], presenciales: [], en_proceso: []
+        }
+    },
+    vl_finanzas_resumen: {
+        ingresos: { ventas_total: 480000, ventas_mes: 210000, recibido_total: 390000, pendiente: 90000 },
+        inversiones: { total: 200000, mes: 80000 },
+        gastos: { total: 35000, mes: 15000 },
+        resultado: { ganancia_estimada: 155000, flujo_caja: 355000 },
+        ultimos_gastos: [
+            { gasto_id: 'g1', tipo: 'gasto', concepto: 'Bolsas y etiquetas', monto: 12000, fecha: '2026-09-10' },
+            { gasto_id: 'g2', tipo: 'inversion', concepto: 'Compra de prendas', monto: 80000, fecha: '2026-09-09' }
+        ]
+    },
+    vl_buscar_clientes: {
+        clientes: [
+            { cliente_id: 'c1', tiktok_user: 'maria_tt', nombre_real: 'María López', whatsapp: '+56 9 1111 2222', ciudad: 'Santiago', categoria: 'confiable',
+              proceso_activo: { estado: 'esperando_pago', prendas: 2, saldo: 16000 } },
+            { cliente_id: 'c2', tiktok_user: 'jorge_v', nombre_real: null, whatsapp: '+56 9 3333 4444', ciudad: 'Valparaíso', categoria: 'nuevo', proceso_activo: null },
+            { cliente_id: 'c3', tiktok_user: 'sofi.cl', nombre_real: 'Sofía Ramírez', whatsapp: '+56 9 5555 6666', ciudad: 'Concepción', categoria: 'problematico',
+              proceso_activo: { estado: 'pagado', prendas: 1, saldo: 0 } }
+        ]
+    },
+    vl_ficha_cliente: {
+        cliente: { cliente_id: 'c1', tiktok_user: 'maria_tt', nombre_real: 'María López', whatsapp: '+56 9 1111 2222', ciudad: 'Santiago', comuna: 'Ñuñoa',
+                   direccion: 'Av. Providencia 1234', categoria: 'confiable' },
+        contadores: { reservas: 4, concretadas: 3, no_concretadas: 1, comprado_total: 96000, pagado_total: 80000 },
+        proceso_activo: { proceso_id: 'p1', estado: 'esperando_pago', prendas: 2, saldo: 16000, items: [{ descripcion: 'Polera negra M', precio: 8000 }, { descripcion: 'Jeans azul 38', precio: 8000 }], pagos: [], envio: null },
+        historial: [{ estado: 'completado', cerrado_en: '2026-08-30', prendas: 2, total_comprado: 16000, total_pagado: 16000 }]
+    }
 };
 
 // ── Servidor estático de dist/ ──────────────────────────────────────
@@ -222,6 +273,51 @@ async function medir(page, etiqueta) {
         });
         if (sesion) console.log(`[sesión ${v.nombre}] ` + JSON.stringify(sesion));
     }
+
+    // ── Secciones Procesos / Clientes / Envíos / Finanzas ────────────
+    // La paleta toca clases compartidas (.vl-fila, .vl-chip, .vl-btn,
+    // .vl-badge, .vl-card), así que se revisan las 4 secciones en web,
+    // tablet y móvil: sin scroll horizontal y sin desbordes.
+    const SECCIONES = ['procesos', 'clientes', 'envios', 'finanzas'];
+    for (const v of [{ n: '1440', w: 1440, h: 900 }, { n: '834', w: 834, h: 1112 }, { n: '390', w: 390, h: 844 }]) {
+        await page.setViewportSize({ width: v.w, height: v.h });
+        for (const sec of SECCIONES) {
+            await page.click(`.vl-tab[data-view="${sec}"]`);
+            await page.waitForTimeout(700);
+            await page.evaluate(() => window.scrollTo(0, 0));
+            const m = await page.evaluate(() => ({
+                overflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
+                scrollW: document.documentElement.scrollWidth,
+                vw: window.innerWidth,
+                alto: document.documentElement.scrollHeight,
+                filas: document.querySelectorAll('.vl-view.active .vl-fila').length,
+                filasDesbordadas: [...document.querySelectorAll('.vl-view.active .vl-fila')]
+                    .filter(f => f.scrollWidth > f.clientWidth + 1).length,
+                chips: document.querySelectorAll('.vl-view.active .vl-chip').length,
+                acento: (() => {
+                    const e = document.querySelector('.vl-view.active .vl-btn.primary') || document.querySelector('.vl-view.active .vl-chip.active');
+                    return e ? getComputedStyle(e).backgroundImage.slice(0, 46) : 'n/a';
+                })()
+            }));
+            console.log(`[${sec} ${v.n}] ` + JSON.stringify(m));
+            await page.screenshot({ path: path.join(OUT, `sec-${sec}-${v.n}.png`), fullPage: false });
+            await page.screenshot({ path: path.join(OUT, `sec-${sec}-${v.n}-full.png`), fullPage: true });
+        }
+    }
+    // Ficha del cliente (tabla + contadores) en móvil
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.click('.vl-tab[data-view="clientes"]');
+    await page.waitForTimeout(500);
+    await page.locator('.vl-view.active .vl-fila').first().click();
+    await page.waitForTimeout(600);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const ficha = await page.evaluate(() => ({
+        overflowX: document.documentElement.scrollWidth > window.innerWidth + 1,
+        tablas: document.querySelectorAll('#vc-ficha .vl-tabla').length,
+        tablaDesborda: [...document.querySelectorAll('#vc-ficha .vl-tabla')].some(t => t.scrollWidth > t.clientWidth + 1)
+    }));
+    console.log('[ficha 390] ' + JSON.stringify(ficha));
+    await page.screenshot({ path: path.join(OUT, 'sec-ficha-390-full.png'), fullPage: true });
 
     await browser.close();
     srv.close();
