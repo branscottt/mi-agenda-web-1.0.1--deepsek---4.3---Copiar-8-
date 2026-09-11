@@ -5,6 +5,53 @@
 // dentro del JSONB; los errores de red/RLS se normalizan acá.
 
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
+import { getAppConfig } from '../../shared/infrastructure/config.js';
+
+// Token JWT actual (mismo criterio que el cliente de Mercado Pago):
+// 1) JwtManager moderno, 2) sesión de Supabase, 3) localStorage legacy.
+function getAuthToken() {
+    if (window.JwtManager && typeof window.JwtManager.getAccessToken === 'function') {
+        const t = window.JwtManager.getAccessToken();
+        if (t) return t;
+    }
+    if (window.__session && window.__session.access_token) return window.__session.access_token;
+    try {
+        const stored = localStorage.getItem('supabase.auth.token');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            return (parsed && parsed.currentSession && parsed.currentSession.access_token) || null;
+        }
+    } catch (_) { /* sin token */ }
+    return null;
+}
+
+// Envío manual de WhatsApp: pasa por la Edge Function (el token del tenant
+// vive server-side y nunca llega al navegador).
+async function enviarMensajeManual(chatId, texto) {
+    try {
+        const cfg = getAppConfig();
+        const base = (cfg.edgeFunctionsUrl ||
+            ((cfg.supabaseUrl || '').replace(/\/+$/, '') + '/functions/v1'));
+        const token = getAuthToken();
+        if (!token) return { ok: false, error: 'Sesión no disponible' };
+
+        const resp = await fetch(`${base}/wa-enviar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ chat_id: chatId, texto })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data || data.ok !== true) {
+            return { ok: false, error: (data && data.error) || `Error HTTP ${resp.status}` };
+        }
+        return { ok: true, data: data.mensaje };
+    } catch (e) {
+        return { ok: false, error: e.message || 'Error inesperado' };
+    }
+}
 
 async function callRpc(nombre, params = {}) {
     const supabase = getSupabase();
@@ -74,7 +121,13 @@ export const vlApi = {
 
     // ---- Conexión WhatsApp (bot Cloud API) ----
     guardarConfigWa: (params) => callRpc('vl_guardar_config_wa', params),
-    waConexionInfo: () => callRpc('vl_wa_conexion_info')
+    waConexionInfo: () => callRpc('vl_wa_conexion_info'),
+
+    // ---- Chats de WhatsApp (intervención humana) ----
+    chatsListar: () => callRpc('vl_wa_chats_listar'),
+    chatHilo: (chatId) => callRpc('vl_wa_chat_hilo', { p_chat_id: chatId }),
+    chatModo: (chatId, modo) => callRpc('vl_wa_chat_modo', { p_chat_id: chatId, p_modo: modo }),
+    enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto)
 };
 
 export const CATEGORIA_INFO = {

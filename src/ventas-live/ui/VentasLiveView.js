@@ -392,6 +392,17 @@ async function activarVista(nombre) {
         return;
     }
 
+    if (nombre === 'chats') {
+        try {
+            const mod = await import('./ChatsView.js');
+            mod.initChats();
+        } catch (e) {
+            console.error('[VentasLiveView] Error cargando ChatsView:', e);
+            cont.innerHTML = '<div class="vl-empty">No se pudo cargar Chats.</div>';
+        }
+        return;
+    }
+
     if (nombre === 'envios') {
         try {
             const mod = await import('./EnviosView.js');

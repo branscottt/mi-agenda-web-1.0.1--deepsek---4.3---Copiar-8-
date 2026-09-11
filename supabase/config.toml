@@ -407,6 +407,11 @@ verify_jwt = false
 [functions.wa-webhook]
 verify_jwt = false
 
+# wa-enviar: protegida con JWT — el panel manda mensajes a mano como
+# admin del espacio de Ventas Live (intervención humana).
+[functions.wa-enviar]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
