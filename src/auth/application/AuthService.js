@@ -61,7 +61,7 @@ export async function loginWithGoogle() {
         console.log('[AuthService] Sesión limpiada, iniciando OAuth');
         await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin + '/admin.html' }
+            options: { redirectTo: window.location.origin + '/hub.html' }
         });
         console.log('[AuthService] OAuth iniciado, redirigiendo a Google');
         return { success: true };
