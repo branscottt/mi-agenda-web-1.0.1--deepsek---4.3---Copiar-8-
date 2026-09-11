@@ -145,18 +145,53 @@ export function iniciarLogin() {
         try { return paramsDelHash().get('type') === 'recovery'; } catch (_) { return false; }
     }
 
-    // Enlace vencido o ya usado: Supabase vuelve con #error_code=otp_expired
-    function esErrorDeEnlace(code) {
-        return code === 'otp_expired' || code === 'access_denied' || code === 'validation_failed';
+    // Errores que Supabase devuelve EN LA URL (login con Google fallido, enlace
+    // vencido, etc.). Hay que mostrarlos SIEMPRE: si no, el usuario vuelve al
+    // login sin saber qué pasó (caso real reportado 2026-11).
+    function paramsDeUrl() {
+        const q = new URLSearchParams((window.location.search || '').replace(/^\?/, ''));
+        const h = paramsDelHash();
+        return {
+            error: h.get('error') || q.get('error'),
+            errorCode: h.get('error_code') || q.get('error_code'),
+            errorDescription: h.get('error_description') || q.get('error_description'),
+        };
     }
 
-    function avisarEnlaceVencido() {
+    function mensajeDeErrorDeUrl(p) {
+        const code = p.errorCode || '';
+        const detalle = p.errorDescription ? ' Detalle: ' + String(p.errorDescription).slice(0, 120) : '';
+        if (code === 'otp_expired') return 'Ese enlace ya venció o se usó. Pídelo de nuevo en «¿Olvidaste tu contraseña?».';
+        if (code === 'access_denied' || p.error === 'access_denied') {
+            return 'No se autorizó el acceso con Google. Inténtalo otra vez, o entra con tu correo y tu contraseña.' + detalle;
+        }
+        if (code === 'unexpected_failure' || p.error === 'server_error') {
+            return 'Google no pudo confirmar la cuenta, así que no se pudo entrar. Inténtalo otra vez; si sigue pasando, escríbenos por WhatsApp.' + detalle;
+        }
+        if (code) return 'No se pudo completar el acceso (' + code + '). Inténtalo otra vez.' + detalle;
+        return 'No se pudo completar el acceso. Inténtalo otra vez.' + detalle;
+    }
+
+    function avisarErrorDeUrl() {
         try {
-            const errorCode = paramsDelHash().get('error_code');
-            if (!esErrorDeEnlace(errorCode)) return;
-            const msg = 'El enlace para crear tu contraseña ya venció o se usó. Pídelo de nuevo en «¿Olvidaste tu contraseña?».';
+            const p = paramsDeUrl();
+            if (!p.error && !p.errorCode) return;
+            const msg = mensajeDeErrorDeUrl(p);
             if (loginErrorDiv) { loginErrorDiv.textContent = msg; loginErrorDiv.style.display = 'block'; }
+            mostrarToast(msg, 'error');
+            console.warn('[LoginPage] Supabase devolvió un error en la URL:', p.errorCode || p.error);
         } catch (_) {}
+    }
+
+    // Si la URL trae una sesión (login con Google que aterrizó en login.html en
+    // vez de hub.html), terminamos el login en vez de quedarnos en silencio.
+    function completarLoginDesdeUrl() {
+        if (esEnlaceDeRecovery()) return false;
+        if (!/access_token=/.test((window.location.hash || '') + (window.location.search || ''))) return false;
+        console.log('[LoginPage] Sesión recibida en la URL: completando login');
+        mostrarToast('Entrando a tu cuenta...', 'info');
+        setTimeout(() => { window.location.replace('hub.html'); }, 500);
+        return true;
     }
 
     if (recoveryForm) {
@@ -210,7 +245,8 @@ export function iniciarLogin() {
         }
     } catch (_) {}
     if (esEnlaceDeRecovery()) mostrarRecovery();
-    avisarEnlaceVencido();
+    avisarErrorDeUrl();
+    completarLoginDesdeUrl();
 
     // --- LOGIN ---
     if (loginForm) {

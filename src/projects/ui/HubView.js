@@ -41,10 +41,21 @@ export function initHub() {
     });
 }
 
+// Al volver al login, conservar en la URL el error que devolvió Supabase
+// (p.ej. login con Google fallido): sin esto el usuario vuelve al login
+// "sin decir qué pasaba" porque el guard borra el error al redirigir.
+function irALogin(params) {
+    const enUrl = (window.location.search || '') + (window.location.hash || '');
+    const hayError = /(^|[?&#])(error|error_code)=/.test(enUrl);
+    window.location.href = hayError
+        ? 'login.html' + window.location.search + window.location.hash
+        : 'login.html';
+}
+
 async function renderHub() {
     const supabase = getSupabase();
     if (!supabase) {
-        window.location.href = 'login.html';
+        irALogin();
         return;
     }
 
@@ -54,7 +65,7 @@ async function renderHub() {
     // Guard de rol (los guards de ruta legacy ya re-dirigen al superadmin,
     // esto es una red de seguridad extra por si corre primero el módulo).
     if (!userData) {
-        window.location.href = 'login.html';
+        irALogin();
         return;
     }
     if (userData.rol === 'super_admin') {

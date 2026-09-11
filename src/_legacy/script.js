@@ -4933,6 +4933,14 @@ async function verificarProteccionRutas() {
 
         // Si NO hay sesión
         if (!session) {
+            // Retorno de Google: la URL trae el access_token y el SDK todavía está
+            // creando la sesión. Si rebotamos aquí, el usuario ve el login "sin
+            // decir qué pasaba" aunque el login sí haya funcionado.
+            if (/access_token=/.test(window.location.hash || '')) {
+                console.log('[Rutas] token en la URL: esperando la sesión del SDK, sin redirigir');
+                return;
+            }
+
             // Permitir acceso a login.html, la raíz y cliente.html (link compartido).
             // cliente.html sin sesión es el flujo legítimo del cliente externo: entra
             // con ?tenant=XXX, el RPC set_tenant_anon valida que el tenant exista y
@@ -4943,8 +4951,14 @@ async function verificarProteccionRutas() {
             // sirve cliente.html pero el navegador mantiene /p/<slug> en la barra).
             const esRutaPublica = pathname === 'login.html' || pathname === '' || pathname === 'cliente.html' || /^\/p\//.test(fullPath);
             if (!esRutaPublica) {
-                console.log('No hay sesión, redirigiendo a login');
-                window.location.href = 'login.html';
+                // Conservar el error que devolvió Supabase (p.ej. OAuth) para que el
+                // login pueda explicarlo, en vez de volver en silencio.
+                const enUrl = (window.location.search || '') + (window.location.hash || '');
+                const hayError = /(^|[?&#])(error|error_code)=/.test(enUrl);
+                console.log('No hay sesión, redirigiendo a login' + (hayError ? ' (con el error de la URL)' : ''));
+                window.location.href = hayError
+                    ? 'login.html' + window.location.search + window.location.hash
+                    : 'login.html';
             }
             return;
         }
