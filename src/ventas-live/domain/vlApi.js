@@ -127,6 +127,7 @@ export const vlApi = {
     chatsListar: () => callRpc('vl_wa_chats_listar'),
     chatHilo: (chatId) => callRpc('vl_wa_chat_hilo', { p_chat_id: chatId }),
     chatModo: (chatId, modo) => callRpc('vl_wa_chat_modo', { p_chat_id: chatId, p_modo: modo }),
+    chatPorCliente: (clienteId) => callRpc('vl_wa_chat_por_cliente', { p_cliente_id: clienteId }),
     enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto)
 };
 

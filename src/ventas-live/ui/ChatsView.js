@@ -10,18 +10,9 @@
 import { vlApi } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
+import { ESTADO_CHAT, fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
 
 const REFRESCO_MS = 15000;
-
-const ESTADO_CHAT = {
-    nuevo: 'Nuevo',
-    esperando_tiktok: 'Esperando @TikTok',
-    esperando_tipo_entrega: 'Eligiendo entrega',
-    esperando_ciudad: 'Envío: ciudad',
-    esperando_comuna: 'Envío: comuna',
-    esperando_direccion: 'Envío: dirección',
-    listo: 'Listo'
-};
 
 let _built = false;
 let _chats = [];
@@ -31,18 +22,6 @@ let _timer = null;
 let _enviando = false;
 
 function $(id) { return document.getElementById(id); }
-
-function fmtHora(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    const hoy = new Date();
-    const mismoDia = d.toDateString() === hoy.toDateString();
-    return mismoDia
-        ? d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
-        : d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) + ' ' +
-          d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-}
 
 export function initChats() {
     const cont = $('vl-view-chats');
@@ -244,37 +223,8 @@ function pintarCabecera(chat) {
 function renderMensajes(mensajes, { forzarAbajo = false } = {}) {
     const el = $('vcch-msgs');
     if (!el) return;
-
-    // No arrastrar el scroll si el usuario está leyendo hacia arriba.
-    const cercaDelFinal = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-
-    if (mensajes.length === 0) {
-        el.innerHTML = '<div class="vl-empty">Sin mensajes todavía.</div>';
-        return;
-    }
-
-    const nombreCliente = _chatMeta
-        ? (_chatMeta.nombre_real || (_chatMeta.tiktok_user ? '@' + _chatMeta.tiktok_user : 'Cliente'))
-        : 'Cliente';
-
-    el.innerHTML = mensajes.map(m => {
-        const saliente = m.direction === 'out';
-        const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
-        // Quién habló: el cliente, el bot automático, o tú desde el panel.
-        const autor = saliente
-            ? (m.origen === 'humano' ? 'Tú' : 'Bot')
-            : escapeHtml(nombreCliente);
-        return `
-            <div class="vl-fila-msg ${saliente ? 'out' : 'in'}">
-                <div class="vl-msg-autor">${autor}</div>
-                <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
-                    <div class="vl-burbuja-txt">${cuerpo}</div>
-                    <div class="vl-burbuja-hora">${escapeHtml(fmtHora(m.creado_en))}</div>
-                </div>
-            </div>`;
-    }).join('');
-
-    if (forzarAbajo || cercaDelFinal) el.scrollTop = el.scrollHeight;
+    el.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
+    autoScrollAbajo(el, { forzar: forzarAbajo });
 }
 
 // ── Envío manual ────────────────────────────────────────────────────

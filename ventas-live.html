@@ -421,6 +421,26 @@
             .vl-chats-hilo { height: 72vh; }
             .vl-fila-msg { max-width: 88%; }
         }
+
+        /* ===== Chat compacto dentro de MODO LIVE ===== */
+        .vl-chat-mini-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .vl-chat-mini-scroll {
+            margin-top: 10px; padding: 12px; border-radius: 12px;
+            background-color: #0b141a;
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.016) 0 2px, transparent 2px 9px);
+            display: flex; flex-direction: column; gap: 8px;
+            max-height: 260px; overflow-y: auto;
+        }
+        .vl-chat-mini-scroll:empty { display: none; }
+        .vl-chat-mini-scroll .vl-burbuja .vl-burbuja-txt { font-size: 0.83rem; }
+        .vl-chat-mini-scroll .vl-burbuja { padding: 7px 10px 5px; }
+        .vl-chat-mini-scroll .vl-msg-autor { font-size: 0.6rem; margin-bottom: 3px; }
+        .vl-chat-mini-vacio { color: #8696a0; font-size: 0.82rem; text-align: center; padding: 16px 8px; line-height: 1.5; }
+        .vl-chat-mini-composer { display: flex; gap: 8px; margin-top: 10px; }
+        .vl-chat-mini-composer .vl-control { flex: 1; background: #2a3942; border-color: transparent; color: #e9edef; min-height: 42px; }
+        .vl-chat-mini-composer .vl-control::placeholder { color: #8696a0; }
+        .vl-chat-mini-composer .vl-control:focus { border-color: #ff6d00; }
+        .vl-chat-mini-composer .vl-btn { flex-shrink: 0; padding: 10px 14px; }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -475,7 +495,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=78"></script>
+    <script type="module" src="dist/app.js?v=79"></script>
     <script defer src="dist/legacy.js?v=68"></script>
 </body>
 </html>
