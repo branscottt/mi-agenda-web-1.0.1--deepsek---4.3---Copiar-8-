@@ -105,6 +105,7 @@ export const vlApi = {
     // ---- Paneles ----
     panelProcesos: () => callRpc('vl_panel_procesos'),
     enviosPendientes: () => callRpc('vl_envios_pendientes'),
+    configFaltantes: () => callRpc('vl_config_faltantes'),
     dashboard: () => callRpc('vl_dashboard'),
     finanzasResumen: () => callRpc('vl_finanzas_resumen'),
 

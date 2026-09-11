@@ -48,6 +48,18 @@ export const AVISO_INFO = {
     usuario_no_confirmado: {
         label: 'Usuario no confirmado',
         accion: 'Pregúntale su usuario correcto y respóndele tú.'
+    },
+    entrega_presencial: {
+        label: 'Entrega presencial',
+        accion: 'Coordina la entrega con el cliente (el bloque de Entregas te dice la fecha que él mismo escribió).'
+    },
+    entrega_paket: {
+        label: 'Envío por Paket',
+        accion: 'Pide el envío en Paket ANTES de las 23:59 del día anterior (solo Santiago, +$3.500).'
+    },
+    entrega_blue: {
+        label: 'Envío por Blue',
+        accion: 'Crea el pedido en Blue Express: el envío lo paga el cliente al recibir.'
     }
 };
 

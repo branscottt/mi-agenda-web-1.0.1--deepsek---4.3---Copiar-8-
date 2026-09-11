@@ -97,6 +97,21 @@ export function refrescarContador() {
 
 export function estaAbierto() { return _abierto; }
 
+// Abre el cajón de Conversaciones en el chat de un cliente (por su @ de TikTok).
+// Lo usa el bloque de entregas para "confirmar en el chat" antes de actuar.
+export async function abrirChatDeUsuario(tiktokUser) {
+    const user = btrimLower(tiktokUser);
+    if (!user) return false;
+    abrirConversaciones();
+    await cargarChats({ silencioso: true });
+    const chat = _chats.find(c => btrimLower(c.tiktok_user) === user);
+    if (!chat) return false;
+    await abrirChat(chat.id);
+    return true;
+}
+
+function btrimLower(v) { return String(v == null ? '' : v).trim().toLowerCase(); }
+
 export function toggleConversaciones() {
     if (_abierto) cerrarConversaciones();
     else abrirConversaciones();
