@@ -325,73 +325,7 @@
             .vf-form-grid { grid-template-columns: 1fr 1fr !important; }
         }
 
-        /* ===== Chats: conversaciones de WhatsApp + intervención humana ===== */
-        .vl-chats-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 16px; align-items: start; }
-        .vl-chats-lista h2, .vl-chats-hilo h2 { margin: 0 0 4px; }
-        .vl-chats-lista .sub { margin-bottom: 12px; }
-        .vl-chats-lista { max-height: 76vh; overflow-y: auto; }
-
-        .vl-chat-item {
-            display: block; width: 100%; text-align: left; font-family: inherit;
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 14px; padding: 12px 14px; margin-bottom: 9px; cursor: pointer;
-            transition: border .15s ease, background .15s ease;
-        }
-        .vl-chat-item:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.2); }
-        .vl-chat-item.activo { border-color: #ff6d00; background: rgba(255,109,0,0.10); }
-        .vl-chat-item-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-        .vl-chat-item-nick { font-weight: 800; color: #f8f9fa; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .vl-chat-item-hora { color: var(--muted, #adb5bd); font-size: 0.72rem; flex-shrink: 0; }
-        .vl-chat-item-sub { color: #ffa94d; font-size: 0.76rem; font-weight: 700; margin-top: 1px; }
-        .vl-chat-item-msg {
-            color: #ced4da; font-size: 0.82rem; margin-top: 4px; line-height: 1.4;
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-        }
-        .vl-chat-item-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-        .vl-chat-estado {
-            font-size: 0.68rem; font-weight: 700; color: #adb5bd;
-            background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 9px;
-        }
-        .vl-chat-modo { font-size: 0.68rem; font-weight: 800; border-radius: 999px; padding: 2px 9px; }
-        .vl-chat-modo.humano { background: rgba(0,184,148,0.16); border: 1px solid rgba(0,184,148,0.45); color: #7ff5d8; }
-        .vl-chat-modo.bot { background: rgba(255,109,0,0.14); border: 1px solid rgba(255,109,0,0.4); color: #ffa94d; }
-        .vl-chat-badge {
-            margin-left: auto; background: #ff6d00; color: #fff; font-size: 0.7rem; font-weight: 800;
-            border-radius: 999px; padding: 2px 9px; min-width: 21px; text-align: center;
-            box-shadow: 0 0 0 2px rgba(255,109,0,0.25);
-        }
-
-        /* ---- Panel de la conversación (estructura WhatsApp) ---- */
-        .vl-chats-hilo { padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 76vh; min-height: 380px; }
-        .vl-chat-vacio { padding: 40px 20px; }
-        .vl-chat-ventana { display: none; flex-direction: column; flex: 1; min-height: 0; }
-        .vl-chat-ventana.visible { display: flex; }
-
-        .vl-chat-head {
-            display: flex; justify-content: space-between; align-items: center; gap: 12px;
-            padding: 12px 16px; background: #1f2c34; flex-shrink: 0;
-        }
-        .vl-chat-head-info { display: flex; align-items: center; gap: 11px; min-width: 0; }
-        .vl-chat-avatar {
-            width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
-            background: linear-gradient(135deg, #ff6d00, #e8590c);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 800; color: #fff; font-size: 1rem;
-        }
-        .vl-chat-nick { font-weight: 800; color: #e9edef; font-size: 0.98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .vl-chat-sub { color: #8696a0; font-size: 0.76rem; margin-top: 2px; }
-
-        .vl-chat-aviso { padding: 9px 16px; font-size: 0.78rem; font-weight: 600; line-height: 1.45; flex-shrink: 0; }
-        .vl-chat-aviso.humano { background: rgba(0,168,132,0.16); color: #7ff5d8; }
-        .vl-chat-aviso.bot { background: #182229; color: #a9bac3; }
-
-        .vl-chat-scroll {
-            flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 20px;
-            display: flex; flex-direction: column; gap: 10px;
-            background-color: #0b141a;
-            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.016) 0 2px, transparent 2px 9px);
-        }
-
+        /* ===== Burbujas de conversación (las usa el chat del LIVE) ===== */
         .vl-fila-msg { display: flex; flex-direction: column; max-width: 78%; }
         .vl-fila-msg.in { align-self: flex-start; align-items: flex-start; }
         .vl-fila-msg.out { align-self: flex-end; align-items: flex-end; }
@@ -409,30 +343,21 @@
         .vl-burbuja.out .vl-burbuja-txt { color: #ffffff; }
         .vl-burbuja.out .vl-burbuja-hora { color: rgba(255,255,255,0.75); }
 
-        .vl-chat-composer { display: flex; gap: 10px; align-items: flex-end; padding: 12px 14px; background: #1f2c34; flex-shrink: 0; }
-        .vl-chat-composer .vl-control { flex: 1; resize: none; min-height: 42px; max-height: 120px; background: #2a3942; border-color: transparent; color: #e9edef; }
-        .vl-chat-composer .vl-control::placeholder { color: #8696a0; }
-        .vl-chat-composer .vl-control:focus { border-color: #ff6d00; }
-        .vl-chat-composer .vl-btn { flex-shrink: 0; padding: 11px 16px; }
-
         @media (max-width: 860px) {
-            .vl-chats-grid { grid-template-columns: minmax(0, 1fr); }
-            .vl-chats-lista { max-height: 40vh; }
-            .vl-chats-hilo { height: 72vh; }
             .vl-fila-msg { max-width: 88%; }
         }
 
-        /* ===== Chat compacto dentro de MODO LIVE ===== */
+        /* ===== Chat del cliente dentro de MODO LIVE ===== */
         .vl-chat-mini-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .vl-chat-mini-scroll {
             margin-top: 10px; padding: 12px; border-radius: 12px;
             background-color: #0b141a;
             background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.016) 0 2px, transparent 2px 9px);
             display: flex; flex-direction: column; gap: 8px;
-            max-height: 260px; overflow-y: auto;
+            min-height: 120px; max-height: 400px; overflow-y: auto;
         }
         .vl-chat-mini-scroll:empty { display: none; }
-        .vl-chat-mini-scroll .vl-burbuja .vl-burbuja-txt { font-size: 0.83rem; }
+        .vl-chat-mini-scroll .vl-burbuja .vl-burbuja-txt { font-size: 0.85rem; }
         .vl-chat-mini-scroll .vl-burbuja { padding: 7px 10px 5px; }
         .vl-chat-mini-scroll .vl-msg-autor { font-size: 0.6rem; margin-bottom: 3px; }
         .vl-chat-mini-vacio { color: #8696a0; font-size: 0.82rem; text-align: center; padding: 16px 8px; line-height: 1.5; }
@@ -441,6 +366,8 @@
         .vl-chat-mini-composer .vl-control::placeholder { color: #8696a0; }
         .vl-chat-mini-composer .vl-control:focus { border-color: #ff6d00; }
         .vl-chat-mini-composer .vl-btn { flex-shrink: 0; padding: 10px 14px; }
+        /* Resalta la tarjeta cuando hay una conversación abierta */
+        #lv-chat-card.con-chat { border-color: rgba(37, 211, 102, 0.45); }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -478,7 +405,6 @@
 
                 <nav class="vl-nav" id="vl-nav" aria-label="Secciones">
                     <button class="vl-tab active" data-view="live" type="button"><i class="fas fa-bolt"></i> LIVE</button>
-                    <button class="vl-tab" data-view="chats" type="button"><i class="fab fa-whatsapp"></i> Chats</button>
                     <button class="vl-tab" data-view="procesos" type="button"><i class="fas fa-list-check"></i> Procesos</button>
                     <button class="vl-tab" data-view="clientes" type="button"><i class="fas fa-users"></i> Clientes</button>
                     <button class="vl-tab" data-view="envios" type="button"><i class="fas fa-truck-fast"></i> Envíos</button>
@@ -488,14 +414,13 @@
                 <section class="vl-view active" id="vl-view-live"></section>
                 <section class="vl-view" id="vl-view-procesos"></section>
                 <section class="vl-view" id="vl-view-clientes"></section>
-                <section class="vl-view" id="vl-view-chats"></section>
                 <section class="vl-view" id="vl-view-envios"></section>
                 <section class="vl-view" id="vl-view-finanzas"></section>
             </div>
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=79"></script>
+    <script type="module" src="dist/app.js?v=80"></script>
     <script defer src="dist/legacy.js?v=68"></script>
 </body>
 </html>

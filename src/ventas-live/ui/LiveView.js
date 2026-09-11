@@ -337,6 +337,8 @@ function limpiarChat() {
     _chatClienteId = null;
     _chatId = null;
     _chatModo = 'bot';
+    const card = $('lv-chat-card');
+    if (card) card.classList.remove('con-chat');
     const msgs = $('lv-chat-msgs');
     const sub = $('lv-chat-sub');
     const comp = $('lv-chat-composer');
@@ -383,6 +385,8 @@ async function cargarChatCliente(c) {
 
     _chatId = chatId;
     _chatModo = (res.data && res.data.modo) || 'bot';
+    const card = $('lv-chat-card');
+    if (card) card.classList.add('con-chat');
     if (comp) comp.style.display = 'flex';
     pintarCabeceraChat();
     await cargarHiloChat({ forzarAbajo: true });
