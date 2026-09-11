@@ -57,19 +57,22 @@ export function initChats() {
                     <div id="vcch-lista"><div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando…</div></div>
                 </div>
                 <div class="vl-card vl-chats-hilo">
-                    <div class="vl-empty" id="vcch-vacio"><i class="far fa-comments"></i><br>Elige una conversación</div>
-                    <div id="vcch-hilo" style="display:none;">
+                    <div class="vl-empty vl-chat-vacio" id="vcch-vacio"><i class="far fa-comments"></i><br>Elige una conversación</div>
+                    <div class="vl-chat-ventana" id="vcch-hilo">
                         <div class="vl-chat-head">
                             <div class="vl-chat-head-info">
-                                <div class="vl-chat-nick" id="vcch-nick">—</div>
-                                <div class="vl-chat-sub" id="vcch-sub">—</div>
+                                <div class="vl-chat-avatar" id="vcch-avatar">?</div>
+                                <div style="min-width:0;">
+                                    <div class="vl-chat-nick" id="vcch-nick">—</div>
+                                    <div class="vl-chat-sub" id="vcch-sub">—</div>
+                                </div>
                             </div>
                             <button class="vl-btn" id="vcch-modo" type="button"></button>
                         </div>
-                        <div class="vl-chat-aviso" id="vcch-aviso" style="display:none;"></div>
+                        <div class="vl-chat-aviso bot" id="vcch-aviso"></div>
                         <div class="vl-chat-scroll" id="vcch-msgs"></div>
                         <div class="vl-chat-composer">
-                            <textarea class="vl-control" id="vcch-input" rows="2" maxlength="1000"
+                            <textarea class="vl-control" id="vcch-input" rows="1" maxlength="1000"
                                 placeholder="Escribe tu respuesta… (Enter para enviar)"></textarea>
                             <button class="vl-btn primary" id="vcch-enviar" type="button">
                                 <i class="fas fa-paper-plane"></i> Enviar
@@ -195,7 +198,7 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const vacioEl = $('vcch-vacio');
     const hiloEl = $('vcch-hilo');
     if (vacioEl) vacioEl.style.display = 'none';
-    if (hiloEl) hiloEl.style.display = 'flex';
+    if (hiloEl) hiloEl.classList.add('visible');
 
     pintarCabecera(_chatMeta);
     renderMensajes(mensajes, { forzarAbajo: !silencioso });
@@ -207,9 +210,14 @@ function pintarCabecera(chat) {
     const sub = $('vcch-sub');
     const modoBtn = $('vcch-modo');
     const aviso = $('vcch-aviso');
+    const avatar = $('vcch-avatar');
     const nombre = chat.nombre_real || (chat.tiktok_user ? '@' + chat.tiktok_user : chat.wa_id);
 
     if (nick) nick.textContent = nombre;
+    if (avatar) {
+        const base = (chat.nombre_real || chat.tiktok_user || chat.wa_id || '?').replace(/^@/, '');
+        avatar.textContent = (base[0] || '?').toUpperCase();
+    }
     if (sub) {
         const partes = [chat.wa_id];
         if (chat.tiktok_user) partes.unshift('@' + chat.tiktok_user);
@@ -226,11 +234,10 @@ function pintarCabecera(chat) {
         modoBtn.dataset.modo = chat.modo;
     }
     if (aviso) {
-        aviso.style.display = 'block';
         aviso.className = humano ? 'vl-chat-aviso humano' : 'vl-chat-aviso bot';
         aviso.innerHTML = humano
             ? '<i class="fas fa-user"></i> Estás atendiendo tú: el bot está en pausa en esta conversación.'
-            : '<i class="fas fa-robot"></i> El bot está respondiendo automáticamente. Si escribes, tomas el control.';
+            : '<i class="fas fa-robot"></i> El bot responde solo. Si escribes, tomas el control.';
     }
 }
 
@@ -246,13 +253,24 @@ function renderMensajes(mensajes, { forzarAbajo = false } = {}) {
         return;
     }
 
+    const nombreCliente = _chatMeta
+        ? (_chatMeta.nombre_real || (_chatMeta.tiktok_user ? '@' + _chatMeta.tiktok_user : 'Cliente'))
+        : 'Cliente';
+
     el.innerHTML = mensajes.map(m => {
         const saliente = m.direction === 'out';
         const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
+        // Quién habló: el cliente, el bot automático, o tú desde el panel.
+        const autor = saliente
+            ? (m.origen === 'humano' ? 'Tú' : 'Bot')
+            : escapeHtml(nombreCliente);
         return `
-            <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
-                <div class="vl-burbuja-txt">${cuerpo}</div>
-                <div class="vl-burbuja-hora">${escapeHtml(fmtHora(m.creado_en))}</div>
+            <div class="vl-fila-msg ${saliente ? 'out' : 'in'}">
+                <div class="vl-msg-autor">${autor}</div>
+                <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
+                    <div class="vl-burbuja-txt">${cuerpo}</div>
+                    <div class="vl-burbuja-hora">${escapeHtml(fmtHora(m.creado_en))}</div>
+                </div>
             </div>`;
     }).join('');
 

@@ -326,11 +326,10 @@
         }
 
         /* ===== Chats: conversaciones de WhatsApp + intervención humana ===== */
-        .vl-chats-grid { display: grid; grid-template-columns: minmax(0, 330px) minmax(0, 1fr); gap: 16px; align-items: start; }
+        .vl-chats-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 16px; align-items: start; }
         .vl-chats-lista h2, .vl-chats-hilo h2 { margin: 0 0 4px; }
-        .vl-chats-lista .sub, .vl-chats-hilo .sub { margin-bottom: 12px; }
-        .vl-chats-lista { max-height: 68vh; overflow-y: auto; }
-        .vl-chats-hilo { display: flex; flex-direction: column; min-height: 320px; }
+        .vl-chats-lista .sub { margin-bottom: 12px; }
+        .vl-chats-lista { max-height: 76vh; overflow-y: auto; }
 
         .vl-chat-item {
             display: block; width: 100%; text-align: left; font-family: inherit;
@@ -355,35 +354,72 @@
         }
         .vl-chat-modo { font-size: 0.68rem; font-weight: 800; border-radius: 999px; padding: 2px 9px; }
         .vl-chat-modo.humano { background: rgba(0,184,148,0.16); border: 1px solid rgba(0,184,148,0.45); color: #7ff5d8; }
+        .vl-chat-modo.bot { background: rgba(255,109,0,0.14); border: 1px solid rgba(255,109,0,0.4); color: #ffa94d; }
         .vl-chat-badge {
-            margin-left: auto; background: #ff6d00; color: #fff; font-size: 0.68rem; font-weight: 800;
-            border-radius: 999px; padding: 2px 8px; min-width: 20px; text-align: center;
+            margin-left: auto; background: #ff6d00; color: #fff; font-size: 0.7rem; font-weight: 800;
+            border-radius: 999px; padding: 2px 9px; min-width: 21px; text-align: center;
+            box-shadow: 0 0 0 2px rgba(255,109,0,0.25);
         }
 
-        .vl-chat-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .vl-chat-nick { font-weight: 800; color: #f8f9fa; font-size: 1rem; }
-        .vl-chat-sub { color: var(--muted, #adb5bd); font-size: 0.78rem; margin-top: 2px; }
-        .vl-chat-aviso { margin: 10px 0 0; padding: 9px 12px; border-radius: 10px; font-size: 0.78rem; font-weight: 600; line-height: 1.45; }
-        .vl-chat-aviso.humano { background: rgba(0,184,148,0.12); border: 1px solid rgba(0,184,148,0.4); color: #7ff5d8; }
-        .vl-chat-aviso.bot { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #ced4da; }
+        /* ---- Panel de la conversación (estructura WhatsApp) ---- */
+        .vl-chats-hilo { padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 76vh; min-height: 380px; }
+        .vl-chat-vacio { padding: 40px 20px; }
+        .vl-chat-ventana { display: none; flex-direction: column; flex: 1; min-height: 0; }
+        .vl-chat-ventana.visible { display: flex; }
 
-        .vl-chat-scroll { flex: 1; overflow-y: auto; padding: 14px 4px 10px; display: flex; flex-direction: column; gap: 8px; max-height: 46vh; }
-        .vl-burbuja { max-width: 78%; border-radius: 14px; padding: 9px 13px; font-size: 0.87rem; line-height: 1.45; }
-        .vl-burbuja .vl-burbuja-txt { color: #f1f3f5; word-wrap: break-word; overflow-wrap: anywhere; }
-        .vl-burbuja .vl-burbuja-hora { font-size: 0.66rem; opacity: .65; margin-top: 4px; text-align: right; }
-        .vl-burbuja.in { align-self: flex-start; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); }
-        .vl-burbuja.out { align-self: flex-end; background: rgba(255,109,0,0.16); border: 1px solid rgba(255,109,0,0.38); }
-        .vl-burbuja.out .vl-burbuja-txt { color: #ffd9bd; }
+        .vl-chat-head {
+            display: flex; justify-content: space-between; align-items: center; gap: 12px;
+            padding: 12px 16px; background: #1f2c34; flex-shrink: 0;
+        }
+        .vl-chat-head-info { display: flex; align-items: center; gap: 11px; min-width: 0; }
+        .vl-chat-avatar {
+            width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+            background: linear-gradient(135deg, #ff6d00, #e8590c);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; color: #fff; font-size: 1rem;
+        }
+        .vl-chat-nick { font-weight: 800; color: #e9edef; font-size: 0.98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vl-chat-sub { color: #8696a0; font-size: 0.76rem; margin-top: 2px; }
 
-        .vl-chat-composer { display: flex; gap: 10px; align-items: flex-end; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
-        .vl-chat-composer .vl-control { flex: 1; resize: vertical; min-height: 44px; max-height: 140px; }
+        .vl-chat-aviso { padding: 9px 16px; font-size: 0.78rem; font-weight: 600; line-height: 1.45; flex-shrink: 0; }
+        .vl-chat-aviso.humano { background: rgba(0,168,132,0.16); color: #7ff5d8; }
+        .vl-chat-aviso.bot { background: #182229; color: #a9bac3; }
+
+        .vl-chat-scroll {
+            flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 20px;
+            display: flex; flex-direction: column; gap: 10px;
+            background-color: #0b141a;
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.016) 0 2px, transparent 2px 9px);
+        }
+
+        .vl-fila-msg { display: flex; flex-direction: column; max-width: 78%; }
+        .vl-fila-msg.in { align-self: flex-start; align-items: flex-start; }
+        .vl-fila-msg.out { align-self: flex-end; align-items: flex-end; }
+        .vl-msg-autor { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+        .vl-fila-msg.in .vl-msg-autor { color: #ffa94d; }
+        .vl-fila-msg.out .vl-msg-autor { color: #8696a0; }
+
+        .vl-burbuja { border-radius: 10px; padding: 8px 12px 6px; max-width: 100%; box-shadow: 0 1px 1px rgba(0,0,0,0.28); }
+        .vl-burbuja .vl-burbuja-txt { font-size: 0.9rem; line-height: 1.48; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; }
+        .vl-burbuja .vl-burbuja-hora { font-size: 0.66rem; margin-top: 3px; text-align: right; }
+        .vl-burbuja.in { background: #202c33; color: #e9edef; border-top-left-radius: 2px; }
+        .vl-burbuja.in .vl-burbuja-txt { color: #e9edef; }
+        .vl-burbuja.in .vl-burbuja-hora { color: #8696a0; }
+        .vl-burbuja.out { background: linear-gradient(135deg, #e8590c, #c2410c); border-top-right-radius: 2px; }
+        .vl-burbuja.out .vl-burbuja-txt { color: #ffffff; }
+        .vl-burbuja.out .vl-burbuja-hora { color: rgba(255,255,255,0.75); }
+
+        .vl-chat-composer { display: flex; gap: 10px; align-items: flex-end; padding: 12px 14px; background: #1f2c34; flex-shrink: 0; }
+        .vl-chat-composer .vl-control { flex: 1; resize: none; min-height: 42px; max-height: 120px; background: #2a3942; border-color: transparent; color: #e9edef; }
+        .vl-chat-composer .vl-control::placeholder { color: #8696a0; }
+        .vl-chat-composer .vl-control:focus { border-color: #ff6d00; }
         .vl-chat-composer .vl-btn { flex-shrink: 0; padding: 11px 16px; }
 
         @media (max-width: 860px) {
             .vl-chats-grid { grid-template-columns: minmax(0, 1fr); }
-            .vl-chats-lista { max-height: 42vh; }
-            .vl-chat-scroll { max-height: 40vh; }
-            .vl-burbuja { max-width: 88%; }
+            .vl-chats-lista { max-height: 40vh; }
+            .vl-chats-hilo { height: 72vh; }
+            .vl-fila-msg { max-width: 88%; }
         }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -422,9 +458,9 @@
 
                 <nav class="vl-nav" id="vl-nav" aria-label="Secciones">
                     <button class="vl-tab active" data-view="live" type="button"><i class="fas fa-bolt"></i> LIVE</button>
+                    <button class="vl-tab" data-view="chats" type="button"><i class="fab fa-whatsapp"></i> Chats</button>
                     <button class="vl-tab" data-view="procesos" type="button"><i class="fas fa-list-check"></i> Procesos</button>
                     <button class="vl-tab" data-view="clientes" type="button"><i class="fas fa-users"></i> Clientes</button>
-                    <button class="vl-tab" data-view="chats" type="button"><i class="fab fa-whatsapp"></i> Chats</button>
                     <button class="vl-tab" data-view="envios" type="button"><i class="fas fa-truck-fast"></i> Envíos</button>
                     <button class="vl-tab" data-view="finanzas" type="button"><i class="fas fa-chart-line"></i> Finanzas</button>
                 </nav>
@@ -439,7 +475,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=77"></script>
+    <script type="module" src="dist/app.js?v=78"></script>
     <script defer src="dist/legacy.js?v=68"></script>
 </body>
 </html>
