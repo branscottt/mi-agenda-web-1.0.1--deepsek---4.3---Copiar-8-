@@ -11,6 +11,7 @@
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { esArchivoAceptado, acceptAttr } from './matchArchivos.js';
 
 // ========== ESTILOS (coherentes con los overlays del panel admin) ==========
 const INPUT_STYLE = 'width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);color:var(--text-color,#e0e0e0);box-sizing:border-box;font-size:0.9rem;outline:none;transition:border-color .15s ease;';
@@ -18,22 +19,6 @@ const BTN_SEC = 'padding:8px 14px;border-radius:10px;background:rgba(255,255,255
 const BTN_PRI = 'padding:9px 16px;border-radius:10px;background:linear-gradient(135deg,var(--primary-color,#9d4edd),#7b2cbf);border:none;color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600;display:inline-flex;align-items:center;gap:7px;box-shadow:0 4px 14px rgba(157,78,221,0.3);';
 const BTN_PELIGRO = 'padding:7px 12px;border-radius:10px;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.25);color:#ff6b6b;cursor:pointer;font-size:0.78rem;display:inline-flex;align-items:center;gap:6px;';
 const AVISO_STYLE = 'display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:0.78rem;color:var(--text-muted,#aaa);line-height:1.45;';
-
-const MIME_ACEPTADOS = [
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/rtf',
-    'application/vnd.oasis.opendocument.text',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.oasis.opendocument.spreadsheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'text/plain', 'text/csv',
-    'application/zip'
-];
 
 function escapeHtml(str) {
     if (!str && str !== 0) return '';
@@ -368,7 +353,7 @@ export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
     function pedirNuevaVersion(archivo, btn) {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = MIME_ACEPTADOS.join(',');
+        input.accept = acceptAttr();
         input.style.display = 'none';
         document.body.appendChild(input);
         input.addEventListener('change', async () => {
@@ -488,7 +473,7 @@ export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
     }
 
     async function subirArchivos(files, nombreLogicoFijo, btn) {
-        const validos = files.filter(f => MIME_ACEPTADOS.includes((f.type || '').toLowerCase()));
+        const validos = files.filter(f => esArchivoAceptado(f));
         const invalidos = files.length - validos.length;
         if (!validos.length) { mostrarToast('Formato no soportado', 'warning'); return; }
         if (invalidos) mostrarToast(`${invalidos} archivo(s) omitidos por formato no soportado`, 'warning');

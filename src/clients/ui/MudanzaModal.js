@@ -15,6 +15,7 @@
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
+import { normalizar, evaluarMatch, esArchivoAceptado, acceptAttr } from './matchArchivos.js';
 
 const INPUT_STYLE = 'width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);color:var(--text-color,#e0e0e0);box-sizing:border-box;font-size:0.9rem;outline:none;font-family:inherit;';
 const TEXTAREA_STYLE = INPUT_STYLE + 'min-height:120px;resize:vertical;line-height:1.5;';
@@ -22,36 +23,12 @@ const BTN_PRI = 'padding:9px 16px;border-radius:10px;background:linear-gradient(
 const BTN_SEC = 'padding:8px 14px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text-color,#e0e0e0);cursor:pointer;font-size:0.82rem;display:inline-flex;align-items:center;gap:6px;';
 const CARD_STYLE = 'border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));padding:14px;margin-bottom:14px;';
 const AVISO_STYLE = 'display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);font-size:0.78rem;color:var(--text-muted,#aaa);line-height:1.45;';
-const MIME_ACEPTADOS = [
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/rtf',
-    'application/vnd.oasis.opendocument.text',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.oasis.opendocument.spreadsheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'text/plain', 'text/csv',
-    'application/zip'
-];
 
 // ========== Helpers ==========
 
 function escapeHtml(str) {
     if (!str && str !== 0) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-/** Normaliza texto para comparar: minúsculas, sin acentos, solo alfanumérico. */
-function normalizar(s) {
-    return String(s || '')
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '')
-        .trim();
 }
 
 function formatearTamano(bytes) {
@@ -304,8 +281,10 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     const BTN_PELIGRO = 'padding:6px 10px;border-radius:8px;background:rgba(255,80,80,0.1);border:1px solid rgba(255,80,80,0.22);color:#ff6b6b;cursor:pointer;font-size:0.74rem;';
 
     // ========== Cierre con protección ==========
+    // Los "sin dueño" ya NO son trabajo perdido: se guardan en la bandeja
+    // persistente. Solo se avisa si quedó algo que NO se pudo guardar.
     function tieneTrabajoPendiente() {
-        if (state.archivos.some(a => a.estado === 'sin_dueño')) return 'sin_dueño';
+        if (state.archivos.some(a => a.estado === 'sin_dueño' && !a.huerfanoId)) return 'sin_guardar';
         if (state.archivos.some(a => a.estado === 'pendiente')) return 'pendientes';
         if ((state.filasBruto.length && !state.importado) || state.resumenImport) return 'datos';
         return null;
@@ -326,15 +305,16 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     function pedirCerrar() {
         if (ocupado) { mostrarToast('Esperá a que termine la operación actual', 'warning'); return; }
         const pend = tieneTrabajoPendiente();
-        if (pend === 'sin_dueño') {
-            const n = state.archivos.filter(a => a.estado === 'sin_dueño').length;
-            if (!window.confirm(`Quedan ${n} archivo(s) sin dueño que se descartarán (no se guardan en ningún cliente). ¿Cerrar igual?`)) return;
+        if (pend === 'sin_guardar') {
+            const n = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId).length;
+            if (!window.confirm(`Quedan ${n} archivo(s) que no se pudieron guardar en la bandeja y se perderán. ¿Cerrar igual?`)) return;
+            limpiarSinDueno();
         } else if (pend === 'pendientes') {
             if (!window.confirm('Hay archivos agregados que todavía no se subieron. ¿Cerrar y descartarlos?')) return;
         } else if (pend === 'datos') {
             if (!window.confirm('Hay información preparada que no se importó. ¿Cerrar y descartarla?')) return;
         }
-        limpiarSinDueno().finally(cerrar);
+        cerrar();
     }
     $('mud-cerrar').addEventListener('click', pedirCerrar);
     $('mud-cancelar').addEventListener('click', pedirCerrar);
@@ -347,12 +327,12 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         else avanzar();
     });
 
-    /** Borra de Storage los archivos sin dueño (best effort) al cerrar. */
-    async function limpiarSinDueno() {
-        const sinDueno = state.archivos.filter(a => a.estado === 'sin_dueño' && a.storagePath);
-        if (!sinDueno.length) return;
+    /** Borra de Storage SOLO lo que el admin aceptó perder (no se pudo guardar). */
+    function limpiarSinDueno() {
+        const sueltos = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId && a.storagePath);
+        if (!sueltos.length) return;
         try {
-            await supabase.storage.from('kanban-adjuntos').remove(sinDueno.map(a => a.storagePath)).catch(() => {});
+            supabase.storage.from('kanban-adjuntos').remove(sueltos.map(a => a.storagePath)).catch(() => {});
         } catch (e) { /* best effort */ }
     }
 
@@ -399,8 +379,9 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         $atras.style.visibility = state.paso > 1 ? 'visible' : 'hidden';
         if (state.paso === 3) {
             $siguiente.innerHTML = '<i class="fas fa-flag-checkered"></i> Finalizar mudanza';
-            const sinDuenoCount = state.archivos.filter(a => a.estado === 'sin_dueño').length;
-            $siguiente.disabled = sinDuenoCount > 0 || ocupado;
+            // Los que ya quedaron guardados en la bandeja no bloquean el cierre.
+            const sinGuardar = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId).length;
+            $siguiente.disabled = sinGuardar > 0 || ocupado;
         } else {
             $siguiente.innerHTML = 'Siguiente <i class="fas fa-arrow-right"></i>';
             $siguiente.disabled = false;
@@ -426,12 +407,21 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                     <strong style="font-size:0.9rem;">¿Ya tenés tus clientes en Excel o Google Sheets?</strong>
                 </div>
                 <p style="margin:0 0 10px;font-size:0.78rem;color:var(--text-muted,#aaa);line-height:1.5;">
-                    Pegá las filas copiadas de tu planilla (Ctrl+C → Ctrl+V), o subí el archivo CSV. Reconoceremos las columnas solos:
+                    Pegá las filas copiadas de tu planilla (Excel/Sheets: seleccioná y <strong>Ctrl+C → Ctrl+V</strong> acá),
+                    o subí el archivo guardado como <strong>CSV</strong>. Reconoceremos las columnas solos:
                     nombre, teléfono, correo y dirección. Los que ya existen se actualizan en vez de duplicarse.
                 </p>
+                <div style="${AVISO_STYLE}margin-bottom:10px;">
+                    <i class="fas fa-circle-info" style="color:var(--primary-color,#9d4edd);margin-top:2px;"></i>
+                    <div>
+                        <strong style="color:var(--text-color,#e0e0e0);">¿Tenés un Excel (.xlsx)?</strong> Todavía no lo leemos directo, pero es un paso:
+                        en Excel/Sheets tocá <strong>Archivo → Guardar como / Descargar → CSV</strong> y subí ese archivo acá.
+                        Es la forma más rápida de traer 50 o 100 clientes de una sola vez.
+                    </div>
+                </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
                     <button class="btn-primary btn-small" id="mud1-plantilla" style="${BTN_PRI};padding:7px 12px;font-size:0.78rem;"><i class="fas fa-file-download"></i> Descargar plantilla</button>
-                    <label style="${BTN_SEC};cursor:pointer;padding:7px 12px;font-size:0.78rem;"><i class="fas fa-upload"></i> Subir archivo CSV<input type="file" id="mud1-csv" accept=".csv,text/csv" style="display:none;"></label>
+                    <label style="${BTN_SEC};cursor:pointer;padding:7px 12px;font-size:0.78rem;"><i class="fas fa-upload"></i> Subir archivo CSV<input type="file" id="mud1-csv" accept=".csv,.tsv,.txt,text/csv,text/plain" style="display:none;"></label>
                 </div>
                 <textarea id="mud1-texto" placeholder="Pegá acá tus clientes...&#10;&#10;Ejemplo:&#10;María García, +56 9 1234 5678, maria@correo.com, Av. Siempre Viva 123&#10;Juan Pérez, +56 9 9876 5432, juan@correo.com,&#10;" style="${TEXTAREA_STYLE}"></textarea>
                 <div style="display:flex;justify-content:flex-end;margin-top:10px;">
@@ -709,8 +699,14 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                     <i class="fas fa-cloud-upload-alt" style="font-size:1.5rem;color:var(--primary-color,#9d4edd);display:block;margin-bottom:8px;"></i>
                     <span style="font-size:0.85rem;">Tocá para elegir archivos</span>
                     <span style="display:block;font-size:0.72rem;color:var(--text-muted,#999);margin-top:4px;">Podés elegir varios a la vez · Word, Excel, PDF, imágenes, zip</span>
-                    <input type="file" id="mud2-files" multiple style="display:none;" accept="${MIME_ACEPTADOS.join(',')}">
+                    <input type="file" id="mud2-files" multiple style="display:none;" accept="${acceptAttr()}">
                 </div>
+                <p style="margin:0 0 10px;font-size:0.74rem;color:var(--text-muted,#888);">
+                    <i class="fas fa-lightbulb" style="color:#ffc107;"></i>
+                    Poné en el nombre del archivo el nombre del cliente <strong>y algo más</strong> para que no haya dudas
+                    (ej: <em>"Camila Gómez - historia.docx"</em>). Si el archivo dice solo "camila" y tienes dos Camila,
+                    queda en la bandeja <strong>Sin cliente</strong> y lo mandas tú con un toque.
+                </p>
                 <div id="mud2-lista"></div>
                 <div id="mud2-progreso" style="display:none;margin-top:10px;"></div>
             </div>
@@ -740,7 +736,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     }
 
     function agregarArchivos(files) {
-        const validos = files.filter(f => MIME_ACEPTADOS.includes((f.type || '').toLowerCase()));
+        const validos = files.filter(f => esArchivoAceptado(f));
         const invalidos = files.length - validos.length;
         if (!validos.length) { mostrarToast('Formato no soportado (Word, Excel, PDF, imágenes, zip, csv)', 'warning'); return; }
         if (invalidos) mostrarToast(`${invalidos} archivo(s) omitidos por formato no soportado`, 'warning');
@@ -757,16 +753,10 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     function distribuirPendientes() {
         const pendientes = state.archivos.filter(a => a.estado === 'pendiente' && !a.clienteEmail);
         pendientes.forEach(a => {
-            const stem = normalizar(String(a.file.name).replace(/\.[^.]+$/, ''));
-            if (!stem) return;
-            let mejor = null;
-            state.clientesTrabajo.forEach(c => {
-                const cn = normalizar(c.nombre);
-                if (cn.length >= 3 && stem.includes(cn)) {
-                    if (!mejor || cn.length > mejor.cn.length) mejor = { email: c.email, cn };
-                }
-            });
-            a.clienteEmail = mejor ? mejor.email : null;
+            const r = evaluarMatch(a.file.name, state.clientesTrabajo);
+            a.clienteEmail = r.email;
+            a.ambiguo = r.ambiguo;
+            a.nombresAmbiguos = r.ambiguo ? (r.nombresTop || []) : [];
         });
     }
 
@@ -781,10 +771,12 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
             const estadoHtml = a.estado === 'registrado'
                 ? `<span style="color:#00b894;font-size:0.72rem;"><i class="fas fa-check-circle"></i> En la carpeta de ${escapeHtml(cliente ? cliente.nombre : a.clienteEmail)}</span>`
                 : a.estado === 'sin_dueño'
-                    ? `<span style="color:#ffc107;font-size:0.72rem;"><i class="fas fa-question-circle"></i> Sin dueño (paso 3)</span>`
-                    : cliente
-                        ? `<span style="color:var(--primary-color,#9d4edd);font-size:0.72rem;"><i class="fas fa-arrow-right"></i> Va a la carpeta de <strong>${escapeHtml(cliente.nombre)}</strong></span>`
-                        : `<span style="color:var(--text-muted,#999);font-size:0.72rem;"><i class="fas fa-question-circle"></i> Sin dueño detectado</span>`;
+                    ? `<span style="color:#ffc107;font-size:0.72rem;"><i class="fas fa-question-circle"></i> Sin dueño (bandeja)</span>`
+                    : a.ambiguo
+                        ? `<span style="color:#ffc107;font-size:0.72rem;"><i class="fas fa-code-branch"></i> Puede ser ${escapeHtml((a.nombresAmbiguos || []).join(' o ') || 'de más de uno')} → elegís en la bandeja</span>`
+                        : cliente
+                            ? `<span style="color:var(--primary-color,#9d4edd);font-size:0.72rem;"><i class="fas fa-arrow-right"></i> Va a la carpeta de <strong>${escapeHtml(cliente.nombre)}</strong></span>`
+                            : `<span style="color:var(--text-muted,#999);font-size:0.72rem;"><i class="fas fa-question-circle"></i> Sin dueño detectado</span>`;
             return `
                 <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);margin-bottom:6px;flex-wrap:wrap;">
                     <div style="width:30px;height:30px;border-radius:8px;background:rgba(157,78,221,0.12);display:flex;align-items:center;justify-content:center;color:var(--primary-color,#9d4edd);flex-shrink:0;"><i class="fas ${iconoPorArchivo(a.file.name)}"></i></div>
@@ -889,12 +881,13 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         const $det = $('mud2-prog-detalle');
 
         let hechos = 0;
-        let ok = 0, errores = 0;
+        let ok = 0, errores = 0, aBandeja = 0;
         for (const a of pendientes) {
             try {
                 if ($det) $det.textContent = a.file.name;
                 const storagePath = await subirBinario(a.file, tenantId);
                 a.storagePath = storagePath;
+                let registrado = false;
                 if (a.clienteEmail) {
                     const { data, error } = await supabase.rpc('admin_archivo_crear_subido', {
                         p_tenant_id: tenantId,
@@ -905,18 +898,25 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                         p_tamano: a.file.size || 0,
                         p_storage_path: storagePath
                     });
-                    if (error || !data || data.ok !== true) {
-                        a.estado = 'sin_dueño';
-                        errores++;
-                    } else {
+                    registrado = !error && data && data.ok === true;
+                    if (registrado) {
                         a.estado = 'registrado';
                         ok++;
+                    } else if (data && data.error) {
+                        errores++;
                     }
-                } else {
+                }
+                if (!registrado) {
+                    // Sin cliente reconocido (o el registro falló): se GUARDA
+                    // en la bandeja persistente. Nada se pierde: si después
+                    // ese cliente reserva o se da de alta, se le manda solo.
+                    const guardado = await persistirSinDueno(a);
                     a.estado = 'sin_dueño';
+                    if (guardado) aBandeja++; else errores++;
                 }
             } catch (e) {
                 console.error('[Mudanza] Error subiendo', a.file.name, e);
+                // El binario no alcanzó a subir: no hay nada que guardar aún.
                 a.estado = 'sin_dueño';
                 a.storagePath = null;
                 errores++;
@@ -933,10 +933,38 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         pintarResultadoDistribucion();
         pintarPasos();
         pintarFooter();
-        const sinDueno = state.archivos.filter(a => a.estado === 'sin_dueño').length;
-        if (errores) mostrarToast(`${ok} subido(s). ${errores} con problemas: revisalos en el paso 3`, 'warning');
-        else if (sinDueno) mostrarToast(`${ok} archivo(s) subidos. ${sinDueno} sin dueño: asignalos en el paso 3`, 'success');
+        if (errores) mostrarToast(`${ok} a su cliente, ${aBandeja} en la bandeja. ${errores} con problemas: revisalos`, 'warning');
+        else if (aBandeja) mostrarToast(`${ok} archivo(s) a su cliente · ${aBandeja} guardado(s) en la bandeja Sin cliente`, 'success');
         else mostrarToast('¡Todos los archivos encontraron a su cliente!', 'success');
+    }
+
+    /**
+     * Guarda un archivo sin dueño en la bandeja persistente (Storage + DB).
+     * A partir de acá el archivo NO depende de esta ventana: si el cliente
+     * reserva o se da de alta, el motor lo empareja solo.
+     */
+    async function persistirSinDueno(a) {
+        if (a.huerfanoId) return true;
+        if (!a.storagePath) return false;
+        try {
+            const { data, error } = await supabase.rpc('admin_huerfano_crear', {
+                p_tenant_id: tenantId,
+                p_nombre_original: a.file.name,
+                p_nombre_archivo: a.file.name,
+                p_tipo_mime: a.file.type || 'application/octet-stream',
+                p_tamano: a.file.size || 0,
+                p_storage_path: a.storagePath
+            });
+            if (!error && data && data.ok === true) {
+                a.huerfanoId = data.id;
+                return true;
+            }
+            if (data && data.error) mostrarToast(data.error, 'error');
+            return false;
+        } catch (e) {
+            console.error('[Mudanza] No se pudo guardar el archivo sin dueño:', e);
+            return false;
+        }
     }
 
     // ---------- PASO 3 · Archivos sin dueño ----------
@@ -956,8 +984,9 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                     <span id="mud3-contador" style="margin-left:auto;background:rgba(255,193,7,0.12);color:#ffc107;border-radius:999px;padding:2px 10px;font-size:0.76rem;">${sinDueno.length} pendiente(s)</span>
                 </div>
                 <p style="margin:0 0 12px;font-size:0.78rem;color:var(--text-muted,#aaa);line-height:1.5;">
-                    Estos archivos no tenían el nombre del cliente en el archivo. Mandalos con un toque a su carpeta,
-                    o descartalos si ya no hacen falta.
+                    Estos archivos no tenían el nombre del cliente en el archivo. <strong>Ya quedaron guardados</strong>:
+                    mandalos con un toque a su carpeta, o dejalos acá — si más adelante ese cliente reserva o se da de alta,
+                    se le mandan solos. Si no hacen falta, descartalos.
                 </p>
                 <div id="mud3-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
                 <div id="mud3-vacio" style="display:none;text-align:center;padding:16px;border-radius:12px;border:1px dashed rgba(0,184,148,0.35);color:#00b894;font-size:0.86rem;">
@@ -1045,17 +1074,16 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         ocupado = true;
         if (sel) { sel.disabled = true; sel.innerHTML = '<option>Guardando...</option>'; }
         try {
-            if (!a.storagePath) {
-                a.storagePath = await subirBinario(a.file, tenantId);
+            if (!a.storagePath) a.storagePath = await subirBinario(a.file, tenantId);
+            if (!(await persistirSinDueno(a))) {
+                mostrarToast('No se pudo guardar el archivo para asignarlo', 'error');
+                if (sel) pintarBandejaPaso3();
+                return;
             }
-            const { data, error } = await supabase.rpc('admin_archivo_crear_subido', {
+            const { data, error } = await supabase.rpc('admin_huerfano_asignar', {
                 p_tenant_id: tenantId,
-                p_cliente_email: clienteEmail,
-                p_nombre: a.file.name,
-                p_nombre_archivo: a.file.name,
-                p_tipo_mime: a.file.type || 'application/octet-stream',
-                p_tamano: a.file.size || 0,
-                p_storage_path: a.storagePath
+                p_huerfano_id: a.huerfanoId,
+                p_cliente_email: clienteEmail
             });
             if (error || !data || data.ok !== true) {
                 mostrarToast((data && data.error) || 'No se pudo asignar el archivo', 'error');
@@ -1083,8 +1111,16 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         const a = state.archivos.find(x => x.id === id);
         if (!a) return;
         if (!window.confirm(`¿Descartar "${a.file.name}"? No se guardará en ningún cliente.`)) return;
-        if (a.storagePath) {
-            await supabase.storage.from('kanban-adjuntos').remove([a.storagePath]).catch(() => {});
+        let storagePath = a.storagePath;
+        if (a.huerfanoId) {
+            const { data } = await supabase.rpc('admin_huerfano_descartar', {
+                p_tenant_id: tenantId,
+                p_huerfano_id: a.huerfanoId
+            });
+            if (data && data.storage_path) storagePath = data.storage_path;
+        }
+        if (storagePath) {
+            await supabase.storage.from('kanban-adjuntos').remove([storagePath]).catch(() => {});
         }
         state.archivos = state.archivos.filter(x => x.id !== id);
         pintarBandejaPaso3();
@@ -1121,13 +1157,16 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
 
     // ---------- Finalizar ----------
     function finalizarMudanza() {
-        const sinDueno = state.archivos.filter(a => a.estado === 'sin_dueño').length;
-        if (sinDueno) { mostrarToast('Todavía hay archivos sin dueño: asignalos o descartalos', 'warning'); return; }
+        const sinGuardar = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId).length;
+        if (sinGuardar) { mostrarToast('Todavía hay archivos que no se pudieron guardar: quitalos o reintentá', 'warning'); return; }
+        const enBandeja = state.archivos.filter(a => a.estado === 'sin_dueño').length;
         cerrar();
         if (typeof onTerminado === 'function') onTerminado();
-        mostrarToast(state.subidaConfirmada || state.importado
-            ? '¡Mudanza completa! Tus clientes y archivos ya están en la web'
-            : 'Listo', 'success');
+        mostrarToast(enBandeja
+            ? `¡Mudanza guardada! ${enBandeja} archivo(s) quedaron en "Sin cliente" esperando a su dueño`
+            : (state.subidaConfirmada || state.importado
+                ? '¡Mudanza completa! Tus clientes y archivos ya están en la web'
+                : 'Listo'), 'success');
     }
 
     // ========== Arranque ==========

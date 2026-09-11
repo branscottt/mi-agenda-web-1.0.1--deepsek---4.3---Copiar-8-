@@ -305,6 +305,36 @@ async function abrirMudanza() {
     }
 }
 
+/** Cantidad de archivos "Sin cliente" pendientes (alimenta el botón de la barra). */
+let sinDuenoCount = 0;
+
+/** Abre la bandeja persistente "Sin cliente" (SinDuenoModal.js). */
+async function abrirSinDueno() {
+    try {
+        const { abrirSinDueno: abrir } = await import('./SinDuenoModal.js');
+        const clientes = (clientesCache || []).map(c => ({
+            nombre: c.nombre || '',
+            email: c.email || '',
+            telefono: c.telefono || ''
+        }));
+        await abrir({
+            clientes,
+            onCambio: () => {
+                try { renderClientListView(); } catch (e) { /* sin listado */ }
+            }
+        });
+    } catch (err) {
+        console.error('[ClientListView] Error abriendo la bandeja Sin cliente:', err);
+        mostrarToast('No se pudo abrir la bandeja Sin cliente', 'error');
+    }
+}
+
+/** Botón "Sin cliente (N)" → bandeja persistente de archivos huérfanos. */
+function bindSinDueno(container) {
+    const btn = container.querySelector('#sin-dueno-btn, #sin-dueno-btn-empty');
+    if (btn) btn.addEventListener('click', abrirSinDueno);
+}
+
 export async function renderClientListView(containerId = 'clientes-list-container') {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -319,7 +349,7 @@ export async function renderClientListView(containerId = 'clientes-list-containe
         // paralelo (antes eran secuenciales → ~6 round-trips encadenados por
         // apertura). Promise.allSettled conserva el manejo de error individual
         // de cada fuente (ninguna puede tumbar a las demás).
-        const [rPermiso, rCitas, rVentas, rServicios, rManuales, rResumen] = await Promise.allSettled([
+        const [rPermiso, rCitas, rVentas, rServicios, rManuales, rResumen, rHuerfanos] = await Promise.allSettled([
             getSupabase().rpc('admin_get_permiso_etiquetas', { p_tenant_id: tenantId }),
             getAllCitas(),
             getVentasArchivadas(tenantId),
@@ -328,8 +358,21 @@ export async function renderClientListView(containerId = 'clientes-list-containe
                 .from('clientes_manuales')
                 .select('id, tenant_id, nombre, telefono, email, direccion, creado_en')
                 .eq('tenant_id', tenantId),
-            kanbanApi.getResumenFichas(tenantId)
+            kanbanApi.getResumenFichas(tenantId),
+            getSupabase().rpc('admin_huerfanos_listar', { p_tenant_id: tenantId })
         ]);
+
+        // 0) Archivos "Sin cliente" pendientes (alimenta el botón de la barra).
+        // Los trabajadores no son admin: la RPC responde ok:false y queda en 0.
+        sinDuenoCount = 0;
+        try {
+            if (rHuerfanos.status === 'fulfilled') {
+                const d = rHuerfanos.value?.data;
+                if (d && d.ok === true) sinDuenoCount = (d.items || []).length;
+            }
+        } catch (e) {
+            console.warn('[ClientListView] No se pudieron contar los archivos Sin cliente:', e);
+        }
 
         // 1) Permiso de etiquetas de pago para trabajadores (master + lista blanca)
         try {
@@ -434,6 +477,9 @@ function renderLista(container) {
                     <button class="btn-llamativo btn-small" id="mudanza-clientes-btn-empty" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón">
                         <i class="fas fa-truck-moving"></i> Traer mis clientes y archivos
                     </button>
+                    ${sinDuenoCount ? `<button class="btn-suave btn-small" id="sin-dueno-btn-empty" title="Tienes ${sinDuenoCount} archivo(s) esperando dueño. No se pierden: los mandás a su cliente con un toque.">
+                        <i class="fas fa-folder-question"></i> Sin cliente (${sinDuenoCount})
+                    </button>` : ''}
                     <button class="btn-suave btn-small" id="guia-clientes-btn-empty" title="¿Qué se puede hacer en Mis Clientes? Te lo muestro con ejemplos, en 30 segundos">
                         <i class="fas fa-graduation-cap"></i> Ver cómo funciona
                     </button>
@@ -444,6 +490,7 @@ function renderLista(container) {
         bindAgregarCliente(container);
         bindPrimerCliente(container);
         bindMudanza(container);
+        bindSinDueno(container);
         const guiaEmpty = container.querySelector('#guia-clientes-btn-empty');
         if (guiaEmpty) guiaEmpty.addEventListener('click', abrirGuia);
         return;
@@ -461,6 +508,9 @@ function renderLista(container) {
             <button class="btn-llamativo btn-small" id="mudanza-clientes-btn" title="Traé de una todo lo que ya tenías: pega tu Excel con los clientes y sube sus archivos en montón (se distribuyen solos a cada cliente)">
                 <i class="fas fa-truck-moving"></i> Importar clientes y archivos
             </button>
+            ${sinDuenoCount ? `<button class="btn-suave btn-small" id="sin-dueno-btn" title="Archivos que subiste y todavía no tienen dueño. NO se pierden: si el cliente reserva o aparece, se le mandan solos.">
+                <i class="fas fa-folder-question"></i> Sin cliente (${sinDuenoCount})
+            </button>` : ''}
             <button class="btn-suave btn-small" id="guia-clientes-btn" title="¿Qué se puede hacer en Mis Clientes? Te lo muestro con ejemplos, en 30 segundos">
                 <i class="fas fa-graduation-cap"></i> ¿Cómo funciona?
             </button>
@@ -493,6 +543,7 @@ function renderLista(container) {
     bindExport(container);
     bindAgregarCliente(container);
     bindMudanza(container);
+    bindSinDueno(container);
     bindBienvenida(container);
     bindHelpToggle(container);
     bindTogglePermisoEtiquetas(container);
