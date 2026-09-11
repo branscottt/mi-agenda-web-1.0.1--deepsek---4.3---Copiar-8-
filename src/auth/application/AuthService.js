@@ -20,7 +20,7 @@ export async function login(email, password, captchaToken = null) {
             loginOptions.options = { captchaToken };
         }
         const { data, error } = await supabase.auth.signInWithPassword(loginOptions);
-        if (error) return { success: false, error: error.message };
+        if (error) return { success: false, error: error.message, code: error.code || null };
 
         // Guardar JWT explicitamente en localStorage
         JwtManager.setTokens(data.session.access_token, data.session.refresh_token);

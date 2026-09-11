@@ -295,6 +295,45 @@ body {
     color: var(--text-light);
 }
 
+/* Botón mostrar / ocultar contraseña (ojo) dentro del input-group */
+.input-group .toggle-password {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+.input-group .toggle-password:hover {
+    color: var(--text-light);
+}
+
+.input-group .toggle-password:focus-visible {
+    color: var(--text-light);
+    outline: 2px solid var(--primary-light, #9d4edd);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.input-group .toggle-password i {
+    width: auto;
+    font-size: 1.1rem;
+    color: inherit;
+}
+
+/* Texto de ayuda del formulario "nueva contraseña" (enlace del correo) */
+.form-container .recovery-hint {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 0 0 15px;
+}
+
 .form-actions {
     display: flex;
     gap: 15px;

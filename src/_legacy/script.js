@@ -4922,6 +4922,15 @@ async function verificarProteccionRutas() {
 
         console.log('Verificando ruta:', pathname, 'Sesión:', session ? '✅' : '❌', 'Rol:', session?.rol);
 
+        // Enlace del correo de recuperación (#...&type=recovery): el usuario debe
+        // poder fijar su NUEVA contraseña en login.html. La sesión de recovery es
+        // una sesión válida, así que sin este corte el guard lo redirigía a
+        // hub.html/cliente.html y nunca vería el formulario.
+        if (pathname === 'login.html' && /type=recovery/.test((window.location.hash || '') + (window.location.search || ''))) {
+            console.log('[Rutas] enlace de recuperación de contraseña: se permite login.html');
+            return;
+        }
+
         // Si NO hay sesión
         if (!session) {
             // Permitir acceso a login.html, la raíz y cliente.html (link compartido).
@@ -14686,6 +14695,9 @@ function iniciarLogin() {
 
     // Mostrar formulario de login
     function showLogin() {
+        // Con un enlace de recuperación activo no se muestra el login: manda el
+        // formulario de "nueva contraseña" (src/auth/ui/LoginPage.js)
+        if (/type=recovery/.test(window.location.hash || '')) return;
         if (loginContainer) loginContainer.style.display = 'block';
         if (registerContainer) registerContainer.style.display = 'none';
         if (loginModeBtn) loginModeBtn.classList.add('active');

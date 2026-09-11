@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://dfcfimipkfhitlsyixqu.supabase.co" crossorigin>
     <link rel="preconnect" href="https://challenges.cloudflare.com">
     <title>Organify - Iniciar Sesión</title>
-    <link rel="stylesheet" href="style.css?v=67">
+    <link rel="stylesheet" href="style.css?v=68">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Cloudflare Turnstile Captcha -->
@@ -41,6 +41,7 @@
                     <div class="input-group">
                         <i class="fas fa-lock"></i>
                         <input type="password" id="login-password" placeholder="Contraseña" required autocomplete="current-password">
+                        <button type="button" class="toggle-password" data-target="login-password" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña"><i class="fas fa-eye" aria-hidden="true"></i></button>
                     </div>
                     <div class="form-options">
                         <label class="checkbox-label">
@@ -95,6 +96,26 @@
                 </div>
             </div>
 
+            <!-- Formulario de NUEVA CONTRASEÑA (llega desde el enlace del correo de recuperación) -->
+            <div class="form-container" id="recovery-container" style="display:none;">
+                <h2><i class="fas fa-key"></i> Crea tu nueva contraseña</h2>
+                <form id="recovery-form">
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="recovery-password" placeholder="Nueva contraseña (mínimo 6)" required autocomplete="new-password">
+                        <button type="button" class="toggle-password" data-target="recovery-password" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="recovery-confirm-password" placeholder="Repite la contraseña" required autocomplete="new-password">
+                        <button type="button" class="toggle-password" data-target="recovery-confirm-password" aria-label="Mostrar contraseña" aria-pressed="false" title="Mostrar contraseña"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                    </div>
+                    <p class="recovery-hint">Con esta contraseña vas a poder entrar con tu correo y contraseña, sin depender de Google. Mínimo 6 caracteres.</p>
+                    <button type="submit" class="btn-grad btn-login">Guardar contraseña</button>
+                </form>
+                <div id="recovery-error-message" class="error-message" style="display:none;"></div>
+            </div>
+
             <!-- Footer -->
             <div class="login-footer">
                 <p>© 2025 Organify - Todos los derechos reservados</p>
@@ -117,7 +138,7 @@
         <div class="modal-content glass-panel" style="max-width: 400px;">
             <span class="modal-close">&times;</span>
             <h3><i class="fas fa-key"></i> Recuperar contraseña</h3>
-            <p>Te enviaremos un enlace para restablecer tu contraseña.</p>
+            <p>Te enviaremos un enlace para crear o cambiar tu contraseña. También funciona si creaste tu cuenta con Google.</p>
             <div class="input-group">
                 <i class="fas fa-envelope"></i>
                 <input type="email" id="reset-email" placeholder="Tu correo electrónico" required>
@@ -131,7 +152,7 @@
     </div>
 
     <!-- Scripts -->
-<script type="module" src="dist/app.js?v=84"></script>
-<script defer src="dist/legacy.js?v=68"></script>
+<script type="module" src="dist/app.js?v=85"></script>
+<script defer src="dist/legacy.js?v=69"></script>
 </body>
 </html>

@@ -8,7 +8,67 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { trackEvent } from '../../shared/infrastructure/analytics.js';
 
+// Mensajes de error de autenticacion en espanol.
+// Importante: Supabase devuelve el MISMO error (invalid_credentials) cuando la
+// contrasena es incorrecta y cuando la cuenta se creo con Google (esas cuentas
+// no tienen contrasena). Por eso el mensaje cubre las dos posibilidades y
+// ofrece el camino correcto: el boton "Continuar con Google".
+const MENSAJES_AUTH = {
+    invalid_credentials: 'Correo o contraseña incorrectos. Si tu cuenta la creaste con Google, entra con «Continuar con Google» o crea tu contraseña en «¿Olvidaste tu contraseña?».',
+    email_not_confirmed: 'Tu correo todavía no está confirmado. Revisa tu bandeja de entrada (y la carpeta de spam).',
+    user_banned: 'Esta cuenta está bloqueada. Escríbenos por WhatsApp y te ayudamos.',
+    over_request_rate_limit: 'Demasiados intentos seguidos. Espera un minuto y vuelve a intentarlo.',
+    captcha_failed: 'No pudimos verificar que no eres un robot. Recarga la página e inténtalo otra vez.',
+    same_password: 'Esa ya es tu contraseña actual. Elige una diferente.',
+    reauthentication_needed: 'Por seguridad, abre de nuevo el enlace del correo e inténtalo otra vez.',
+    current_password_required: 'Por seguridad, abre el enlace del correo para cambiar tu contraseña.',
+    current_password_mismatch: 'Por seguridad, abre el enlace del correo para cambiar tu contraseña.',
+    session_not_found: 'El enlace ya venció o se usó. Pídelo de nuevo en «¿Olvidaste tu contraseña?».'
+};
+
+function mensajeErrorAuth(error) {
+    const code = (error && error.code) || '';
+    if (MENSAJES_AUTH[code]) return MENSAJES_AUTH[code];
+    const msg = (error && error.message) || '';
+    if (/invalid login credentials/i.test(msg)) return MENSAJES_AUTH.invalid_credentials;
+    if (/email not confirmed/i.test(msg)) return MENSAJES_AUTH.email_not_confirmed;
+    if (/captcha/i.test(msg)) return MENSAJES_AUTH.captcha_failed;
+    if (/rate limit|too many/i.test(msg)) return MENSAJES_AUTH.over_request_rate_limit;
+    if (/auth session missing/i.test(msg)) return MENSAJES_AUTH.session_not_found;
+    return msg || 'No pudimos iniciar tu sesión. Inténtalo otra vez.';
+}
+
+// Boton "ojito": alterna mostrar/ocultar la contrasena del input indicado en data-target.
+function configurarTogglesPassword() {
+    document.querySelectorAll('.toggle-password').forEach((btn) => {
+        const input = document.getElementById(btn.dataset.target || '');
+        if (!input) return;
+        const icon = btn.querySelector('i');
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const estabaOculta = input.type === 'password';
+            input.type = estabaOculta ? 'text' : 'password';
+            if (icon) icon.className = estabaOculta ? 'fas fa-eye-slash' : 'fas fa-eye';
+            const etiqueta = estabaOculta ? 'Ocultar contraseña' : 'Mostrar contraseña';
+            btn.setAttribute('aria-label', etiqueta);
+            btn.setAttribute('aria-pressed', estabaOculta ? 'true' : 'false');
+            btn.title = etiqueta;
+            // Devolver el foco al input con el cursor al final, para poder seguir escribiendo
+            devolverFocoAlInput(input);
+        });
+    });
+}
+
+function devolverFocoAlInput(input) {
+    try {
+        const pos = input.value.length;
+        input.focus();
+        input.setSelectionRange(pos, pos);
+    } catch (_) { /* algunos navegadores no permiten seleccionar en type=password */ }
+}
+
 export function iniciarLogin() {
+
     // GUARD: evitar doble inicialización (main.js + script.js llaman esta función)
     if (window._loginInitialized) {
         console.log('[LoginPage] ya inicializado, skipping');
@@ -52,6 +112,106 @@ export function iniciarLogin() {
     if (registerModeBtn) registerModeBtn.addEventListener('click', (e) => { e.preventDefault(); showRegister(); });
     if (backToLogin) backToLogin.addEventListener('click', (e) => { e.preventDefault(); showLogin(); });
 
+    // Botón "ojito" para ver la contraseña que se está escribiendo
+    configurarTogglesPassword();
+
+    // ==================================================================
+    // NUEVA CONTRASEÑA (enlace del correo de recuperación)
+    // Permite que una cuenta creada con Google tenga contraseña propia y
+    // después entre con correo + contraseña, sin depender de Google.
+    // ==================================================================
+    const recoveryContainer = document.getElementById('recovery-container');
+    const recoveryForm = document.getElementById('recovery-form');
+    const recoveryErrorDiv = document.getElementById('recovery-error-message');
+
+    function mostrarRecovery() {
+        if (loginContainer) loginContainer.style.display = 'none';
+        if (registerContainer) registerContainer.style.display = 'none';
+        if (recoveryContainer) recoveryContainer.style.display = 'block';
+        const modeToggle = document.querySelector('.mode-toggle');
+        if (modeToggle) modeToggle.style.display = 'none';
+        if (loginErrorDiv) loginErrorDiv.style.display = 'none';
+        if (registerErrorDiv) registerErrorDiv.style.display = 'none';
+        console.log('[LoginPage] Flujo de nueva contraseña activo');
+    }
+
+    function paramsDelHash() {
+        const hash = (window.location.hash || '').replace(/^#/, '');
+        return new URLSearchParams(hash);
+    }
+
+    // El enlace del correo vuelve como #access_token=...&type=recovery
+    function esEnlaceDeRecovery() {
+        try { return paramsDelHash().get('type') === 'recovery'; } catch (_) { return false; }
+    }
+
+    // Enlace vencido o ya usado: Supabase vuelve con #error_code=otp_expired
+    function esErrorDeEnlace(code) {
+        return code === 'otp_expired' || code === 'access_denied' || code === 'validation_failed';
+    }
+
+    function avisarEnlaceVencido() {
+        try {
+            const errorCode = paramsDelHash().get('error_code');
+            if (!esErrorDeEnlace(errorCode)) return;
+            const msg = 'El enlace para crear tu contraseña ya venció o se usó. Pídelo de nuevo en «¿Olvidaste tu contraseña?».';
+            if (loginErrorDiv) { loginErrorDiv.textContent = msg; loginErrorDiv.style.display = 'block'; }
+        } catch (_) {}
+    }
+
+    if (recoveryForm) {
+        recoveryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pass = document.getElementById('recovery-password')?.value || '';
+            const repetida = document.getElementById('recovery-confirm-password')?.value || '';
+            const mostrarError = (texto, color) => {
+                if (!recoveryErrorDiv) return;
+                recoveryErrorDiv.textContent = texto;
+                recoveryErrorDiv.style.color = color || '';
+                recoveryErrorDiv.style.display = 'block';
+            };
+            if (recoveryErrorDiv) { recoveryErrorDiv.style.display = 'none'; recoveryErrorDiv.textContent = ''; }
+
+            if (!pass || !repetida) return mostrarError('Completa los dos campos');
+            if (pass.length < 6) return mostrarError('La contraseña debe tener al menos 6 caracteres');
+            if (pass !== repetida) return mostrarError('Las contraseñas no coinciden');
+
+            const supabase = getSupabase();
+            if (!supabase) return mostrarError('Error de conexión. Recarga la página.');
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+            const { error } = await supabase.auth.updateUser({ password: pass });
+
+            if (btn) { btn.disabled = false; btn.textContent = 'Guardar contraseña'; }
+
+            if (error) {
+                const msg = mensajeErrorAuth(error);
+                mostrarError(msg);
+                mostrarToast(msg, 'error');
+                return;
+            }
+
+            trackEvent('password_created', {});
+            mostrarError('¡Listo! Ya tienes contraseña. Ahora puedes entrar con tu correo y tu contraseña.', '#00b894');
+            mostrarToast('Contraseña creada correctamente', 'success');
+            setTimeout(() => { window.location.href = 'hub.html'; }, 2000);
+        });
+    }
+
+    // Detección del enlace (evento del SDK + hash de la URL como respaldo)
+    try {
+        const supabaseAuth = getSupabase();
+        if (supabaseAuth) {
+            supabaseAuth.auth.onAuthStateChange((event) => {
+                if (event === 'PASSWORD_RECOVERY') mostrarRecovery();
+            });
+        }
+    } catch (_) {}
+    if (esEnlaceDeRecovery()) mostrarRecovery();
+    avisarEnlaceVencido();
+
     // --- LOGIN ---
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
@@ -88,8 +248,9 @@ export function iniciarLogin() {
                     redirectByRole(userData);
                 }
             } else {
-                if (loginErrorDiv) { loginErrorDiv.textContent = result.error; loginErrorDiv.style.display = 'block'; }
-                mostrarToast(result.error, 'error');
+                const mensaje = mensajeErrorAuth({ code: result.code, message: result.error });
+                if (loginErrorDiv) { loginErrorDiv.textContent = mensaje; loginErrorDiv.style.display = 'block'; }
+                mostrarToast(mensaje, 'error');
             }
         });
     }
@@ -251,7 +412,10 @@ export function iniciarLogin() {
             } catch (err) {
                 console.error('[LoginPage] Registration error:', err);
                 let msg = err.message;
-                if (msg.includes('User already registered')) msg = 'Este correo ya está registrado';
+                // Cuenta creada con Google: no tiene contraseña, hay que entrar por OAuth
+                if (msg.includes('User already registered') || err.code === 'user_already_exists' || err.code === 'email_exists') {
+                    msg = 'Este correo ya está registrado. Si tu cuenta la creaste con Google, usa «Continuar con Google» (esa cuenta no tiene contraseña); si no, inicia sesión con tu contraseña.';
+                }
                 if (msg.includes('weak_password')) msg = 'La contraseña es muy débil. Usa al menos 6 caracteres.';
                 if (registerErrorDiv) {
                     registerErrorDiv.textContent = msg;
