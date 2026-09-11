@@ -4914,6 +4914,15 @@ async function getSession() {
     }
 }
 
+// ¿Estamos en el flujo "nueva contraseña" (enlace del correo)? El SDK borra el
+// hash, así que main.js deja la marca agendapro_recovery_pending en sessionStorage.
+function enFlujoRecoveryPassword() {
+    try {
+        if (/type=recovery/.test((window.location.hash || '') + (window.location.search || ''))) return true;
+        return sessionStorage.getItem('agendapro_recovery_pending') === '1';
+    } catch (_) { return false; }
+}
+
 async function verificarProteccionRutas() {
     try {
         const session = await getSession();
@@ -4926,7 +4935,7 @@ async function verificarProteccionRutas() {
         // poder fijar su NUEVA contraseña en login.html. La sesión de recovery es
         // una sesión válida, así que sin este corte el guard lo redirigía a
         // hub.html/cliente.html y nunca vería el formulario.
-        if (pathname === 'login.html' && /type=recovery/.test((window.location.hash || '') + (window.location.search || ''))) {
+        if (pathname === 'login.html' && enFlujoRecoveryPassword()) {
             console.log('[Rutas] enlace de recuperación de contraseña: se permite login.html');
             return;
         }
@@ -14711,7 +14720,7 @@ function iniciarLogin() {
     function showLogin() {
         // Con un enlace de recuperación activo no se muestra el login: manda el
         // formulario de "nueva contraseña" (src/auth/ui/LoginPage.js)
-        if (/type=recovery/.test(window.location.hash || '')) return;
+        if (enFlujoRecoveryPassword()) return;
         if (loginContainer) loginContainer.style.display = 'block';
         if (registerContainer) registerContainer.style.display = 'none';
         if (loginModeBtn) loginModeBtn.classList.add('active');

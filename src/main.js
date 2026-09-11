@@ -7,6 +7,19 @@
     'use strict';
 
     // ============================================
+    // ENLACE DE RECUPERACIÓN / NUEVA CONTRASEÑA
+    // Marcar la intención ANTES de que el SDK de Supabase consuma y BORRE el hash
+    // de la URL. Si no se marca aquí, el SDK limpia el hash, los guards ven
+    // "sesión activa" y mandan al hub: el formulario de nueva contraseña nunca
+    // aparece (bug real verificado 2026-11 con tokens válidos).
+    // ============================================
+    try {
+        if (/type=recovery/.test((window.location.hash || '') + (window.location.search || ''))) {
+            sessionStorage.setItem('agendapro_recovery_pending', '1');
+        }
+    } catch (_) {}
+
+    // ============================================
     // SILENCIAR ERRORES DE RED DEL SDK (falsos positivos)
     // El SDK de Supabase intenta auto-recuperar sesiones previas
     // al crear el cliente. Si no hay conexión o hay CORS,

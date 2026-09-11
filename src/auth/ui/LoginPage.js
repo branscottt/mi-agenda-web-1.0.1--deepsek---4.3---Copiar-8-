@@ -140,9 +140,13 @@ export function iniciarLogin() {
         return new URLSearchParams(hash);
     }
 
-    // El enlace del correo vuelve como #access_token=...&type=recovery
+    // El enlace del correo vuelve como #access_token=...&type=recovery, pero el
+    // SDK borra el hash enseguida: main.js deja una marca en sessionStorage.
     function esEnlaceDeRecovery() {
-        try { return paramsDelHash().get('type') === 'recovery'; } catch (_) { return false; }
+        try {
+            if (paramsDelHash().get('type') === 'recovery') return true;
+            return sessionStorage.getItem('agendapro_recovery_pending') === '1';
+        } catch (_) { return false; }
     }
 
     // Errores que Supabase devuelve EN LA URL (login con Google fallido, enlace
@@ -185,13 +189,27 @@ export function iniciarLogin() {
 
     // Si la URL trae una sesión (login con Google que aterrizó en login.html en
     // vez de hub.html), terminamos el login en vez de quedarnos en silencio.
-    function completarLoginDesdeUrl() {
+    async function completarLoginDesdeUrl() {
         if (esEnlaceDeRecovery()) return false;
         if (!/access_token=/.test((window.location.hash || '') + (window.location.search || ''))) return false;
-        console.log('[LoginPage] Sesión recibida en la URL: completando login');
+        const supabase = getSupabase();
+        if (!supabase) return false;
+        console.log('[LoginPage] Sesión recibida en la URL: esperando al SDK');
         mostrarToast('Entrando a tu cuenta...', 'info');
-        setTimeout(() => { window.location.replace('hub.html'); }, 500);
-        return true;
+        try {
+            // getSession() espera a que el SDK termine de inicializar (procesa el
+            // token de la URL): si la sesión es válida, entramos al hub; si no,
+            // avisamos en vez de dejar la pantalla en silencio.
+            const { data } = await supabase.auth.getSession();
+            if (data && data.session) {
+                window.location.replace('hub.html');
+                return true;
+            }
+        } catch (_) {}
+        const msg = 'No pudimos completar el ingreso automático. Vuelve a intentarlo.';
+        if (loginErrorDiv) { loginErrorDiv.textContent = msg; loginErrorDiv.style.display = 'block'; }
+        mostrarToast(msg, 'error');
+        return false;
     }
 
     if (recoveryForm) {
@@ -229,6 +247,7 @@ export function iniciarLogin() {
             }
 
             trackEvent('password_created', {});
+            try { sessionStorage.removeItem('agendapro_recovery_pending'); } catch (_) {}
             mostrarError('¡Listo! Ya tienes contraseña. Ahora puedes entrar con tu correo y tu contraseña.', '#00b894');
             mostrarToast('Contraseña creada correctamente', 'success');
             setTimeout(() => { window.location.href = 'hub.html'; }, 2000);

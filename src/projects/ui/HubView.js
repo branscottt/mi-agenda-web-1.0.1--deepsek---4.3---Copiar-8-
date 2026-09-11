@@ -60,7 +60,22 @@ async function renderHub() {
     }
 
     const JwtManager = (await import('../../auth/infrastructure/JwtManager.js')).JwtManager;
-    const userData = JwtManager.getUserData();
+    let userData = JwtManager.getUserData();
+
+    // Retorno de Google / recuperación: la sesión puede venir en la URL y el SDK
+    // todavía no la procesó. getSession() espera esa inicialización; sin esta
+    // espera el guard rebotaba a login y el login se perdía (bug real verificado:
+    // "se devolvió a login sin decir qué pasaba").
+    if (!userData) {
+        try {
+            const { data } = await supabase.auth.getSession();
+            if (data && data.session) {
+                JwtManager.setTokens(data.session.access_token, data.session.refresh_token);
+                userData = JwtManager.getUserData();
+                console.log('[HubView] sesión tomada del SDK (retorno de OAuth)');
+            }
+        } catch (_) {}
+    }
 
     // Guard de rol (los guards de ruta legacy ya re-dirigen al superadmin,
     // esto es una red de seguridad extra por si corre primero el módulo).
