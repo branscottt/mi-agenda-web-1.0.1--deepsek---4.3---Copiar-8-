@@ -1,0 +1,11 @@
+DELETE FROM public.vl_wa_avisos  WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_wa_mensajes WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_wa_chats   WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_envios     WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_items      WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_procesos   WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_clientes   WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.vl_config     WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.subscriptions WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.tenants       WHERE id = '00000000-0000-4000-8000-000000002039';
+SELECT 'limpieza probe' as k, count(*) as restantes from public.tenants where id='00000000-0000-4000-8000-000000002039';

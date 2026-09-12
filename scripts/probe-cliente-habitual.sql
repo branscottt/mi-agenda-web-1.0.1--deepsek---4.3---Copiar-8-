@@ -21,6 +21,7 @@ DELETE FROM public.vl_items      WHERE tenant_id = '00000000-0000-4000-8000-0000
 DELETE FROM public.vl_procesos   WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
 DELETE FROM public.vl_clientes   WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
 DELETE FROM public.vl_config     WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
+DELETE FROM public.subscriptions WHERE tenant_id = '00000000-0000-4000-8000-000000002039';
 DELETE FROM public.tenants       WHERE id = '00000000-0000-4000-8000-000000002039';
 
 INSERT INTO public.tenants (id, nombre_negocio, email_contacto, proyecto)
@@ -150,6 +151,128 @@ VALUES ('00000000-0000-4000-8000-000000002039', '00000000-0000-4000-8000-0000000
 INSERT INTO probe_log
 SELECT '6b. pantallazo de la prenda (BUG: antes salía comprobante)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
 FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000013', '', 'imagen') AS r) s;
+
+-- ═══ CASO 7: EL CHAT REAL (el de "Anubis") puesto en orden ═══
+-- Cliente sin WhatsApp guardado (como el primer contacto real): el bot tiene que
+-- reconocerla desde lo que escribe, sin pedirle el usuario dos veces.
+INSERT INTO public.vl_clientes (id, tenant_id, tiktok_user, nombre_real, whatsapp)
+VALUES ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-000000002039', 'anubis', 'Anubis Galindo', '');
+INSERT INTO public.vl_procesos (id, tenant_id, cliente_id, estado)
+VALUES ('00000000-0000-4000-8000-0000000010e1', '00000000-0000-4000-8000-000000002039', '00000000-0000-4000-8000-0000000000e1', 'esperando_whatsapp');
+INSERT INTO public.vl_items (tenant_id, proceso_id, descripcion, precio, creado_en)
+VALUES ('00000000-0000-4000-8000-000000002039', '00000000-0000-4000-8000-0000000010e1', 'polera', 12000, now() - interval '2 days'),
+       ('00000000-0000-4000-8000-000000002039', '00000000-0000-4000-8000-0000000010e1', 'cartera', 12000, now() - interval '2 days');
+
+INSERT INTO probe_log
+SELECT '7a. "Hola." (tramo 1)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Hola.', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7b. "Aquí Anubis" (tramo 2)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Aquí Anubis', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7c. "Sii" (confirma)', r->>'enviar', left(r->>'mensaje',120), r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Sii', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7d. "Envio"', r->>'enviar', left(r->>'mensaje',110), r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Envio', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7e. "Por blue por favor" (courier suelto)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Por blue por favor', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7f. "Mis datos" (tramo, todavía sin datos)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Mis datos', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7g. "Déjeme hacerle su pago" (tramo)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Déjeme hacerle su pago', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7h. manda los datos completos (tramo final)', r->>'enviar', left(r->>'mensaje',150), r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'Juan Pérez, Av. Siempre Viva 742, Maipú, +56912345678, juan@correo.cl', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7i. "no e podido transferir, me puede esperar?"', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'no e podido transferir, bloquee la app por error, me puede esperar hasta el lunes porfavor?', 'texto') AS r) s;
+
+INSERT INTO probe_log
+SELECT '7j. "por favor me envía sus datos para transferir"', r->>'enviar', left(r->>'mensaje',130), r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000014', 'por favor me envía sus datos para transferir', 'texto') AS r) s;
+
+-- ═══ CASO 8: conversación POR TRAMOS y no redundante ═══
+INSERT INTO public.vl_clientes (id, tenant_id, tiktok_user, nombre_real, whatsapp)
+VALUES ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-000000002039', 'tramos_probe', '', '');
+
+INSERT INTO probe_log
+SELECT '8a. "soy" (primer mensaje)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000015', 'soy', 'texto') AS r) s;
+
+-- Hora explícita por paso (en una transacción todos los mensajes comparten
+-- now(); así el bot ve el orden real).
+UPDATE public.vl_wa_mensajes SET creado_en = timestamptz '2026-01-01 00:01:00+00'
+ WHERE chat_id = (SELECT id FROM public.vl_wa_chats WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000015');
+
+
+INSERT INTO probe_log
+SELECT '8b. "soy" otra vez (tramo sin contenido: NO repite)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000015', 'soy', 'texto') AS r) s;
+
+-- Hora explícita por paso (en una transacción todos los mensajes comparten
+-- now(); así el bot ve el orden real).
+UPDATE public.vl_wa_mensajes SET creado_en = timestamptz '2026-01-01 00:02:00+00'
+ WHERE chat_id = (SELECT id FROM public.vl_wa_chats WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000015');
+
+
+INSERT INTO probe_log
+SELECT '8c. "tramos_probe" (completa el tramo)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000015', 'tramos_probe', 'texto') AS r) s;
+
+-- Hora explícita por paso (en una transacción todos los mensajes comparten
+-- now(); así el bot ve el orden real).
+UPDATE public.vl_wa_mensajes SET creado_en = timestamptz '2026-01-01 00:03:00+00'
+ WHERE chat_id = (SELECT id FROM public.vl_wa_chats WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000015');
+
+
+-- ═══ CASO 9: foto sin identificar y redundancia ═══
+INSERT INTO probe_log
+SELECT '9a. foto de un número desconocido', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000016', '', 'imagen') AS r) s;
+
+INSERT INTO probe_log
+SELECT '9b. "reiniciar" (vuelve al inicio)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000015', 'reiniciar', 'texto') AS r) s;
+
+-- Hora explícita por paso (en una transacción todos los mensajes comparten
+-- now(); así el bot ve el orden real).
+UPDATE public.vl_wa_mensajes SET creado_en = timestamptz '2026-01-01 00:04:00+00'
+ WHERE chat_id = (SELECT id FROM public.vl_wa_chats WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000015');
+
+
+INSERT INTO probe_log
+SELECT '9c. usuario inexistente 1° vez', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000015', 'llorens', 'texto') AS r) s;
+
+-- Hora explícita por paso (en una transacción todos los mensajes comparten
+-- now(); así el bot ve el orden real).
+UPDATE public.vl_wa_mensajes SET creado_en = timestamptz '2026-01-01 00:05:00+00'
+ WHERE chat_id = (SELECT id FROM public.vl_wa_chats WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000015');
+
+
+-- Ojo del probe: dentro de UNA transacción todos los mensajes comparten now();
+-- se adelanta el último "out" un segundo para que el bot lo vea como su mensaje
+-- anterior (en la vida real cada mensaje tiene su propia hora).
+UPDATE public.vl_wa_mensajes SET creado_en = creado_en + interval '1 second'
+ WHERE direction = 'out' AND body LIKE 'no encontre%'
+   AND chat_id = (SELECT id FROM public.vl_wa_chats
+                  WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000015');
+
+INSERT INTO probe_log
+SELECT '9d. usuario inexistente 2° vez (NO repite)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000015', 'llorens', 'texto') AS r) s;
 
 -- ── Evidencia ──────────────────────────────────────────────────────────────
 CREATE TEMP TABLE probe_evidencia AS

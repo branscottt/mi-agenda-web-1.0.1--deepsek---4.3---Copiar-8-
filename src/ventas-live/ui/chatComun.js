@@ -74,6 +74,10 @@ export const AVISO_INFO = {
         label: 'Foto de prenda',
         accion: 'Fíjate que la prenda del pantallazo esté cargada en su pedido y con el monto correcto.'
     },
+    foto_dudosa: {
+        label: 'Foto para revisar',
+        accion: 'No sé si es una prenda o un comprobante: mira el chat y respóndele tú.'
+    },
     esperando_comprobante: {
         label: 'Esperando comprobante',
         accion: 'No mandes nada: el cliente te manda el pantallazo del pago o te pide los datos. Si no llega, escríbele tú.'
