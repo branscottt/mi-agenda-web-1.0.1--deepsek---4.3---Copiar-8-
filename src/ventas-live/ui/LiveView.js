@@ -28,6 +28,11 @@ let _chatModo = 'bot';
 let _chatPoll = null;
 let _chatEnviando = false;
 
+// Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
+let _sugerencias = [];
+let _sugSel = -1;
+const SUGERENCIAS_MAX = 6;
+
 function $(id) { return document.getElementById(id); }
 
 function buildDOM() {
@@ -37,14 +42,15 @@ function buildDOM() {
             <div>
                 <div class="vl-card">
                     <h2><i class="fas fa-bolt"></i> Registrar venta</h2>
-                    <div class="sub">Escribe el usuario de TikTok y el precio. Enter = siguiente campo.</div>
-                    <div class="vl-field">
+                    <div class="sub">Escribe el usuario de TikTok y el precio. Con las primeras letras te sugerimos los clientes que ya tienes. Enter = siguiente campo.</div>
+                    <div class="vl-field vl-field-rel">
                         <label for="lv-usuario">Usuario TikTok</label>
                         <div class="vl-input-wrap">
                             <span class="vl-input-prefix">@</span>
                             <input class="vl-input" id="lv-usuario" inputmode="text" autocomplete="off"
                                    placeholder="cliente123" enterkeyhint="next" autofocus>
                         </div>
+                        <div class="vl-sugerencias" id="lv-sugerencias" hidden></div>
                     </div>
                     <div class="vl-field">
                         <label for="lv-precio">Precio de la prenda</label>
@@ -114,8 +120,18 @@ function buildDOM() {
 
     $('lv-usuario').addEventListener('input', onUsuarioInput);
     $('lv-usuario').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); $('lv-precio').focus(); }
+        const abierto = _sugerencias.length > 0;
+        if (abierto && e.key === 'ArrowDown') { e.preventDefault(); marcarSugerencia(_sugSel + 1); return; }
+        if (abierto && e.key === 'ArrowUp')   { e.preventDefault(); marcarSugerencia(_sugSel - 1); return; }
+        if (abierto && e.key === 'Escape')    { e.preventDefault(); ocultarSugerencias(); return; }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (abierto) { elegirSugerencia(_sugSel < 0 ? 0 : _sugSel); return; }
+            $('lv-precio').focus();
+        }
     });
+    // Al salir del campo se cierra la lista (los clics usan mousedown y llegan antes).
+    $('lv-usuario').addEventListener('blur', ocultarSugerencias);
     $('lv-precio').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); guardar(); }
     });
@@ -271,20 +287,86 @@ async function cerrarLive() {
     refrescarTodo();
 }
 
-// ---- Preview del cliente mientras se escribe ----
+// ---- Preview del cliente + sugerencias mientras se escribe ----
 function onUsuarioInput() {
     clearTimeout(_debounce);
     const norm = normalizarTiktok($('lv-usuario').value);
-    if (!norm) { ocultarResumen(); return; }
+    if (!norm) { ocultarResumen(); ocultarSugerencias(); return; }
     _debounce = setTimeout(() => buscarCliente(norm), 300);
 }
 
 async function buscarCliente(norm) {
     const res = await vlApi.buscarClientes(norm, 20);
     if (!res.ok) return;
-    const match = (res.data.clientes || []).find(c => c.tiktok_user === norm);
-    if (!match) { ocultarResumen(); return; }
-    mostrarResumen(match);
+    const lista = res.data.clientes || [];
+    const match = lista.find(c => c.tiktok_user === norm);
+
+    // Con la primera coincidencia exacta ya no hay nada que elegir: se pinta la
+    // tarjeta y se cierra la lista.
+    if (match) {
+        ocultarSugerencias();
+        mostrarResumen(match);
+        return;
+    }
+    ocultarResumen();
+    // Sugerencias (para no escribir el usuario completo de un cliente conocido):
+    // primero los que EMPIEZAN igual, después los que tienen pedido abierto.
+    const orden = lista.slice().sort((a, b) => {
+        const pa = a.tiktok_user.startsWith(norm) ? 0 : 1;
+        const pb = b.tiktok_user.startsWith(norm) ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return (a.proceso_activo ? 0 : 1) - (b.proceso_activo ? 0 : 1);
+    });
+    pintarSugerencias(orden.slice(0, SUGERENCIAS_MAX));
+}
+
+/** Lista desplegable de usuarios que coinciden con lo escrito. */
+function pintarSugerencias(lista) {
+    const box = $('lv-sugerencias');
+    if (!box) return;
+    _sugerencias = lista || [];
+    _sugSel = _sugerencias.length ? 0 : -1;
+    if (!_sugerencias.length) { ocultarSugerencias(); return; }
+
+    box.innerHTML = _sugerencias.map((c, i) => {
+        const pa = c.proceso_activo;
+        const meta = pa
+            ? (Number(pa.prendas) || 0) + ' prenda(s) · ' + formatearDinero(pa.saldo)
+            : (CATEGORIA_INFO[c.categoria] || CATEGORIA_INFO.nuevo).label;
+        return `<button type="button" class="vl-sugerencia${i === _sugSel ? ' activa' : ''}" data-i="${i}">
+                    <span class="nick">@${escapeHtml(c.tiktok_user)}</span>
+                    <span class="meta">${escapeHtml(meta)}</span>
+                </button>`;
+    }).join('');
+    box.hidden = false;
+
+    // mousedown (no click): llega ANTES del blur del input y el clic no se pierde.
+    box.querySelectorAll('.vl-sugerencia').forEach((b) => {
+        b.addEventListener('mousedown', (ev) => { ev.preventDefault(); elegirSugerencia(Number(b.dataset.i)); });
+    });
+}
+
+function marcarSugerencia(i) {
+    if (!_sugerencias.length) return;
+    _sugSel = (i + _sugerencias.length) % _sugerencias.length;
+    $('lv-sugerencias').querySelectorAll('.vl-sugerencia')
+        .forEach((b, k) => b.classList.toggle('activa', k === _sugSel));
+}
+
+function elegirSugerencia(i) {
+    const c = _sugerencias[i];
+    if (!c) return;
+    $('lv-usuario').value = c.tiktok_user;
+    ocultarSugerencias();
+    mostrarResumen(c);
+    $('lv-precio').focus();
+}
+
+function ocultarSugerencias() {
+    const box = $('lv-sugerencias');
+    if (box) { box.hidden = true; box.innerHTML = ''; }
+    _sugerencias = [];
+    _sugSel = -1;
 }
 
 function ocultarResumen() {
@@ -375,6 +457,7 @@ async function guardar() {
         // al mismo cliente y conviene seguir leyendo la conversación).
         $('lv-precio').value = '';
         $('lv-usuario').value = '';
+        ocultarSugerencias();
         refrescarTodo();
         $('lv-usuario').focus();
     } finally {

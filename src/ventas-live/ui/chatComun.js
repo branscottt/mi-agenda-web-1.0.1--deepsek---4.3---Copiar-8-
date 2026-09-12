@@ -12,6 +12,7 @@ export const ESTADO_CHAT = {
     esperando_tipo_entrega: 'Eligiendo entrega',
     esperando_datos_envio: 'Esperando datos de envío',
     esperando_forma_pago: 'Presencial: cómo paga',
+    habitual: 'Cliente habitual',
     listo: 'Listo'
 };
 
@@ -68,6 +69,14 @@ export const AVISO_INFO = {
     sin_pedido: {
         label: 'Sin pedido cargado',
         accion: 'Mira lo que mandó en el chat, revísalo en la web y escríbele tú (el bot no responde eso solo).'
+    },
+    prenda: {
+        label: 'Foto de prenda',
+        accion: 'Es el respaldo de una prenda que ya le cargaste: revisa que el monto calce con lo que le vendiste.'
+    },
+    esperando_comprobante: {
+        label: 'Esperando comprobante',
+        accion: 'No mandes nada: el cliente te manda el pantallazo del pago o te pide los datos. Si no llega, escríbele tú.'
     }
 };
 

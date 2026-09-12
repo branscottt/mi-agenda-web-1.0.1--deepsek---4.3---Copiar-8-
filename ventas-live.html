@@ -134,6 +134,27 @@
             padding: 16px 16px 16px 4px;
         }
         .vl-input::placeholder { color: #6c757d; font-weight: 500; }
+        /* Sugerencias de usuario: al escribir las primeras letras de un cliente
+           que ya existe aparece la lista (clic o flechas + Enter). El contenedor
+           del campo lleva .vl-field-rel porque .vl-input-wrap recorta (overflow). */
+        .vl-field-rel { position: relative; }
+        .vl-sugerencias {
+            position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 40;
+            background: #211a33; border: 1px solid rgba(255,255,255,0.16); border-radius: 14px;
+            box-shadow: 0 14px 34px rgba(0,0,0,0.45);
+            max-height: 264px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+        .vl-sugerencia {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            width: 100%; background: transparent; border: none; font-family: inherit;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            color: #f8f9fa; font-size: 0.95rem; text-align: left;
+            padding: 11px 14px; cursor: pointer;
+        }
+        .vl-sugerencia:last-child { border-bottom: none; }
+        .vl-sugerencia .nick { font-weight: 700; }
+        .vl-sugerencia .meta { color: #adb5bd; font-size: 0.78rem; white-space: nowrap; }
+        .vl-sugerencia.activa, .vl-sugerencia:hover { background: rgba(157, 78, 221, 0.22); }
         .vl-submit {
             width: 100%; border: none; cursor: pointer;
             background: linear-gradient(135deg, #9d4edd, #7b2cbf);
@@ -538,7 +559,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=91"></script>
+    <script type="module" src="dist/app.js?v=92"></script>
     <script defer src="dist/legacy.js?v=71"></script>
 </body>
 </html>
