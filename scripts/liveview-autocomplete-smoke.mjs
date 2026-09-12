@@ -126,5 +126,21 @@ check('la lista vuelve a aparecer', !box.hidden);
 inp.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 check('Escape cierra la lista', box.hidden === true);
 
+// ── 6. Sin coincidencias → aviso neutro (no confundir con "no funciona") ──
+inp.value = 'zzz';
+inp.dispatchEvent(new window.Event('input', { bubbles: true }));
+await esperar(500);
+check('aparece el aviso de sin coincidencias', !box.hidden);
+check('el aviso dice que se guardará como cliente nuevo',
+    tx('Sin clientes con ese nombre') && tx('se va a guardar como cliente nuevo'),
+    box.textContent.replace(/\s+/g, ' ').trim());
+check('el aviso no es clickeable', box.querySelectorAll('.vl-sugerencia').length === 0);
+
+// ── 7. Una sola letra sin coincidencias no abre nada ──
+inp.value = 'q';
+inp.dispatchEvent(new window.Event('input', { bubbles: true }));
+await esperar(500);
+check('con 1 letra sin coincidencias no aparece nada', box.hidden === true);
+
 console.log(`\nRESULTADO: ${ok} OK / ${fail} FALLA`);
 process.exit(fail ? 1 : 0);

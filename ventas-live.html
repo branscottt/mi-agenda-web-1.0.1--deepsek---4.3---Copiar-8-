@@ -155,6 +155,8 @@
         .vl-sugerencia .nick { font-weight: 700; }
         .vl-sugerencia .meta { color: #adb5bd; font-size: 0.78rem; white-space: nowrap; }
         .vl-sugerencia.activa, .vl-sugerencia:hover { background: rgba(157, 78, 221, 0.22); }
+        /* Sin coincidencias: aviso informativo (nunca rojo ni parpadeo). */
+        .vl-sugerencia-vacia { padding: 11px 14px; color: #adb5bd; font-size: 0.82rem; }
         .vl-submit {
             width: 100%; border: none; cursor: pointer;
             background: linear-gradient(135deg, #9d4edd, #7b2cbf);
@@ -559,7 +561,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=92"></script>
+    <script type="module" src="dist/app.js?v=93"></script>
     <script defer src="dist/legacy.js?v=71"></script>
 </body>
 </html>

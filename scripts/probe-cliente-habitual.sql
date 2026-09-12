@@ -75,6 +75,12 @@ INSERT INTO probe_log
 SELECT '2b. primer pantallazo de la prenda', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
 FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000011', 'como se ve?', 'imagen') AS r) s;
 
+-- El negocio cargó la prenda y DESPUÉS el bot ya habló: se envejece la prenda
+-- para que el probe represente esa secuencia (en la vida real son transacciones
+-- distintas; acá todo el probe ocurre en una sola y comparte el timestamp).
+UPDATE public.vl_items SET creado_en = now() - interval '1 hour'
+ WHERE proceso_id = '00000000-0000-4000-8000-0000000010a1' AND descripcion = 'chaqueta';
+
 INSERT INTO probe_log
 SELECT '2c. SEGUNDO pantallazo (no debe repetir)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
 FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000011', '', 'imagen') AS r) s;
@@ -113,6 +119,37 @@ FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-00000000
 INSERT INTO probe_log
 SELECT '5a. cliente en paso pendiente dice "hola"', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
 FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000001', 'hola', 'texto') AS r) s;
+
+-- ═══ CASO 6: BUG REAL DE PRODUCCIÓN (2026-09-12) ═══
+-- Cliente habitual que YA recibió los datos de pago en una conversación anterior
+-- (datos_pago_enviado_en marcado) y con el pedido en esperando_pago: antes, ESE
+-- estado convertía el pantallazo de la prenda en "comprobante" y el bot no decía
+-- nada. Debe confirmar la prenda igual.
+INSERT INTO public.vl_clientes (id, tenant_id, tiktok_user, whatsapp)
+VALUES ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-000000002039', 'prod_probe', '+56900000013');
+
+INSERT INTO public.vl_procesos (id, tenant_id, cliente_id, estado)
+VALUES ('00000000-0000-4000-8000-0000000010d1', '00000000-0000-4000-8000-000000002039',
+        '00000000-0000-4000-8000-0000000000d1', 'esperando_pago');
+
+INSERT INTO public.vl_items (tenant_id, proceso_id, descripcion, precio, creado_en)
+VALUES ('00000000-0000-4000-8000-000000002039', '00000000-0000-4000-8000-0000000010d1', 'poleron viejo', 8000, now() - interval '2 days');
+
+INSERT INTO probe_log
+SELECT '6a. habitual dice "holis"', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000013', 'holis', 'texto') AS r) s;
+
+-- La conversación ANTERIOR ya le había mandado los datos de pago:
+UPDATE public.vl_wa_chats SET datos_pago_enviado_en = now() - interval '2 days'
+ WHERE tenant_id = '00000000-0000-4000-8000-000000002039' AND wa_id = '+56900000013';
+
+-- El negocio le carga una prenda AHORA y el cliente manda el pantallazo:
+INSERT INTO public.vl_items (tenant_id, proceso_id, descripcion, precio, creado_en)
+VALUES ('00000000-0000-4000-8000-000000002039', '00000000-0000-4000-8000-0000000010d1', 'chaqueta nueva', 15000, now() + interval '3 seconds');
+
+INSERT INTO probe_log
+SELECT '6b. pantallazo de la prenda (BUG: antes salía comprobante)', r->>'enviar', r->>'mensaje', r->>'chat_estado', COALESCE(r->>'aviso_tipo','')
+FROM (SELECT public.vl_wa_conversacion_avanzar('00000000-0000-4000-8000-000000002039', '+56900000013', '', 'imagen') AS r) s;
 
 -- ── Evidencia ──────────────────────────────────────────────────────────────
 CREATE TEMP TABLE probe_evidencia AS

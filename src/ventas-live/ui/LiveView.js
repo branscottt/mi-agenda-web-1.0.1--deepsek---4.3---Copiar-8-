@@ -317,7 +317,19 @@ async function buscarCliente(norm) {
         if (pa !== pb) return pa - pb;
         return (a.proceso_activo ? 0 : 1) - (b.proceso_activo ? 0 : 1);
     });
+    if (!orden.length) { pintarSinCoincidencias(norm.length >= 2); return; }
     pintarSugerencias(orden.slice(0, SUGERENCIAS_MAX));
+}
+
+/** Aviso neutro cuando lo escrito no coincide con ningún cliente conocido. */
+function pintarSinCoincidencias(mostrar) {
+    const box = $('lv-sugerencias');
+    if (!box) return;
+    if (!mostrar) { ocultarSugerencias(); return; }
+    _sugerencias = [];
+    _sugSel = -1;
+    box.innerHTML = '<div class="vl-sugerencia-vacia">Sin clientes con ese nombre: se va a guardar como cliente nuevo.</div>';
+    box.hidden = false;
 }
 
 /** Lista desplegable de usuarios que coinciden con lo escrito. */

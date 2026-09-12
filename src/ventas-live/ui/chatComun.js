@@ -72,7 +72,7 @@ export const AVISO_INFO = {
     },
     prenda: {
         label: 'Foto de prenda',
-        accion: 'Es el respaldo de una prenda que ya le cargaste: revisa que el monto calce con lo que le vendiste.'
+        accion: 'Fíjate que la prenda del pantallazo esté cargada en su pedido y con el monto correcto.'
     },
     esperando_comprobante: {
         label: 'Esperando comprobante',
