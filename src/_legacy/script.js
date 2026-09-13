@@ -5490,16 +5490,16 @@ async function iniciarAdmin() {
     // Verificar fecha de expiración
     if (suscripcionActiva.end_date && new Date(suscripcionActiva.end_date) < new Date()) {
         console.log('[AuthGuard] CASO B2: Suscripción expirada → planes.html');
-        // Marcar como inactiva
+        // Marcar la suscripción como inactiva (lo mismo que hace el cron horario).
+        // OJO: NO se suspende el tenant (estado='inactivo') de forma automática.
+        // La suspensión es una acción manual del superadmin; la auto-suspensión
+        // dejaba al negocio en "Suspendido por administración" sin que nadie la
+        // pidiera (bug real: 5 tenants suspendidos por el cron, 7 y 12 de sep).
         try {
             await supabaseClient
                 .from('subscriptions')
                 .update({ status: 'inactive' })
                 .eq('id', suscripcionActiva.id);
-            await supabaseClient
-                .from('tenants')
-                .update({ estado: 'inactivo' })
-                .eq('id', tenantBD.id);
         } catch (e) {
             console.warn('[AuthGuard] Error desactivando suscripción expirada:', e);
         }
@@ -6433,12 +6433,26 @@ function configurarModalTenant() {
                         const activeSub = existingSubs?.[0];
                         
                         if (activeSub && activeSub.plan !== data.plan) {
-                            // Actualizar plan de la suscripción activa
+                            // Sincronizar plan Y vencimiento. Los planes sin duración
+                            // (freemium = gratis para siempre) quedan SIN fecha de fin;
+                            // si no, la suscripción hereda el end_date del plan anterior
+                            // (p. ej. el del Free Trial) y el cron la expira en la hora
+                            // siguiente → el negocio quedaba "Suspendido por
+                            // administración" sin que nadie lo hubiera pedido.
+                            const infoPlan = (window.planesData || {})[data.plan] || {};
+                            let nuevoFin = null;
+                            if (infoPlan.duracionMeses) {
+                                const d = new Date();
+                                d.setMonth(d.getMonth() + infoPlan.duracionMeses);
+                                nuevoFin = d.toISOString();
+                            } else if (infoPlan.duracionDias) {
+                                nuevoFin = new Date(Date.now() + infoPlan.duracionDias * 24 * 60 * 60 * 1000).toISOString();
+                            }
                             await supabaseClient
                                 .from('subscriptions')
-                                .update({ plan: data.plan })
+                                .update({ plan: data.plan, end_date: nuevoFin })
                                 .eq('id', activeSub.id);
-                            console.log('[Guardar Tenant] Subscripción sincronizada al plan:', data.plan);
+                            console.log('[Guardar Tenant] Subscripción sincronizada al plan:', data.plan, '| fin:', nuevoFin);
                         } else if (!activeSub) {
                             // Crear nueva suscripción si no hay una activa
                             await supabaseClient

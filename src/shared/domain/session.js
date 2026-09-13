@@ -139,11 +139,13 @@ export async function verificarProteccionRutas() {
 
             const subExpirada = sub && sub.end_date && new Date(sub.end_date) < new Date();
             if (!sub || subExpirada) {
-                // Marcar tenant como inactivo si la suscripción expiró
+                // Marcar la suscripción como inactiva (mismo cambio que hace el cron
+                // horario expirar_suscripciones_vencidas()).
+                // El TENANT no se suspende: la suspensión (estado='inactivo') es una
+                // decisión manual del superadmin, nunca automática. Suspender acá
+                // dejaba al negocio en "Suspendido por administración" sin que nadie
+                // lo pidiera (bug real: 5 tenants suspendidos por el cron el 12-sep).
                 if (subExpirada) {
-                    const { updateTenant } = await import('../../api/tenantsApi.js');
-                    await updateTenant(session.tenant_id, { estado: 'inactivo' }).catch(() => {});
-                    // Desactivar suscripción
                     const { updateSubscription } = await import('../../api/subscriptionsApi.js');
                     await updateSubscription(sub.id, { status: 'inactive' }).catch(() => {});
                 }
