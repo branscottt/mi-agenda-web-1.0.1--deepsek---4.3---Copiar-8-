@@ -74,22 +74,18 @@ export async function actualizarPlanTenant(tenantId, nuevoPlan) {
 }
 
 export async function suspenderTenant(tenantId) {
+    // Suspender NO toca el plan ni la suscripción: el workspace queda
+    // "Suspendido por administración" y ya. (Antes marcaba las subs como
+    // status='suspended', valor que la base rechaza:
+    // subscriptions_status_check = active|inactive|trial → fallaba siempre.)
     await updateTenant(tenantId, { estado: 'inactivo' });
-
-    const subs = await getAllSubscriptions({ tenant_id: tenantId, status: 'active' });
-    for (const s of subs) {
-        await updateSubscription(s.id, { status: 'suspended' });
-    }
     return true;
 }
 
 export async function reactivarTenant(tenantId) {
+    // Reactivar tampoco toca el plan: si la suscripción sigue vigente el
+    // negocio entra directo; si venció, la app lo manda a planes.html.
     await updateTenant(tenantId, { estado: 'activo' });
-
-    const subs = await getAllSubscriptions({ tenant_id: tenantId, status: 'suspended' });
-    for (const s of subs) {
-        await updateSubscription(s.id, { status: 'active' });
-    }
     return true;
 }
 

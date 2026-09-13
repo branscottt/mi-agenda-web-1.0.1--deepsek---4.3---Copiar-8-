@@ -6604,48 +6604,14 @@ Sus datos se conservarán intactos y podrá reactivarse después.
             if (error) throw error;
         }
 
-        // Si se desactiva, suspender suscripciones activas
-        if (!activar) {
-            try {
-                const { data: subs } = await supabaseClient
-                    .from('subscriptions')
-                    .select('id, status')
-                    .eq('tenant_id', tenantId)
-                    .eq('status', 'active');
-                for (const sub of subs || []) {
-                    await supabaseClient
-                        .from('subscriptions')
-                        .update({ status: 'suspended', end_date: new Date().toISOString() })
-                        .eq('id', sub.id);
-                }
-            } catch (subError) {
-                console.warn('[superAdminToggleActivo] Error suspendiendo suscripciones:', subError);
-            }
-        } else {
-            // Si se reactiva, restaurar suscripciones suspendidas
-            try {
-                const { data: subs } = await supabaseClient
-                    .from('subscriptions')
-                    .select('id, plan')
-                    .eq('tenant_id', tenantId)
-                    .eq('status', 'suspended');
-                for (const sub of subs || []) {
-                    await supabaseClient
-                        .from('subscriptions')
-                        .update({
-                            status: 'active',
-                            end_date: sub.plan === 'pro'
-                                ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                                : sub.plan === 'premium_anual'
-                                    ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-                                    : undefined
-                        })
-                        .eq('id', sub.id);
-                }
-            } catch (subError) {
-                console.warn('[superAdminToggleActivo] Error restaurando suscripciones:', subError);
-            }
-        }
+        // Suspender/reactivar NO toca la suscripción ni el plan.
+        // Antes este bloque intentaba marcar las subs como status='suspended',
+        // valor que la base NO permite (subscriptions_status_check =
+        // active|inactive|trial) → la escritura fallaba siempre en silencio y no
+        // hacía nada. La semántica correcta: suspender = el workspace queda
+        // "Suspendido por administración"; el plan y su vencimiento quedan
+        // intactos (si el plan estaba vigente, al reactivar entra directo; si
+        // venció, va al paywall de planes.html).
 
         mostrarToast(activar ? 'Tenant reactivado correctamente' : 'Tenant desactivado correctamente', 'success');
         await cargarTenants();
