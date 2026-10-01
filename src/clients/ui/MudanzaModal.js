@@ -15,7 +15,8 @@
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { normalizar, evaluarMatch, esArchivoAceptado, acceptAttr } from './matchArchivos.js';
+import { registrarEvento } from '../../shared/infrastructure/eventos.js';
+import { normalizar, evaluarMatch, esArchivoAceptado, acceptAttr, mimeParaSubida } from './matchArchivos.js';
 
 const INPUT_STYLE = 'width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);color:var(--text-color,#e0e0e0);box-sizing:border-box;font-size:0.9rem;outline:none;font-family:inherit;';
 const TEXTAREA_STYLE = INPUT_STYLE + 'min-height:120px;resize:vertical;line-height:1.5;';
@@ -154,7 +155,9 @@ function subirBinario(file, tenantId) {
             xhr.open('POST', url);
             if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
             if (key) xhr.setRequestHeader('apikey', key);
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            // MIME REAL desde la extensión si el navegador no lo dio (celular/Drive).
+            // El bucket rechaza octet-stream (415): sin esto el archivo se perdía.
+            xhr.setRequestHeader('Content-Type', mimeParaSubida(file));
             xhr.setRequestHeader('x-upsert', 'false');
             xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload ${xhr.status}`)));
             xhr.onerror = () => reject(new Error('Error de red'));
@@ -209,6 +212,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         return;
     }
     const supabase = getSupabase();
+    registrarEvento('mudanza_abierta', { clientes_previos: (clientes || []).length });
 
     // ========== Estado ==========
     const state = {
@@ -284,7 +288,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     // Los "sin dueño" ya NO son trabajo perdido: se guardan en la bandeja
     // persistente. Solo se avisa si quedó algo que NO se pudo guardar.
     function tieneTrabajoPendiente() {
-        if (state.archivos.some(a => a.estado === 'sin_dueño' && !a.huerfanoId)) return 'sin_guardar';
+        if (state.archivos.some(a => (a.estado === 'sin_dueño' && !a.huerfanoId) || a.estado === 'error')) return 'sin_guardar';
         if (state.archivos.some(a => a.estado === 'pendiente')) return 'pendientes';
         if ((state.filasBruto.length && !state.importado) || state.resumenImport) return 'datos';
         return null;
@@ -306,7 +310,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         if (ocupado) { mostrarToast('Esperá a que termine la operación actual', 'warning'); return; }
         const pend = tieneTrabajoPendiente();
         if (pend === 'sin_guardar') {
-            const n = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId).length;
+            const n = state.archivos.filter(a => (a.estado === 'sin_dueño' && !a.huerfanoId) || a.estado === 'error').length;
             if (!window.confirm(`Quedan ${n} archivo(s) que no se pudieron guardar en la bandeja y se perderán. ¿Cerrar igual?`)) return;
             limpiarSinDueno();
         } else if (pend === 'pendientes') {
@@ -329,7 +333,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
 
     /** Borra de Storage SOLO lo que el admin aceptó perder (no se pudo guardar). */
     function limpiarSinDueno() {
-        const sueltos = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId && a.storagePath);
+        const sueltos = state.archivos.filter(a => (a.estado === 'sin_dueño' && !a.huerfanoId) || a.estado === 'error' && a.storagePath);
         if (!sueltos.length) return;
         try {
             supabase.storage.from('kanban-adjuntos').remove(sueltos.map(a => a.storagePath)).catch(() => {});
@@ -380,7 +384,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         if (state.paso === 3) {
             $siguiente.innerHTML = '<i class="fas fa-flag-checkered"></i> Finalizar mudanza';
             // Los que ya quedaron guardados en la bandeja no bloquean el cierre.
-            const sinGuardar = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId).length;
+            const sinGuardar = state.archivos.filter(a => (a.estado === 'sin_dueño' && !a.huerfanoId) || a.estado === 'error').length;
             $siguiente.disabled = sinGuardar > 0 || ocupado;
         } else {
             $siguiente.innerHTML = 'Siguiente <i class="fas fa-arrow-right"></i>';
@@ -641,6 +645,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         resumen.terminado = true;
         state.resumenImport = resumen;
         state.importado = true;
+        registrarEvento('mudanza_clientes_importados', { nuevos: resumen.nuevos, actualizados: resumen.actualizados, omitidos: (resumen.omitidos || []).length });
         ocupado = false;
         pintarPasos();
         pintarFooter();
@@ -772,6 +777,8 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                 ? `<span style="color:#00b894;font-size:0.72rem;"><i class="fas fa-check-circle"></i> En la carpeta de ${escapeHtml(cliente ? cliente.nombre : a.clienteEmail)}</span>`
                 : a.estado === 'sin_dueño'
                     ? `<span style="color:#ffc107;font-size:0.72rem;"><i class="fas fa-question-circle"></i> Sin dueño (bandeja)</span>`
+                    : a.estado === 'error'
+                        ? `<span style="color:#ff6b6b;font-size:0.72rem;"><i class="fas fa-exclamation-triangle"></i> No se pudo subir${a.errorMsg ? ': ' + escapeHtml(a.errorMsg) : ''}. Usá "Reintentar".</span>`
                     : a.ambiguo
                         ? `<span style="color:#ffc107;font-size:0.72rem;"><i class="fas fa-code-branch"></i> Puede ser ${escapeHtml((a.nombresAmbiguos || []).join(' o ') || 'de más de uno')} → elegís en la bandeja</span>`
                         : cliente
@@ -785,9 +792,23 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                         <div style="font-size:0.7rem;color:var(--text-muted,#999);">${formatearTamano(a.file.size)}</div>
                     </div>
                     <div style="min-width:150px;">${estadoHtml}</div>
+                    ${a.estado === 'error' ? `<button class="mud2-reintentar btn-primary" data-id="${a.id}" style="${BTN_PRI};padding:5px 10px;font-size:0.72rem;"><i class="fas fa-redo"></i> Reintentar</button>` : ''}
                     <button class="mud2-quitar" data-id="${a.id}" style="${BTN_SEC};padding:5px 9px;font-size:0.72rem;"><i class="fas fa-times"></i> Quitar</button>
                 </div>`;
         }).join('');
+        $lista.querySelectorAll('.mud2-reintentar').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const a = state.archivos.find(x => x.id === Number(btn.dataset.id));
+                if (!a) return;
+                a.estado = 'pendiente';
+                a.errorMsg = null;
+                pintarListaArchivosPaso2();
+                pintarResultadoDistribucion();
+                pintarPasos();
+                pintarFooter();
+                confirmarSubida();
+            });
+        });
         $lista.querySelectorAll('.mud2-quitar').forEach(btn => {
             btn.addEventListener('click', () => {
                 const a = state.archivos.find(x => x.id === Number(btn.dataset.id));
@@ -806,9 +827,11 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
 
     function pintarResultadoDistribucion() {
         const $res = $('mud2-resultado');
+        const porSubir = state.archivos.filter(a => a.estado === 'pendiente' || a.estado === 'error');
         const pendientes = state.archivos.filter(a => a.estado === 'pendiente');
         const sinDueno = state.archivos.filter(a => a.estado === 'sin_dueño');
         const registrados = state.archivos.filter(a => a.estado === 'registrado');
+        const conError = state.archivos.filter(a => a.estado === 'error');
 
         if (state.subidaConfirmada) {
             $res.innerHTML = `
@@ -817,6 +840,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                         <i class="fas fa-check-circle" style="color:#00b894;"></i>
                         <strong>${registrados.length} archivo(s) subido(s) a la carpeta de sus clientes.</strong>
                         ${sinDueno.length ? `<br><span style="font-size:0.78rem;color:var(--text-muted,#aaa);">${sinDueno.length} quedaron sin dueño: los asignás en el paso 3.</span>` : '<br><span style="font-size:0.78rem;color:var(--text-muted,#aaa);">¡Todos los archivos encontraron a su cliente!</span>'}
+                        ${conError.length ? `<br><span style="font-size:0.78rem;color:#ff6b6b;"><i class="fas fa-exclamation-triangle"></i> ${conError.length} NO se pudieron subir y NO están guardados: tocá "Reintentar" en la lista (o Quitar si no los necesitás).</span>` : ''}
                     </p>
                 </div>`;
             return;
@@ -851,7 +875,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
             </div>` : ''}
             ${conDueno || nSinDueno ? `
             <div style="display:flex;justify-content:flex-end;">
-                <button class="btn-primary" id="mud2-confirmar" style="${BTN_PRI}"><i class="fas fa-cloud-upload-alt"></i> Confirmar y subir ${state.archivos.length} archivo(s)</button>
+                <button class="btn-primary" id="mud2-confirmar" style="${BTN_PRI}"><i class="fas fa-cloud-upload-alt"></i> Confirmar y subir ${porSubir.length} archivo(s)</button>
             </div>` : ''}
         `;
         const btn = $('mud2-confirmar');
@@ -859,7 +883,8 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
     }
 
     async function confirmarSubida() {
-        const pendientes = state.archivos.filter(a => a.estado === 'pendiente');
+        const pendientes = state.archivos.filter(a => a.estado === 'pendiente' || a.estado === 'error');
+        pendientes.forEach(a => { if (a.estado === 'error') { a.estado = 'pendiente'; a.errorMsg = null; } });
         if (!pendientes.length) return;
         ocupado = true;
         pintarFooter();
@@ -894,7 +919,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                         p_cliente_email: a.clienteEmail,
                         p_nombre: a.file.name,
                         p_nombre_archivo: a.file.name,
-                        p_tipo_mime: a.file.type || 'application/octet-stream',
+                        p_tipo_mime: mimeParaSubida(a.file),
                         p_tamano: a.file.size || 0,
                         p_storage_path: storagePath
                     });
@@ -916,8 +941,11 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                 }
             } catch (e) {
                 console.error('[Mudanza] Error subiendo', a.file.name, e);
-                // El binario no alcanzó a subir: no hay nada que guardar aún.
-                a.estado = 'sin_dueño';
+                // El binario NO subió: no hay nada guardado. Marcarlo como ERROR
+                // (no como "sin dueño": eso haría creer que está en la bandeja y
+                // el archivo se perdería en silencio). Se puede reintentar.
+                a.estado = 'error';
+                a.errorMsg = (e && e.message) ? String(e.message) : 'error de subida';
                 a.storagePath = null;
                 errores++;
             } finally {
@@ -933,6 +961,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
         pintarResultadoDistribucion();
         pintarPasos();
         pintarFooter();
+        registrarEvento('mudanza_archivos', { total: pendientes.length, a_su_cliente: ok, bandeja: aBandeja, errores: errores });
         if (errores) mostrarToast(`${ok} a su cliente, ${aBandeja} en la bandeja. ${errores} con problemas: revisalos`, 'warning');
         else if (aBandeja) mostrarToast(`${ok} archivo(s) a su cliente · ${aBandeja} guardado(s) en la bandeja Sin cliente`, 'success');
         else mostrarToast('¡Todos los archivos encontraron a su cliente!', 'success');
@@ -951,7 +980,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
                 p_tenant_id: tenantId,
                 p_nombre_original: a.file.name,
                 p_nombre_archivo: a.file.name,
-                p_tipo_mime: a.file.type || 'application/octet-stream',
+                p_tipo_mime: mimeParaSubida(a.file),
                 p_tamano: a.file.size || 0,
                 p_storage_path: a.storagePath
             });
@@ -1157,7 +1186,7 @@ export async function abrirCentroMudanza({ clientes = [], onTerminado } = {}) {
 
     // ---------- Finalizar ----------
     function finalizarMudanza() {
-        const sinGuardar = state.archivos.filter(a => a.estado === 'sin_dueño' && !a.huerfanoId).length;
+        const sinGuardar = state.archivos.filter(a => (a.estado === 'sin_dueño' && !a.huerfanoId) || a.estado === 'error').length;
         if (sinGuardar) { mostrarToast('Todavía hay archivos que no se pudieron guardar: quitalos o reintentá', 'warning'); return; }
         const enBandeja = state.archivos.filter(a => a.estado === 'sin_dueño').length;
         cerrar();

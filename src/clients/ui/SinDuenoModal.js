@@ -17,6 +17,7 @@ import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { evaluarMatch } from './matchArchivos.js';
+import { registrarEvento } from '../../shared/infrastructure/eventos.js';
 
 const INPUT_STYLE = 'width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);color:var(--text-color,#e0e0e0);box-sizing:border-box;font-size:0.9rem;outline:none;font-family:inherit;';
 const BTN_PRI = 'padding:9px 16px;border-radius:10px;background:linear-gradient(135deg,var(--primary-color,#9d4edd),#7b2cbf);border:none;color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600;display:inline-flex;align-items:center;gap:7px;box-shadow:0 4px 14px rgba(157,78,221,0.3);';
@@ -55,6 +56,7 @@ function iconoPorArchivo(nombre) {
  * @param {Function} opts.onCambio   Se llama al cerrar si hubo cambios.
  */
 export async function abrirSinDueno({ clientes = [], onCambio } = {}) {
+    registrarEvento('bandeja_sin_dueno_abierta', { pendientes: (clientes || []).length });
     const tenantId = await getCurrentTenantId();
     if (!tenantId) { mostrarToast('No se pudo identificar el negocio', 'error'); return; }
     const supabase = getSupabase();

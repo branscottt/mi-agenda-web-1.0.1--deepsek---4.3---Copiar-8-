@@ -17,6 +17,7 @@ import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatFechaCorta, formatTimeDisplay } from '../../shared/infrastructure/formatters.js';
 import { renderChipEtiqueta } from '../../shared/ui/etiquetasPago.js';
 import { getVisualConfig } from '../../visual-config/application/VisualConfigService.js';
+import { registrarEvento } from '../../shared/infrastructure/eventos.js';
 
 // ========== DEPENDENCIAS INYECTABLES ==========
 // Por defecto usa la capa de datos admin (kanbanApi + updateCita +
@@ -34,6 +35,7 @@ let deps = {
 };
 
 export function configurarClientBoard(opts) {
+    registrarEvento('trello_abierto', {}, { unaVezPorCarga: true });
     if (!opts) return;
     if (opts.kanbanApi) deps.kanbanApi = opts.kanbanApi;
     if (opts.updateCita) deps.updateCita = opts.updateCita;
@@ -206,6 +208,9 @@ function renderBoardModal() {
                     ${!deps.adjuntosSoloLectura ? `
                     <button class="kanban-estilos-btn" id="kanban-archivos" title="Archivos del cliente: subir Word/Excel/PDF o enlazar su carpeta de Drive. Al editarlos, las versiones anteriores quedan guardadas.">
                         <i class="fas fa-folder-open"></i><span class="kanban-estilos-txt"> Archivos</span>
+                    </button>
+                    <button class="kanban-estilos-btn" id="kanban-predeterminados" title="Predeterminados: deja las listas y tarjetas que le pides a TODOS tus clientes (ej. Anamnesis con preguntas fijas, Entrenamientos con 6 ejercicios) y se ponen solas en cada tablero, en blanco, para rellenar.">
+                        <i class="fas fa-clipboard-list"></i><span class="kanban-estilos-txt"> Predeterminados</span>
                     </button>` : ''}
                     ${deps.compartirHabilitado ? `
                     <button class="kanban-estilos-btn" id="kanban-compartir" title="Elige qué listas ve el cliente (solo esas) y copia su enlace para enviárselo por WhatsApp">
@@ -244,6 +249,7 @@ function renderBoardModal() {
     bindEliminarCliente();
     bindCompartir();
     bindArchivos();
+    bindPredeterminados();
     bindSugerenciaListas();
     const editarContactoBtn = document.getElementById('kanban-editar-contacto');
     if (editarContactoBtn && deps.onEditarContacto) editarContactoBtn.addEventListener('click', deps.onEditarContacto);
@@ -315,6 +321,33 @@ function bindSugerenciaListas() {
     if (no) no.addEventListener('click', () => {
         try { if (email) localStorage.setItem(`kb_listas_off_${email}`, '1'); } catch (e) { /* sin storage */ }
         cont.remove();
+    });
+}
+
+// ========== PREDETERMINADOS (solo vista admin) ==========
+// Lo que se le pide a TODOS los clientes (anamnesis, sesión base de
+// ejercicios...): se arma una vez, se guarda y se pone solo en cada tablero.
+function bindPredeterminados() {
+    const btn = document.getElementById('kanban-predeterminados');
+    if (!btn || deps.adjuntosSoloLectura) return;
+    btn.addEventListener('click', async () => {
+        try {
+            const { abrirPredeterminados } = await import('./PredeterminadosPanel.js');
+            await abrirPredeterminados({
+                boardId: board ? board.id : '',
+                clienteNombre: clienteActual ? (clienteActual.nombre || '') : '',
+                totalClientes: Array.isArray(clientesDelTenant) ? clientesDelTenant.length : 0,
+                clientes: Array.isArray(clientesDelTenant) ? clientesDelTenant : [],
+                onCambio: async () => {
+                    const d = await deps.kanbanApi.getBoardData(board.id);
+                    lists = d.lists || [];
+                    renderBoardModal();
+                }
+            });
+        } catch (err) {
+            console.error('[ClientBoard] Error abriendo predeterminados:', err);
+            mostrarToast('No se pudieron abrir los predeterminados', 'error');
+        }
     });
 }
 

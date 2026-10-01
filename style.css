@@ -21148,3 +21148,20 @@ body.cfgmo-lock { overflow: hidden; }
     .kanban-sugerencia-listas .ksl-acc .ksl-btn { flex: 1 1 100%; }
     .kanban-sugerencia-listas .ksl-no { flex: 1 1 100%; text-align: center; padding: 6px 0; }
 }
+
+/* ============================================================
+   2026-10-XX · Móvil: evitar el ZOOM automático de iOS al enfocar
+   inputs/selects/textareas con font-size < 16px. Importaba en el
+   Centro de Mudanza (pegar el Excel desde el celular) y en la
+   bandeja "Sin cliente". !important porque los estilos son inline.
+   ============================================================ */
+@media (max-width: 768px) {
+  #mud1-texto,
+  #mud-cuerpo input, #mud-cuerpo select, #mud-cuerpo textarea,
+  #sd-cuerpo input, #sd-cuerpo select,
+  #acf-contenido input, #acf-contenido select,
+  .kanban-card-overlay input[type="text"], .kanban-card-overlay textarea, .kanban-card-overlay select {
+    font-size: 16px !important;
+  }
+}
+

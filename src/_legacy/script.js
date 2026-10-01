@@ -3,6 +3,7 @@
 // ============================================
 // Prioridad: window.__APP_CONFIG (server.py lo inyecta) > hardcoded dev defaults
 import { initDireccionAutocomplete } from '../shared/ui/direccionAutocomplete.js';
+import { registrarEvento } from '../shared/infrastructure/eventos.js';
 const _cfg = window.__APP_CONFIG || {
     supabaseUrl: 'https://dfcfimipkfhitlsyixqu.supabase.co',
     supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmY2ZpbWlwa2ZoaXRsc3lpeHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNzczMzAsImV4cCI6MjA4ODc1MzMzMH0.1OviTiPxYIK83bbmrYVY1nUR2o0bxn_wfqnWqK4Ccw0',
@@ -6990,6 +6991,7 @@ async function crearServicio() {
         if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...'; }
 
         await ServiciosManager.save(nuevoServicio);
+        registrarEvento('servicio_creado', { fechas: selectedDates.size, horarios: serviceModules.length, tipo_venta: camposPromo.tipo_venta });
         mostrarMensaje(`✅ Servicio "${nombre}" creado con ${selectedDates.size} fecha(s) y ${serviceModules.length} horario(s)`, "success");
 
         limpiarEstadoEdicion();
@@ -14426,6 +14428,8 @@ var cerrarPopupReserva, toggleSidebar, closeSidebar, navigateTo,
             if (item.dataset.section === sectionId) item.classList.add('active');
         });
         if (typeof window.closeSidebar === 'function') window.closeSidebar();
+        // Uso: qué sección abre cada negocio (dedupe por carga, sin ruido).
+        registrarEvento('seccion_' + sectionId, {}, { unaVezPorCarga: true });
         var main = document.getElementById('dynamic-content');
         if (main) main.scrollIntoView({ behavior: 'smooth', block: 'start' });
 

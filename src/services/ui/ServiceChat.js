@@ -21,6 +21,7 @@
 // ============================================================
 
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
+import { registrarEvento } from '../../shared/infrastructure/eventos.js';
 
 const MAX_FECHAS = 400; // tope defensivo (1 año "todos los días" ≈ 366)
 const CLP = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
@@ -275,6 +276,7 @@ function mostrarChat(opts) {
     _modo = 'chat';
     form.style.display = 'none';
     _el.view.style.display = '';
+    registrarEvento('svc_chat_visto', { silencioso: opts.silencioso === true }, { unaVezPorCarga: true });
 
     if (_editando) {
         // En edición el chat NO reinicia el form: continúa la conversación.
@@ -312,6 +314,7 @@ function mostrarChat(opts) {
 }
 
 function mostrarForm() {
+    registrarEvento('svc_form_manual', {}, { unaVezPorCarga: true });
     const form = document.getElementById('service-form');
     if (!form || !_el) return;
 
@@ -1662,6 +1665,7 @@ function fechasActuales() {
 }
 
 function iniciarChatEdicion() {
+    registrarEvento('svc_edicion_por_chat', {});
     const form = document.getElementById('service-form');
     if (!form || !_el) return;
     _editando = true;
@@ -2045,6 +2049,7 @@ function trasCambioEdicion() {
 }
 
 function guardarEdicionChat() {
+    registrarEvento('svc_editado_por_chat', {});
     burbujaBot('Guardando cambios… <i class="fas fa-spinner fa-spin"></i>');
     _guardandoEdicionChat = true;
     const esperar = (ms) => new Promise(r => setTimeout(r, ms));

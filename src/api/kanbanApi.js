@@ -6,6 +6,7 @@
 // (bucket privado 'kanban-adjuntos', carpeta raíz = tenant_id).
 // SIN caché: el admin espera que "apenas se guarde" se vea.
 import { getSupabase } from '../shared/infrastructure/supabase.js';
+import { mimeParaSubida } from '../clients/ui/matchArchivos.js';
 
 // ========== BOARDS ==========
 
@@ -31,6 +32,17 @@ export async function getOrCreateBoard(tenantId, clienteEmail, clienteNombre) {
         .select()
         .single();
     if (error) throw error;
+
+    // PREDETERMINADOS: si el negocio guardó las listas que le pide a TODOS sus
+    // clientes (anamnesis, sesión base de ejercicios…), se ponen solas en el
+    // tablero recién creado, en blanco, para rellenar. Nunca tumba la creación.
+    try {
+        const { aplicarAutomatico } = await import('./predeterminadosApi.js');
+        const r = await aplicarAutomatico(tenantId, creado.id);
+        if (r && r.ok) console.log('[kanbanApi] predeterminados aplicados al tablero nuevo', r);
+    } catch (e) {
+        console.warn('[kanbanApi] predeterminados automáticos:', (e && e.message) || e);
+    }
     return creado;
 }
 
@@ -473,7 +485,7 @@ export async function uploadAttachment(file, boardId, cardId, onProgress) {
         xhr.open('POST', url);
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         if (key) xhr.setRequestHeader('apikey', key);
-        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.setRequestHeader('Content-Type', mimeParaSubida(file));
         xhr.setRequestHeader('x-upsert', 'false');
 
         xhr.upload.onprogress = (e) => {

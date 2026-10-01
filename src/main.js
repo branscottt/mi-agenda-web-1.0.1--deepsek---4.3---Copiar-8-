@@ -393,6 +393,8 @@ async function syncJwtSession() {
             try {
                 const { initAuditDashboard } = await import('./superadmin/ui/AuditDashboard.js');
                 initAuditDashboard();
+                const { initUsoDashboard } = await import('./superadmin/ui/UsoDashboard.js');
+                initUsoDashboard();
             } catch (e) {
                 console.warn('[main.js] AuditDashboard no disponible:', e.message);
             }

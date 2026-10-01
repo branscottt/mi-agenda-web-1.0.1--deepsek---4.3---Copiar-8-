@@ -13,6 +13,8 @@
 //   - La decisión de identificar (identify) se toma solo si hay config.
 //   - PostHog respeta leyes de privacidad (GDPR-ready).
 
+import { registrarEvento } from './eventos.js';
+
 const POSTHOG_CDN = 'https://cdn.jsdelivr.net/npm/posthog-js@1.216.1/dist/posthog.min.js';
 
 let _initialized = false;
@@ -85,6 +87,9 @@ export async function initAnalytics() {
  * @param {object} [properties={}] - Propiedades del evento (sin PII)
  */
 export function trackEvent(eventName, properties = {}) {
+    // Espejo en NUESTRA base: así el superadmin ve el uso aunque PostHog esté apagado.
+    registrarEvento(eventName, properties || {});
+
     if (!_posthog) {
         // Si no se inicializó, intentar de nuevo (puede estar cargando aún)
         if (!_initialized) {

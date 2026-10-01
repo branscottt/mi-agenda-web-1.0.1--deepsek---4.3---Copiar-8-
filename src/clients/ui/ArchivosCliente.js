@@ -11,7 +11,8 @@
 import { getCurrentTenantId } from '../../shared/infrastructure/router.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { esArchivoAceptado, acceptAttr } from './matchArchivos.js';
+import { esArchivoAceptado, acceptAttr, mimeParaSubida } from './matchArchivos.js';
+import { registrarEvento } from '../../shared/infrastructure/eventos.js';
 
 // ========== ESTILOS (coherentes con los overlays del panel admin) ==========
 const INPUT_STYLE = 'width:100%;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);color:var(--text-color,#e0e0e0);box-sizing:border-box;font-size:0.9rem;outline:none;transition:border-color .15s ease;';
@@ -81,7 +82,8 @@ function subirBinario(file, tenantId, prefijo, onProgress) {
             xhr.open('POST', url);
             if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
             if (key) xhr.setRequestHeader('apikey', key);
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            // MIME REAL desde la extensión si el navegador no lo dio (celular/Drive)
+            xhr.setRequestHeader('Content-Type', mimeParaSubida(file));
             xhr.setRequestHeader('x-upsert', 'false');
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable && typeof onProgress === 'function') onProgress({ loaded: e.loaded, total: e.total });
@@ -101,6 +103,7 @@ function subirBinario(file, tenantId, prefijo, onProgress) {
  * @param {Function} [opts.onCambio]  callback tras cualquier cambio (para refrescar la vista padre)
  */
 export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
+    registrarEvento('archivos_cliente_abierto', {}, { unaVezPorCarga: true });
     if (!cliente || !cliente.email) {
         mostrarToast('El cliente no tiene email para abrir sus archivos', 'warning');
         return;
@@ -514,7 +517,7 @@ export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
                     p_cliente_email: email,
                     p_nombre: nombreLogico,
                     p_nombre_archivo: file.name,
-                    p_tipo_mime: file.type || 'application/octet-stream',
+                    p_tipo_mime: mimeParaSubida(file),
                     p_tamano: file.size || 0,
                     p_storage_path: storagePath
                 });
@@ -536,6 +539,7 @@ export async function abrirArchivosCliente({ cliente, onCambio } = {}) {
         zona.style.display = 'none';
         await recargar();
         if (typeof onCambio === 'function') onCambio();
+        registrarEvento('archivos_subidos', { nuevos: resultados.nuevos, versiones: resultados.versiones, errores: resultados.errores.length });
         if (resultados.errores.length) {
             mostrarToast(`${resultados.errores.length} archivo(s) con error: ${resultados.errores[0]}`, 'error');
         } else {

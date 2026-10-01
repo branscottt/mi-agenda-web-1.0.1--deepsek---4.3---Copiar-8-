@@ -15,13 +15,14 @@ export function normalizar(s) {
 
 /** Extensiones aceptadas (red de seguridad cuando el navegador no da MIME). */
 export const EXT_ACEPTADAS = [
-    'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf',
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'heif', 'pdf',
     'doc', 'docx', 'rtf', 'odt', 'xls', 'xlsx', 'ods', 'csv',
     'ppt', 'pptx', 'txt', 'zip'
 ];
 
 export const MIME_ACEPTADOS = [
     'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'image/heic', 'image/heif',
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -36,9 +37,45 @@ export const MIME_ACEPTADOS = [
     'application/zip'
 ];
 
+/**
+ * Extension → MIME REAL que se manda a Storage.
+ * IMPRESCINDIBLE: el bucket 'kanban-adjuntos' tiene lista blanca de MIME y
+ * RECHAZA 'application/octet-stream' (HTTP 415 invalid_mime_type). En celular /
+ * Google Drive / descargas el navegador deja file.type VACÍO, así que mandar
+ * `file.type || 'application/octet-stream'` hacía perder el archivo.
+ */
+export const EXT_A_MIME = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', svg: 'image/svg+xml', heic: 'image/heic', heif: 'image/heif',
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    rtf: 'application/rtf',
+    odt: 'application/vnd.oasis.opendocument.text',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ods: 'application/vnd.oasis.opendocument.spreadsheet',
+    csv: 'text/csv', txt: 'text/plain', zip: 'application/zip',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+};
+
 export function extensionDe(nombre) {
     const m = String(nombre || '').toLowerCase().match(/\.([a-z0-9]+)$/);
     return m ? m[1] : '';
+}
+
+/**
+ * MIME con el que se SUBE el archivo al bucket. Si el navegador no dio un MIME
+ * permitido (vacío u octet-stream), se deriva de la extensión. Nunca devuelve
+ * octet-stream si la extensión es conocida.
+ */
+export function mimeParaSubida(file) {
+    const tipo = String((file && file.type) || '').toLowerCase();
+    if (MIME_ACEPTADOS.includes(tipo)) return tipo;
+    const ext = extensionDe(file && file.name);
+    if (EXT_A_MIME[ext]) return EXT_A_MIME[ext];
+    return tipo && tipo !== 'application/octet-stream' ? tipo : 'application/octet-stream';
 }
 
 /**
