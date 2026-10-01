@@ -89,6 +89,18 @@ export const AVISO_INFO = {
     otro_numero: {
         label: 'Escribió desde otro número',
         accion: 'Se identificó con su @ desde un teléfono distinto al guardado: la ficha NO se cambió. Revisa el chat y, si corresponde, actualiza su WhatsApp en la ficha.'
+    },
+    vinculado_usuario: {
+        label: 'Vinculado solo',
+        accion: 'El cliente escribió su @ y el chat quedó vinculado automáticamente. Revisa que sea él antes de seguir.'
+    },
+    usuario_sugerido: {
+        label: '¿Es este cliente?',
+        accion: 'Lo que escribió se parece a un cliente conocido: abre el chat, confirma quién es y atiéndelo con esa ficha.'
+    },
+    usuario_corregido: {
+        label: 'Usuario corregido',
+        accion: 'El cliente escribió su @ real (más completo que el anotado) y actualicé su ficha. Revisa que sea la persona correcta.'
     }
 };
 
@@ -103,7 +115,7 @@ export function avisoAccion(tipo) {
 // Avisos que SÍ requieren que conteste una persona: el bot no los resolvió.
 export const AVISOS_RESPUESTA = [
     'no_entendido', 'usuario_no_encontrado', 'usuario_no_confirmado', 'sin_cliente',
-    'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda'
+    'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda', 'usuario_sugerido'
 ];
 
 // Quién tiene que mover este chat (se ve en la lista, sin abrirlo):

@@ -51,6 +51,7 @@ function buildDOM() {
                                    placeholder="cliente123" enterkeyhint="next" autofocus>
                         </div>
                         <div class="vl-sugerencias" id="lv-sugerencias" hidden></div>
+                        <div class="vl-parecido" id="lv-parecido" hidden></div>
                     </div>
                     <div class="vl-field">
                         <label for="lv-precio">Precio de la prenda</label>
@@ -291,7 +292,7 @@ async function cerrarLive() {
 function onUsuarioInput() {
     clearTimeout(_debounce);
     const norm = normalizarTiktok($('lv-usuario').value);
-    if (!norm) { ocultarResumen(); ocultarSugerencias(); return; }
+    if (!norm) { ocultarResumen(); ocultarSugerencias(); pintarParecidos([]); return; }
     _debounce = setTimeout(() => buscarCliente(norm), 300);
 }
 
@@ -304,11 +305,16 @@ async function buscarCliente(norm) {
     // Con la primera coincidencia exacta ya no hay nada que elegir: se pinta la
     // tarjeta y se cierra la lista.
     if (match) {
+        pintarParecidos([]);
         ocultarSugerencias();
         mostrarResumen(match);
         return;
     }
     ocultarResumen();
+    // Aviso de posible DUPLICADO: hay clientes que EMPIEZAN igual que lo escrito
+    // (escribes "anubis" y ya existe "@anubisss"). Antes se creaba una ficha casi
+    // igual sin decir nada.
+    pintarParecidos(lista.filter(c => c.tiktok_user.startsWith(norm)), norm);
     // Sugerencias (para no escribir el usuario completo de un cliente conocido):
     // primero los que EMPIEZAN igual, después los que tienen pedido abierto.
     const orden = lista.slice().sort((a, b) => {
@@ -319,6 +325,53 @@ async function buscarCliente(norm) {
     });
     if (!orden.length) { pintarSinCoincidencias(norm.length >= 2); return; }
     pintarSugerencias(orden.slice(0, SUGERENCIAS_MAX));
+}
+
+/**
+ * Franja informativa (ámbar suave, nunca rojo) cuando lo escrito se parece al
+ * comienzo del usuario de un cliente que ya existe: mejor elegirlo que duplicar.
+ * @param {Array} lista  clientes cuyo @ empieza igual a lo escrito
+ */
+function pintarParecidos(lista, norm = '') {
+    const box = $('lv-parecido');
+    if (!box) return;
+    const arr = Array.isArray(lista) ? lista.slice(0, 3) : [];
+    if (!arr.length) { box.hidden = true; box.innerHTML = ''; return; }
+    const nicks = arr.map(c => '@' + escapeHtml(c.tiktok_user)).join(' · ');
+    box.innerHTML = `<i class="fas fa-info-circle"></i> Ya existe <b>${nicks}</b>. `
+        + 'Si es esa persona, tócala en la lista; si de verdad es otra, guarda igual y se crea '
+        + `<b>@${escapeHtml(norm)}</b> (te lo voy a confirmar).`;
+    box.hidden = false;
+}
+
+/**
+ * Si lo escrito NO es exactamente un cliente pero hay alguno que EMPIEZA igual,
+ * pide confirmación antes de crear una ficha nueva.
+ *   Aceptar  -> se usa la ficha que ya existe (y se muestran las sugerencias)
+ *   Cancelar -> se crea el cliente nuevo con lo escrito
+ * Devuelve false si el usuario prefirió no crear el duplicado.
+ */
+async function confirmarParecido(norm) {
+    const res = await vlApi.buscarClientes(norm, 20);
+    if (!res.ok) return true;
+    const lista = res.data.clientes || [];
+    if (lista.some(c => c.tiktok_user === norm)) return true;
+    const parecidos = lista.filter(c => c.tiktok_user.startsWith(norm));
+    if (!parecidos.length) return true;
+
+    const nicks = parecidos.slice(0, 3).map(c => '@' + c.tiktok_user).join(', ');
+    const usarLaExistente = window.confirm(
+        'Ya existe ' + nicks + ', muy parecido a @' + norm + '.\n\n'
+        + 'Aceptar  = usar ' + nicks + '\n'
+        + 'Cancelar = crear la ficha nueva @' + norm);
+    if (usarLaExistente) {
+        $('lv-usuario').value = norm;
+        await buscarCliente(norm);
+        mostrarToast('Elige de la lista la ficha correcta', 'warning');
+        $('lv-usuario').focus();
+        return false;
+    }
+    return true;
 }
 
 /** Aviso neutro cuando lo escrito no coincide con ningún cliente conocido. */
@@ -435,6 +488,10 @@ async function guardar() {
     if (!norm) { mostrarToast('Escribe el usuario de TikTok', 'warning'); $('lv-usuario').focus(); return; }
     const precio = parsePrecio($('lv-precio').value);
     if (!precio) { mostrarToast('Escribe un precio válido', 'warning'); $('lv-precio').focus(); return; }
+
+    // Antes de crear un cliente, avisar si ya hay uno MUY parecido (se escribió
+    // "anubis" y ya existe "@anubisss"): sin esto quedaban dos fichas casi iguales.
+    if (!(await confirmarParecido(norm))) return;
 
     _guardando = true;
     const btn = $('lv-agregar');

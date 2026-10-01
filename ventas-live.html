@@ -157,6 +157,19 @@
         .vl-sugerencia.activa, .vl-sugerencia:hover { background: rgba(157, 78, 221, 0.22); }
         /* Sin coincidencias: aviso informativo (nunca rojo ni parpadeo). */
         .vl-sugerencia-vacia { padding: 11px 14px; color: #adb5bd; font-size: 0.82rem; }
+        /* Posible duplicado: lo escrito empieza igual que el @ de un cliente que
+           ya existe. Ámbar suave, con brillo estático (nunca rojo ni parpadeo). */
+        .vl-parecido {
+            display: flex; align-items: flex-start; gap: 8px;
+            margin-top: 8px; padding: 9px 12px;
+            background: rgba(255, 193, 7, 0.10);
+            border: 1px solid rgba(255, 193, 7, 0.38);
+            border-left: 3px solid #ffc107;
+            border-radius: 10px;
+            color: #ffe08a; font-size: 0.8rem; line-height: 1.35;
+        }
+        .vl-parecido b { color: #fff; }
+        .vl-parecido i { color: #ffc107; margin-top: 2px; }
         .vl-submit {
             width: 100%; border: none; cursor: pointer;
             background: linear-gradient(135deg, #9d4edd, #7b2cbf);
@@ -722,7 +735,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=104"></script>
+    <script type="module" src="dist/app.js?v=105"></script>
     <script defer src="dist/legacy.js?v=74"></script>
 </body>
 </html>
