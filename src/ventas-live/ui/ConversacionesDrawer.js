@@ -13,13 +13,15 @@
 // Datos: vl_wa_chats_listar / vl_wa_chat_hilo / vl_wa_chat_modo (RPCs admin)
 // y la Edge Function wa-enviar para los mensajes salientes.
 
-import { vlApi } from '../domain/vlApi.js';
+import { vlApi, ESTADO_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { escapeHtml } from '../../shared/infrastructure/formatters.js';
+import { escapeHtml, formatearDinero } from '../../shared/infrastructure/formatters.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion,
-    fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo
+    fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
+    quienContesta, procesoChips
 } from './chatComun.js';
+import { PUNTO_LABEL, PUNTO_VALOR_LABEL } from './accionesProceso.js';
 
 const REFRESCO_ABIERTO_MS = 15000;
 const REFRESCO_BADGE_MS = 30000;
@@ -303,6 +305,12 @@ function chatsVisibles() {
     return _chats.filter(c => _verOcultos || !c.oculto);
 }
 
+// Proceso (puntos del pedido) del chat abierto: lo devuelve chats_listar.
+function procDelChat(chatId) {
+    const c = _chats.find(x => String(x.id) === String(chatId));
+    return (c && c.proceso) || null;
+}
+
 function renderLista() {
     const body = $('vld-body');
     if (!body) return;
@@ -339,14 +347,22 @@ function renderLista() {
         const aviso = c.aviso_tipo
             ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + (c.aviso_detalle || '') + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
             : '';
+        // Quién tiene que mover este chat: se ve sin abrirlo. Cuando nos toca a
+        // nosotros, el chip late suave (nunca rojo: es informativo).
+        const qc = quienContesta(c);
+        const quien = `<div class="vl-conv-quien ${qc.tipo}" title="${escapeHtml(qc.detalle || '')}">${escapeHtml(qc.label)}</div>`;
+        const tuTurno = qc.tipo === 'humano' ? ' tu-turno' : '';
+
         return `
-            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${c.oculto ? ' oculto' : ''}" data-chat="${escapeHtml(c.id)}" type="button">
+            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${c.oculto ? ' oculto' : ''}${tuTurno}" data-chat="${escapeHtml(c.id)}" type="button">
                 <div class="vl-conv-top">
                     <span class="vl-conv-nombre">${escapeHtml(nombre)}</span>
                     <span class="vl-conv-hora">${escapeHtml(fmtHora(c.ultimo_en))}</span>
                 </div>
                 <div class="vl-conv-num">${escapeHtml(sub)}</div>
                 <div class="vl-conv-msg">${escapeHtml(c.ultimo_mensaje || '')}</div>
+                ${quien}
+                ${procesoChips(c.proceso, escapeHtml)}
                 <div class="vl-conv-foot">
                     ${aviso}<span class="vl-conv-chip">${escapeHtml(ESTADO_CHAT[c.estado] || c.estado)}</span>
                     ${c.oculto ? '<span class="vl-conv-chip oculto">🙈 Oculto</span>' : ''}
@@ -358,6 +374,46 @@ function renderLista() {
     body.querySelectorAll('.vl-conv-item').forEach(b => {
         b.addEventListener('click', () => abrirChat(b.dataset.chat));
     });
+}
+
+// ── Etiquetas del PROCESO dentro del chat ───────────────────────────
+// Muestra, sin salir del chat, qué se hizo y qué quedó definido
+// (región, entrega, courier, pago, fecha) para no tener que abrir el
+// diagrama. Lo que aún no está, sale en gris.
+const ORDEN_PUNTOS_CHAT = ['region', 'entrega', 'courier', 'pago', 'fecha'];
+
+function fmtFechaCorta(iso) {
+    const p = String(iso || '').slice(0, 10).split('-');
+    return p.length === 3 ? (p[2] + '/' + p[1]) : iso;
+}
+
+function procesoChipsHtml(proc) {
+    if (!proc) {
+        return `<div class="vl-chat-proceso vacio">
+            <span class="vl-cp-titulo">Proceso</span>
+            <span style="color:var(--muted,#adb5bd);">Sin pedido abierto con este contacto.</span>
+        </div>`;
+    }
+    const etiqueta = (ESTADO_INFO[proc.estado] || {}).label || proc.estado;
+    const pts = proc.puntos || {};
+    const saldo = Number(proc.saldo || 0);
+
+    const chips = ORDEN_PUNTOS_CHAT.map(k => {
+        const v = pts[k] && pts[k].valor;
+        const txt = (k === 'fecha')
+            ? (v ? fmtFechaCorta(v) : 'Sin fecha')
+            : (PUNTO_VALOR_LABEL[v] || '—');
+        return `<span class="vl-cp-item${v ? ' ok' : ''}" title="${escapeHtml(PUNTO_LABEL[k])}: ${escapeHtml(txt)}">
+                    <b>${escapeHtml(PUNTO_LABEL[k])}</b> ${escapeHtml(txt)}
+                </span>`;
+    }).join('');
+
+    return `<div class="vl-chat-proceso">
+        <span class="vl-cp-titulo">Proceso</span>
+        <span class="vl-cp-estado">${escapeHtml(etiqueta)}</span>
+        ${chips}
+        <span class="vl-cp-saldo ${saldo > 0 ? 'debe' : 'ok'}">${saldo > 0 ? 'Debe ' + formatearDinero(saldo) : 'Pagado'}</span>
+    </div>`;
 }
 
 // ── Conversación abierta ────────────────────────────────────────────
@@ -393,7 +449,8 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
            </div>`
         : '';
 
-    body.innerHTML = banner + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
+    body.innerHTML = procesoChipsHtml(procDelChat(chatId)) + banner
+        + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
     autoScrollAbajo($('vld-hilo'), { forzar: !silencioso });
 
     pintarModoChat();

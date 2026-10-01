@@ -411,7 +411,16 @@ export function modalPunto(proceso, puntoKey, punto, onDone) {
                 const res = await vlApi.procesoPuntoSet(proceso.proceso_id, puntoKey, v, null);
                 if (!res.ok) { mostrarToast(res.error || 'No se pudo guardar', 'error'); return; }
                 cerrarModal(true);
-                mostrarToast(titulo + ' actualizado', 'success');
+                // La regla del negocio puede haber movido el courier solo
+                const auto = res.data && res.data.courier_auto;
+                if (auto) {
+                    mostrarToast('Región guardada · courier → ' + (PUNTO_VALOR_LABEL[auto] || auto)
+                        + ' (regla: Región = Blue · Santiago = Paket)', 'success');
+                } else if (res.data && res.data.aviso) {
+                    mostrarToast(res.data.aviso, 'warning');
+                } else {
+                    mostrarToast(titulo + ' actualizado', 'success');
+                }
                 onDone();
             };
             modal.querySelectorAll('#vpu-opciones .vl-opcion').forEach(op => {

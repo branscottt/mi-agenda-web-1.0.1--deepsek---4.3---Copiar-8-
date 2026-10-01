@@ -239,46 +239,70 @@
         .vl-chip.active { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(157,78,221,.32); }
         .vl-chip.active .n { background: rgba(255,255,255,0.22); }
 
-        /* ===== Procesos: toggle Lista / Diagrama ===== */
-        .vl-pmodo { display: flex; gap: 8px; margin-bottom: 14px; }
-
-        /* ===== DIAGRAMA de procesos (todos de una) =====
-           Por cliente: nombre + su proceso como "puntos" presionables
-           (Región · Entrega · Courier · Pago · Fecha). */
-        .vlg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        /* ===== DIAGRAMA de procesos (única vista de Procesos) =====
+           Tarjetas UNA AL LADO DE OTRA. Cada una muestra quién es, en qué
+           etapa va el pedido, sus puntos presionables y, abajo a la derecha
+           y chicos, los botones que lo hacen avanzar. */
+        .vlg-cab-lista { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
         .vlg-count { font-size: 0.9rem; font-weight: 800; color: #f8f9fa; }
         .vlg-count-alerta { color: #ffde7a; font-weight: 700; }
         .vlg-leyenda { font-size: 0.76rem; color: var(--muted, #adb5bd); }
-        .vlg-lista { display: flex; flex-direction: column; gap: 10px; }
-        .vlg-row {
-            display: grid; grid-template-columns: minmax(190px, 1fr) 1.35fr auto;
-            gap: 14px; align-items: center;
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px; padding: 13px 16px; transition: border .15s ease;
+
+        .vlg-lista {
+            display: grid; align-items: stretch;
+            grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+            gap: 12px;
         }
-        .vlg-row:hover { border-color: rgba(255,255,255,0.2); }
-        .vlg-row.con-alerta { border-color: rgba(255,193,7,0.42); box-shadow: inset 0 0 0 1px rgba(255,193,7,0.12); }
-        .vlg-cli { min-width: 0; }
-        .vlg-titulo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .vlg-nick { font-weight: 800; color: #f8f9fa; font-size: 1rem; }
-        .vlg-estado { font-size: 0.7rem; font-weight: 700; color: #ced4da; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 9px; }
-        .vlg-sub { color: var(--muted, #adb5bd); font-size: 0.79rem; margin-top: 3px; }
-        .vlg-sub b { color: #f8f9fa; }
+        .vlg-card {
+            display: flex; flex-direction: column; gap: 9px;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 16px; padding: 13px 14px; transition: border .15s ease;
+        }
+        .vlg-card:hover { border-color: rgba(255,255,255,0.22); }
+        .vlg-card.con-alerta { border-color: rgba(255,193,7,0.45); box-shadow: inset 0 0 0 1px rgba(255,193,7,0.12); }
+
+        .vlg-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .vlg-quien { display: flex; flex-direction: column; min-width: 0; }
+        .vlg-nick { font-weight: 800; color: #f8f9fa; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vlg-nombre { color: var(--muted, #adb5bd); font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vlg-plata { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; white-space: nowrap; }
+        .vlg-debe { font-size: 0.6rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #adb5bd); font-weight: 700; }
+        .vlg-monto { font-size: 1rem; font-weight: 800; color: #ffc078; }
+        .vlg-pagado { font-size: 0.85rem; font-weight: 800; color: #7ff5d8; }
+
+        /* Dónde va el pedido: etapas, la actual encendida */
+        .vlg-pipe { display: flex; gap: 4px; flex-wrap: wrap; }
+        .vlg-pipe-i {
+            font-size: 0.63rem; font-weight: 700; padding: 3px 7px; border-radius: 999px;
+            background: rgba(255,255,255,0.04); color: #6c757d;
+            border: 1px solid rgba(255,255,255,0.07);
+        }
+        .vlg-pipe-i.done { color: #7ff5d8; border-color: rgba(0,184,148,0.35); background: rgba(0,184,148,0.10); }
+        .vlg-pipe-i.actual {
+            color: #fff; border-color: transparent;
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+            box-shadow: 0 3px 10px rgba(157,78,221,.35);
+        }
+
+        .vlg-linea { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.75rem; color: var(--muted, #adb5bd); }
+        .vlg-estado { font-size: 0.72rem; font-weight: 700; color: #e9ecef; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 9px; }
+        .vlg-sep { opacity: .5; }
+
         .vlg-alerta {
-            margin-top: 6px; font-size: 0.79rem; font-weight: 700; color: #ffe066;
+            font-size: 0.76rem; font-weight: 700; color: #ffe066;
             background: rgba(255,193,7,0.12); border: 1px solid rgba(255,193,7,0.4);
             border-radius: 10px; padding: 6px 9px; line-height: 1.35;
         }
-        .vlg-alerta-hint { font-weight: 500; color: #ced4da; }
-        .vlg-puntos { display: flex; gap: 7px; flex-wrap: wrap; }
+
+        .vlg-puntos { display: flex; gap: 6px; flex-wrap: wrap; }
         .vlg-punto {
-            display: inline-flex; flex-direction: column; gap: 1px; align-items: flex-start;
+            display: inline-flex; flex-direction: column; align-items: flex-start;
             background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.13);
-            border-radius: 11px; padding: 6px 11px; cursor: pointer; font-family: inherit;
+            border-radius: 10px; padding: 4px 9px; cursor: pointer; font-family: inherit;
             transition: all .15s ease; text-align: left;
         }
-        .vlg-punto .k { font-size: 0.63rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #adb5bd); font-weight: 700; }
-        .vlg-punto .v { font-size: 0.85rem; font-weight: 700; color: #f8f9fa; }
+        .vlg-punto .k { font-size: 0.58rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #adb5bd); font-weight: 700; }
+        .vlg-punto .v { font-size: 0.78rem; font-weight: 700; color: #f8f9fa; }
         .vlg-punto:hover { background: rgba(157,78,221,0.18); border-color: rgba(157,78,221,0.55); }
         .vlg-punto.vacio .v { color: #6c757d; font-weight: 600; }
         .vlg-punto.ok { border-color: rgba(0,184,148,0.5); }
@@ -287,28 +311,93 @@
         .vlg-punto.parcial .v { color: #e599f7; }
         .vlg-punto.pendiente { border-color: rgba(255,169,77,0.5); }
         .vlg-punto.pendiente .v { color: #ffc078; }
-        .vlg-acc { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
-        .vl-btn.danger-ghost {
-            background: rgba(255,255,255,0.04); border-color: rgba(230,60,60,0.35);
-            color: #ff9f9f; font-weight: 600; font-size: 0.78rem; padding: 7px 11px;
+        /* Chip marcado cuando el courier no calza con la región (Paket fuera de la RM) */
+        .vlg-punto.warn { border-color: rgba(255,193,7,0.6); background: rgba(255,193,7,0.10); }
+        .vlg-punto.warn .v { color: #ffe066; }
+
+        /* Pie: acciones chicas, alineadas abajo a la derecha */
+        .vlg-pie { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 4px; }
+        .vlg-pie-nota { font-size: 0.68rem; color: #ffde7a; font-weight: 700; line-height: 1.3; }
+        .vlg-acc { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+        .vlg-mini {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 9px; border-radius: 9px; cursor: pointer; font-family: inherit;
+            font-size: 0.72rem; font-weight: 700; line-height: 1;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); color: #ced4da;
+            transition: all .15s ease;
         }
-        .vl-btn.danger-ghost:hover { background: rgba(230,60,60,0.18); }
+        .vlg-mini:hover { background: rgba(255,255,255,0.12); color: #fff; }
+        .vlg-mini.primary { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border-color: transparent; color: #fff; box-shadow: 0 3px 10px rgba(157,78,221,.32); }
+        .vlg-mini.success { background: rgba(0,184,148,0.16); border-color: rgba(0,184,148,0.5); color: #7ff5d8; }
+        .vlg-mini.danger { background: rgba(255,255,255,0.04); border-color: rgba(230,60,60,0.35); color: #ff9f9f; }
+        .vlg-mini.danger:hover { background: rgba(230,60,60,0.2); }
+        .vlg-mini:disabled { opacity: .55; cursor: wait; }
 
         /* Cajón de conversaciones: ojo de ocultos + chip de chat oculto */
         .vld-icon.activo { border-color: rgba(255,193,7,0.55); color: #ffe066; }
         .vl-conv-chip.oculto { background: rgba(255,255,255,0.05); color: #adb5bd; }
         .vl-conv-item.oculto { opacity: 0.62; }
+        .vl-conv-chip.debe { background: rgba(255,169,77,0.16); border: 1px solid rgba(255,169,77,0.4); color: #ffc078; }
 
-        /* Diagrama en tablet y móvil: la fila se apila (cliente → puntos → acciones) */
-        @media (max-width: 860px) {
-            .vlg-row { grid-template-columns: 1fr; align-items: flex-start; }
-            .vlg-acc { justify-content: flex-start; }
+        /* Quién tiene que mover el chat: se ve en la LISTA, sin abrirlo.
+           "Contesta tú" late con BRILLO SUAVE (nunca rojo ni parpadeo duro:
+           es informativo; el rojo queda para lo destructivo). */
+        .vl-conv-quien {
+            display: flex; align-items: center; gap: 6px; width: 100%;
+            font-size: 0.72rem; font-weight: 800; text-align: left;
+            border-radius: 9px; padding: 4px 9px; margin-top: 7px;
         }
-        @media (max-width: 720px) {
-            .vlg-head { flex-direction: column; align-items: flex-start; gap: 3px; }
-            .vlg-punto { padding: 7px 10px; }
-            .vlg-punto .v { font-size: 0.82rem; }
-            .vlg-acc .vl-btn { flex: 1 1 auto; justify-content: center; min-height: 40px; }
+        .vl-conv-quien.humano {
+            background: rgba(255,193,7,0.14); border: 1px solid rgba(255,193,7,0.5); color: #ffe066;
+            animation: vlLate 2.6s ease-in-out infinite;
+        }
+        .vl-conv-quien.tarea { background: rgba(120,180,255,0.12); border: 1px solid rgba(120,180,255,0.4); color: #a5d8ff; }
+        .vl-conv-quien.espera { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); color: #ced4da; }
+        .vl-conv-quien.bot { background: rgba(0,184,148,0.10); border: 1px solid rgba(0,184,148,0.32); color: #7ff5d8; }
+        @keyframes vlLate {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.26); }
+            50%      { box-shadow: 0 0 10px 3px rgba(255,193,7,0.42); }
+        }
+        @media (prefers-reduced-motion: reduce) { .vl-conv-quien.humano { animation: none; } }
+        .vl-conv-item.tu-turno { border-left: 3px solid rgba(255,193,7,0.6); }
+
+        /* Puntos del proceso en la LISTA de chats (contexto sin abrir el chat) */
+        .vl-conv-proc { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+        .vl-conv-proc .p {
+            font-size: 0.6rem; padding: 2px 6px; border-radius: 999px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+            color: #6c757d; white-space: nowrap;
+        }
+        .vl-conv-proc .p b { color: #adb5bd; font-weight: 700; margin-right: 2px; }
+        .vl-conv-proc .p.ok { background: rgba(0,184,148,0.10); border-color: rgba(0,184,148,0.32); color: #7ff5d8; }
+        .vl-conv-proc .p.ok b { color: #7ff5d8; }
+        .vl-conv-proc .p.debe { background: rgba(255,169,77,0.14); border-color: rgba(255,169,77,0.4); color: #ffc078; }
+        .vl-conv-proc .p.debe b { color: #ffc078; }
+
+        /* Etiquetas del PROCESO dentro del chat abierto: qué quedó definido */
+        .vl-chat-proceso {
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 12px; padding: 8px 10px; margin-bottom: 10px;
+        }
+        .vl-cp-titulo { font-size: 0.62rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #adb5bd); font-weight: 700; }
+        .vl-cp-estado { font-size: 0.7rem; font-weight: 700; color: #e9ecef; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 9px; }
+        .vl-cp-item { font-size: 0.68rem; color: #6c757d; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 8px; }
+        .vl-cp-item b { color: #adb5bd; font-weight: 700; }
+        .vl-cp-item.ok { color: #f8f9fa; background: rgba(0,184,148,0.10); border-color: rgba(0,184,148,0.35); }
+        .vl-cp-item.ok b { color: #7ff5d8; }
+        .vl-cp-saldo { font-size: 0.7rem; font-weight: 800; border-radius: 999px; padding: 2px 9px; }
+        .vl-cp-saldo.debe { background: rgba(255,169,77,0.16); border: 1px solid rgba(255,169,77,0.4); color: #ffc078; }
+        .vl-cp-saldo.ok { background: rgba(0,184,148,0.16); border: 1px solid rgba(0,184,148,0.45); color: #7ff5d8; }
+
+        /* Tablet: tarjetas un poco más angostas. Móvil: una por fila. */
+        @media (max-width: 980px) { .vlg-lista { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); } }
+        @media (max-width: 700px) {
+            .vlg-lista { grid-template-columns: 1fr; }
+            .vlg-cab-lista { flex-direction: column; align-items: flex-start; gap: 3px; }
+            .vlg-pie { align-items: stretch; flex-direction: column; }
+            .vlg-acc { width: 100%; justify-content: flex-end; }
+            .vlg-mini { min-height: 34px; }
         }
 
         /* ===== Filas de proceso / cliente ===== */
@@ -633,7 +722,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=100"></script>
+    <script type="module" src="dist/app.js?v=104"></script>
     <script defer src="dist/legacy.js?v=74"></script>
 </body>
 </html>

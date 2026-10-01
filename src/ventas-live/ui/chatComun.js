@@ -85,6 +85,10 @@ export const AVISO_INFO = {
     soltar_prenda: {
         label: 'Posible soltar prenda',
         accion: 'Debe plata y no escribe hace 3+ días. Decides tú: escríbele, o entra a Procesos → Diagrama para liberar la prenda o bloquear y borrar sus datos.'
+    },
+    otro_numero: {
+        label: 'Escribió desde otro número',
+        accion: 'Se identificó con su @ desde un teléfono distinto al guardado: la ficha NO se cambió. Revisa el chat y, si corresponde, actualiza su WhatsApp en la ficha.'
     }
 };
 
@@ -94,6 +98,84 @@ export function avisoLabel(tipo) {
 
 export function avisoAccion(tipo) {
     return (AVISO_INFO[tipo] && AVISO_INFO[tipo].accion) || '';
+}
+
+// Avisos que SÍ requieren que conteste una persona: el bot no los resolvió.
+export const AVISOS_RESPUESTA = [
+    'no_entendido', 'usuario_no_encontrado', 'usuario_no_confirmado', 'sin_cliente',
+    'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda'
+];
+
+// Quién tiene que mover este chat (se ve en la lista, sin abrirlo):
+//   humano → nos toca contestar (el bot no pudo)      [se marca con brillo suave]
+//   tarea  → hay algo operativo del pedido que hacer
+//   espera → el cliente habló último y el bot no respondió (a veces es a propósito)
+//   bot    → el bot lo tiene / contestó él / contestaste tú
+export function quienContesta(chat) {
+    const t = chat && chat.aviso_tipo;
+    if (t && AVISOS_RESPUESTA.indexOf(t) >= 0) {
+        return {
+            tipo: 'humano', label: '✋ Contesta tú',
+            detalle: avisoLabel(t) + (avisoAccion(t) ? ' — ' + avisoAccion(t) : '')
+        };
+    }
+    if (chat && chat.modo === 'humano') {
+        return {
+            tipo: 'humano', label: '✋ Contesta tú',
+            detalle: 'Tomaste el control de este chat: el bot está en pausa.'
+        };
+    }
+    if (t) {
+        return { tipo: 'tarea', label: '📌 Tarea del pedido', detalle: avisoAccion(t) || avisoLabel(t) };
+    }
+    if (chat && chat.ultimo_dir === 'in') {
+        return {
+            tipo: 'espera', label: '⏳ El cliente habló último',
+            detalle: 'El cliente escribió y el bot no respondió (puede ser a propósito: mira el chat).'
+        };
+    }
+    if (chat && chat.ultimo_dir === 'out' && chat.ultimo_origen === 'humano') {
+        return { tipo: 'bot', label: '👤 Contestaste tú', detalle: 'El último mensaje lo mandaste tú.' };
+    }
+    if (chat && chat.ultimo_dir === 'out') {
+        return { tipo: 'bot', label: '🤖 Contestó el bot', detalle: 'El último mensaje lo mandó el bot.' };
+    }
+    return { tipo: 'bot', label: '🤖 Bot', detalle: '' };
+}
+
+// Puntos del proceso en formato compacto para la LISTA de chats: se ve de un
+// golpe qué está definido (verde) y qué falta (gris), sin abrir el chat.
+const ORDEN_PUNTOS_CHIP = ['region', 'entrega', 'courier', 'pago', 'fecha'];
+const PUNTO_CORTO = {
+    region: 'Región', entrega: 'Entrega', courier: 'Courier', pago: 'Pago', fecha: 'Fecha'
+};
+const PUNTO_VAL = {
+    santiago: 'Santiago', region: 'Región', envio: 'Envío', presencial: 'Presencial',
+    blue: 'Blue', paket: 'Paket', pagado: 'Pagado', parcial: 'Parcial',
+    sin_pagar: 'Sin pagar', sin_pedido: 'Sin pedido'
+};
+
+export function procesoChips(proc, escape) {
+    const esc = escape || (s => s);
+    if (!proc) {
+        return '<div class="vl-conv-proc"><span class="p">Sin pedido abierto</span></div>';
+    }
+    const pts = proc.puntos || {};
+    const saldo = Number(proc.saldo || 0);
+    const items = ORDEN_PUNTOS_CHIP.map(k => {
+        const v = pts[k] && pts[k].valor;
+        let txt = v ? (PUNTO_VAL[v] || v) : '—';
+        if (k === 'fecha' && v) {
+            const p = String(v).slice(0, 10).split('-');
+            txt = p.length === 3 ? (p[2] + '/' + p[1]) : v;
+        }
+        const cls = v ? 'p ok' : 'p';
+        return `<span class="${cls}"><b>${PUNTO_CORTO[k]}</b> ${esc(txt)}</span>`;
+    }).join('');
+    const deuda = saldo > 0
+        ? `<span class="p debe"><b>Debe</b> ${esc('$' + Number(saldo).toLocaleString('es-CL'))}</span>`
+        : '<span class="p ok"><b>Pagado</b></span>';
+    return `<div class="vl-conv-proc">${items}${deuda}</div>`;
 }
 
 /** Hora del mensaje: solo hora si es de hoy, si no fecha + hora. */

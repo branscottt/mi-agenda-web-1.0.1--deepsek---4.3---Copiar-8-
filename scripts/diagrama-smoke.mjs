@@ -34,7 +34,7 @@ const FAKE = {
                 alerta: { tipo: 'soltar_prenda', dias: 5, detalle: 'Sin contacto hace 5 día(s) y debe $12.000' },
                 cliente: { cliente_id: 'c1', tiktok_user: 'anubisss', nombre_real: 'Anubis', whatsapp: '+56911111111', categoria: 'nuevo' },
                 puntos: {
-                    region: { valor: null, opciones: [{ v: 'santiago', l: 'Santiago (RM)' }, { v: 'region', l: 'Región' }] },
+                    region: { valor: 'region', opciones: [{ v: 'santiago', l: 'Santiago (RM)' }, { v: 'region', l: 'Región' }] },
                     entrega: { valor: null, opciones: [{ v: 'envio', l: 'Envío' }, { v: 'presencial', l: 'Presencial' }] },
                     courier: { valor: 'paket', opciones: [{ v: 'blue', l: 'Blue Express' }, { v: 'paket', l: 'Paket' }] },
                     pago: { valor: 'sin_pagar', opciones: [] },
@@ -69,23 +69,36 @@ await new Promise(r => setTimeout(r, 60));
 
 const checks = [];
 const ok = (n, c) => checks.push([n, !!c]);
-ok('renderiza 2 filas', cont.querySelectorAll('.vlg-row').length === 2);
-ok('fila 1 con alerta', cont.querySelector('.vlg-row.con-alerta') !== null);
-ok('fila 2 sin alerta', cont.querySelectorAll('.vlg-row.con-alerta').length === 1);
-ok('5 puntos en fila 1', cont.querySelectorAll('.vlg-row[data-p="p1"] .vlg-punto').length === 5);
+ok('renderiza 2 filas', cont.querySelectorAll('.vlg-card').length === 2);
+ok('fila 1 con alerta', cont.querySelector('.vlg-card.con-alerta') !== null);
+ok('fila 2 sin alerta', cont.querySelectorAll('.vlg-card.con-alerta').length === 1);
+ok('5 puntos en fila 1', cont.querySelectorAll('.vlg-card[data-p="p1"] .vlg-punto').length === 5);
 ok('texto alerta visible', /Sin contacto hace 5/.test(cont.textContent));
 ok('contador de alertas', /1 con posible soltar prenda/.test(cont.textContent));
-ok('punto pagado (ok) en fila 2', cont.querySelector('.vlg-row[data-p="p2"] .vlg-punto.ok') !== null);
-ok('punto pendiente en fila 1', cont.querySelector('.vlg-row[data-p="p1"] .vlg-punto.pendiente') !== null);
-ok('botón Liberar prenda en fila con alerta', !!cont.querySelector('.vlg-row[data-p="p1"] button[data-acc="liberar"]'));
-ok('sin Liberar en fila sin alerta', !cont.querySelector('.vlg-row[data-p="p2"] button[data-acc="liberar"]'));
+ok('punto pagado (ok) en fila 2', cont.querySelector('.vlg-card[data-p="p2"] .vlg-punto.ok') !== null);
+ok('punto pendiente en fila 1', cont.querySelector('.vlg-card[data-p="p1"] .vlg-punto.pendiente') !== null);
+ok('botón Liberar prenda en fila con alerta', !!cont.querySelector('.vlg-card[data-p="p1"] button[data-acc="liberar"]'));
+ok('sin Liberar en fila sin alerta', !cont.querySelector('.vlg-card[data-p="p2"] button[data-acc="liberar"]'));
 ok('botón Bloquear y borrar presente', cont.querySelectorAll('button[data-acc="bloquear"]').length === 2);
 ok('botón Ver chat presente', cont.querySelectorAll('button[data-acc="chat"]').length === 2);
 ok('fecha formateada dd/mm', /20\/10/.test(cont.textContent));
 ok('valor courier legible', /Paket/.test(cont.textContent));
 
+// Nuevo diseño: etapas + acciones chicas
+ok('línea de etapas presente', cont.querySelectorAll('.vlg-card[data-p="p1"] .vlg-pipe-i').length === 5);
+ok('una sola etapa encendida por tarjeta', cont.querySelectorAll('.vlg-card[data-p="p1"] .vlg-pipe-i.actual').length === 1);
+ok('p1 en etapa Pago', /Pago/.test(cont.querySelector('.vlg-card[data-p="p1"] .vlg-pipe-i.actual').textContent));
+ok('p2 en etapa Entrega', /Entrega/.test(cont.querySelector('.vlg-card[data-p="p2"] .vlg-pipe-i.actual').textContent));
+ok('p1 paso = Confirmar pago', !!cont.querySelector('.vlg-card[data-p="p1"] button[data-acc="pago"]'));
+ok('p2 paso = Envío creado', !!cont.querySelector('.vlg-card[data-p="p2"] button[data-acc="crear-envio"]'));
+ok('monto pendiente visible en p1', /\$12\.000/.test(cont.querySelector('.vlg-card[data-p="p1"]').textContent));
+ok('p2 muestra Pagado', /Pagado/.test(cont.querySelector('.vlg-card[data-p="p2"]').textContent));
+ok('acciones chicas (.vlg-mini)', cont.querySelectorAll('.vlg-card[data-p="p1"] .vlg-mini').length >= 4);
+ok('Paket fuera de la RM se marca en el chip',
+    cont.querySelector('.vlg-card[data-p="p1"] .vlg-punto[data-punto="courier"].warn') !== null);
+
 // Presionar el punto "Región" de la fila 1 -> abre modal con opciones
-const chip = cont.querySelector('.vlg-row[data-p="p1"] .vlg-punto[data-punto="region"]');
+const chip = cont.querySelector('.vlg-card[data-p="p1"] .vlg-punto[data-punto="region"]');
 chip.click();
 await new Promise(r => setTimeout(r, 30));
 const overlay = document.querySelector('.vl-modal-overlay');
