@@ -29,7 +29,7 @@ window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventL
 // escribe "anubis": así el front tiene que AVISAR en vez de crear un duplicado.
 const CLIENTES = [
     { cliente_id: 'k1', tiktok_user: 'anubisss', nombre_real: 'Anubis', whatsapp: '', ciudad: '',
-      categoria: 'nuevo', proceso_activo: { estado: 'esperando_pago', saldo: 12000, prendas: 2 } },
+      categoria: 'nuevo', proceso_activo: { proceso_id: 'p9', estado: 'esperando_pago', saldo: 12000, prendas: 2 } },
     { cliente_id: 'k2', tiktok_user: 'otra_persona', nombre_real: '', whatsapp: '', ciudad: '',
       categoria: 'nuevo', proceso_activo: null }
 ];
@@ -107,6 +107,18 @@ $('lv-usuario').value = '';
 $('lv-usuario').dispatchEvent(new dom.window.Event('input'));
 await esperar(60);
 ok('campo vacío: sin franja', parecido.hidden === true);
+
+// ---------- 6) botones de proceso EN EL CHAT del LIVE (pedido del dueño) ----------
+// Se elige la sugerencia (@anubisss, que tiene deuda) para que se cargue su chat;
+// las sugerencias escuchan 'mousedown' a propósito (le gana al blur del input).
+$('lv-usuario').value = 'anubis';
+$('lv-usuario').dispatchEvent(new dom.window.Event('input'));
+await esperar(420);
+const btnSug = sugerencias.querySelector('button.vl-sugerencia');
+if (btnSug) btnSug.dispatchEvent(new dom.window.Event('mousedown', { bubbles: true, cancelable: true }));
+await esperar(120);
+const accChat = document.querySelector('#lv-acc-chat button[data-acc="pago"]');
+ok('el chat del LIVE muestra "Confirmar pago" con deuda', !!accChat);
 
 let fails = 0;
 for (const [n, c] of checks) { console.log((c ? '✅' : '❌') + ' ' + n); if (!c) fails++; }

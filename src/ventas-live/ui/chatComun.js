@@ -101,6 +101,14 @@ export const AVISO_INFO = {
     usuario_corregido: {
         label: 'Usuario corregido',
         accion: 'El cliente escribió su @ real (más completo que el anotado) y actualicé su ficha. Revisa que sea la persona correcta.'
+    },
+    no_puede_pagar: {
+        label: 'No puede pagar ahora',
+        accion: 'Dice que no puede pagar por ahora. Decide: darle plazo, liberar la prenda o escribirle tú.'
+    },
+    cliente_acumula: {
+        label: 'Quiere juntar más',
+        accion: 'El cliente quiere seguir juntando prendas. Cuando pague, usa Procesos → Decidir entrega → Acumular.'
     }
 };
 
@@ -112,10 +120,25 @@ export function avisoAccion(tipo) {
     return (AVISO_INFO[tipo] && AVISO_INFO[tipo].accion) || '';
 }
 
+// El texto que manda el bot a veces arranca repitiendo la etiqueta
+// ("No se entendió — No se entendió si quiere envío o entrega presencial: …").
+// Acá se quita esa repetición para que la alerta se lea una sola vez.
+export function avisoDetalle(tipo, detalle) {
+    const d = (detalle || '').trim();
+    if (!d) return '';
+    const lab = (AVISO_INFO[tipo] && AVISO_INFO[tipo].label) || '';
+    if (lab && d.toLowerCase().startsWith(lab.toLowerCase())) {
+        const resto = d.slice(lab.length).replace(/^[\s—:–-]+/, '');
+        return resto.charAt(0).toUpperCase() + resto.slice(1);
+    }
+    return d;
+}
+
 // Avisos que SÍ requieren que conteste una persona: el bot no los resolvió.
 export const AVISOS_RESPUESTA = [
     'no_entendido', 'usuario_no_encontrado', 'usuario_no_confirmado', 'sin_cliente',
-    'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda', 'usuario_sugerido'
+    'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda', 'usuario_sugerido',
+    'no_puede_pagar'
 ];
 
 // Quién tiene que mover este chat (se ve en la lista, sin abrirlo):

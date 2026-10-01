@@ -16,15 +16,22 @@
 import { vlApi, ESTADO_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml, formatearDinero } from '../../shared/infrastructure/formatters.js';
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
-    ESTADO_CHAT, avisoLabel, avisoAccion,
+    ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips
 } from './chatComun.js';
-import { PUNTO_LABEL, PUNTO_VALOR_LABEL } from './accionesProceso.js';
+import {
+    PUNTO_LABEL, PUNTO_VALOR_LABEL,
+    accionesChatHtml, bindAccionesChat, procesoParaModales
+} from './accionesProceso.js';
 
-const REFRESCO_ABIERTO_MS = 15000;
-const REFRESCO_BADGE_MS = 30000;
+// Refresco: el dueño reportó que "tarda en verse cuando llegó el mensaje".
+// 5 s con el chat abierto, 8 s el contador de la lista; además Realtime avisa
+// al instante cuando la conexión funciona (esto queda como respaldo).
+const REFRESCO_ABIERTO_MS = 5000;
+const REFRESCO_BADGE_MS = 8000;
 const NOTIF_KEY = 'vl_notif_avisos';
 
 let _built = false;
@@ -40,6 +47,10 @@ let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
 let _verOcultos = false;     // mostrar también los chats ocultos (no-venta)
+let _canalRt = null;         // canal Realtime (mensajes al instante)
+let _visibilidad = null;     // listener de "volviste a la pestaña"
+let _audioCtx = null;        // WebAudio para el pitido de alarma
+let _chatProc = null;        // proceso abierto del chat que se está viendo
 
 function $(id) { return document.getElementById(id); }
 
@@ -97,6 +108,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
     }
 
     iniciarContadorBadge();
+    iniciarRealtime();
 }
 
 /** Refresca el contador de no leídos (lo llama el LIVE al activarse). */
@@ -129,6 +141,7 @@ export function toggleConversaciones() {
 export function abrirConversaciones() {
     if (!_built) return;
     _abierto = true;
+    limpiarTituloPendiente();   // al abrir, el aviso del título ya cumplió su función
     const el = $('vl-drawer');
     if (el) {
         // Panel flotante: deja el mismo margen con los bordes que la CSS
@@ -166,10 +179,48 @@ export function cerrarConversaciones() {
 function iniciarContadorBadge() {
     if (_timerBadge) clearInterval(_timerBadge);
     _timerBadge = setInterval(() => {
-        const vista = $('vl-view-live');
-        if (!vista || !vista.classList.contains('active')) return;
+        // ANTES esto solo corría con la pestaña LIVE a la vista: si estabas en
+        // Clientes o en Procesos no te enterabas de los mensajes. Ahora corre
+        // siempre que el panel esté abierto (salvo pestaña del navegador oculta).
+        if (document.hidden) return;
         if (_built && !_abierto) cargarChats({ silencioso: true });
     }, REFRESCO_BADGE_MS);
+
+    // Al volver a la pestaña, refrescar enseguida (sin esperar el turno del timer).
+    if (!_visibilidad) {
+        _visibilidad = () => {
+            if (document.hidden) return;
+            if (_abierto && _chatId) cargarHilo(_chatId, { silencioso: true });
+            else cargarChats({ silencioso: true });
+        };
+        document.addEventListener('visibilitychange', _visibilidad);
+    }
+}
+
+// ── Realtime: los mensajes llegan al instante ───────────────────────
+// El sondeo de 5 s queda como RESPALDO: si Realtime no conecta (navegador que lo
+// bloquea, red mala), el panel sigue funcionando igual.
+function iniciarRealtime() {
+    if (_canalRt) return;
+    const sb = getSupabase();
+    if (!sb || typeof sb.channel !== 'function') return;
+    try {
+        _canalRt = sb
+            .channel('vl-wa-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'vl_wa_mensajes' }, (payload) => {
+                const row = (payload && payload.new) || {};
+                if (_abierto && _chatId && row.chat_id === _chatId && !_enviando) {
+                    cargarHilo(_chatId, { silencioso: true });
+                }
+                cargarChats({ silencioso: true });
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'vl_wa_avisos' }, () => {
+                cargarChats({ silencioso: true });
+            })
+            .subscribe();
+    } catch (_) {
+        _canalRt = null;   // sin Realtime: sigue el sondeo de 5 s
+    }
 }
 
 // ── Avisos del navegador ────────────────────────────────────────────
@@ -231,8 +282,9 @@ function revisarAvisosNuevos() {
     const nuevos = _chats.filter(c => c.tiene_aviso && c.aviso_tipo && !_avisosVistos.has(c.id + '|' + c.aviso_tipo));
     _avisosVistos = claves;
 
-    if (!_notifActivas || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-
+    // OJO: acá estaba el corte que impedía avisar cuando el permiso de escritorio
+    // estaba apagado. La alarma (sonido/vibración/título) va SIEMPRE: es justamente
+    // el "avísame cuando llegue un mensaje" que pidió el dueño.
     if (nuevos.length > 0) {
         notificar(nuevos[0], true);
         return;
@@ -243,6 +295,53 @@ function revisarAvisosNuevos() {
         const conMensajes = _chats.find(c => Number(c.sin_leer) > 0);
         if (conMensajes) notificar(conMensajes, false);
     }
+    // Todo visto: se limpia el "● (n)" del título.
+    if (totalSinLeer === 0 && !_chats.some(c => c.tiene_aviso)) limpiarTituloPendiente();
+}
+
+// ── Alarma: sonido + vibración + título de la pestaña ───────────────
+// El dueño pidió "algo que alarme" cuando llega un mensaje: el aviso de
+// escritorio puede estar bloqueado o pasar desapercibido, así que además suena,
+// vibra (Android) y el título de la pestaña queda con "● (n)" hasta que revises.
+function sonarAlarma() {
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        _audioCtx = _audioCtx || new Ctx();
+        const ctx = _audioCtx;
+        if (ctx.state === 'suspended') ctx.resume();
+        const t0 = ctx.currentTime;
+        [0, 0.18].forEach((off, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = i === 0 ? 880 : 1180;
+            gain.gain.setValueAtTime(0.0001, t0 + off);
+            gain.gain.exponentialRampToValueAtTime(0.22, t0 + off + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.16);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t0 + off);
+            osc.stop(t0 + off + 0.17);
+        });
+    } catch (_) { /* sin audio: sigue el aviso visual */ }
+}
+
+function vibrarAlarma() {
+    try { if (navigator.vibrate) navigator.vibrate([180, 90, 180]); } catch (_) { /* iOS no soporta */ }
+}
+
+function tituloBase() {
+    return String(document.title || 'Ventas Live').replace(/^● \(\d+\)\s*/, '');
+}
+
+function tituloPendiente(n) {
+    if (n > 0) document.title = '● (' + n + ') ' + tituloBase();
+}
+
+function limpiarTituloPendiente() {
+    const t = String(document.title || '');
+    if (t.indexOf('● (') === 0) document.title = tituloBase();
 }
 
 function notificar(chat, esAviso) {
@@ -251,12 +350,24 @@ function notificar(chat, esAviso) {
     let cuerpo;
     if (esAviso) {
         titulo = '⚠️ ' + avisoLabel(chat.aviso_tipo) + ' — ' + quien;
-        cuerpo = (chat.aviso_detalle || '') +
+        cuerpo = (avisoDetalle(chat.aviso_tipo, chat.aviso_detalle) || '') +
                  (avisoAccion(chat.aviso_tipo) ? '\nQué hacer: ' + avisoAccion(chat.aviso_tipo) : '');
     } else {
         titulo = '💬 ' + quien + ' te escribió';
         cuerpo = chat.ultimo_mensaje || '';
     }
+
+    // Si ya estás leyendo ESE chat con la pestaña visible, no se alarma (molestaría).
+    const leyendo = !document.hidden && _abierto && _chatId === chat.id;
+    const pendientes = _chats.reduce((a, c) => a + (Number(c.sin_leer) || 0), 0);
+
+    if (!leyendo) {
+        sonarAlarma();
+        vibrarAlarma();
+        tituloPendiente(pendientes);
+    }
+
+    if (!_notifActivas || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
 
     try {
         const n = new Notification(titulo, {
@@ -345,7 +456,7 @@ function renderLista() {
         const noLeido = nuevo ? `<span class="vl-conv-noleido">${Number(c.sin_leer)}</span>` : '';
         // Aviso que dejó el bot: qué hay que revisar en este chat
         const aviso = c.aviso_tipo
-            ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + (c.aviso_detalle || '') + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
+            ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + avisoDetalle(c.aviso_tipo, c.aviso_detalle) + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
             : '';
         // Quién tiene que mover este chat: se ve sin abrirlo. Cuando nos toca a
         // nosotros, el chip late suave (nunca rojo: es informativo).
@@ -444,14 +555,31 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const av = avisoDelChat(chatId);
     const banner = av
         ? `<div class="vl-aviso-banner">
-               <div class="vl-aviso-titulo">⚠️ ${escapeHtml(avisoLabel(av.tipo))}${av.detalle ? ' — ' + escapeHtml(av.detalle) : ''}</div>
+               <div class="vl-aviso-titulo">⚠️ ${escapeHtml(avisoLabel(av.tipo))}${avisoDetalle(av.tipo, av.detalle) ? ' — ' + escapeHtml(avisoDetalle(av.tipo, av.detalle)) : ''}</div>
                ${avisoAccion(av.tipo) ? `<div class="vl-aviso-accion"><b>Qué hacer:</b> ${escapeHtml(avisoAccion(av.tipo))}</div>` : ''}
            </div>`
         : '';
 
-    body.innerHTML = procesoChipsHtml(procDelChat(chatId)) + banner
+    // Proceso abierto del chat: hace falta el proceso_id para poder cerrar la
+    // entrega DESDE ACÁ (el listado de chats no lo trae). Los botones reusan los
+    // modales de siempre, así se hace lo mismo desde el chat o desde el diagrama.
+    try {
+        const pr = await vlApi.chatProceso(chatId);
+        _chatProc = (pr && pr.ok && pr.data) ? (pr.data.proceso || null) : null;
+        if (pr && pr.ok && pr.data && pr.data.tiktok_user && !_chatMeta.tiktok_user) {
+            _chatMeta.tiktok_user = pr.data.tiktok_user;
+        }
+    } catch (_) { _chatProc = null; }
+
+    const procChat = _chatProc || procDelChat(chatId);
+    body.innerHTML = procesoChipsHtml(procChat) + accionesChatHtml(_chatProc) + banner
         + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
     autoScrollAbajo($('vld-hilo'), { forzar: !silencioso });
+
+    bindAccionesChat(procesoParaModales(_chatProc, _chatMeta.tiktok_user), () => {
+        cargarHilo(chatId, { silencioso: true });
+        cargarChats({ silencioso: true });
+    });
 
     pintarModoChat();
     if (!silencioso) cargarChats({ silencioso: true });

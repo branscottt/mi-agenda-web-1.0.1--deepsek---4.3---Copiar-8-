@@ -25,6 +25,39 @@ function parseMonto(raw) {
     return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/**
+ * Después de confirmar un pago (POST-CONFIRMACIÓN, best-effort):
+ *  1) mueve el proceso a la etapa de entrega que el cliente ya eligió en el chat
+ *     (presencial → entrega_presencial · envío → listo_preparar), para que los
+ *     botones de "Marcar entregado" / "Marcar ENVÍO CREADO" queden a mano;
+ *  2) le confirma al cliente por WhatsApp que su pago quedó anotado.
+ * Nada de esto es crítico: si falla, no se molesta al usuario con errores.
+ */
+async function trasConfirmarPago(proceso) {
+    const clienteId = (proceso && proceso.cliente && proceso.cliente.cliente_id)
+        || (proceso && proceso.cliente_id) || null;
+
+    if (clienteId) {
+        try {
+            const r = await vlApi.promoverEntrega(clienteId);
+            const nuevo = (r && r.ok) ? String(r.data || '') : '';
+            if (nuevo === 'entrega_presencial') {
+                mostrarToast('Listo para entregar en persona', 'success');
+            } else if (nuevo === 'listo_preparar') {
+                mostrarToast('Listo para preparar el envío', 'success');
+            }
+        } catch (_) { /* no crítico */ }
+    }
+
+    try {
+        const chat = await vlApi.chatPorCliente(clienteId);
+        const chatId = (chat && chat.ok && chat.data) ? chat.data.chat_id : null;
+        if (chatId) {
+            await vlApi.enviarManual(chatId, 'pago confirmado ✓ gracias bonit@, ya quedó anotado 💜');
+        }
+    } catch (_) { /* si Meta no deja enviar, no se avisa */ }
+}
+
 // ---------- Confirmar pago (completo / parcial / presencial) ----------
 export function modalConfirmarPago(proceso, onDone) {
     const saldo = Number(proceso.saldo || 0);
@@ -77,6 +110,11 @@ export function modalConfirmarPago(proceso, onDone) {
                 if (!res.ok) { mostrarToast(res.error || 'No se pudo confirmar', 'error'); return; }
                 cerrarModal(true);
                 mostrarToast('Pago de ' + formatearDinero(monto) + ' registrado', 'success');
+
+                // Al quedar pagado y sin saldo, el proceso pasa SOLO a la etapa de
+                // entrega que el cliente ya eligió en el chat (así los botones de
+                // "Marcar entregado" / "Envío creado" quedan a mano sin repetir el paso).
+                await trasConfirmarPago(proceso);
                 onDone();
             }
         }
@@ -534,4 +572,88 @@ export async function modalLiberarItems(proceso, onDone) {
             }
         }
     });
+}
+
+// ---------- Botones de proceso DENTRO del chat ----------
+// Pedido del dueño: "si se puede apretar en el mismo lado del chat, genial".
+// Se reusan los MISMOS modales de arriba (una sola forma de hacer cada cosa) y
+// sirven igual en el panel del LIVE y en el cajón de conversaciones.
+const ACCIONES_POR_ESTADO = [
+    { k: 'pago',      clase: 'success', icono: 'fa-hand-holding-dollar', txt: 'Confirmar pago' },
+    { k: 'entrega',   clase: 'primary', icono: 'fa-box-open',            txt: 'Decidir entrega' },
+    { k: 'envio',     clase: 'success', icono: 'fa-truck-fast',          txt: 'ENVÍO CREADO' },
+    { k: 'entregado', clase: 'success', icono: 'fa-check-circle',        txt: 'Marcar entregado' },
+    { k: 'liberar',   clase: 'danger',  icono: 'fa-unlock',              txt: 'Liberar' }
+];
+
+/**
+ * Qué botones corresponden para el estado del proceso.
+ * @param {{proceso_id?:string, estado?:string, saldo?:number}} proc
+ */
+export function accionesDeChat(proc) {
+    if (!proc || !proc.proceso_id) return [];
+    const e = String(proc.estado || '');
+    const saldo = Number(proc.saldo || 0);
+    const quiero = [];
+
+    if (saldo > 0 && ['esperando_pago', 'pago_parcial', 'pagara_presencial', 'pagado', 'acumulando'].indexOf(e) >= 0) {
+        quiero.push('pago');
+    }
+    if (saldo <= 0 && ['pagado', 'acumulando'].indexOf(e) >= 0) {
+        quiero.push('entrega');
+    }
+    if (['listo_preparar', 'envio_programado'].indexOf(e) >= 0) {
+        quiero.push('envio');
+    }
+    if (['envio_proceso', 'entrega_presencial'].indexOf(e) >= 0) {
+        quiero.push('entregado');
+    }
+    if (saldo > 0) quiero.push('liberar');
+
+    return ACCIONES_POR_ESTADO.filter(a => quiero.indexOf(a.k) >= 0);
+}
+
+/** HTML de la fila de acciones (cadena vacía si no hay nada que hacer). */
+export function accionesChatHtml(proc, idCont = 'vl-acc-chat') {
+    const accs = accionesDeChat(proc);
+    if (!accs.length) return '';
+    return `<div class="vl-chat-acciones" id="${idCont}">`
+        + accs.map(a => `<button class="vl-btn ${a.clase}" data-acc="${a.k}" type="button">`
+            + `<i class="fas ${a.icono}"></i> ${escapeHtml(a.txt)}</button>`).join('')
+        + '</div>';
+}
+
+/**
+ * Engancha la fila de acciones al modal que corresponde.
+ * @param {{proceso_id:string, estado:string, saldo:number, prendas:number, envio?:object,
+ *          cliente:{cliente_id:string, tiktok_user:string}}} proc
+ * @param {Function} onDone  refresco de la vista
+ */
+export function bindAccionesChat(proc, onDone, idCont = 'vl-acc-chat') {
+    const cont = document.getElementById(idCont);
+    if (!cont || !proc || !proc.proceso_id) return;
+    const cb = typeof onDone === 'function' ? onDone : () => {};
+    cont.querySelectorAll('button[data-acc]').forEach(b => {
+        b.addEventListener('click', () => {
+            const k = b.dataset.acc;
+            if (k === 'pago') return modalConfirmarPago(proc, cb);
+            if (k === 'entrega') return modalDecisionEntrega(proc, cb);
+            if (k === 'envio') return modalCrearEnvio(proc, cb);
+            if (k === 'entregado') return modalMarcarEntregado(proc, cb);
+            if (k === 'liberar') return modalLiberarItems(proc, cb);
+        });
+    });
+}
+
+/** Arma el objeto que esperan los modales a partir de un proceso del chat. */
+export function procesoParaModales(proc, tiktokUser) {
+    if (!proc || !proc.proceso_id) return null;
+    return {
+        proceso_id: proc.proceso_id,
+        estado: proc.estado,
+        saldo: proc.saldo,
+        prendas: proc.prendas,
+        envio: proc.envio || null,
+        cliente: { cliente_id: proc.cliente_id, tiktok_user: tiktokUser || '' }
+    };
 }

@@ -402,6 +402,29 @@
         .vl-cp-saldo { font-size: 0.7rem; font-weight: 800; border-radius: 999px; padding: 2px 9px; }
         .vl-cp-saldo.debe { background: rgba(255,169,77,0.16); border: 1px solid rgba(255,169,77,0.4); color: #ffc078; }
         .vl-cp-saldo.ok { background: rgba(0,184,148,0.16); border: 1px solid rgba(0,184,148,0.45); color: #7ff5d8; }
+        /* Acciones del proceso DENTRO del chat (confirmar pago, entregar, envío…).
+           Se ven igual en el panel del LIVE y en el cajón de conversaciones.
+           PC/tablet: fila cómoda. Móvil: compactas y agrupadas a la derecha. */
+        .vl-chat-acciones {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            padding: 9px 11px; margin: 9px 0 3px;
+            background: rgba(157, 78, 221, 0.08);
+            border: 1px solid rgba(157, 78, 221, 0.28);
+            border-radius: 12px;
+        }
+        .vl-chat-acciones .vl-btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            font-size: 0.79rem; font-weight: 700; padding: 8px 13px; border-radius: 10px;
+        }
+        .vl-chat-acciones .vl-btn i { font-size: 0.85rem; }
+        @media (max-width: 860px) {
+            .vl-chat-acciones { padding: 8px 9px; gap: 7px; }
+            .vl-chat-acciones .vl-btn { font-size: 0.74rem; padding: 7px 10px; }
+        }
+        @media (max-width: 700px) {
+            .vl-chat-acciones { justify-content: flex-end; padding: 7px 8px; gap: 6px; }
+            .vl-chat-acciones .vl-btn { font-size: 0.71rem; padding: 7px 9px; gap: 5px; }
+        }
 
         /* Tablet: tarjetas un poco más angostas. Móvil: una por fila. */
         @media (max-width: 980px) { .vlg-lista { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); } }
@@ -735,7 +758,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=105"></script>
+    <script type="module" src="dist/app.js?v=108"></script>
     <script defer src="dist/legacy.js?v=74"></script>
 </body>
 </html>

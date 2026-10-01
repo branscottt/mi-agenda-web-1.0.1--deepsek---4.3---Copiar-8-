@@ -9,6 +9,7 @@ import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
 import { burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
+import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
     initConversacionesDrawer, refrescarContador, toggleConversaciones,
     notificacionesEstado, activarNotificaciones, desactivarNotificaciones
@@ -99,6 +100,7 @@ function buildDOM() {
                         </div>
                     </div>
                     <div class="sub" id="lv-chat-sub">Escribe un @usuario conocido para ver su conversación acá.</div>
+                    <div id="lv-chat-proc-acc"></div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
@@ -225,15 +227,17 @@ export function activarLiveView() {
     pintarAvisos();
 }
 
-// Refresca el chat del cliente visible cada 15 s (solo con LIVE a la vista).
+// Refresca el chat del cliente visible cada 5 s (solo con LIVE a la vista).
+// Antes eran 15 s: el dueño notaba que "tardaba en verse" el mensaje.
 function iniciarPollChat() {
     if (_chatPoll) clearInterval(_chatPoll);
     _chatPoll = setInterval(() => {
         const vista = $('vl-view-live');
         if (!vista || !vista.classList.contains('active')) return;
+        if (document.hidden) return;
         if (!_chatId || _chatEnviando) return;
         cargarHiloChat({ silencioso: true });
-    }, 15000);
+    }, 5000);
 }
 
 async function refrescarTodo() {
@@ -473,6 +477,28 @@ function mostrarResumen(c) {
 
     // Trae la conversación de WhatsApp de este cliente (si existe).
     cargarChatCliente(c);
+
+    // Botones de proceso EN EL CHAT (pedido del dueño: "si se puede apretar en el
+    // mismo lado del chat, genial"): reusan los modales de Procesos/Clientes.
+    pintarAccionesChat(c);
+}
+
+/** Fila de acciones del proceso del cliente que se está viendo en el chat. */
+function pintarAccionesChat(c) {
+    const cont = $('lv-chat-proc-acc');
+    if (!cont) return;
+    const pa = c && c.proceso_activo;
+    const proc = pa ? {
+        proceso_id: pa.proceso_id, estado: pa.estado, saldo: pa.saldo,
+        prendas: pa.prendas, envio: pa.envio || null, cliente_id: c.cliente_id
+    } : null;
+    cont.innerHTML = accionesChatHtml(proc, 'lv-acc-chat');
+    bindAccionesChat(procesoParaModales(proc, c && c.tiktok_user), () => {
+        mostrarToast('Listo', 'success');
+        // Refresca la tarjeta del cliente (saldo/estado) y el hilo del chat.
+        buscarCliente(normalizarTiktok(c.tiktok_user));
+        if (_chatId) cargarHiloChat({ silencioso: true });
+    }, 'lv-acc-chat');
 }
 
 // ---- Guardar venta ----
