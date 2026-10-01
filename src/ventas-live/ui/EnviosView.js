@@ -8,10 +8,13 @@
 // Cada fila ofrece: confirmar en el chat (intervenir), marcar la entrega en el
 // pedido (cuando el pago ya está confirmado), crear el envío o marcar entregado.
 
-import { vlApi } from '../domain/vlApi.js';
+import { vlApi, ESTADO_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
-import { escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { modalCrearEnvio, modalMarcarEntregado } from './accionesProceso.js';
+import { escapeHtml, formatearDinero } from '../../shared/infrastructure/formatters.js';
+import {
+    modalCrearEnvio, modalMarcarEntregado, modalConfirmarPago,
+    modalPagarItems, modalLiberarItems
+} from './accionesProceso.js';
 import { abrirChatDeUsuario } from './ConversacionesDrawer.js';
 
 const EMPRESA_SITIOS = {
@@ -31,14 +34,21 @@ const COURIER_EMPRESA = { blue: 'blue_express', paket: 'paket' };
 
 // Orden de trabajo: primero lo que vence, después lo del día, y al final lo que
 // todavía no se puede hacer (sin pago confirmado). Ámbar = atención, sin rojo.
+// El orden es la instrucción: primero lo que hay que decidir/hacer y al final lo
+// ya encaminado. Los grupos salen del PROCESO (misma fuente que el diagrama), así
+// que un pedido sin envío creado igual aparece acá.
 const GRUPOS = [
+    { g: 'sin_entrega', titulo: '❓ FALTA DECIDIR LA ENTREGA', color: '#ffc107' },
     { g: 'urgente_paket', titulo: '⏰ PEDIR YA (Paket: antes de las 23:59)', color: '#ffc107' },
+    { g: 'por_preparar', titulo: '📦 FALTA CREAR EL ENVÍO', color: '#74c0fc' },
+    { g: 'listos', titulo: '✅ LISTOS PARA ENTREGAR', color: '#69db7c' },
+    { g: 'presenciales', titulo: '🤝 ENTREGAS PRESENCIALES', color: '#e599f7' },
+    { g: 'en_proceso', titulo: '🚚 ENVÍOS EN PROCESO', color: '#9775fa' },
+    { g: 'esperando_pago', titulo: '💸 FALTA COBRAR', color: '#ffa94d' },
     { g: 'hoy', titulo: '📅 HOY', color: '#ffa94d' },
     { g: 'manana', titulo: '📅 MAÑANA', color: '#74c0fc' },
     { g: 'proximos', titulo: '📅 PRÓXIMOS', color: '#adb5bd' },
-    { g: 'presenciales', titulo: '🤝 ENTREGAS PRESENCIALES', color: '#e599f7' },
-    { g: 'en_proceso', titulo: '🚚 ENVÍOS EN PROCESO', color: '#9775fa' },
-    { g: 'esperando_pago', titulo: '⏳ ESPERANDO CONFIRMAR PAGO', color: '#adb5bd' }
+    { g: 'entregados', titulo: '✔ ENTREGADOS', color: '#adb5bd' }
 ];
 
 let _built = false;
@@ -71,7 +81,7 @@ async function refrescarEnvios() {
     const visibles = GRUPOS.filter(gr => (grupos[gr.g] || []).length);
 
     if (!visibles.length) {
-        cont.innerHTML = banner + '<div class="vl-empty" style="padding:50px;">Sin tareas de envío ni entregas pendientes 🎉</div>';
+        cont.innerHTML = banner + '<div class="vl-empty" style="padding:50px;">Sin pedidos abiertos: no hay nada que entregar ni cobrar 🎉</div>';
         return;
     }
 
@@ -115,28 +125,38 @@ function bannerConfigHTML(cfg) {
 
 function filaHTML(f) {
     const c = f.cliente || {};
+    const info = ESTADO_INFO[f.proceso_estado] || { label: f.proceso_estado || '' };
     const empresa = f.empresa ? (EMPRESA_LABEL[f.empresa] || f.empresa)
         : (COURIER_EMPRESA[f.courier] ? EMPRESA_LABEL[COURIER_EMPRESA[f.courier]] : 'por definir');
     const direccionCompleta = [c.nombre_real || ('@' + c.tiktok_user), c.whatsapp, c.direccion, c.comuna, c.ciudad]
         .filter(Boolean).join(', ');
-    const chipCourier = f.tipo === 'presencial' ? '' :
-        `<span style="color:${f.courier === 'paket' ? '#ffc107' : '#74c0fc'};">🚚 ${escapeHtml(f.courier === 'paket' ? 'Paket' : (f.courier === 'blue' ? 'Blue' : 'courier sin definir'))}</span>`;
-    // Si el envío ya está creado (empresa definida) se muestra la empresa; si no,
-    // basta el chip del courier que eligió el cliente en el chat.
-    const chipEmpresa = f.tipo === 'presencial'
+
+    // Misma información que el diagrama de Procesos: estado + los puntos del
+    // pedido (entrega / courier / pago / fecha) + qué hacer ahora.
+    const chipEntrega = f.tipo === 'presencial'
         ? '<span>🤝 Presencial</span>'
-        : (f.empresa ? `<span>🚚 ${escapeHtml(empresa)}</span>` : '');
+        : (f.tipo === 'envio'
+            ? '<span style="color:#74c0fc;">📦 Envío</span>'
+            : (f.tipo_sugerido
+                ? `<span style="opacity:0.65;" title="Lo eligió en una compra anterior: confirmar">❓ falta (la vez pasada: ${escapeHtml(f.tipo_sugerido)})</span>`
+                : '<span style="color:#ffc107;">❓ falta decidir entrega</span>'));
+
+    const chipEmpresa = (f.tipo === 'envio' && f.empresa)
+        ? `<span>🚚 ${escapeHtml(empresa)}</span>` : '';
+    const chipCourier = f.tipo === 'envio'
+        ? `<span style="color:${f.courier === 'paket' ? '#ffc107' : '#74c0fc'};">🚚 ${escapeHtml(f.courier === 'paket' ? 'Paket' : (f.courier === 'blue' ? 'Blue' : 'courier sin definir'))}</span>`
+        : '';
     const chipFecha = f.notas
         ? `<span title="Lo que escribió el cliente">🗣️ dijo: ${escapeHtml(f.notas)}</span>`
         : (f.tipo === 'presencial' ? '<span style="opacity:0.7;">🗣️ sin fecha todavía</span>' : '');
-    const chipPago = f.pago_confirmado
-        ? '<span style="color:#8ce99a;">✔ pago confirmado</span>'
-        : '<span style="opacity:0.75;">⏳ pago sin confirmar</span>';
+    const chipPago = Number(f.saldo) > 0
+        ? `<span style="color:#ffd8a8;">Debe ${formatearDinero(f.saldo)} de ${formatearDinero(f.total)}</span>`
+        : '<span style="color:#8ce99a;">✔ Pagado</span>';
 
     return `
         <div class="vl-fila" data-proceso="${f.proceso_id}">
             <div style="min-width:180px;">
-                <div class="f-nick">@${escapeHtml(c.tiktok_user)}</div>
+                <div class="f-nick">@${escapeHtml(c.tiktok_user || '?')}</div>
                 <div class="f-sub">
                     ${escapeHtml(c.nombre_real || '')} ${c.whatsapp ? '· ' + escapeHtml(c.whatsapp) : ''}
                 </div>
@@ -146,6 +166,9 @@ function filaHTML(f) {
             </div>
             <div class="f-der">
                 <div class="f-datos">
+                    <span style="opacity:0.85;">${escapeHtml(info.label)}</span>
+                    <span>· ${f.prendas || 0} prenda(s)</span>
+                    ${chipEntrega}
                     ${chipEmpresa}
                     ${chipCourier}
                     ${f.tracking ? '<span>#' + escapeHtml(f.tracking) + '</span>' : ''}
@@ -156,7 +179,7 @@ function filaHTML(f) {
                 ${f.siguiente_paso ? `<div class="f-sub" style="color:#ffd8a8;margin:6px 0 2px;"><i class="fas fa-arrow-right"></i> ${escapeHtml(f.siguiente_paso)}</div>` : ''}
                 <div class="vl-datos-copy">
                     <button class="vl-btn" data-acc="chat" type="button"><i class="fas fa-comments"></i> Ver chat</button>
-                    <button class="vl-btn" data-copiar="${encodeURIComponent('@' + c.tiktok_user + (c.nombre_real ? ' ' + c.nombre_real : ''))}" type="button"><i class="fas fa-copy"></i> Nombre</button>
+                    <button class="vl-btn" data-copiar="${encodeURIComponent('@' + (c.tiktok_user || '') + (c.nombre_real ? ' ' + c.nombre_real : ''))}" type="button"><i class="fas fa-copy"></i> Nombre</button>
                     <button class="vl-btn" data-copiar="${encodeURIComponent(c.whatsapp || '')}" type="button"><i class="fas fa-copy"></i> Teléfono</button>
                     <button class="vl-btn" data-copiar="${encodeURIComponent(direccionCompleta)}" type="button"><i class="fas fa-copy"></i> Copiar dirección</button>
                     ${f.empresa && EMPRESA_SITIOS[f.empresa]
@@ -169,21 +192,27 @@ function filaHTML(f) {
 }
 
 // El botón principal lo decide el backend (`accion`), así el panel y el estado
-// real del pedido nunca se contradicen.
+// real del pedido nunca se contradicen. Las acciones secundarias (cobrar una
+// prenda puntual, liberar) son las MISMAS que en Procesos: se puede apretar
+// "ya lo entregué / ya lo envié" desde las dos vistas.
 function accionHTML(f) {
+    const saldo = Number(f.saldo || 0);
+    let html = '';
     if (f.accion === 'entregado') {
-        return `<button class="vl-btn success" data-acc="entregado" type="button"><i class="fas fa-check-circle"></i> Marcar entregado</button>`;
+        html += `<button class="vl-btn success" data-acc="entregado" type="button"><i class="fas fa-check-circle"></i> ${f.tipo === 'presencial' ? 'Ya lo entregué' : 'Ya lo envié / entregué'}</button>`;
+    } else if (f.accion === 'crear_envio') {
+        html += '<button class="vl-btn success" data-acc="crear-envio" type="button"><i class="fas fa-truck-fast"></i> ENVÍO CREADO</button>';
+    } else if (f.accion === 'decidir_entrega') {
+        html += '<button class="vl-btn success" data-acc="decidir" data-tipo="envio" type="button"><i class="fas fa-box"></i> Es con envío</button>';
+        html += '<button class="vl-btn success" data-acc="decidir" data-tipo="presencial" type="button"><i class="fas fa-handshake"></i> Es presencial</button>';
+    } else if (f.accion === 'pagar') {
+        html += '<button class="vl-btn success" data-acc="pagar" type="button"><i class="fas fa-hand-holding-dollar"></i> Registrar pago</button>';
     }
-    if (f.accion === 'crear_envio') {
-        return `<button class="vl-btn success" data-acc="crear-envio" type="button"><i class="fas fa-truck-fast"></i> ENVÍO CREADO</button>`;
+    if (saldo > 0) {
+        html += '<button class="vl-btn success" data-acc="pagar-items" type="button"><i class="fas fa-money-bill-wave"></i> Pagar prendas</button>';
+        html += '<button class="vl-btn danger" data-acc="liberar" type="button"><i class="fas fa-unlock"></i> Liberar prenda</button>';
     }
-    if (f.accion === 'decidir_envio') {
-        return `<button class="vl-btn success" data-acc="decidir" data-tipo="envio" type="button"><i class="fas fa-box"></i> Marcar envío en el pedido</button>`;
-    }
-    if (f.accion === 'decidir_presencial') {
-        return `<button class="vl-btn success" data-acc="decidir" data-tipo="presencial" type="button"><i class="fas fa-handshake"></i> Marcar entrega presencial</button>`;
-    }
-    return '';
+    return html;
 }
 
 function bindFila(row, f) {
@@ -203,9 +232,20 @@ function bindFila(row, f) {
                 if (!ok) mostrarToast('No encontré ese chat', 'warning');
                 return;
             }
-            const proceso = { proceso_id: f.proceso_id, envio: f };
+            // Los modales son los MISMOS que usa el diagrama de Procesos.
+            const proceso = {
+                proceso_id: f.proceso_id,
+                estado: f.proceso_estado,
+                saldo: f.saldo,
+                prendas: f.prendas,
+                envio: f,
+                cliente: { cliente_id: f.cliente_id, tiktok_user: (f.cliente || {}).tiktok_user }
+            };
             if (acc === 'crear-envio') { modalCrearEnvio(proceso, refrescarEnvios); return; }
             if (acc === 'entregado') { modalMarcarEntregado(proceso, refrescarEnvios); return; }
+            if (acc === 'pagar') { modalConfirmarPago(proceso, refrescarEnvios); return; }
+            if (acc === 'pagar-items') { modalPagarItems(proceso, refrescarEnvios); return; }
+            if (acc === 'liberar') { modalLiberarItems(proceso, refrescarEnvios); return; }
             if (acc === 'decidir') {
                 const tipo = btn.dataset.tipo === 'presencial' ? 'presencial' : 'envio';
                 btn.disabled = true;

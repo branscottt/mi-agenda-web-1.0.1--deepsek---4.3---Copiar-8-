@@ -22,7 +22,7 @@ import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatt
 import {
     modalPunto, modalLiberarItems, modalBloquearBorrar,
     modalConfirmarPago, modalPagaraPresencial, modalDecisionEntrega,
-    modalCrearEnvio, modalMarcarEntregado,
+    modalCrearEnvio, modalMarcarEntregado, modalPagarItems,
     PUNTO_LABEL, PUNTO_VALOR_LABEL
 } from './accionesProceso.js';
 import { abrirChatDeUsuario } from './ConversacionesDrawer.js';
@@ -164,6 +164,11 @@ function tarjetaHTML(p) {
     if ((g === 'esperando_pago' || g === 'pago_parcial') && Number(p.saldo) > 0) {
         extra.push('<button class="vlg-mini" data-acc="presencial" type="button"><i class="fas fa-handshake"></i> Presencial</button>');
     }
+    // Pagar UNA prenda o todas de una (misma acción que en Envíos): cobrar
+    // parcialmente sin cerrar el pedido.
+    if (Number(p.saldo) > 0) {
+        extra.push('<button class="vlg-mini success" data-acc="pagar-items" type="button" title="Pagar prendas (una o todas)"><i class="fas fa-money-bill-wave"></i> Pagar</button>');
+    }
 
     return `
         <article class="vlg-card${alerta ? ' con-alerta' : ''}" data-p="${escapeHtml(p.proceso_id)}">
@@ -240,6 +245,7 @@ function pintar(cont) {
                 }
                 if (acc === 'chat') { abrirChatDeUsuario(p.cliente.tiktok_user); return; }
                 if (acc === 'liberar') { modalLiberarItems(p, refrescarDiagrama); return; }
+                if (acc === 'pagar-items') { modalPagarItems(p, refrescarDiagrama); return; }
                 if (acc === 'bloquear') { modalBloquearBorrar(p.cliente, refrescarDiagrama); return; }
                 if (acc === 'pago') { modalConfirmarPago(p, refrescarDiagrama); return; }
                 if (acc === 'presencial') {

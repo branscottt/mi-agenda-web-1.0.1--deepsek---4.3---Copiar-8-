@@ -522,6 +522,86 @@ export function modalBloquearBorrar(cliente, onDone) {
     });
 }
 
+// ---------- Pagar prendas (una o TODAS de una) ----------
+// Pedido del dueño: "se pueda presionar que prenda pagaron si solo alguna o
+// todas de una". Registra el pago en la caja del pedido y lo imputa a las
+// prendas elegidas (no FIFO), así puede cobrar sólo una prenda.
+export async function modalPagarItems(proceso, onDone) {
+    const nick = proceso.cliente ? proceso.cliente.tiktok_user : 'cliente';
+    const ficha = await vlApi.fichaCliente(proceso.cliente.cliente_id);
+    const pa = ficha.ok && ficha.data.proceso_activo ? ficha.data.proceso_activo : null;
+    const pend = i => Number(i.precio) - Number(i.abonado);
+    const items = ((pa && pa.items) || [])
+        .filter(i => i.estado === 'adjudicada' && pend(i) > 0);
+    if (!items.length) {
+        mostrarToast('No hay prendas con saldo pendiente', 'warning');
+        return;
+    }
+    const totalPend = items.reduce((a, i) => a + pend(i), 0);
+
+    abrirModal({
+        titulo: '💳 Pagar prendas — @' + escapeHtml(nick),
+        sub: 'Marca las prendas que el cliente YA pagó. Se registra el pago en su pedido (queda en Finanzas).',
+        html: `
+            <div id="vl-pg-items">
+                ${items.map(i => `
+                    <label class="vl-check-item">
+                        <input type="checkbox" value="${i.id}" data-monto="${pend(i)}" checked>
+                        <span style="flex:1;">${i.descripcion ? escapeHtml(i.descripcion) : 'Prenda'}</span>
+                        <b>${formatearDinero(pend(i))}</b>
+                    </label>`).join('')}
+            </div>
+            <div style="margin-top:10px;font-size:0.92rem;">
+                Se registrará un pago de <b id="vl-pg-total">${formatearDinero(totalPend)}</b>
+                <span style="opacity:0.7;">(destildá lo que todavía no pagó)</span>
+            </div>
+            <div class="vl-form-row" style="margin-top:10px;">
+                <label for="vl-pg-metodo">Cómo pagó</label>
+                <select class="vl-control" id="vl-pg-metodo">
+                    <option value="transferencia">Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="otro">Otro</option>
+                </select>
+            </div>
+            <div class="vl-form-row">
+                <label for="vl-pg-nota">Nota (opcional)</label>
+                <input class="vl-control" id="vl-pg-nota" placeholder="Ej: pagó la prenda del live del sábado">
+            </div>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vl-pg-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn success" id="vl-pg-ok" type="button"><i class="fas fa-hand-holding-dollar"></i> Registrar pago</button>
+            </div>`,
+        onMount: (modal, { marcarSucio }) => {
+            const totalEl = modal.querySelector('#vl-pg-total');
+            const checks = Array.from(modal.querySelectorAll('#vl-pg-items input'));
+            const recalc = () => {
+                const t = checks.filter(c => c.checked)
+                    .reduce((a, c) => a + Number(c.dataset.monto || 0), 0);
+                totalEl.textContent = formatearDinero(t);
+            };
+            checks.forEach(c => c.addEventListener('change', () => { marcarSucio(); recalc(); }));
+            modal.querySelector('#vl-pg-nota').addEventListener('input', marcarSucio);
+            modal.querySelector('#vl-pg-cancelar').addEventListener('click', () => cerrarModal(true));
+            modal.querySelector('#vl-pg-ok').addEventListener('click', async () => {
+                const ids = checks.filter(c => c.checked).map(c => c.value);
+                if (!ids.length) { mostrarToast('Selecciona al menos una prenda', 'warning'); return; }
+                const btn = modal.querySelector('#vl-pg-ok');
+                btn.disabled = true;
+                const res = await vlApi.pagarItems(proceso.proceso_id, ids,
+                    modal.querySelector('#vl-pg-metodo').value,
+                    modal.querySelector('#vl-pg-nota').value.trim());
+                btn.disabled = false;
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo registrar el pago', 'error'); return; }
+                cerrarModal(true);
+                const d = res.data || {};
+                mostrarToast('Pago registrado · ' + (d.prendas_pagadas || 0) + ' prenda(s) · queda '
+                    + formatearDinero(Number(d.saldo_restante || 0)), 'success');
+                if (typeof onDone === 'function') onDone();
+            });
+        }
+    });
+}
+
 export async function modalLiberarItems(proceso, onDone) {
     const nick = proceso.cliente ? proceso.cliente.tiktok_user : 'cliente';
     // Necesita las prendas adjudicadas: las pide a la ficha
@@ -580,6 +660,7 @@ export async function modalLiberarItems(proceso, onDone) {
 // sirven igual en el panel del LIVE y en el cajón de conversaciones.
 const ACCIONES_POR_ESTADO = [
     { k: 'pago',      clase: 'success', icono: 'fa-hand-holding-dollar', txt: 'Confirmar pago' },
+    { k: 'pagar_items', clase: 'success', icono: 'fa-money-bill-wave',   txt: 'Pagar prendas' },
     { k: 'entrega',   clase: 'primary', icono: 'fa-box-open',            txt: 'Decidir entrega' },
     { k: 'envio',     clase: 'success', icono: 'fa-truck-fast',          txt: 'ENVÍO CREADO' },
     { k: 'entregado', clase: 'success', icono: 'fa-check-circle',        txt: 'Marcar entregado' },
@@ -608,6 +689,7 @@ export function accionesDeChat(proc) {
     if (['envio_proceso', 'entrega_presencial'].indexOf(e) >= 0) {
         quiero.push('entregado');
     }
+    if (saldo > 0) quiero.push('pagar_items');
     if (saldo > 0) quiero.push('liberar');
 
     return ACCIONES_POR_ESTADO.filter(a => quiero.indexOf(a.k) >= 0);
@@ -640,6 +722,7 @@ export function bindAccionesChat(proc, onDone, idCont = 'vl-acc-chat') {
             if (k === 'entrega') return modalDecisionEntrega(proc, cb);
             if (k === 'envio') return modalCrearEnvio(proc, cb);
             if (k === 'entregado') return modalMarcarEntregado(proc, cb);
+            if (k === 'pagar_items') return modalPagarItems(proc, cb);
             if (k === 'liberar') return modalLiberarItems(proc, cb);
         });
     });

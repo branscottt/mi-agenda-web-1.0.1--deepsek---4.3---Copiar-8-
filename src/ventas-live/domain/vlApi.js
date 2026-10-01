@@ -102,6 +102,12 @@ export const vlApi = {
     promoverEntrega: (clienteId) => callRpc('vl_wa_promover_entrega', { p_cliente_id: clienteId }),
     liberarItems: (procesoId, itemIds, nota = '') =>
         callRpc('vl_liberar_items', { p_proceso_id: procesoId, p_item_ids: itemIds, p_nota: nota }),
+    // Pagar prendas puntuales (una o todas): registra el pago y lo imputa a ESAS
+    // prendas (no FIFO), para poder cobrar "solo alguna".
+    pagarItems: (procesoId, itemIds, metodo = 'transferencia', nota = '') =>
+        callRpc('vl_pagar_items', {
+            p_proceso_id: procesoId, p_item_ids: itemIds, p_metodo: metodo, p_nota: nota
+        }),
 
     // ---- Paneles ----
     panelProcesos: () => callRpc('vl_panel_procesos'),
