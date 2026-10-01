@@ -98,7 +98,10 @@ export const vlApi = {
         callRpc('vl_decidir_entrega', { p_proceso_id: procesoId, p_opcion: opcion, p_fecha: fecha, p_tipo: tipo }),
     crearEnvio: (procesoId, empresa = '', tracking = '') =>
         callRpc('vl_crear_envio', { p_proceso_id: procesoId, p_empresa: empresa, p_tracking: tracking }),
-    marcarEntregado: (procesoId) => callRpc('vl_marcar_entregado', { p_proceso_id: procesoId }),
+    // p_pagado = false -> se entrega sin pago confirmado: el pedido queda
+    // "entregado por cobrar" (abierto, con la deuda registrada).
+    marcarEntregado: (procesoId, pagado = true) =>
+        callRpc('vl_marcar_entregado', { p_proceso_id: procesoId, p_pagado: pagado }),
     promoverEntrega: (clienteId) => callRpc('vl_wa_promover_entrega', { p_cliente_id: clienteId }),
     liberarItems: (procesoId, itemIds, nota = '') =>
         callRpc('vl_liberar_items', { p_proceso_id: procesoId, p_item_ids: itemIds, p_nota: nota }),
@@ -170,6 +173,7 @@ export const ESTADO_INFO = {
     envio_programado:     { label: '📅 Envío programado',          grupo: 'envio_programado' },
     envio_proceso:        { label: '🚚 Envío en proceso',          grupo: 'envio_proceso' },
     entrega_presencial:   { label: '🤝 Entrega presencial',        grupo: 'entrega_presencial' },
+    entregado_por_cobrar: { label: '💸 Entregado, falta cobrar',   grupo: 'por_cobrar' },
     completado:           { label: '✅ Completado',                grupo: null },
     no_pago_liberado:     { label: '🔴 No pagó / liberada',        grupo: null }
 };

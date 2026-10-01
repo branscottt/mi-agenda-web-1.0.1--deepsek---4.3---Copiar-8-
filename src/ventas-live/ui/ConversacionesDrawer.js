@@ -18,7 +18,7 @@ import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml, formatearDinero } from '../../shared/infrastructure/formatters.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
-    ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle,
+    ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips
 } from './chatComun.js';
@@ -349,7 +349,13 @@ function notificar(chat, esAviso) {
     let titulo;
     let cuerpo;
     if (esAviso) {
-        titulo = '⚠️ ' + avisoLabel(chat.aviso_tipo) + ' — ' + quien;
+        // Los avisos que necesitan que conteste una PERSONA (el bot no supo
+        // responder, no encontró al cliente, llegó un comprobante…) se anuncian
+        // distinto: el dueño pidió "una alerta para revisar la web, sobre todo
+        // cuando el bot no sabe responder".
+        const necesitaHumano = AVISOS_RESPUESTA.indexOf(chat.aviso_tipo) >= 0;
+        titulo = (necesitaHumano ? '✋ CONTESTA TÚ — ' : '⚠️ ')
+               + avisoLabel(chat.aviso_tipo) + ' — ' + quien;
         cuerpo = (avisoDetalle(chat.aviso_tipo, chat.aviso_detalle) || '') +
                  (avisoAccion(chat.aviso_tipo) ? '\nQué hacer: ' + avisoAccion(chat.aviso_tipo) : '');
     } else {

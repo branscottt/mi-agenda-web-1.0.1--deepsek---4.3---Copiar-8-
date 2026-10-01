@@ -128,7 +128,27 @@ const VIEWPORTS = [
       await page.screenshot({ path: `/tmp/vl-procesos-${vp.nombre}.png`, fullPage: true });
     } catch (e) { diag.error = String(e.message).slice(0, 120); }
 
-    out.push({ vp, live, conv, diag, errores });
+    // 4) Envíos = tareas por PROCESO (misma info que el diagrama; incluye
+    //    "entregado — falta cobrar" y los botones de cada paso)
+    let env = { grupos: 0, filas: 0, botones: 0, vacio: false, overflow: 0 };
+    try {
+      await page.click('button[data-view="envios"]', { timeout: 8000 });
+      await page.waitForTimeout(4000);
+      env = await page.evaluate(() => {
+        const cont = document.getElementById('ve-contenido');
+        const doc = document.documentElement;
+        return {
+          grupos: cont ? cont.querySelectorAll('.vl-grupo-titulo').length : 0,
+          filas: cont ? cont.querySelectorAll('.vl-fila').length : 0,
+          botones: cont ? cont.querySelectorAll('button[data-acc]').length : 0,
+          vacio: cont ? /Sin pedidos abiertos/.test(cont.textContent) : false,
+          overflow: Math.max(0, doc.scrollWidth - window.innerWidth),
+        };
+      });
+      await page.screenshot({ path: `/tmp/vl-envios-${vp.nombre}.png`, fullPage: true });
+    } catch (e) { env.error = String(e.message).slice(0, 120); }
+
+    out.push({ vp, live, conv, diag, env, errores });
     await ctx.close();
   }
   await browser.close();
@@ -139,6 +159,7 @@ const VIEWPORTS = [
     console.log(`  CAJÓN   : abierto=${r.conv.abierto} chats=${r.conv.chats} botonesProceso(max)=${r.conv.botones} chatsConBotones=${r.conv.conBotones}${r.conv.error ? ' error=' + r.conv.error : ''}`);
     if (r.conv.alerta) console.log(`  ALERTA  : repite=${r.conv.alerta.repite} "${r.conv.alerta.texto}"`);
     console.log(`  PROCESOS: nodos=${r.diag.puntos} alto=${r.diag.alto}px overflowPx=${r.diag.overflow || 0}${r.diag.error ? ' error=' + r.diag.error : ''}`);
+    console.log(`  ENVÍOS  : grupos=${r.env.grupos} filas=${r.env.filas} botones=${r.env.botones} vacio=${r.env.vacio} overflowPx=${r.env.overflow || 0}${r.env.error ? ' error=' + r.env.error : ''}`);
     console.log(`  errores JS: ${r.errores.length}`);
     r.errores.slice(0, 6).forEach((e) => console.log('    - ' + e));
   }

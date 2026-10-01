@@ -279,31 +279,51 @@ export function modalCrearEnvio(proceso, onDone) {
 }
 
 // ---------- Marcar entregado / completado ----------
+// Si el cliente todavía no pagó, se puede entregar IGUAL: el pedido queda
+// "entregado, falta cobrar" (abierto, con la deuda registrada y cobrable).
 export function modalMarcarEntregado(proceso, onDone) {
     const nick = proceso.cliente ? proceso.cliente.tiktok_user : 'cliente';
+    const saldo = Number(proceso.saldo || 0);
+    const debe = saldo > 0;
     abrirModal({
         titulo: '✅ Marcar entregado — @' + escapeHtml(nick),
-        sub: 'Se entregaron las prendas. El proceso quedará como COMPLETADO.',
+        sub: debe
+            ? 'Saldo pendiente: <b>' + formatearDinero(saldo) + '</b>'
+            : 'Se entregaron las prendas. El proceso quedará como COMPLETADO.',
         html: `
             <div style="background:rgba(0,184,148,0.08);border:1px solid rgba(0,184,148,0.3);border-radius:12px;padding:12px 14px;color:#7ff5d8;font-size:0.88rem;">
                 <b>${proceso.prendas || 0}</b> prenda(s) en este proceso · saldo pendiente: <b>${formatearDinero(proceso.saldo)}</b>
             </div>
+            ${debe ? `<div style="background:rgba(255,193,7,0.10);border:1px solid rgba(255,193,7,0.45);border-radius:12px;padding:12px 14px;margin-top:10px;font-size:0.86rem;color:#ffe3a3;">
+                <b>¿Ya te pagó?</b><br>
+                Si todavía no pagó, se puede entregar igual: el pedido queda en
+                <b>ENTREGADO — FALTA COBRAR ${formatearDinero(saldo)}</b> y la deuda sigue visible en el panel
+                hasta que cobres (ahí se cierra solo).
+            </div>` : ''}
             <div class="vl-modal-actions">
                 <button class="vl-btn" id="vg-cancelar" type="button">Cancelar</button>
-                <button class="vl-btn success" id="vg-ok" type="button"><i class="fas fa-check-circle"></i> Sí, marcar entregado</button>
+                ${debe ? '<button class="vl-btn" id="vg-cobrar" type="button"><i class="fas fa-hand-holding-dollar"></i> No pagó: entregar y dejar por cobrar</button>' : ''}
+                <button class="vl-btn success" id="vg-ok" type="button"><i class="fas fa-check-circle"></i> ${debe ? 'Sí, pagó todo' : 'Sí, marcar entregado'}</button>
             </div>`,
         onMount: (modal) => {
             modal.querySelector('#vg-cancelar').addEventListener('click', () => cerrarModal(true));
-            modal.querySelector('#vg-ok').addEventListener('click', async () => {
-                const btn = modal.querySelector('#vg-ok');
+            const enviar = async (pagado) => {
+                if (!pagado && !window.confirm('¿Entregar sin cobrar? El pedido quedará como ENTREGADO — FALTA COBRAR ' + formatearDinero(saldo) + '.')) return;
+                const btn = modal.querySelector(pagado ? '#vg-ok' : '#vg-cobrar');
                 btn.disabled = true;
-                const res = await vlApi.marcarEntregado(proceso.proceso_id);
+                const res = await vlApi.marcarEntregado(proceso.proceso_id, pagado);
                 btn.disabled = false;
                 if (!res.ok) { mostrarToast(res.error || 'No se pudo completar', 'error'); return; }
                 cerrarModal(true);
-                mostrarToast('Proceso completado ✔', 'success');
-                onDone();
-            });
+                const d = res.data || {};
+                mostrarToast(d.por_cobrar
+                    ? 'Entregado · queda por cobrar ' + formatearDinero(Number(d.saldo || 0))
+                    : 'Proceso completado ✔', d.por_cobrar ? 'warning' : 'success');
+                if (typeof onDone === 'function') onDone();
+            };
+            modal.querySelector('#vg-ok').addEventListener('click', () => enviar(true));
+            const b = modal.querySelector('#vg-cobrar');
+            if (b) b.addEventListener('click', () => enviar(false));
         }
     });
 }

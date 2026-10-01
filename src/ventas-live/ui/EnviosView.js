@@ -38,6 +38,7 @@ const COURIER_EMPRESA = { blue: 'blue_express', paket: 'paket' };
 // ya encaminado. Los grupos salen del PROCESO (misma fuente que el diagrama), así
 // que un pedido sin envío creado igual aparece acá.
 const GRUPOS = [
+    { g: 'por_cobrar', titulo: '💸 ENTREGADO — FALTA COBRAR', color: '#ffc107' },
     { g: 'sin_entrega', titulo: '❓ FALTA DECIDIR LA ENTREGA', color: '#ffc107' },
     { g: 'urgente_paket', titulo: '⏰ PEDIR YA (Paket: antes de las 23:59)', color: '#ffc107' },
     { g: 'por_preparar', titulo: '📦 FALTA CREAR EL ENVÍO', color: '#74c0fc' },
@@ -206,7 +207,8 @@ function accionHTML(f) {
         html += '<button class="vl-btn success" data-acc="decidir" data-tipo="envio" type="button"><i class="fas fa-box"></i> Es con envío</button>';
         html += '<button class="vl-btn success" data-acc="decidir" data-tipo="presencial" type="button"><i class="fas fa-handshake"></i> Es presencial</button>';
     } else if (f.accion === 'pagar') {
-        html += '<button class="vl-btn success" data-acc="pagar" type="button"><i class="fas fa-hand-holding-dollar"></i> Registrar pago</button>';
+        const porCobrar = f.proceso_estado === 'entregado_por_cobrar';
+        html += `<button class="vl-btn success" data-acc="pagar" type="button"><i class="fas fa-hand-holding-dollar"></i> ${porCobrar ? 'Cobrar saldo' : 'Registrar pago'}</button>`;
     }
     if (saldo > 0) {
         html += '<button class="vl-btn success" data-acc="pagar-items" type="button"><i class="fas fa-money-bill-wave"></i> Pagar prendas</button>';

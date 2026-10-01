@@ -38,6 +38,13 @@ const fila = (o) => Object.assign({
 const PAYLOAD = {
     ok: true, revisar_chat: true,
     grupos: {
+        por_cobrar: [fila({
+            proceso_id: 'p5', cliente_id: 'c5', proceso_estado: 'entregado_por_cobrar',
+            tipo: 'presencial', saldo: 7000, total: 7000, prendas: 1, envio_estado: 'entregado',
+            accion: 'pagar', pago_confirmado: false,
+            siguiente_paso: 'Entregado: falta cobrar $7.000 de $7.000. Al cobrar el saldo el pedido se cierra solo.',
+            cliente: { cliente_id: 'c5', tiktok_user: 'entregado', nombre_real: '', whatsapp: '+569****5555', ciudad: '', comuna: '', direccion: '' }
+        })],
         sin_entrega: [fila({
             proceso_id: 'p1', cliente_id: 'c1', proceso_estado: 'esperando_whatsapp',
             tipo: null, tipo_sugerido: 'presencial', saldo: 25000, total: 25000, prendas: 2,
@@ -99,8 +106,11 @@ const txt = () => cont.textContent;
 const checks = [];
 const ok = (n, c) => checks.push([n, !!c]);
 
-ok('renderiza las 4 filas', cont.querySelectorAll('.vl-fila').length === 4);
-ok('grupo "falta decidir la entrega" primero', txt().indexOf('FALTA DECIDIR LA ENTREGA') < txt().indexOf('FALTA CREAR EL ENVÍO'));
+ok('renderiza las 5 filas', cont.querySelectorAll('.vl-fila').length === 5);
+ok('el grupo "entregado — falta cobrar" va PRIMERO', txt().indexOf('ENTREGADO — FALTA COBRAR') < txt().indexOf('FALTA DECIDIR LA ENTREGA'));
+ok('la fila entregada-por-cobrar muestra el saldo a cobrar', /falta cobrar \$7\.000/.test(txt()));
+ok('botón "Cobrar saldo" en entregado-por-cobrar', !!cont.querySelector('[data-proceso="p5"] button[data-acc="pagar"]'));
+ok('grupo "falta decidir la entrega" después', txt().indexOf('FALTA DECIDIR LA ENTREGA') < txt().indexOf('FALTA CREAR EL ENVÍO'));
 ok('la fila del que vuelve muestra la entrega como SUGERENCIA',
     /falta \(la vez pasada: presencial\)/.test(txt()));
 ok('no la muestra como decidida', !/🤝 Presencial\s*·/.test(txt()));

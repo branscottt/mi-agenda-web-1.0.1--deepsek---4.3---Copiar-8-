@@ -48,6 +48,7 @@ function grupoDe(p) {
         case 'envio_programado':      return 'envio_programado';
         case 'envio_proceso':         return 'envio_proceso';
         case 'entrega_presencial':    return 'entrega_presencial';
+        case 'entregado_por_cobrar':  return 'por_cobrar';
         default:                      return p.estado;
     }
 }
@@ -63,7 +64,8 @@ const ETAPA_POR_GRUPO = {
     listo_preparar:      3,
     envio_programado:    4,
     envio_proceso:       4,
-    entrega_presencial:  4
+    entrega_presencial:  4,
+    por_cobrar:          4
 };
 
 let _procesos = [];
@@ -141,6 +143,7 @@ function pasoHTML(g) {
     if (g === 'pagado_sin_decision' || g === 'acumulando') return '<button class="vlg-mini primary" data-acc="decision" type="button"><i class="fas fa-box-open"></i> Decidir entrega</button>';
     if (g === 'listo_preparar' || g === 'envio_programado') return '<button class="vlg-mini success" data-acc="crear-envio" type="button"><i class="fas fa-truck-fast"></i> Envío creado</button>';
     if (g === 'envio_proceso' || g === 'entrega_presencial') return '<button class="vlg-mini success" data-acc="entregado" type="button"><i class="fas fa-check-circle"></i> Marcar entregado</button>';
+    if (g === 'por_cobrar') return '<button class="vlg-mini primary" data-acc="pago" type="button"><i class="fas fa-hand-holding-dollar"></i> Cobrar saldo</button>';
     return '';
 }
 
