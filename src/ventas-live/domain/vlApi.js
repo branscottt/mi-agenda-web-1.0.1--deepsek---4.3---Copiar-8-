@@ -129,7 +129,18 @@ export const vlApi = {
     chatHilo: (chatId) => callRpc('vl_wa_chat_hilo', { p_chat_id: chatId }),
     chatModo: (chatId, modo) => callRpc('vl_wa_chat_modo', { p_chat_id: chatId, p_modo: modo }),
     chatPorCliente: (clienteId) => callRpc('vl_wa_chat_por_cliente', { p_cliente_id: clienteId }),
-    enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto)
+    chatOcultar: (chatId, oculto = true) => callRpc('vl_wa_chat_ocultar', { p_chat_id: chatId, p_oculto: oculto }),
+    enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto),
+
+    // ---- Diagrama de procesos (todos de una, con puntos presionables) ----
+    diagramaProcesos: () => callRpc('vl_procesos_diagrama'),
+    procesoPuntoSet: (procesoId, punto, valor, fecha = null) =>
+        callRpc('vl_proceso_punto_set', {
+            p_proceso_id: procesoId, p_punto: punto, p_valor: valor, p_fecha: fecha
+        }),
+
+    // ---- Bloqueo + borrado de datos del cliente (destructivo) ----
+    clienteBloquearBorrar: (clienteId) => callRpc('vl_cliente_bloquear_borrar', { p_cliente_id: clienteId })
 };
 
 export const CATEGORIA_INFO = {

@@ -270,7 +270,211 @@ export function modalMarcarEntregado(proceso, onDone) {
     });
 }
 
-// ---------- Liberar prendas (spec §11) ----------
+// ---------- Puntos del diagrama: etiquetas ----------
+// Nombre de cada punto del proceso (chips del diagrama).
+export const PUNTO_LABEL = {
+    region:  'Región',
+    entrega: 'Entrega',
+    courier: 'Courier',
+    pago:    'Pago',
+    fecha:   'Fecha'
+};
+
+// Texto legible del valor actual de un punto (para el chip).
+export const PUNTO_VALOR_LABEL = {
+    santiago:   'Santiago (RM)',
+    region:     'Región',
+    envio:      'Envío',
+    presencial: 'Presencial',
+    blue:       'Blue Express',
+    paket:      'Paket',
+    pagado:     'Pagado',
+    parcial:    'Pago parcial',
+    sin_pagar:  'Sin pagar',
+    sin_pedido: 'Sin pedido'
+};
+
+// ---------- Cambiar un punto del diagrama (a mano) ----------
+// region / entrega / courier → lista de opciones
+// pago   → abre el modal de confirmar pago (necesita monto)
+// fecha  → pide la fecha del envío
+export function modalPunto(proceso, puntoKey, punto, onDone) {
+    const nick = proceso.cliente ? proceso.cliente.tiktok_user : 'cliente';
+    const titulo = PUNTO_LABEL[puntoKey] || puntoKey;
+
+    if (puntoKey === 'pago') {
+        const valor = (punto && punto.valor) || 'sin_pagar';
+        abrirModal({
+            titulo: '💳 Pago — @' + escapeHtml(nick),
+            sub: 'Cómo está el pago de este pedido. Para registrar plata se abre el detalle.',
+            html: `
+                <div class="vl-opciones" id="vpu-opciones">
+                    ${[
+                        { v: 'pagado',    l: '✅ Pagado (registrar el pago completo)' },
+                        { v: 'parcial',   l: '🟣 Pago parcial (registrar un abono)' },
+                        { v: 'sin_pagar', l: '🟠 Sin pagar (queda esperando pago)' }
+                    ].map(o => `
+                        <div class="vl-opcion${o.v === valor ? ' sel' : ''}" data-v="${o.v}" role="button" tabindex="0">
+                            ${o.l}
+                        </div>`).join('')}
+                </div>
+                <div class="vl-modal-actions">
+                    <button class="vl-btn" id="vpu-cancelar" type="button">Cancelar</button>
+                </div>`,
+            onMount: (modal) => {
+                modal.querySelector('#vpu-cancelar').addEventListener('click', () => cerrarModal(true));
+                modal.querySelectorAll('#vpu-opciones .vl-opcion').forEach(op => {
+                    const elegir = async () => {
+                        const v = op.dataset.v;
+                        if (v === 'pagado' || v === 'parcial') {
+                            cerrarModal(true);
+                            modalConfirmarPago(proceso, onDone);
+                            return;
+                        }
+                        const res = await vlApi.marcarEsperandoPago(proceso.proceso_id);
+                        if (!res.ok) { mostrarToast(res.error || 'No se pudo actualizar', 'error'); return; }
+                        cerrarModal(true);
+                        mostrarToast('Marcado: sin pagar', 'success');
+                        onDone();
+                    };
+                    op.addEventListener('click', elegir);
+                    op.addEventListener('keydown', (e) => { if (e.key === 'Enter') elegir(); });
+                });
+            }
+        });
+        return;
+    }
+
+    if (puntoKey === 'fecha') {
+        const actual = (punto && punto.valor) || '';
+        abrirModal({
+            titulo: '📅 Fecha — @' + escapeHtml(nick),
+            sub: 'Día en que se entrega o se envía el pedido.',
+            html: `
+                <div class="vl-form-row">
+                    <label for="vpu-fecha">Fecha</label>
+                    <input class="vl-control" id="vpu-fecha" type="date" value="${escapeHtml(actual)}">
+                </div>
+                <div class="vl-modal-actions">
+                    <button class="vl-btn" id="vpu-cancelar" type="button">Cancelar</button>
+                    <button class="vl-btn" id="vpu-quitar" type="button">Quitar fecha</button>
+                    <button class="vl-btn primary" id="vpu-ok" type="button"><i class="fas fa-check"></i> Guardar</button>
+                </div>`,
+            onMount: (modal, { marcarSucio }) => {
+                const fechaEl = modal.querySelector('#vpu-fecha');
+                fechaEl.addEventListener('input', marcarSucio);
+                modal.querySelector('#vpu-cancelar').addEventListener('click', () => cerrarModal(true));
+                modal.querySelector('#vpu-ok').addEventListener('click', async () => {
+                    if (!fechaEl.value) { mostrarToast('Elige una fecha', 'warning'); return; }
+                    const btn = modal.querySelector('#vpu-ok');
+                    btn.disabled = true;
+                    const res = await vlApi.procesoPuntoSet(proceso.proceso_id, 'fecha', '', fechaEl.value);
+                    btn.disabled = false;
+                    if (!res.ok) { mostrarToast(res.error || 'No se pudo guardar', 'error'); return; }
+                    cerrarModal(true);
+                    mostrarToast('Fecha guardada', 'success');
+                    onDone();
+                });
+                modal.querySelector('#vpu-quitar').addEventListener('click', async () => {
+                    modal.querySelector('#vpu-quitar').disabled = true;
+                    const res = await vlApi.procesoPuntoSet(proceso.proceso_id, 'fecha', '', null);
+                    if (!res.ok) { mostrarToast(res.error || 'No se pudo quitar', 'error'); return; }
+                    cerrarModal(true);
+                    mostrarToast('Fecha quitada', 'success');
+                    onDone();
+                });
+            }
+        });
+        return;
+    }
+
+    // region / entrega / courier → lista de opciones
+    const opciones = (punto && punto.opciones) || [];
+    const valorActual = (punto && punto.valor) || '';
+    abrirModal({
+        titulo: '📍 ' + escapeHtml(titulo) + ' — @' + escapeHtml(nick),
+        sub: 'Elige el valor correcto. Se guarda al instante.',
+        html: `
+            <div class="vl-opciones" id="vpu-opciones">
+                ${opciones.map(o => `
+                    <div class="vl-opcion${o.v === valorActual ? ' sel' : ''}" data-v="${o.v}" role="button" tabindex="0">
+                        ${escapeHtml(o.l)}
+                    </div>`).join('')}
+            </div>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vpu-cancelar" type="button">Cancelar</button>
+                ${valorActual ? `<button class="vl-btn" id="vpu-quitar" type="button">Dejar en blanco</button>` : ''}
+            </div>`,
+        onMount: (modal) => {
+            modal.querySelector('#vpu-cancelar').addEventListener('click', () => cerrarModal(true));
+            const aplicar = async (v) => {
+                const res = await vlApi.procesoPuntoSet(proceso.proceso_id, puntoKey, v, null);
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo guardar', 'error'); return; }
+                cerrarModal(true);
+                mostrarToast(titulo + ' actualizado', 'success');
+                onDone();
+            };
+            modal.querySelectorAll('#vpu-opciones .vl-opcion').forEach(op => {
+                const elegir = () => aplicar(op.dataset.v);
+                op.addEventListener('click', elegir);
+                op.addEventListener('keydown', (e) => { if (e.key === 'Enter') elegir(); });
+            });
+            const quitar = modal.querySelector('#vpu-quitar');
+            if (quitar) quitar.addEventListener('click', () => aplicar(''));
+        }
+    });
+}
+
+// ---------- Bloquear usuario y borrar sus datos (DESTRUCTIVO) ----------
+// Pedido del dueño: tras decidir (p. ej. soltar la prenda) puede bloquear al
+// usuario y borrar TODO. Sus prendas quedan liberadas y esos montos dejan de
+// contar como venta. Doble confirmación: nunca en un solo clic.
+export function modalBloquearBorrar(cliente, onDone) {
+    const nick = (cliente && cliente.tiktok_user) ? cliente.tiktok_user : 'cliente';
+    abrirModal({
+        titulo: '🚫 Bloquear y borrar — @' + escapeHtml(nick),
+        sub: 'Se borra el usuario completo. No se puede deshacer.',
+        html: `
+            <div style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
+                Se <b>borra todo el usuario</b>: nombre, WhatsApp, correo, contacto, dirección,
+                comuna/ciudad, notas y su conversación de WhatsApp.<br>
+                Sus prendas quedan <b>liberadas</b> y el pedido se cierra como
+                &laquo;no pagó&raquo;: <b>esos montos dejan de contar como venta</b>.<br>
+                La plata que ya estaba pagada sigue contando como recibida (es caja real).
+            </div>
+            <div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;line-height:1.5;">
+                Ojo: como el usuario se borra, si vuelve a comprar en un LIVE aparecerá como
+                cliente nuevo (no queda registro de que estaba bloqueado).
+            </div>
+            <label class="vl-check-item" style="margin-top:12px;">
+                <input type="checkbox" id="vbb-confirmo">
+                <span style="flex:1;">Entiendo: se borra el usuario y sus prendas quedan liberadas.</span>
+            </label>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vbb-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn danger" id="vbb-ok" type="button" disabled><i class="fas fa-user-slash"></i> Bloquear y borrar</button>
+            </div>`,
+        onMount: (modal) => {
+            const chk = modal.querySelector('#vbb-confirmo');
+            const ok = modal.querySelector('#vbb-ok');
+            chk.addEventListener('change', () => { ok.disabled = !chk.checked; });
+            modal.querySelector('#vbb-cancelar').addEventListener('click', () => cerrarModal(true));
+            ok.addEventListener('click', async () => {
+                if (!chk.checked) return;
+                if (!window.confirm('Última confirmación: ¿borrar por completo a @' + nick + ', liberar sus prendas y cerrar su pedido? Esta acción no se puede deshacer.')) return;
+                ok.disabled = true;
+                const res = await vlApi.clienteBloquearBorrar(cliente.cliente_id);
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo bloquear', 'error'); ok.disabled = false; return; }
+                cerrarModal(true);
+                const d = res.data || {};
+                mostrarToast('@' + nick + ' borrado · ' + (d.prendas_liberadas || 0)
+                    + ' prenda(s) liberada(s) · ya no cuenta como venta', 'success');
+                if (typeof onDone === 'function') onDone();
+            });
+        }
+    });
+}
+
 export async function modalLiberarItems(proceso, onDone) {
     const nick = proceso.cliente ? proceso.cliente.tiktok_user : 'cliente';
     // Necesita las prendas adjudicadas: las pide a la ficha
@@ -283,7 +487,7 @@ export async function modalLiberarItems(proceso, onDone) {
     }
     abrirModal({
         titulo: '🔴 Liberar prendas — @' + escapeHtml(nick),
-        sub: 'El cliente no concretó. Las prendas marcadas salen de su bolsa y quedan en el historial como liberadas.',
+        sub: 'El cliente no concretó. Las prendas marcadas salen de su bolsa, quedan en el historial como liberadas y <b>no cuentan como venta</b> en Finanzas.',
         html: `
             <div id="vl-li-items">
                 ${items.map(i => `

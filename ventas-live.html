@@ -239,6 +239,78 @@
         .vl-chip.active { background: linear-gradient(135deg, #9d4edd, #7b2cbf); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(157,78,221,.32); }
         .vl-chip.active .n { background: rgba(255,255,255,0.22); }
 
+        /* ===== Procesos: toggle Lista / Diagrama ===== */
+        .vl-pmodo { display: flex; gap: 8px; margin-bottom: 14px; }
+
+        /* ===== DIAGRAMA de procesos (todos de una) =====
+           Por cliente: nombre + su proceso como "puntos" presionables
+           (Región · Entrega · Courier · Pago · Fecha). */
+        .vlg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .vlg-count { font-size: 0.9rem; font-weight: 800; color: #f8f9fa; }
+        .vlg-count-alerta { color: #ffde7a; font-weight: 700; }
+        .vlg-leyenda { font-size: 0.76rem; color: var(--muted, #adb5bd); }
+        .vlg-lista { display: flex; flex-direction: column; gap: 10px; }
+        .vlg-row {
+            display: grid; grid-template-columns: minmax(190px, 1fr) 1.35fr auto;
+            gap: 14px; align-items: center;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px; padding: 13px 16px; transition: border .15s ease;
+        }
+        .vlg-row:hover { border-color: rgba(255,255,255,0.2); }
+        .vlg-row.con-alerta { border-color: rgba(255,193,7,0.42); box-shadow: inset 0 0 0 1px rgba(255,193,7,0.12); }
+        .vlg-cli { min-width: 0; }
+        .vlg-titulo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .vlg-nick { font-weight: 800; color: #f8f9fa; font-size: 1rem; }
+        .vlg-estado { font-size: 0.7rem; font-weight: 700; color: #ced4da; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 2px 9px; }
+        .vlg-sub { color: var(--muted, #adb5bd); font-size: 0.79rem; margin-top: 3px; }
+        .vlg-sub b { color: #f8f9fa; }
+        .vlg-alerta {
+            margin-top: 6px; font-size: 0.79rem; font-weight: 700; color: #ffe066;
+            background: rgba(255,193,7,0.12); border: 1px solid rgba(255,193,7,0.4);
+            border-radius: 10px; padding: 6px 9px; line-height: 1.35;
+        }
+        .vlg-alerta-hint { font-weight: 500; color: #ced4da; }
+        .vlg-puntos { display: flex; gap: 7px; flex-wrap: wrap; }
+        .vlg-punto {
+            display: inline-flex; flex-direction: column; gap: 1px; align-items: flex-start;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.13);
+            border-radius: 11px; padding: 6px 11px; cursor: pointer; font-family: inherit;
+            transition: all .15s ease; text-align: left;
+        }
+        .vlg-punto .k { font-size: 0.63rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #adb5bd); font-weight: 700; }
+        .vlg-punto .v { font-size: 0.85rem; font-weight: 700; color: #f8f9fa; }
+        .vlg-punto:hover { background: rgba(157,78,221,0.18); border-color: rgba(157,78,221,0.55); }
+        .vlg-punto.vacio .v { color: #6c757d; font-weight: 600; }
+        .vlg-punto.ok { border-color: rgba(0,184,148,0.5); }
+        .vlg-punto.ok .v { color: #7ff5d8; }
+        .vlg-punto.parcial { border-color: rgba(218,119,242,0.5); }
+        .vlg-punto.parcial .v { color: #e599f7; }
+        .vlg-punto.pendiente { border-color: rgba(255,169,77,0.5); }
+        .vlg-punto.pendiente .v { color: #ffc078; }
+        .vlg-acc { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+        .vl-btn.danger-ghost {
+            background: rgba(255,255,255,0.04); border-color: rgba(230,60,60,0.35);
+            color: #ff9f9f; font-weight: 600; font-size: 0.78rem; padding: 7px 11px;
+        }
+        .vl-btn.danger-ghost:hover { background: rgba(230,60,60,0.18); }
+
+        /* Cajón de conversaciones: ojo de ocultos + chip de chat oculto */
+        .vld-icon.activo { border-color: rgba(255,193,7,0.55); color: #ffe066; }
+        .vl-conv-chip.oculto { background: rgba(255,255,255,0.05); color: #adb5bd; }
+        .vl-conv-item.oculto { opacity: 0.62; }
+
+        /* Diagrama en tablet y móvil: la fila se apila (cliente → puntos → acciones) */
+        @media (max-width: 860px) {
+            .vlg-row { grid-template-columns: 1fr; align-items: flex-start; }
+            .vlg-acc { justify-content: flex-start; }
+        }
+        @media (max-width: 720px) {
+            .vlg-head { flex-direction: column; align-items: flex-start; gap: 3px; }
+            .vlg-punto { padding: 7px 10px; }
+            .vlg-punto .v { font-size: 0.82rem; }
+            .vlg-acc .vl-btn { flex: 1 1 auto; justify-content: center; min-height: 40px; }
+        }
+
         /* ===== Filas de proceso / cliente ===== */
         .vl-fila {
             display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
@@ -561,7 +633,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=98"></script>
+    <script type="module" src="dist/app.js?v=100"></script>
     <script defer src="dist/legacy.js?v=74"></script>
 </body>
 </html>

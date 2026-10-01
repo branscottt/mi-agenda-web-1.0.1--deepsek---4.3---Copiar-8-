@@ -30,6 +30,7 @@ let _built = false;
 let _conteos = {};
 let _procesos = [];
 let _grupoSel = null;
+let _modo = 'lista';   // 'lista' | 'diagrama'
 
 function $(id) { return document.getElementById(id); }
 
@@ -37,11 +38,46 @@ export function initProcesos() {
     const cont = $('vl-view-procesos');
     if (!_built) {
         cont.innerHTML = `
-            <div class="vl-chips" id="vp-chips"></div>
-            <div id="vp-lista"></div>`;
+            <div class="vl-pmodo" id="vp-modo">
+                <button class="vl-chip active" data-modo="lista" type="button"><i class="fas fa-list-check"></i> Lista</button>
+                <button class="vl-chip" data-modo="diagrama" type="button"><i class="fas fa-diagram-project"></i> Diagrama</button>
+            </div>
+            <div id="vp-lista-wrap">
+                <div class="vl-chips" id="vp-chips"></div>
+                <div id="vp-lista"></div>
+            </div>
+            <div id="vp-diag" style="display:none;"></div>`;
         _built = true;
+        cont.querySelectorAll('#vp-modo .vl-chip').forEach(b => {
+            b.addEventListener('click', () => activarModo(b.dataset.modo));
+        });
     }
-    refrescarProcesos();
+    activarModo(_modo);
+}
+
+// Cambia entre la LISTA por grupos y el DIAGRAMA de todos los procesos.
+function activarModo(m) {
+    _modo = (m === 'diagrama') ? 'diagrama' : 'lista';
+    const cont = $('vl-view-procesos');
+    if (!cont) return;
+    cont.querySelectorAll('#vp-modo .vl-chip').forEach(b => {
+        b.classList.toggle('active', b.dataset.modo === _modo);
+    });
+    const lista = $('vp-lista-wrap');
+    const diag = $('vp-diag');
+    if (lista) lista.style.display = _modo === 'lista' ? '' : 'none';
+    if (diag) diag.style.display = _modo === 'diagrama' ? '' : 'none';
+
+    if (_modo === 'diagrama') {
+        import('./DiagramaView.js')
+            .then(mod => mod.initDiagrama($('vp-diag')))
+            .catch(e => {
+                console.error('[ProcesosView] Diagrama:', e);
+                if (diag) diag.innerHTML = '<div class="vl-empty">No se pudo abrir el diagrama.</div>';
+            });
+    } else {
+        refrescarProcesos();
+    }
 }
 
 async function refrescarProcesos() {

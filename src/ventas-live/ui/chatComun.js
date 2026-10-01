@@ -81,6 +81,10 @@ export const AVISO_INFO = {
     esperando_comprobante: {
         label: 'Esperando comprobante',
         accion: 'No mandes nada: el cliente te manda el pantallazo del pago o te pide los datos. Si no llega, escríbele tú.'
+    },
+    soltar_prenda: {
+        label: 'Posible soltar prenda',
+        accion: 'Debe plata y no escribe hace 3+ días. Decides tú: escríbele, o entra a Procesos → Diagrama para liberar la prenda o bloquear y borrar sus datos.'
     }
 };
 

@@ -37,6 +37,7 @@ let _timerBadge = null;
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
+let _verOcultos = false;     // mostrar también los chats ocultos (no-venta)
 
 function $(id) { return document.getElementById(id); }
 
@@ -61,6 +62,10 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 </button>
                 <div class="vld-titulo" id="vld-titulo">Conversaciones</div>
                 <button class="vl-btn" id="vld-modo" type="button" style="display:none;"></button>
+                <button class="vld-icon" id="vld-ocultos" type="button" title="Ver chats ocultos" style="display:none;">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="vl-btn" id="vld-ocultar" type="button" style="display:none;"></button>
                 <button class="vld-icon" id="vld-cerrar" type="button" title="Cerrar">
                     <i class="fas fa-xmark"></i>
                 </button>
@@ -79,6 +84,8 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-cerrar').addEventListener('click', cerrarConversaciones);
         $('vld-volver').addEventListener('click', volverALista);
         $('vld-modo').addEventListener('click', cambiarModo);
+        $('vld-ocultos').addEventListener('click', toggleOcultos);
+        $('vld-ocultar').addEventListener('click', ocultarChatActual);
         $('vld-enviar').addEventListener('click', enviar);
         $('vld-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); enviar(); }
@@ -277,9 +284,11 @@ async function cargarChats({ silencioso = false } = {}) {
     }
     _chats = (res.data && Array.isArray(res.data.chats)) ? res.data.chats : [];
 
-    const sinLeer = _chats.reduce((a, c) => a + (Number(c.sin_leer) || 0), 0);
+    // El badge cuenta solo lo VISIBLE (los chats ocultos no-venta no alertan).
+    const visibles = chatsVisibles();
+    const sinLeer = visibles.reduce((a, c) => a + (Number(c.sin_leer) || 0), 0);
     // Avisos abiertos: aunque el chat esté leído, sigue habiendo algo que revisar
-    const porRevisar = _chats.reduce((a, c) => a + (c.tiene_aviso ? 1 : 0), 0);
+    const porRevisar = visibles.reduce((a, c) => a + (c.tiene_aviso ? 1 : 0), 0);
     if (_onBadge) _onBadge(sinLeer + porRevisar, { sinLeer, porRevisar });
 
     // Avisos nuevos -> notificación de escritorio (qué pasó + qué hacer)
@@ -289,10 +298,27 @@ async function cargarChats({ silencioso = false } = {}) {
     if (_abierto && !_chatId) renderLista();
 }
 
+// Chats que se muestran: los ocultos (no-venta) solo si el ojo está activo.
+function chatsVisibles() {
+    return _chats.filter(c => _verOcultos || !c.oculto);
+}
+
 function renderLista() {
     const body = $('vld-body');
     if (!body) return;
-    if (_chats.length === 0) {
+
+    // Botón del ojo (ver/no ver chats ocultos) — solo en la lista
+    const ojo = $('vld-ocultos');
+    const ocuBtn = $('vld-ocultar');
+    if (ojo) {
+        ojo.style.display = 'inline-flex';
+        ojo.classList.toggle('activo', _verOcultos);
+        ojo.title = _verOcultos ? 'Ocultar los chats no-venta' : 'Ver chats ocultos';
+    }
+    if (ocuBtn) ocuBtn.style.display = 'none';
+
+    const lista = chatsVisibles();
+    if (lista.length === 0) {
         body.innerHTML = `<div class="vl-empty">
             <i class="far fa-comments"></i><br>
             Todavía no hay conversaciones.<br>
@@ -301,7 +327,7 @@ function renderLista() {
         return;
     }
 
-    body.innerHTML = _chats.map(c => {
+    body.innerHTML = lista.map(c => {
         const nombre = c.nombre_real || (c.tiktok_user ? '@' + c.tiktok_user : c.wa_id);
         const sub = c.tiktok_user ? '@' + c.tiktok_user : c.wa_id;
         const nuevo = Number(c.sin_leer) > 0;
@@ -314,7 +340,7 @@ function renderLista() {
             ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + (c.aviso_detalle || '') + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
             : '';
         return `
-            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}" data-chat="${escapeHtml(c.id)}" type="button">
+            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${c.oculto ? ' oculto' : ''}" data-chat="${escapeHtml(c.id)}" type="button">
                 <div class="vl-conv-top">
                     <span class="vl-conv-nombre">${escapeHtml(nombre)}</span>
                     <span class="vl-conv-hora">${escapeHtml(fmtHora(c.ultimo_en))}</span>
@@ -323,6 +349,7 @@ function renderLista() {
                 <div class="vl-conv-msg">${escapeHtml(c.ultimo_mensaje || '')}</div>
                 <div class="vl-conv-foot">
                     ${aviso}<span class="vl-conv-chip">${escapeHtml(ESTADO_CHAT[c.estado] || c.estado)}</span>
+                    ${c.oculto ? '<span class="vl-conv-chip oculto">🙈 Oculto</span>' : ''}
                     ${modo}${noLeido}
                 </div>
             </button>`;
@@ -398,7 +425,44 @@ function pintarModoChat() {
             : '<i class="fas fa-user"></i> Tomar el control';
         modoBtn.dataset.modo = humano ? 'humano' : 'bot';
     }
+
+    // Ocultar / mostrar ESTE chat (los no-venta no aparecen en la lista)
+    const ojoLista = $('vld-ocultos');
+    const ocuBtn = $('vld-ocultar');
+    if (ojoLista) ojoLista.style.display = 'none';
+    if (ocuBtn) {
+        const c = _chats.find(x => String(x.id) === String(_chatId));
+        const estaOculto = !!(c && c.oculto);
+        ocuBtn.style.display = 'inline-flex';
+        ocuBtn.className = 'vl-btn';
+        ocuBtn.innerHTML = estaOculto
+            ? '<i class="fas fa-eye"></i> Mostrar'
+            : '<i class="fas fa-eye-slash"></i> Ocultar';
+    }
     if (foot) foot.style.display = 'flex';
+}
+
+// Oculta / vuelve a mostrar el chat abierto.
+async function ocultarChatActual() {
+    if (!_chatId) return;
+    const c = _chats.find(x => String(x.id) === String(_chatId));
+    const nuevo = !(c && c.oculto);
+    const btn = $('vld-ocultar');
+    if (btn) btn.disabled = true;
+    const res = await vlApi.chatOcultar(_chatId, nuevo);
+    if (btn) btn.disabled = false;
+    if (!res.ok) { mostrarToast(res.error || 'No se pudo actualizar', 'error'); return; }
+    if (c) c.oculto = nuevo;
+    mostrarToast(nuevo ? 'Chat oculto: no aparece en la lista' : 'Chat visible de nuevo', 'success');
+    pintarModoChat();
+    cargarChats({ silencioso: true });
+}
+
+// Muestra / esconde los chats ocultos (no-venta) en la lista.
+function toggleOcultos() {
+    _verOcultos = !_verOcultos;
+    renderLista();
+    mostrarToast(_verOcultos ? 'Mostrando también los chats ocultos' : 'Chats no-venta ocultos', 'success');
 }
 
 function volverALista() {
