@@ -22,7 +22,7 @@ import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatt
 import {
     modalPunto, modalLiberarItems, modalBloquearBorrar,
     modalConfirmarPago, modalPagaraPresencial, modalDecisionEntrega,
-    modalCrearEnvio, modalMarcarEntregado, modalPagarItems,
+    modalCrearEnvio, modalMarcarEntregado, modalPagarItems, modalEliminarCompra,
     PUNTO_LABEL, PUNTO_VALOR_LABEL
 } from './accionesProceso.js';
 import { abrirChatDeUsuario } from './ConversacionesDrawer.js';
@@ -205,6 +205,7 @@ function tarjetaHTML(p) {
                     ${c.tiktok_user ? '<button class="vlg-mini" data-acc="chat" type="button" title="Ver chat"><i class="fas fa-comments"></i></button>' : ''}
                     <button class="vlg-mini" data-acc="ficha" type="button" title="Ficha del cliente"><i class="fas fa-id-card"></i></button>
                     ${alerta ? '<button class="vlg-mini danger" data-acc="liberar" type="button" title="Liberar prenda"><i class="fas fa-unlock"></i></button>' : ''}
+                    <button class="vlg-mini danger" data-acc="eliminar" type="button" title="Eliminar compra (desaparece del panel)"><i class="fas fa-trash"></i></button>
                     <button class="vlg-mini danger" data-acc="bloquear" type="button" title="Bloquear y borrar usuario"><i class="fas fa-user-slash"></i></button>
                     ${pasoHTML(g)}
                 </div>
@@ -250,6 +251,7 @@ function pintar(cont) {
                 if (acc === 'liberar') { modalLiberarItems(p, refrescarDiagrama); return; }
                 if (acc === 'pagar-items') { modalPagarItems(p, refrescarDiagrama); return; }
                 if (acc === 'bloquear') { modalBloquearBorrar(p.cliente, refrescarDiagrama); return; }
+                if (acc === 'eliminar') { modalEliminarCompra(p, refrescarDiagrama); return; }
                 if (acc === 'pago') { modalConfirmarPago(p, refrescarDiagrama); return; }
                 if (acc === 'presencial') {
                     modalPagaraPresencial(p, refrescarDiagrama);

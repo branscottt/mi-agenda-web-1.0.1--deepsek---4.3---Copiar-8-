@@ -542,6 +542,51 @@ export function modalBloquearBorrar(cliente, onDone) {
     });
 }
 
+// ---------- Eliminar compra (DESTRUCTIVO) ----------
+// Pedido del dueño: para el que "juega a comprar", borrar la compra como si
+// nunca hubiera existido (desaparece de Procesos/Envíos/Finanzas). NO borra la
+// ficha del cliente (el bloqueo en TikTok lo hace el negocio aparte). Doble
+// confirmación: hay que escribir ELIMINAR.
+export function modalEliminarCompra(proceso, onDone) {
+    const nick = (proceso && proceso.cliente && proceso.cliente.tiktok_user) ? proceso.cliente.tiktok_user : 'cliente';
+    abrirModal({
+        titulo: '🗑️ Eliminar compra — @' + escapeHtml(nick),
+        sub: 'La compra desaparece del panel. No se puede deshacer.',
+        html: `
+            <div style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
+                Se <b>borra la compra</b>: sus prendas, su envío y el pedido. Deja de aparecer en
+                Procesos, Envíos y Finanzas, como si nunca hubiera existido.<br>
+                La <b>ficha del cliente NO se toca</b> (si quieres, bloquéalo en TikTok por tu lado).
+            </div>
+            <div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;line-height:1.5;">
+                Si la compra ya tiene pagos registrados no se puede eliminar (ahí usá <b>Liberar prenda</b>).
+            </div>
+            <div class="vl-form-row" style="margin-top:12px;">
+                <label for="vel-conf">Escribí <b>ELIMINAR</b> para confirmar</label>
+                <input class="vl-control" id="vel-conf" placeholder="ELIMINAR" autocomplete="off">
+            </div>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vel-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn danger" id="vel-ok" type="button" disabled><i class="fas fa-trash"></i> Eliminar compra</button>
+            </div>`,
+        onMount: (modal) => {
+            const inp = modal.querySelector('#vel-conf');
+            const ok = modal.querySelector('#vel-ok');
+            inp.addEventListener('input', () => { ok.disabled = inp.value.trim().toUpperCase() !== 'ELIMINAR'; });
+            modal.querySelector('#vel-cancelar').addEventListener('click', () => cerrarModal(true));
+            ok.addEventListener('click', async () => {
+                if (inp.value.trim().toUpperCase() !== 'ELIMINAR') return;
+                ok.disabled = true;
+                const res = await vlApi.eliminarCompra(proceso.proceso_id);
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo eliminar', 'error'); ok.disabled = false; return; }
+                cerrarModal(true);
+                mostrarToast('Compra eliminada ✔', 'success');
+                if (typeof onDone === 'function') onDone();
+            });
+        }
+    });
+}
+
 // ---------- Pagar prendas (una o TODAS de una) ----------
 // Pedido del dueño: "se pueda presionar que prenda pagaron si solo alguna o
 // todas de una". Registra el pago en la caja del pedido y lo imputa a las

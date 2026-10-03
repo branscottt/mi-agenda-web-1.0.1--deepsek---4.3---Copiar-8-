@@ -155,7 +155,8 @@ export const vlApi = {
         }),
 
     // ---- Bloqueo + borrado de datos del cliente (destructivo) ----
-    clienteBloquearBorrar: (clienteId) => callRpc('vl_cliente_bloquear_borrar', { p_cliente_id: clienteId })
+    clienteBloquearBorrar: (clienteId) => callRpc('vl_cliente_bloquear_borrar', { p_cliente_id: clienteId }),
+    eliminarCompra: (procesoId) => callRpc('vl_eliminar_compra', { p_proceso_id: procesoId })
 };
 
 export const CATEGORIA_INFO = {

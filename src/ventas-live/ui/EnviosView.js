@@ -13,7 +13,7 @@ import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml, formatearDinero } from '../../shared/infrastructure/formatters.js';
 import {
     modalCrearEnvio, modalMarcarEntregado, modalConfirmarPago,
-    modalPagarItems, modalLiberarItems
+    modalPagarItems, modalLiberarItems, modalEliminarCompra
 } from './accionesProceso.js';
 import { abrirChatDeUsuario } from './ConversacionesDrawer.js';
 
@@ -221,6 +221,7 @@ function accionHTML(f) {
         html += '<button class="vl-btn success" data-acc="pagar-items" type="button"><i class="fas fa-money-bill-wave"></i> Pagar prendas</button>';
         html += '<button class="vl-btn danger" data-acc="liberar" type="button"><i class="fas fa-unlock"></i> Liberar prenda</button>';
     }
+    html += '<button class="vl-btn danger" data-acc="eliminar" type="button"><i class="fas fa-trash"></i> Eliminar compra</button>';
     return html;
 }
 
@@ -255,6 +256,7 @@ function bindFila(row, f) {
             if (acc === 'pagar') { modalConfirmarPago(proceso, refrescarEnvios); return; }
             if (acc === 'pagar-items') { modalPagarItems(proceso, refrescarEnvios); return; }
             if (acc === 'liberar') { modalLiberarItems(proceso, refrescarEnvios); return; }
+            if (acc === 'eliminar') { modalEliminarCompra(proceso, refrescarEnvios); return; }
             if (acc === 'decidir') {
                 const tipo = btn.dataset.tipo === 'presencial' ? 'presencial' : 'envio';
                 btn.disabled = true;
