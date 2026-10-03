@@ -154,6 +154,11 @@ function filaHTML(f) {
     const chipPago = Number(f.saldo) > 0
         ? `<span style="color:#ffd8a8;">Debe ${formatearDinero(f.saldo)} de ${formatearDinero(f.total)}</span>`
         : '<span style="color:#8ce99a;">✔ Pagado</span>';
+    // Presencial sin fecha y sin pagar: posible prenda a soltar (aviso para el
+    // negocio; NO se le escribe nada al cliente).
+    const chipSoltar = f.posible_soltar
+        ? '<span style="color:#ffc107;" title="Presencial sin fecha y sin pago: decide si liberas la prenda"><i class="fas fa-triangle-exclamation"></i> posible soltar prenda</span>'
+        : '';
 
     return `
         <div class="vl-fila" data-proceso="${f.proceso_id}">
@@ -177,6 +182,7 @@ function filaHTML(f) {
                     ${f.fecha_programada ? '<span>📅 ' + escapeHtml(f.fecha_programada) + '</span>' : ''}
                     ${chipFecha}
                     ${chipPago}
+                    ${chipSoltar}
                 </div>
                 ${f.siguiente_paso ? `<div class="f-sub" style="color:#ffd8a8;margin:6px 0 2px;"><i class="fas fa-arrow-right"></i> ${escapeHtml(f.siguiente_paso)}</div>` : ''}
                 <div class="vl-datos-copy">
