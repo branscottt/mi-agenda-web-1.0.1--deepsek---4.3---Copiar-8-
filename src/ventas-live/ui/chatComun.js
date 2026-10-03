@@ -109,6 +109,10 @@ export const AVISO_INFO = {
     cliente_acumula: {
         label: 'Quiere juntar más',
         accion: 'El cliente quiere seguir juntando prendas. Cuando pague, usa Procesos → Decidir entrega → Acumular.'
+    },
+    fecha_coordinacion: {
+        label: 'Fecha por coordinar',
+        accion: 'El cliente propuso un día (o una hora) para la entrega. Confírmale tú si te queda bien —o propón otra— y ajusta la fecha en Entregas.'
     }
 };
 
@@ -138,7 +142,7 @@ export function avisoDetalle(tipo, detalle) {
 export const AVISOS_RESPUESTA = [
     'no_entendido', 'usuario_no_encontrado', 'usuario_no_confirmado', 'sin_cliente',
     'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda', 'usuario_sugerido',
-    'no_puede_pagar'
+    'no_puede_pagar', 'fecha_coordinacion'
 ];
 
 // Quién tiene que mover este chat (se ve en la lista, sin abrirlo):

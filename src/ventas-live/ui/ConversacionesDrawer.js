@@ -580,7 +580,13 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const procChat = _chatProc || procDelChat(chatId);
     body.innerHTML = procesoChipsHtml(procChat) + accionesChatHtml(_chatProc) + banner
         + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
-    autoScrollAbajo($('vld-hilo'), { forzar: !silencioso });
+
+    // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
+    // no scrollea). Antes se llamaba con #vld-hilo y el panel quedaba mostrando lo
+    // PRIMERO conversado; ahora baja a lo ÚLTIMO, como en WhatsApp.
+    autoScrollAbajo(body, { forzar: !silencioso });
+    // Respaldo: baja otra vez apenas el navegador pinte las burbujas (fuentes/imágenes).
+    if (!silencioso) requestAnimationFrame(() => autoScrollAbajo($('vld-body'), { forzar: true }));
 
     bindAccionesChat(procesoParaModales(_chatProc, _chatMeta.tiktok_user), () => {
         cargarHilo(chatId, { silencioso: true });

@@ -127,8 +127,12 @@ export const vlApi = {
 
     // ---- Config del workspace (nombre y WhatsApp propios del proyecto) ----
     workspaceInfo: () => callRpc('vl_workspace_info'),
-    actualizarWorkspace: (nombre, whatsapp) =>
-        callRpc('vl_actualizar_workspace', { p_nombre_negocio: nombre, p_whatsapp: whatsapp }),
+    actualizarWorkspace: (nombre, whatsapp, horarioEntrega) =>
+        callRpc('vl_actualizar_workspace', {
+            p_nombre_negocio: nombre,
+            p_whatsapp: whatsapp,
+            p_horario_entrega: horarioEntrega
+        }),
 
     // ---- Conexión WhatsApp (bot Cloud API) ----
     guardarConfigWa: (params) => callRpc('vl_guardar_config_wa', params),

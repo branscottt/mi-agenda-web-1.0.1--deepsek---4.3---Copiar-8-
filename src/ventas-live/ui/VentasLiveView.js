@@ -181,7 +181,8 @@ async function pintarWhatsappYConfig() {
             const nombreEl = document.getElementById('vl-nombre');
             abrirModalConfig({
                 nombre: (fresh.ok && fresh.data && fresh.data.nombre_negocio) || (nombreEl ? nombreEl.textContent : '') || '',
-                whatsapp: (fresh.ok && fresh.data && fresh.data.whatsapp) || ''
+                whatsapp: (fresh.ok && fresh.data && fresh.data.whatsapp) || '',
+                horario: (fresh.ok && fresh.data && fresh.data.horario_entrega) || ''
             });
         });
     }
@@ -307,7 +308,7 @@ function abrirModalWhatsApp(conn) {
 function abrirModalConfig(ws) {
     abrirModal({
         titulo: '⚙️ Configurar este espacio',
-        sub: 'Ventas Live tiene su propio nombre y su propio WhatsApp, independientes del proyecto Reservas.',
+        sub: 'Ventas Live tiene su propio nombre, su propio WhatsApp y su horario de entrega, independientes del proyecto Reservas.',
         html: `
             <div class="vl-form-row">
                 <label for="vw-nombre">Nombre del espacio</label>
@@ -320,6 +321,15 @@ function abrirModalConfig(ws) {
                     El número que recibirá los mensajes de tus clientes. Vacío = conserva el actual.
                 </div>
             </div>
+            <div class="vl-form-row">
+                <label for="vw-horario">Horario de entrega presencial</label>
+                <input class="vl-control" id="vw-horario" maxlength="300"
+                       value="${escapeHtml(ws.horario || '')}"
+                       placeholder="te puedo coordinar la entrega de lunes a sábado…">
+                <div style="font-size:0.75rem;color:var(--muted,#adb5bd);margin-top:5px;">
+                    El bot lo dice cuando el cliente elige <b>entrega presencial</b>. Vacío = usa el texto por defecto (lunes a sábado, avisando si no puedes).
+                </div>
+            </div>
             <div class="vl-modal-actions">
                 <button class="vl-btn" id="vw-cancelar" type="button">Cancelar</button>
                 <button class="vl-btn primary" id="vw-ok" type="button"><i class="fas fa-save"></i> Guardar</button>
@@ -327,19 +337,21 @@ function abrirModalConfig(ws) {
         onMount: (modal, { marcarSucio }) => {
             const nombreEl = modal.querySelector('#vw-nombre');
             const waEl = modal.querySelector('#vw-whatsapp');
-            [nombreEl, waEl].forEach(el => el.addEventListener('input', marcarSucio));
+            const horEl = modal.querySelector('#vw-horario');
+            [nombreEl, waEl, horEl].forEach(el => el.addEventListener('input', marcarSucio));
             modal.querySelector('#vw-cancelar').addEventListener('click', () => cerrarModal(true));
             modal.querySelector('#vw-ok').addEventListener('click', guardar);
             nombreEl.focus();
             async function guardar() {
                 const nombre = nombreEl.value.trim();
                 const whatsapp = waEl.value.trim();
+                const horario = horEl.value.trim();
                 if (nombre.length < 2) { mostrarToast('El nombre debe tener al menos 2 caracteres', 'warning'); return; }
                 const digits = whatsapp.replace(/\D/g, '');
                 if (whatsapp && digits.length < 8) { mostrarToast('WhatsApp inválido (mínimo 8 dígitos)', 'warning'); return; }
                 const btn = modal.querySelector('#vw-ok');
                 btn.disabled = true;
-                const res = await vlApi.actualizarWorkspace(nombre, whatsapp);
+                const res = await vlApi.actualizarWorkspace(nombre, whatsapp, horario);
                 btn.disabled = false;
                 if (!res.ok) { mostrarToast(res.error || 'No se pudo guardar', 'error'); return; }
                 cerrarModal(true);
