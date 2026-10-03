@@ -1457,4 +1457,4 @@ GRANT EXECUTE ON FUNCTION public.vl_wa_conversacion_avanzar(uuid, text, text, te
 
 NOTIFY pgrst, 'reload schema';
 
-SELECT '[VENTAS LIVE] WA bot v6: transferencia por defecto (presencial solo si lo piden) OK' AS status;
+SELECT '[VENTAS LIVE] WA bot v7: foto antes de identificar -> el bot pide el usuario del live OK' AS status;
