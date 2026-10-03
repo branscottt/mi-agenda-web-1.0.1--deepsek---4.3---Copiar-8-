@@ -49,6 +49,7 @@ const GRUPOS = [
     { g: 'hoy', titulo: '📅 HOY', color: '#ffa94d' },
     { g: 'manana', titulo: '📅 MAÑANA', color: '#74c0fc' },
     { g: 'proximos', titulo: '📅 PRÓXIMOS', color: '#adb5bd' },
+    { g: 'sin_fecha', titulo: '📅 SIN FECHA (coordinar/avisar)', color: '#adb5bd' },
     { g: 'entregados', titulo: '✔ ENTREGADOS', color: '#adb5bd' }
 ];
 
