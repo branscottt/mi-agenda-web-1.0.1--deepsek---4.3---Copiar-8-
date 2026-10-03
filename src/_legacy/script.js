@@ -6138,6 +6138,20 @@ async function guardarSuscripcion() {
         stripe_session_id: stripeId
     };
 
+    // Detener el cobro automático en MP si el plan elegido es gratuito o si se
+    // cambia desde un plan de pago (mismo criterio que configurarModalTenant).
+    try {
+        const previas = await SuscripcionManager.getAllForTenant(tenantId);
+        const activa = previas.find(s => s.status === 'active');
+        const esPlanPago = plan === 'pro' || plan === 'premium_anual';
+        const activaEraPago = activa && (activa.plan === 'pro' || activa.plan === 'premium_anual');
+        if (!esPlanPago || (activaEraPago && activa.plan !== plan)) {
+            await cancelarCobroAutomaticoMP(tenantId);
+        }
+    } catch (e) {
+        console.warn('[guardarSuscripcion] No se pudo verificar/cancelar el cobro MP:', e);
+    }
+
     const result = await SuscripcionManager.create(newSub);
     if (result) {
         mostrarToast('Suscripción actualizada correctamente', 'success');
@@ -6276,6 +6290,46 @@ function renderUsuarios(users) {
 // ============================================
 let modalTenantInitialized = false;
 let proyectoSelChangeBound = false;
+
+// ============================================
+// SUPERADMIN: detener cobros automáticos en Mercado Pago
+// ============================================
+// Cancela el preapproval (cobro recurrente) del tenant en Mercado Pago SIN
+// tocar la suscripción de la base (solo_mp=true). Se usa cuando el superadmin
+// cambia a un plan gratuito o elimina el tenant: el cambio manda y no debe
+// seguir cobrándose. El bridge __mercadopago se expone async en main.js, así
+// que se espera brevemente; si no está disponible se avisa (nunca en silencio,
+// porque el cobro podría quedar activo).
+async function cancelarCobroAutomaticoMP(tenantId) {
+    if (!tenantId) return { ok: false, motivo: 'sin-tenant' };
+    let mp = window.__mercadopago;
+    for (let i = 0; i < 20 && (!mp || typeof mp.cancelSuscripcion !== 'function'); i++) {
+        await new Promise(r => setTimeout(r, 200));
+        mp = window.__mercadopago;
+    }
+    if (!mp || typeof mp.cancelSuscripcion !== 'function') {
+        console.error('[cancelarCobroAutomaticoMP] Módulo Mercado Pago no disponible');
+        mostrarToast('No se pudo detener el cobro automático en Mercado Pago. Verifica que el inquilino no tenga una suscripción recurrente activa.', 'warning');
+        return { ok: false, motivo: 'mp-no-disponible' };
+    }
+    try {
+        const res = await mp.cancelSuscripcion({ tenantId, soloMp: true });
+        if (res && res.ok) {
+            if (res.mp_cancelled) {
+                console.log(`[cancelarCobroAutomaticoMP] preapproval ${res.preapproval_id} cancelado para tenant ${tenantId}`);
+            } else {
+                console.log(`[cancelarCobroAutomaticoMP] tenant ${tenantId} sin preapproval activo`);
+            }
+            return res;
+        }
+        console.warn('[cancelarCobroAutomaticoMP] respuesta no OK:', res);
+        return { ok: false, motivo: 'respuesta-no-ok', res };
+    } catch (e) {
+        console.error('[cancelarCobroAutomaticoMP] Error:', e);
+        mostrarToast('No se pudo detener el cobro automático en Mercado Pago: ' + (e.message || 'error'), 'warning');
+        return { ok: false, motivo: 'excepcion', error: e };
+    }
+}
 
 function configurarModalTenant() {
     const modal = document.getElementById('tenant-modal');
@@ -6432,7 +6486,19 @@ function configurarModalTenant() {
                             .eq('tenant_id', id)
                             .eq('status', 'active');
                         const activeSub = existingSubs?.[0];
-                        
+
+                        // Detener el cobro automático en MP cuando corresponde:
+                        //  - el nuevo plan es gratuito → no debe cobrarse nada; o
+                        //  - se cambia desde un plan de pago → el preapproval
+                        //    anterior deja de aplicar.
+                        // Se cancela SOLO en MP (solo_mp) para NO desactivar la
+                        // suscripción que estamos por asignar.
+                        const esPlanPago = data.plan === 'pro' || data.plan === 'premium_anual';
+                        const activaEraPago = activeSub && (activeSub.plan === 'pro' || activeSub.plan === 'premium_anual');
+                        if (!esPlanPago || (activaEraPago && activeSub.plan !== data.plan)) {
+                            await cancelarCobroAutomaticoMP(id);
+                        }
+
                         if (activeSub && activeSub.plan !== data.plan) {
                             // Sincronizar plan Y vencimiento. Los planes sin duración
                             // (freemium = gratis para siempre) quedan SIN fecha de fin;
@@ -6710,6 +6776,10 @@ async function superAdminEliminarInactivo(tenantId) {
             return;
         }
         console.log('[superAdminEliminarInactivo] Usuario confirmó, procediendo a eliminar...');
+
+        // Detener el cobro automático en Mercado Pago ANTES de borrar: eliminar
+        // el tenant no debe dejar la tarjeta cobrando la suscripción.
+        await cancelarCobroAutomaticoMP(tenantId);
 
     } catch (e) {
         console.error('[superAdminEliminarInactivo] Error verificando tenant:', e);

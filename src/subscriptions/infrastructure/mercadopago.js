@@ -142,7 +142,7 @@ export async function createMercadoPagoPreapproval({ plan, tenantId, email, nomb
  * @param {string} [params.targetTenantId] - (solo super_admin) cancelar la de otro tenant
  * @returns {Promise<{ok: boolean, mp_cancelled: boolean, preapproval_id: string|null}>}
  */
-export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId }) {
+export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId, soloMp }) {
     if (!tenantId && !targetTenantId) {
         throw new Error('tenantId es requerido');
     }
@@ -158,10 +158,15 @@ export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId 
         console.warn('[MP] No JWT disponible — la solicitud podría ser rechazada');
     }
 
+    const body = { tenant_id: targetTenantId || tenantId };
+    // soloMp=true → cancela SOLO en MP (no desactiva la suscripción en DB).
+    // Lo usa el superadmin al cambiar a un plan gratuito.
+    if (soloMp === true) body.solo_mp = true;
+
     const response = await fetch(`${getEdgeFunctionUrl()}/cancelar-suscripcion`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(targetTenantId ? { tenant_id: targetTenantId } : { tenant_id: tenantId }),
+        body: JSON.stringify(body),
     });
 
     if (!response.ok) {

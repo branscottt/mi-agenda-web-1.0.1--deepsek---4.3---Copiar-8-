@@ -320,18 +320,25 @@ async function handle(req: Request): Promise<Response> {
     // external_reference: se obtiene consultando el preapproval.
     let { tenantId, plan, email } = parseExternalRef(externalRef);
 
-    if ((!tenantId || !plan) && payment.preapproval_id) {
+    // Estado del preapproval (cuando el pago proviene de una suscripción
+    // recurrente). Si está 'cancelled', el cobro NO debe reactivar el plan: el
+    // superadmin o el inquilino cancelaron la suscripción a propósito. Evita
+    // que un IPN rezagado pise esa decisión.
+    let preapprovalStatus: string | null = null;
+
+    if (payment.preapproval_id) {
       try {
         const paResp = await fetch(`https://api.mercadopago.com/preapproval/${payment.preapproval_id}`, {
           headers: { 'Authorization': `Bearer ${accessToken}` },
         });
         if (paResp.ok) {
           const pa = await paResp.json();
+          preapprovalStatus = pa.status || null;
           const ref = parseExternalRef(pa.external_reference || '');
           if (!tenantId) tenantId = ref.tenantId;
           if (!plan) plan = ref.plan;
           if (!email) email = ref.email;
-          console.log(`[MP-Webhook] Payment recurrente ${paymentId} → preapproval ${payment.preapproval_id}: tenant=${tenantId}, plan=${plan}`);
+          console.log(`[MP-Webhook] Payment recurrente ${paymentId} → preapproval ${payment.preapproval_id}: status=${preapprovalStatus}, tenant=${tenantId}, plan=${plan}`);
         }
       } catch (e) {
         console.warn(`[MP-Webhook] Error consultando preapproval ${payment.preapproval_id}:`, e);
@@ -416,7 +423,7 @@ async function handle(req: Request): Promise<Response> {
 
       // Si el pago fue aprobado y tenemos tenant_id y plan, activar suscripción
       // (solo si NO fue procesado antes — idempotencia ante reintentos de MP)
-      if (ourStatus === 'approved' && tenantId && plan && !yaProcesado) {
+      if (ourStatus === 'approved' && tenantId && plan && !yaProcesado && preapprovalStatus !== 'cancelled') {
         const paidAmount = Number(payment.transaction_amount || 0);
 
         // Anti-fraude: validar que el monto pagado corresponda al plan
@@ -538,6 +545,8 @@ async function handle(req: Request): Promise<Response> {
             }
           }
         }
+      } else if (ourStatus === 'approved' && preapprovalStatus === 'cancelled') {
+        console.log(`[MP-Webhook] Payment ${paymentId} de un preapproval CANCELADO — suscripción NO reactivada (decisión del superadmin/inquilino respetada)`);
       } else if (ourStatus === 'approved' && tenantId && plan && yaProcesado) {
         console.log(`[MP-Webhook] Payment ${paymentId} ya procesado — omitiendo activación duplicada`);
       }

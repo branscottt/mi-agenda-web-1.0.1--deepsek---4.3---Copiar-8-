@@ -29,6 +29,11 @@ const MERCADOPAGO_API = 'https://api.mercadopago.com/preapproval';
 
 interface CancelRequest {
   tenant_id?: string;
+  // true = cancela SOLO en Mercado Pago (detiene los cobros automáticos) y NO
+  // desactiva la suscripción en la base de datos. Lo usa el superadmin al
+  // cambiar a un plan gratuito (freemium/free_trial/vl_free): hay que frenar
+  // el preapproval pero conservar viva la suscripción gratuita recién asignada.
+  solo_mp?: boolean;
 }
 
 interface JwtPayload {
@@ -111,6 +116,7 @@ async function handle(req: Request): Promise<Response> {
 
     const body: CancelRequest = await req.json().catch(() => ({}));
     const isSuperAdmin = jwtInfo.rol === 'super_admin';
+    const soloMp = body.solo_mp === true;
 
     // El tenant a cancelar: el del JWT, o el indicado si es super_admin.
     // El dueño puede mandar su propio tenant_id en el body (lo hace el
@@ -188,28 +194,35 @@ async function handle(req: Request): Promise<Response> {
       console.log(`[cancelar-suscripcion] Tenant ${tenantId} sin preapproval registrado — solo se desactiva en DB`);
     }
 
-    // 3) Desactivar la suscripción en la base de datos (idempotente)
-    const rpcResp = await fetch(
-      `${supabaseUrl}/rest/v1/rpc/desactivar_suscripcion`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': serviceRoleKey,
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ p_tenant_id: tenantId }),
+    // 3) Desactivar la suscripción en la base de datos (idempotente).
+    //    Se OMITE si solo_mp=true: el superadmin cambió a un plan gratuito y
+    //    la suscripción gratuita recién asignada debe quedar activa.
+    if (soloMp) {
+      console.log(`[cancelar-suscripcion] solo_mp=true — se conserva la suscripción en DB del tenant ${tenantId}`);
+    } else {
+      const rpcResp = await fetch(
+        `${supabaseUrl}/rest/v1/rpc/desactivar_suscripcion`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': serviceRoleKey,
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ p_tenant_id: tenantId }),
+        }
+      );
+      if (!rpcResp.ok) {
+        const err = await rpcResp.text().catch(() => '');
+        console.error(`[cancelar-suscripcion] Error desactivando suscripción en DB (${rpcResp.status}):`, err.slice(0, 200));
       }
-    );
-    if (!rpcResp.ok) {
-      const err = await rpcResp.text().catch(() => '');
-      console.error(`[cancelar-suscripcion] Error desactivando suscripción en DB (${rpcResp.status}):`, err.slice(0, 200));
     }
 
     return new Response(JSON.stringify({
       ok: true,
       mp_cancelled: mpCancelled,
       preapproval_id: preapprovalId,
+      solo_mp: soloMp,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
