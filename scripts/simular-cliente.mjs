@@ -73,10 +73,24 @@ const payload = {
 
 console.log(`→ ${tenant.nombre} · de ${de}\n  cliente dice: "${texto}"`);
 
+const rawBody = JSON.stringify(payload);
+
+// Firma HMAC (X-Hub-Signature-256). Desde que los tenants cargan wa_app_secret,
+// el webhook SÍ valida la firma: sin ella, el mensaje se descarta silenciosamente.
+// Pasa el secret con --secret <hex> o la variable de entorno VL_WA_APP_SECRET.
+const secret = val('secret') || process.env.VL_WA_APP_SECRET || '';
+const headers = { 'Content-Type': 'application/json' };
+if (secret) {
+    const { createHmac } = await import('node:crypto');
+    headers['X-Hub-Signature-256'] = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+} else {
+    console.log('  AVISO: sin --secret/VL_WA_APP_SECRET → va SIN firma; si el tenant tiene wa_app_secret, el webhook lo descarta.');
+}
+
 const resp = await fetch(WEBHOOK, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    headers,
+    body: rawBody
 });
 const body = await resp.text();
 
