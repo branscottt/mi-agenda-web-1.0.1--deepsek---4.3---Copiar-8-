@@ -22,6 +22,10 @@
 -- + pregunta de entrega): eso no se toca.
 -- ============================================================================
 
+-- Columna de memoria: cuándo se le dijo el monto por última vez (para no
+-- repetírselo si no lo pide, y que la charla fluya como una persona).
+ALTER TABLE public.vl_wa_chats ADD COLUMN IF NOT EXISTS monto_dicho_en timestamptz;
+
 CREATE OR REPLACE FUNCTION public.vl_wa_conversacion_avanzar(p_tenant_id uuid, p_wa_id text, p_texto text, p_tipo text DEFAULT 'texto'::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -39,6 +43,7 @@ DECLARE
     v_fuera_rm boolean := false;
     v_fecha_dicha text := '';
     v_fecha_prog date;
+    v_total_ok boolean := true;
     v_chat public.vl_wa_chats%ROWTYPE;
     v_cli public.vl_clientes%ROWTYPE;
     v_proc public.vl_procesos%ROWTYPE;
@@ -123,6 +128,11 @@ BEGIN
     FOR UPDATE;
 
     v_nuevo_estado := v_chat.estado;
+
+    -- ¿Ya le dijimos el monto hace poquito? Entonces no se lo repetimos si no lo
+    -- pide (charla fluida, sin sonar a bot repitiendo datos ya dados).
+    v_total_ok := v_chat.monto_dicho_en IS NULL
+                  OR v_chat.monto_dicho_en < now() - interval '30 minutes';
 
     -- Horario de entrega configurado por el negocio (con respaldo si no hay fila
     -- de vl_config). Se usa al elegir ENTREGA PRESENCIAL.
@@ -768,10 +778,12 @@ BEGIN
                 v_bloque := public.vl_wa_bloque_pago_para(p_tenant_id, v_chat.id, false);
                 v_respuesta_pedida := true;
                 v_reply := 'okis bonit@ 💜 ' || v_horario
-                    || chr(10) || chr(10)
-                    || 'serian ' || public.vl_wa_fmt_monto(v_saldo) || ' su total'
+                    || CASE WHEN v_total_ok
+                            THEN chr(10) || chr(10) || 'serian ' || public.vl_wa_fmt_monto(v_saldo) || ' su total'
+                            ELSE '' END
                     || CASE WHEN v_bloque <> ''
-                            THEN ', le dejo mis datitos' || chr(10) || chr(10) || v_bloque
+                            THEN (CASE WHEN v_total_ok THEN ', ' ELSE chr(10) || chr(10) END)
+                                 || 'le dejo mis datitos' || chr(10) || chr(10) || v_bloque
                             ELSE '' END
                     || chr(10) || chr(10)
                     || CASE WHEN v_low ~ 'efectivo|en persona|al recibir|contra ?entrega|cuando nos veamos|cuando te vea|en mano|al momento|te pago cuando|pago cuando|pagar cuando|pago al|pagar al|luego te pago|despu[eé]s te pago'
@@ -1026,11 +1038,12 @@ BEGIN
                 v_reenviar := v_low ~ 'datos|cuenta|rut';
                 v_bloque := public.vl_wa_bloque_pago_para(p_tenant_id, v_chat.id, v_reenviar);
 
-                v_reply := 'gracias serian '
-                    || public.vl_wa_fmt_monto(v_saldo + v_extra)
-                    || ' su total'
+                v_reply := CASE WHEN v_total_ok
+                        THEN 'gracias serian ' || public.vl_wa_fmt_monto(v_saldo + v_extra) || ' su total'
+                        ELSE 'gracias bonit@' END
                     || CASE WHEN v_bloque <> ''
-                            THEN ', le dejo mis datitos' || chr(10) || chr(10) || v_bloque
+                            THEN (CASE WHEN v_total_ok THEN ', ' ELSE chr(10) || chr(10) END)
+                                 || 'le dejo mis datitos' || chr(10) || chr(10) || v_bloque
                             ELSE '' END
                     || chr(10) || chr(10)
                     || 'me manda el comprobante cuando pueda porfis';
@@ -1148,11 +1161,11 @@ BEGIN
                         v_bloque := public.vl_wa_bloque_pago_para(p_tenant_id, v_chat.id, false);
                         v_respuesta_pedida := true;
                         v_reply := 'genial bonit@, queda a la misma direccion 💜'
-                            || CASE WHEN v_saldo > 0
+                            || CASE WHEN v_saldo > 0 AND v_total_ok
                                     THEN chr(10) || chr(10) || 'serian ' || public.vl_wa_fmt_monto(v_saldo) || ' su total'
                                     ELSE '' END
                             || CASE WHEN v_bloque <> ''
-                                    THEN chr(10) || chr(10) || v_bloque
+                                    THEN (CASE WHEN v_saldo > 0 AND v_total_ok THEN ', ' ELSE chr(10) || chr(10) END) || v_bloque
                                     ELSE '' END
                             || chr(10) || chr(10)
                             || 'me manda el comprobante cuando pueda porfis';
@@ -1519,6 +1532,11 @@ BEGIN
     END IF;
 
     IF v_reply <> '' THEN
+        -- Memoria del monto: si esta respuesta lo dijo, queda anotado para no
+        -- repetírselo en los próximos mensajes.
+        IF v_reply LIKE '%serian %' THEN
+            UPDATE public.vl_wa_chats SET monto_dicho_en = now() WHERE id = v_chat.id;
+        END IF;
         INSERT INTO public.vl_wa_mensajes (tenant_id, chat_id, direction, tipo, body)
         VALUES (p_tenant_id, v_chat.id, 'out', 'texto', left(v_reply, 1000))
         RETURNING id INTO v_msg_id;
@@ -1653,6 +1671,10 @@ BEGIN
         || CASE WHEN v_bloque <> ''
                 THEN ' aca le dejo mis datitos' || chr(10) || chr(10) || v_bloque
                 ELSE '' END;
+
+    IF v_mensaje LIKE '%serian %' THEN
+        UPDATE public.vl_wa_chats SET monto_dicho_en = now() WHERE id = p_chat_id;
+    END IF;
 
     RETURN jsonb_build_object('mensaje', v_mensaje, 'estado', 'esperando_tipo_entrega',
                               'aviso_tipo', v_aviso, 'aviso_detalle', v_detalle);
