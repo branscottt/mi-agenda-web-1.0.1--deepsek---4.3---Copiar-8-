@@ -270,6 +270,11 @@ function mediaHtml(m) {
         + `<i class="fas fa-paperclip"></i> Abrir ${nombre}</a>`;
 }
 
+// Firmas vigentes por ruta (el chat se refresca cada pocos segundos: no tiene
+// sentido volver a firmar lo mismo en cada refresco).
+const _cacheMedias = new Map();
+const _MS_FIRMA = 3600000;   // 1 h (el mismo vencimiento que se pide a Storage)
+
 /**
  * Firma las URLs de los medios del hilo (bucket privado 'vl-media').
  * Se hace ANTES de pintar: createSignedUrl exige la sesión del admin, así que
@@ -279,13 +284,23 @@ function mediaHtml(m) {
  */
 export async function firmarMedias(mensajes, supabase) {
     const lista = mensajes || [];
-    const paths = [...new Set(lista.filter(m => m && m.media_path && !m.media_url).map(m => m.media_path))];
+    const ahora = Date.now();
+    const porFirmar = new Set();
+    lista.forEach(m => {
+        if (!m || !m.media_path || m.media_url) return;
+        const enCache = _cacheMedias.get(m.media_path);
+        if (enCache && enCache.exp > ahora + 60000) m.media_url = enCache.url;
+        else porFirmar.add(m.media_path);
+    });
+    const paths = [...porFirmar];
     if (!supabase || !paths.length) return lista;
     try {
         const { data } = await supabase.storage.from('vl-media').createSignedUrls(paths, 3600);
-        const mapa = {};
-        (data || []).forEach(d => { if (d && d.path && d.signedUrl) mapa[d.path] = d.signedUrl; });
-        lista.forEach(m => { if (m && m.media_path && mapa[m.media_path]) m.media_url = mapa[m.media_path]; });
+        (data || []).forEach(d => {
+            if (!d || !d.path || !d.signedUrl) return;
+            _cacheMedias.set(d.path, { url: d.signedUrl, exp: ahora + _MS_FIRMA });
+            lista.forEach(m => { if (m && m.media_path === d.path) m.media_url = d.signedUrl; });
+        });
     } catch (e) {
         // Sin firma queda el placeholder del tipo de archivo: el chat no se rompe.
         console.warn('[chatComun] No se pudieron firmar los medios:', e && e.message);
