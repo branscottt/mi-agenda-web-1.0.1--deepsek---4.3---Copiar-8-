@@ -708,9 +708,9 @@ async function enviar() {
 
     const res = await vlApi.enviarManual(_chatId, texto);
 
-    // El bot SIEMPRE retoma el control: el modo 'humano' se puso solo para que el
-    // bot no contestara mientras escribías. Antes quedaba en pausa y había que
-    // apretar "Devolver al bot" a mano.
+    // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
+    // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta
+    // (retoma solo cuando dejas de escribir).
     if (tomoControl) {
         const rb = await vlApi.chatModo(_chatId, 'bot');
         if (rb.ok) { _chatMeta.modo = 'bot'; pintarModoChat(); }
@@ -724,7 +724,7 @@ async function enviar() {
         return;
     }
     input.value = '';
-    if (tomoControl) mostrarToast('Enviado · el bot sigue respondiendo', 'success');
+    if (tomoControl) mostrarToast('Enviado · el bot espera tu turno', 'success');
     await cargarHilo(_chatId, { silencioso: true });
 }
 

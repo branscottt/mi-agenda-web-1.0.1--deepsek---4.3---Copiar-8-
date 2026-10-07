@@ -669,7 +669,7 @@ function pintarCabeceraChat() {
     if (sub) {
         sub.innerHTML = humano
             ? '<i class="fas fa-user"></i> Estás atendiendo tú: el bot está en pausa.'
-            : '<i class="fas fa-robot"></i> El bot responde solo. Si escribes, tomas el control.';
+            : '<i class="fas fa-robot"></i> El bot responde solo. Si escribes, te cede el turno 15 min.';
     }
     if (modoBtn) {
         modoBtn.style.display = 'inline-flex';
@@ -700,8 +700,9 @@ async function enviarChat() {
 
     const res = await vlApi.enviarManual(_chatId, texto);
 
-    // El bot SIEMPRE retoma el control (igual que en el cajón de conversaciones):
-    // el modo 'humano' era solo para no contestar mientras escribías.
+    // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
+    // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta
+    // (y retoma solo cuando dejas de escribir). Antes el bot se encimaba.
     if (tomoControl) {
         const rb = await vlApi.chatModo(_chatId, 'bot');
         if (rb.ok) { _chatModo = 'bot'; pintarCabeceraChat(); }
@@ -712,7 +713,7 @@ async function enviarChat() {
 
     if (!res.ok) { mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error'); return; }
     input.value = '';
-    if (tomoControl) mostrarToast('Enviado · el bot sigue respondiendo', 'success');
+    if (tomoControl) mostrarToast('Enviado · el bot espera tu turno', 'success');
     cargarHiloChat({ forzarAbajo: true });
 }
 

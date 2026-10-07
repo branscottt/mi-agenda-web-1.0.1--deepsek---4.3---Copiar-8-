@@ -24,7 +24,7 @@ export const ESTADO_CHAT = {
 export const AVISO_INFO = {
     comprobante: {
         label: 'Comprobante',
-        accion: 'Revisa la foto/archivo que mandó, comprueba el pago en tu cuenta y avanza el proceso.'
+        accion: 'Revisa la foto, comprueba el pago en tu cuenta y, si está, aprieta "Confirmar pago" acá en el chat.'
     },
     pago: {
         label: 'Dijo que pagó',
