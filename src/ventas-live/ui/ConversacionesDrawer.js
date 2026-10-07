@@ -20,7 +20,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
-    quienContesta, procesoChips, firmarMedias
+    quienContesta, procesoChips, firmarMedias, candidatosHtml, bindCandidatos
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -569,6 +569,18 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
            </div>`
         : '';
 
+    // Si el chat NO está vinculado: "¿Quién es?" con los usuarios posibles
+    // APRETABLES (sobre todo los que compraron y quedaron sin vincular).
+    let candsHtml = '';
+    if (!_chatMeta.cliente_id) {
+        try {
+            const cr = await vlApi.candidatosChat(chatId);
+            if (cr && cr.ok && cr.data && !cr.data.vinculado) {
+                candsHtml = candidatosHtml(cr.data.candidatos);
+            }
+        } catch (_) { /* sin candidatos: el chat se ve igual */ }
+    }
+
     // Proceso abierto del chat: hace falta el proceso_id para poder cerrar la
     // entrega DESDE ACÁ (el listado de chats no lo trae). Los botones reusan los
     // modales de siempre, así se hace lo mismo desde el chat o desde el diagrama.
@@ -588,6 +600,7 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         + procesoChipsHtml(procChat) + accionesChatHtml(_chatProc)
         + `</div>`
         + banner
+        + candsHtml
         + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
 
     // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
@@ -598,6 +611,19 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     if (!silencioso) requestAnimationFrame(() => autoScrollAbajo($('vld-body'), { forzar: true }));
 
     bindAccionesChat(procesoParaModales(_chatProc, _chatMeta.tiktok_user), () => {
+        cargarHilo(chatId, { silencioso: true });
+        cargarChats({ silencioso: true });
+    });
+
+    // "¿Quién es?": apretar un candidato vincula el chat con esa ficha a mano.
+    bindCandidatos(body, async (clienteId, nick) => {
+        if (!window.confirm('¿Vincular esta conversación de WhatsApp con ' + nick + '?\n\n'
+            + 'Se guarda su número en la ficha (para que el bot lo reconozca solo la próxima vez).')) return;
+        const r = await vlApi.vincularChatCliente(chatId, clienteId);
+        if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo vincular', 'error'); return; }
+        const d = r.data || {};
+        mostrarToast('Vinculado con ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
+        if (d.otro_chat_abierto) mostrarToast('Ojo: ese cliente ya tenía otra conversación abierta', 'warning');
         cargarHilo(chatId, { silencioso: true });
         cargarChats({ silencioso: true });
     });

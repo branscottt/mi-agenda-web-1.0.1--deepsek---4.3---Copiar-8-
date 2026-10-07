@@ -143,6 +143,10 @@ export const vlApi = {
     chatHilo: (chatId) => callRpc('vl_wa_chat_hilo', { p_chat_id: chatId }),
     chatModo: (chatId, modo) => callRpc('vl_wa_chat_modo', { p_chat_id: chatId, p_modo: modo }),
     chatPorCliente: (clienteId) => callRpc('vl_wa_chat_por_cliente', { p_cliente_id: clienteId }),
+    candidatosChat: (chatId) => callRpc('vl_wa_candidatos_chat', { p_chat_id: chatId }),
+    vincularChatCliente: (chatId, clienteId) => callRpc('vl_wa_vincular_chat', {
+        p_chat_id: chatId, p_cliente_id: clienteId
+    }),
     chatProceso: (chatId) => callRpc('vl_wa_chat_proceso', { p_chat_id: chatId }),
     chatOcultar: (chatId, oculto = true) => callRpc('vl_wa_chat_ocultar', { p_chat_id: chatId, p_oculto: oculto }),
     enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto),

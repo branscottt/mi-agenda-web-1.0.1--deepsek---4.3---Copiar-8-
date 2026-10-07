@@ -314,6 +314,44 @@ export async function firmarMedias(mensajes, supabase) {
 }
 
 /**
+ * "¿Quién es?" — usuarios posibles para VINCULAR el chat a mano.
+ * Se muestra cuando el chat todavía NO está vinculado (el bot no lo reconoció o
+ * no entendió lo que escribió). Primero los que el bot sugirió y, sobre todo,
+ * los que COMPRARON desde el LIVE y quedaron sin número vinculado.
+ * @param {Array} cands [{cliente_id, tiktok_user, nombre_real, motivo, prendas, saldo}]
+ */
+export function candidatosHtml(cands) {
+    const lista = Array.isArray(cands) ? cands : [];
+    if (!lista.length) return '';
+    const botones = lista.map(c => {
+        const saldo = Number(c.saldo || 0);
+        const nick = c.tiktok_user ? '@' + c.tiktok_user : (c.nombre_real || '(sin @)');
+        return `<button class="vl-cand" type="button" data-cliente="${escapeHtml(c.cliente_id)}">`
+            + `<span class="vl-cand-nick">${escapeHtml(nick)}</span>`
+            + `<span class="vl-cand-dato">${Number(c.prendas || 0)} prenda(s)`
+            + `${saldo > 0 ? ' · $' + saldo.toLocaleString('es-CL') : ''}</span>`
+            + `<span class="vl-cand-motivo">${escapeHtml(c.motivo || '')}</span>`
+            + `</button>`;
+    }).join('');
+    return `<div class="vl-cands" id="vl-cands">
+        <div class="vl-cands-titulo"><i class="fas fa-user-check"></i> ¿Quién es? Aprieta el correcto y queda vinculado 👇</div>
+        <div class="vl-cands-lista">${botones}</div>
+    </div>`;
+}
+
+/** Engancha los botones de "¿Quién es?": cb(clienteId, nick). */
+export function bindCandidatos(cont, cb) {
+    const c = cont || (typeof document !== 'undefined' ? document.getElementById('vl-cands') : null);
+    if (!c || typeof cb !== 'function') return;
+    c.querySelectorAll('button[data-cliente]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nick = btn.querySelector('.vl-cand-nick');
+            cb(btn.dataset.cliente, nick ? nick.textContent : 'cliente');
+        });
+    });
+}
+
+/**
  * HTML del hilo completo. Cada mensaje lleva arriba el autor:
  * el nombre del cliente (entrante), "Bot" o "Tú" (saliente).
  */

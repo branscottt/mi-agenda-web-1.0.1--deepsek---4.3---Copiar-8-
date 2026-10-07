@@ -571,6 +571,15 @@
         .vl-media-link.archivo { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: underline; font-size: 0.86rem; }
         .vl-media-falta { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; opacity: 0.75; }
         .vl-burbuja-sticker { display: block; width: 92px; height: 92px; object-fit: contain; }
+        /* "¿Quién es?" — candidatos apretables para vincular el chat a mano */
+        .vl-cands { margin: 0 0 10px; padding: 10px 11px; border-radius: 12px; background: rgba(157,78,221,0.10); border: 1px solid rgba(157,78,221,0.35); }
+        .vl-cands-titulo { font-size: 0.82rem; color: #e9edef; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+        .vl-cands-lista { display: flex; flex-wrap: wrap; gap: 7px; }
+        .vl-cand { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 11px; border-radius: 10px; border: 1px solid rgba(157,78,221,0.55); background: rgba(36,29,56,0.95); color: #e9edef; cursor: pointer; text-align: left; transition: transform .12s, box-shadow .12s, border-color .12s; }
+        .vl-cand:hover { transform: translateY(-1px); border-color: #c77dff; box-shadow: 0 4px 14px rgba(157,78,221,0.35); }
+        .vl-cand-nick { font-weight: 700; font-size: 0.88rem; }
+        .vl-cand-dato { font-size: 0.72rem; color: #cbb8e6; }
+        .vl-cand-motivo { font-size: 0.66rem; color: #a89bb8; font-style: italic; }
         .vl-transcripcion-label { font-size: 0.68rem; letter-spacing: 0.03em; text-transform: uppercase; opacity: 0.7; margin: 6px 0 2px; }
 
         @media (max-width: 860px) {
@@ -779,7 +788,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=121"></script>
+    <script type="module" src="dist/app.js?v=122"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

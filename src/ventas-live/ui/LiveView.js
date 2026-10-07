@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, candidatosHtml, bindCandidatos } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -660,7 +660,31 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     const mensajes = (res.data && Array.isArray(res.data.mensajes)) ? res.data.mensajes : [];
     // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media').
     await firmarMedias(mensajes, getSupabase());
-    msgs.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
+
+    // Si el chat NO está vinculado: "¿Quién es?" con los usuarios posibles
+    // APRETABLES (sobre todo los que compraron y quedaron sin vincular).
+    let candsHtml = '';
+    if (!chat.cliente_id) {
+        try {
+            const cr = await vlApi.candidatosChat(_chatId);
+            if (cr && cr.ok && cr.data && !cr.data.vinculado) {
+                candsHtml = candidatosHtml(cr.data.candidatos);
+            }
+        } catch (_) { /* sin candidatos: el chat se ve igual */ }
+    }
+
+    msgs.innerHTML = candsHtml + burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
+    bindCandidatos(msgs, async (clienteId, nick) => {
+        if (!window.confirm('¿Vincular esta conversación de WhatsApp con ' + nick + '?\n\n'
+            + 'Se guarda su número en la ficha (para que el bot lo reconozca solo la próxima vez).')) return;
+        const r = await vlApi.vincularChatCliente(_chatId, clienteId);
+        if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo vincular', 'error'); return; }
+        const d = r.data || {};
+        mostrarToast('Vinculado con ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
+        if (d.otro_chat_abierto) mostrarToast('Ojo: ese cliente ya tenía otra conversación abierta', 'warning');
+        cargarHiloChat({ forzarAbajo: true });
+    });
+
     autoScrollAbajo(msgs, { forzar: forzarAbajo || !silencioso });
     pintarCabeceraChat();
 }
