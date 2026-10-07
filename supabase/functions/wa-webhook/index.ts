@@ -55,6 +55,7 @@ interface WaMessage {
   audio?: WaMediaRef;
   video?: WaMediaRef;
   document?: WaMediaRef;
+  sticker?: WaMediaRef;
 }
 
 interface WaChangeValue {
@@ -186,6 +187,7 @@ function mapearTipo(type: string): string {
     case 'audio': return 'audio';
     case 'video': return 'video';
     case 'document': return 'documento';
+    case 'sticker': return 'sticker';
     default: return 'texto';
   }
 }
@@ -239,7 +241,7 @@ async function transcribirAudio(bytes: Uint8Array, mime: string): Promise<string
 
   try {
     const form = new FormData();
-    form.append('file', new Blob([bytes], { type: mime || 'audio/ogg' }), 'audio.ogg');
+    form.append('file', new Blob([bytes as unknown as BlobPart], { type: mime || 'audio/ogg' }), 'audio.ogg');
     form.append('model', modelo);
     form.append('language', 'es');
     form.append('response_format', 'json');
@@ -281,7 +283,7 @@ async function procesarMedia(
   token: string,
 ): Promise<ResultadoMedia> {
   const vacio: ResultadoMedia = { ruta: null, transcripcion: null };
-  const medio = message.image || message.audio || message.video || message.document;
+  const medio = message.image || message.audio || message.video || message.document || message.sticker;
   const mediaId = medio?.id;
   if (!mediaId) return vacio;
 

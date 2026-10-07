@@ -238,6 +238,7 @@ export function etiquetaMedia(tipo) {
     if (t === 'audio') return 'Audio';
     if (t === 'video') return 'Video';
     if (t === 'documento') return 'Archivo';
+    if (t === 'sticker') return 'Sticker';
     return t;
 }
 
@@ -256,6 +257,10 @@ function mediaHtml(m) {
         return `<span class="vl-media-falta"><i class="fas fa-paperclip"></i> ${nombre} (sin vista previa)</span>`;
     }
     const u = escapeHtml(url);
+    if (tipo === 'sticker') {
+        // Un sticker no es una foto: se muestra chico, como en WhatsApp.
+        return `<img class="vl-burbuja-sticker" src="${u}" alt="Sticker que mandó el cliente" loading="lazy">`;
+    }
     if (tipo === 'imagen') {
         return `<a class="vl-media-link" href="${u}" target="_blank" rel="noopener">`
             + `<img class="vl-burbuja-img" src="${u}" alt="Foto que mandó el cliente" loading="lazy"></a>`;
