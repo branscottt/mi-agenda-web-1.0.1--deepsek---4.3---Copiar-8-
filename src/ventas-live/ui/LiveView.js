@@ -700,12 +700,19 @@ async function enviarChat() {
 
     const res = await vlApi.enviarManual(_chatId, texto);
 
+    // El bot SIEMPRE retoma el control (igual que en el cajón de conversaciones):
+    // el modo 'humano' era solo para no contestar mientras escribías.
+    if (tomoControl) {
+        const rb = await vlApi.chatModo(_chatId, 'bot');
+        if (rb.ok) { _chatModo = 'bot'; pintarCabeceraChat(); }
+    }
+
     _chatEnviando = false;
     if (btn) btn.disabled = false;
 
     if (!res.ok) { mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error'); return; }
     input.value = '';
-    if (tomoControl) mostrarToast('Tomaste el control de esta conversación', 'success');
+    if (tomoControl) mostrarToast('Enviado · el bot sigue respondiendo', 'success');
     cargarHiloChat({ forzarAbajo: true });
 }
 

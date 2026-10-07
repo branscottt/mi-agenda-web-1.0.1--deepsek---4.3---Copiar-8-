@@ -578,7 +578,13 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     } catch (_) { _chatProc = null; }
 
     const procChat = _chatProc || procDelChat(chatId);
-    body.innerHTML = procesoChipsHtml(procChat) + accionesChatHtml(_chatProc) + banner
+    // El bloque de PROCESO (chips + botones) queda ANCLADO arriba (sticky dentro
+    // del hilo): así se aprieta "Confirmar pago / Prenda entregada / Liberar"
+    // sin tener que subir el chat. Lo último hablado se sigue viendo abajo.
+    body.innerHTML = `<div class="vld-fijo">`
+        + procesoChipsHtml(procChat) + accionesChatHtml(_chatProc)
+        + `</div>`
+        + banner
         + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
 
     // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
@@ -702,6 +708,14 @@ async function enviar() {
 
     const res = await vlApi.enviarManual(_chatId, texto);
 
+    // El bot SIEMPRE retoma el control: el modo 'humano' se puso solo para que el
+    // bot no contestara mientras escribías. Antes quedaba en pausa y había que
+    // apretar "Devolver al bot" a mano.
+    if (tomoControl) {
+        const rb = await vlApi.chatModo(_chatId, 'bot');
+        if (rb.ok) { _chatMeta.modo = 'bot'; pintarModoChat(); }
+    }
+
     _enviando = false;
     if (btn) btn.disabled = false;
 
@@ -710,7 +724,7 @@ async function enviar() {
         return;
     }
     input.value = '';
-    if (tomoControl) mostrarToast('Tomaste el control: el bot queda en pausa acá', 'success');
+    if (tomoControl) mostrarToast('Enviado · el bot sigue respondiendo', 'success');
     await cargarHilo(_chatId, { silencioso: true });
 }
 

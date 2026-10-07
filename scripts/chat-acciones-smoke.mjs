@@ -26,6 +26,10 @@ global.HTMLElement = dom.window.HTMLElement;
 global.localStorage = dom.window.localStorage;
 global.Notification = dom.window.Notification;
 window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+// jsdom no expone requestAnimationFrame en el global (solo en window); el cajón lo usa
+// al bajar el scroll. Sin esto el smoke revienta con "requestAnimationFrame is not defined".
+global.requestAnimationFrame = dom.window.requestAnimationFrame || ((cb) => setTimeout(cb, 0));
+global.cancelAnimationFrame = dom.window.cancelAnimationFrame || ((id) => clearTimeout(id));
 
 // ---- estado del stub (se cambia entre casos) ----
 let CHAT = {
@@ -100,6 +104,12 @@ await esperar(80);
 ok('con saldo muestra "Confirmar pago"', accs().indexOf('pago') >= 0);
 ok('con saldo muestra "Liberar"', accs().indexOf('liberar') >= 0);
 ok('con saldo NO muestra "Marcar entregado"', accs().indexOf('entregado') < 0);
+// 2026-10-07: se sacó el 2º botón de pago ("Pagar prendas") del chat: duplicaba el pago.
+ok('con saldo NO muestra "Pagar prendas" (no duplica el pago)', accs().indexOf('pagar_items') < 0);
+// Y el bloque de proceso + botones quedó ANCLADO arriba del hilo (sticky).
+ok('los botones quedaron dentro de la franja anclada (.vld-fijo)',
+    !!document.querySelector('.vld-fijo > .vl-chat-acciones') &&
+    !!document.querySelector('.vld-fijo > .vl-chat-proceso'));
 
 // ---------- 5) alarma: el título queda con "● (n)" ----------
 document.title = 'Ventas Live — Organify';

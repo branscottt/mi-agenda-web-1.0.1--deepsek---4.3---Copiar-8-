@@ -754,7 +754,10 @@ export function accionesDeChat(proc) {
     if (['envio_proceso', 'entrega_presencial'].indexOf(e) >= 0) {
         quiero.push('entregado');
     }
-    if (saldo > 0) quiero.push('pagar_items');
+    // OJO (pedido del dueño 2026-10-07): 'pagar_items' ("Pagar prendas") YA NO va en
+    // el chat — duplicaba el "Confirmar pago" y confundía. Se deja el camino completo
+    // ("Confirmar pago" -> promueve a la entrega -> "Marcar entregado"). "Pagar
+    // prendas" (una o algunas) sigue disponible en Envíos y en el Diagrama.
     if (saldo > 0) quiero.push('liberar');
 
     return ACCIONES_POR_ESTADO.filter(a => quiero.indexOf(a.k) >= 0);
