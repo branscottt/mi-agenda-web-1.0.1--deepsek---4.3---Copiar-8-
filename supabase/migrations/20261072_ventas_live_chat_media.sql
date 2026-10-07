@@ -1826,6 +1826,29 @@ BEGIN
         END IF;
     END IF;
 
+    -- ── PAGO AVISADO, EN CUALQUIER PASO (ciclo 20261072) ──
+    -- "te transfiero altiro", "ya transferí", "te mando la transferencia": si el
+    -- bot no había dicho nada en este turno (v_reply vacío) y el cliente está
+    -- identificado, se deja el aviso "dice que pagó" + se le pide el comprobante.
+    -- Antes esto vivía SOLO en los estados habitual/listo: en "eligiendo entrega"
+    -- (justo después de que el bot le dijo el total) caía como "No se entendió" y
+    -- la clienta quedaba sin respuesta (caso real 2026-10-02).
+    IF v_tipo = 'texto' AND v_chat.cliente_id IS NOT NULL AND v_reply = ''
+       AND v_low ~ 'ya (te )?(pague|pagué|transferi|transferí|deposite|deposité)|te (transferi|transferí|pague|pagué|transfiero|transfieres)|(ahora|al ?tiro|al ?rato|ya) (te )?transfiero|voy a transferir|te mando (la )?transferencia|hice la transferencia|transferencia (hecha|lista)'
+       AND v_low !~ 'no puedo|no pude|no e podido|no he podido|a[uú]n no|todav[ií]a no|no me deja|no alcanc'
+    THEN
+        v_avisar := true;
+        v_aviso_tipo := 'pago';
+        v_aviso_unico := true;
+        v_aviso_detalle := 'El cliente dice que ya pagó/transfirió. Revisa tu cuenta y, si está, aprieta "Confirmar pago". Mensaje: "'
+            || left(v_txt, 180) || '"';
+        v_reply := public.vl_wa_variar(ARRAY[
+            'genial bonit@ 💜 me manda el comprobante cuando pueda porfis',
+            'perfecto bonit@ 💜 quedo atenta al comprobante',
+            'buenisimo 💜 mandame el comprobante cuando puedas']);
+        v_respuesta_pedida := true;
+    END IF;
+
     -- ── ¿El cliente responde sobre un pedido que no está cargado? ──
     -- (el bot le pidió la foto porque no tenía pedido en la web)
     IF v_chat.pide_foto_en IS NOT NULL
