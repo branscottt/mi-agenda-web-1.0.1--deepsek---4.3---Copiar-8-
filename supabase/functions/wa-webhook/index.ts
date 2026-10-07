@@ -215,23 +215,75 @@ function extensionDe(mime: string, tipo: string): string {
   return tipo === 'imagen' ? 'jpg' : 'bin';
 }
 
+interface ResultadoMedia {
+  ruta: string | null;
+  transcripcion: string | null;
+}
+
 /**
- * Baja el archivo que mandó el cliente por WhatsApp y lo guarda en el bucket
- * privado 'vl-media' (así la FOTO se ve en el panel: sin esto llegaba solo el
- * id del medio y la burbuja quedaba vacía).
- * Devuelve la ruta en Storage o null si algo falló (el chat sigue funcionando).
+ * Transcribe un audio a texto. Se usa Groq (whisper-large-v3, gratis y rápido)
+ * si hay GROQ_API_KEY; si no, OpenAI (whisper-1) con OPENAI_API_KEY. Sin clave
+ * devuelve null: el audio se guarda y se reproduce igual, solo sin texto.
+ * El prompt sesga el vocabulario al negocio (jerga chilena, envíos, prendas).
  */
-async function subirMedia(
+async function transcribirAudio(bytes: Uint8Array, mime: string): Promise<string | null> {
+  const groq = Deno.env.get('GROQ_API_KEY') || '';
+  const openai = Deno.env.get('OPENAI_API_KEY') || '';
+  let url = '', key = '', modelo = '';
+  if (groq) { url = 'https://api.groq.com/openai/v1/audio/transcriptions'; key = groq; modelo = 'whisper-large-v3'; }
+  else if (openai) { url = 'https://api.openai.com/v1/audio/transcriptions'; key = openai; modelo = 'whisper-1'; }
+  else {
+    console.warn('[WA-Webhook] Audio sin transcribir: falta GROQ_API_KEY u OPENAI_API_KEY');
+    return null;
+  }
+
+  try {
+    const form = new FormData();
+    form.append('file', new Blob([bytes], { type: mime || 'audio/ogg' }), 'audio.ogg');
+    form.append('model', modelo);
+    form.append('language', 'es');
+    form.append('response_format', 'json');
+    form.append('prompt', 'Venta por TikTok Live en Chile. Prendas de ropa, poleras, faldas, blusas. '
+      + 'Transferencia, comprobante, datos bancarios. Envío por Paket o Blue Express, entrega presencial. '
+      + 'Usuario del live, precio en pesos chilenos.');
+
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}` },
+      body: form,
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!r.ok) {
+      console.error(`[WA-Webhook] Transcripción falló (${r.status}):`, (await r.text().catch(() => '')).slice(0, 200));
+      return null;
+    }
+    const data = await r.json() as { text?: string };
+    const txt = (data.text || '').trim();
+    return txt || null;
+  } catch (e) {
+    console.error('[WA-Webhook] Error transcribiendo el audio:', (e as Error).message || String(e));
+    return null;
+  }
+}
+
+/**
+ * Baja el archivo que mandó el cliente por WhatsApp, lo guarda en el bucket
+ * privado 'vl-media' y —si es un AUDIO— lo transcribe a texto (así el bot lo
+ * "lee" y el panel muestra qué dijo).
+ * Devuelve las dos cosas; null en lo que haya fallado (el chat sigue igual).
+ */
+async function procesarMedia(
   supabaseUrl: string,
   serviceRoleKey: string,
   tenantId: string,
   waId: string,
   message: WaMessage,
   token: string,
-): Promise<string | null> {
+): Promise<ResultadoMedia> {
+  const vacio: ResultadoMedia = { ruta: null, transcripcion: null };
   const medio = message.image || message.audio || message.video || message.document;
   const mediaId = medio?.id;
-  if (!mediaId) return null;
+  if (!mediaId) return vacio;
 
   try {
     // 1) Meta entrega una URL temporal (expira en ~5 min) para ese id.
@@ -241,10 +293,10 @@ async function subirMedia(
     });
     if (!info.ok) {
       console.error(`[WA-Webhook] No pude resolver el medio ${mediaId} (${info.status})`);
-      return null;
+      return vacio;
     }
     const meta = await info.json() as { url?: string; mime_type?: string };
-    if (!meta.url) return null;
+    if (!meta.url) return vacio;
 
     // 2) Descarga del binario.
     const bin = await fetch(meta.url, {
@@ -253,14 +305,15 @@ async function subirMedia(
     });
     if (!bin.ok) {
       console.error(`[WA-Webhook] No pude bajar el medio ${mediaId} (${bin.status})`);
-      return null;
+      return vacio;
     }
     const bytes = new Uint8Array(await bin.arrayBuffer());
-    if (!bytes.length) return null;
+    if (!bytes.length) return vacio;
 
-    // 3) Subida a Storage con service_role. Ruta: tenant / número / uuid.ext
     const tipo = mapearTipo(message.type || '');
     const mime = meta.mime_type || medio?.mime_type || 'application/octet-stream';
+
+    // 3) Subida a Storage con service_role. Ruta: tenant / número / uuid.ext
     const soloDigitos = (waId || '').replace(/\D/g, '');
     const ruta = `${tenantId}/${soloDigitos}/${crypto.randomUUID()}.${extensionDe(mime, tipo)}`;
 
@@ -277,12 +330,19 @@ async function subirMedia(
     });
     if (!up.ok) {
       console.error(`[WA-Webhook] No pude subir el medio (${up.status}):`, (await up.text().catch(() => '')).slice(0, 200));
-      return null;
+      return vacio;
     }
-    return ruta;
+
+    // 4) Audio → texto (para que el bot lo entienda y el panel lo muestre).
+    let transcripcion: string | null = null;
+    if (tipo === 'audio') {
+      transcripcion = await transcribirAudio(bytes, mime);
+    }
+
+    return { ruta, transcripcion };
   } catch (e) {
     console.error('[WA-Webhook] Error guardando el medio:', (e as Error).message || String(e));
-    return null;
+    return vacio;
   }
 }
 
@@ -384,7 +444,6 @@ async function handle(req: Request): Promise<Response> {
         } else {
           console.warn(`[WA-Webhook] Tenant ${cfg.tenant_id} sin wa_app_secret — saltando validación de firma`);
         }
-
         for (const message of value.messages) {
           const waId = message.from || '';
           const texto = textoDe(message);
@@ -392,37 +451,50 @@ async function handle(req: Request): Promise<Response> {
 
           if (!waId) continue;
 
-          // Si es foto/audio/video/archivo: se baja de Meta y se guarda en
-          // Storage para que se VEA en el panel (y se le pasa la ruta al cerebro).
-          let mediaPath: string | null = null;
-          if (tipo !== 'texto') {
-            mediaPath = await subirMedia(
-              supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, message, cfg.wa_token,
-            );
-          }
+          // El trabajo (bajar el archivo de Meta, subirlo a Storage, transcribir
+          // el audio y llamar al cerebro) se hace en SEGUNDO PLANO: Meta espera
+          // un 200 rápido y, si no llega, REINTENTA el webhook y el cliente
+          // recibiría la respuesta duplicada. Con foto+audio ya no alcanza a
+          // responder a tiempo, así que se responde 200 primero (waitUntil).
+          const trabajo = async () => {
+            try {
+              // Foto/audio/video/archivo: se guarda en Storage para que se
+              // VEA/ESCUCHE en el panel. Si es AUDIO, además se transcribe: el
+              // texto hace de mensaje, así el bot lo entiende igual que escrito.
+              let mediaPath: string | null = null;
+              let textoFinal = texto;
+              if (tipo !== 'texto') {
+                const media = await procesarMedia(
+                  supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, message, cfg.wa_token,
+                );
+                mediaPath = media.ruta;
+                if (tipo === 'audio' && !textoFinal && media.transcripcion) {
+                  textoFinal = media.transcripcion;
+                }
+              }
 
-          const brain = await avanzarConversacion(
-            supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, texto, tipo, mediaPath,
-          );
-          if (!brain || brain.ok === false) {
-            console.error(`[WA-Webhook] Cerebro falló para wa_id ${waId}:`, JSON.stringify(brain || { ok: false }).slice(0, 200));
-            return new Response(JSON.stringify({ error: 'Error procesando mensaje' }), {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
+              const brain = await avanzarConversacion(
+                supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, textoFinal, tipo, mediaPath,
+              );
+              if (!brain || brain.ok === false) {
+                console.error(`[WA-Webhook] Cerebro falló para wa_id ${waId}:`, JSON.stringify(brain || { ok: false }).slice(0, 200));
+                return;
+              }
 
-          if (brain.enviar === true && typeof brain.mensaje === 'string' && brain.mensaje !== '') {
-            const ok = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje);
-            if (!ok) {
-              // Meta reintentará el webhook; el cerebro ya registró el 'out',
-              // así que el reintento puede duplicar la respuesta. Aceptado en
-              // v1 (baja probabilidad); el log queda consistente.
-              return new Response(JSON.stringify({ error: 'Error enviando a Graph API' }), {
-                status: 500,
-                headers: { 'Content-Type': 'application/json' },
-              });
+              if (brain.enviar === true && typeof brain.mensaje === 'string' && brain.mensaje !== '') {
+                const ok = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje);
+                if (!ok) console.error(`[WA-Webhook] No pude enviar la respuesta a ${waId}`);
+              }
+            } catch (e) {
+              console.error('[WA-Webhook] Error procesando el mensaje:', (e as Error).message || String(e));
             }
+          };
+
+          const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+          if (rt && typeof rt.waitUntil === 'function') {
+            rt.waitUntil(trabajo());
+          } else {
+            await trabajo();   // sin EdgeRuntime (local): se hace en línea
           }
         }
       }

@@ -320,6 +320,13 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
         const saliente = m.direction === 'out';
         const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
         const media = mediaHtml(m);
+        // Un AUDIO que se pudo transcribir trae su texto en body: se rotula para
+        // que se entienda que ese texto lo dijo él en el audio.
+        const esAudioConTexto = String(m.tipo || '').toLowerCase() === 'audio'
+            && !!(m.body || '').trim();
+        const rotuloTranscripcion = esAudioConTexto
+            ? '<div class="vl-transcripcion-label"><i class="fas fa-quote-left"></i> Transcripción</div>'
+            : '';
         const autor = saliente
             ? (m.origen === 'humano' ? 'Tú' : 'Bot')
             : escapeHtml(nombreCliente);
@@ -328,6 +335,7 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
                 <div class="vl-msg-autor">${autor}</div>
                 <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
                     ${media ? `<div class="vl-burbuja-medio">${media}</div>` : ''}
+                    ${rotuloTranscripcion}
                     ${cuerpo ? `<div class="vl-burbuja-txt">${cuerpo}</div>` : ''}
                     <div class="vl-burbuja-hora">${escapeHtml(fmtHora(m.creado_en))}</div>
                 </div>

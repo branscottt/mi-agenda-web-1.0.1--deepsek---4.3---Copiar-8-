@@ -52,6 +52,11 @@
 --      la lista de chats quedaba en blanco).
 --   4. `vl_wa_chat_hilo` devuelve media_path (la ruta del archivo) para que el
 --      panel pinte la foto.
+--   5. AUDIOS: el webhook los transcribe (Groq/OpenAI Whisper) y el texto entra
+--      como p_tipo='audio' + p_texto=<transcripción>. El cerebro lo LEE como
+--      texto (v_tipo_msg guarda 'audio' para que el panel muestre el reproductor
+--      y el rótulo "Transcripción"), así el bot entiende un audio igual que un
+--      mensaje escrito en vez de decir que no sabe qué es.
 --
 -- Cuerpo del cerebro copiado TAL CUAL de 20261071 + los 2 cambios marcados.
 -- ════════════════════════════════════════════════════════════════════════════
@@ -93,6 +98,7 @@ AS $function$
 DECLARE
     v_wa text;
     v_tipo text;
+    v_tipo_msg text;
     v_txt text;
     v_low text;
     v_low_limpio text;
@@ -127,6 +133,7 @@ DECLARE
     v_item_nuevo timestamptz;
     v_es_prenda boolean := false;
     v_es_saludo boolean := false;
+    v_solo_muletillas boolean := false;
     v_reconocido boolean := false;
     v_ult_texto text;
     v_textos_prev text;
@@ -176,12 +183,34 @@ BEGIN
     IF v_tipo NOT IN ('texto', 'imagen', 'audio', 'video', 'documento') THEN
         v_tipo := 'texto';
     END IF;
+    v_tipo_msg := v_tipo;   -- tipo REAL del mensaje (el panel guarda este)
     v_txt := btrim(COALESCE(p_texto, ''));
     v_low := lower(v_txt);
+
+    -- AUDIO TRANSCRITO (ciclo 20261072): si el audio ya viene con su texto (el
+    -- webhook lo transcribió), el cerebro lo LEE como si lo hubieran escrito —
+    -- así entiende "ya te transferí bonita" o "cuánto era?" en vez de decir que
+    -- no sabe si es prenda o comprobante. El mensaje guardado sigue siendo audio
+    -- (v_tipo_msg) para que el panel muestre el reproductor y el texto.
+    IF v_tipo = 'audio' AND v_txt <> '' THEN
+        v_tipo := 'texto';
+    END IF;
 
     -- Texto "solo palabras" (sin emojis ni signos, sin acentos, en minusculas) para
     -- reconocer un saludo PURO. Un mensaje con mas palabras NO reinicia el chat.
     v_low_limpio := btrim(regexp_replace(translate(v_low, 'áéíóúüñ', 'aeioun'), '[^a-z ]', '', 'g'));
+
+    -- ¿El mensaje es SOLO muletillas ("ok", "gracias", "ya 👍", "ok gracias",
+    -- "de nada secre")? Esos NO se responden ni generan aviso (no llenar el panel
+    -- de ruido). Se mira PALABRA POR PALABRA: antes bastaba con que el mensaje
+    -- EMPEZARA con "ya"/"ok"/"gracias" para tratarlo como muletilla, así que
+    -- "ya te transferi bonita" (un pago avisado por audio) quedaba mudo y sin
+    -- aviso — nadie se enteraba (bug real 2026-10-07).
+    v_solo_muletillas := COALESCE((
+        SELECT bool_and(w ~ '^(ok|okey|okay|oka|okis|dale|gracias|graci|muchas|muchisimas|jaja|jeje|jajaja|si|sii|siii|sip|nop|no|ya|listo|hola|holi|holis|holas|buenas|buenos|hey|hi|hello|perfecto|genial|buenisimo|excelente|cuidate|chao|adios|nos|vemos|buen|dia|noches|tardes|de|nada|amor|bonita|linda|buena|bueno|secre|vale|total|por|para|con|el|la|lo|los|las|un|una|unos|unas|mi|mis|tu|tus|su|sus|te|me|se|le|les|muy|re|mas|todo|todos|toda|todas|igual|tambien|tb|tmb|super|bien|onda|apane|apana|apanaste|apano|divertido|divertida|estuvo|pasamos|que|y|o|e|u|harta|harto|wen|wena|weno|bac)$')
+        FROM regexp_split_to_table(v_low_limpio, '\s+') w
+        WHERE w <> ''
+    ), false);
 
     -- ¿El cliente AVISA que ÉL manda SUS datos (nombre/dirección para el envío)?
     -- Eso NO es pedir los datos de pago del negocio. Bug real 2026-10-07:
@@ -264,8 +293,10 @@ BEGIN
 
     -- Log del mensaje entrante (siempre). El archivo (si es foto/audio/video/
     -- documento) ya lo subió el webhook a Storage: acá se guarda dónde quedó.
+    -- OJO: se guarda v_tipo_msg (el tipo REAL: un audio sigue siendo audio aunque
+    -- su transcripción se procese como texto).
     INSERT INTO public.vl_wa_mensajes (tenant_id, chat_id, direction, tipo, body, media_path)
-    VALUES (p_tenant_id, v_chat.id, 'in', v_tipo, left(v_txt, 1000), p_media_path);
+    VALUES (p_tenant_id, v_chat.id, 'in', v_tipo_msg, left(v_txt, 1000), p_media_path);
 
     -- ── Intervención humana: el bot NO responde, pero SÍ lee ──
     -- Aunque atienda una persona, el mensaje se analiza y se rellena el
@@ -275,9 +306,9 @@ BEGIN
     -- persona hace <15 min), aunque el modo esté en 'bot': el bot no se encima.
     IF v_chat.modo = 'humano' OR v_dueno_turno THEN
         UPDATE public.vl_wa_chats
-        SET ultimo_mensaje = CASE WHEN v_tipo = 'texto' THEN left(v_txt, 200)
-                                  WHEN v_txt <> '' THEN '[' || v_tipo || '] ' || left(v_txt, 150)
-                                  ELSE '[' || v_tipo || ']' END,
+        SET ultimo_mensaje = CASE WHEN v_tipo_msg = 'texto' THEN left(v_txt, 200)
+                                  WHEN v_txt <> '' THEN '[' || v_tipo_msg || '] ' || left(v_txt, 150)
+                                  ELSE '[' || v_tipo_msg || ']' END,
             ultimo_en = now()
         WHERE id = v_chat.id;
 
@@ -328,7 +359,7 @@ BEGIN
 
         IF v_chat.cliente_id IS NOT NULL THEN
             v_leido := public.vl_wa_leer_proceso_de_texto(
-                p_tenant_id, v_chat.cliente_id, v_txt, v_tipo);
+                p_tenant_id, v_chat.cliente_id, v_txt, v_tipo_msg);
 
             -- Aviso solo si no hay uno abierto del mismo tipo (no se apilan)
             IF COALESCE(v_leido->>'aviso_tipo', '') <> ''
@@ -345,24 +376,64 @@ BEGIN
             END IF;
         END IF;
 
-        -- ── FOTO mientras atiende una persona (ciclo 20261071) ──
-        -- El bot cede el turno, pero una FOTO de comprobante SIEMPRE deja el aviso:
-        -- es plata y hay que revisarla, aunque esté escribiendo el dueño. Se usa la
-        -- MISMA señal que en el flujo automático (el bot pidió el comprobante hace
-        -- poco) para no marcar como comprobante una foto de prenda.
-        IF v_tipo = 'imagen' AND v_chat.cliente_id IS NOT NULL
-           AND ((v_ult_out IS NOT NULL AND lower(v_ult_out) LIKE '%comprobante%')
-                OR EXISTS (SELECT 1 FROM public.vl_wa_mensajes m
-                            WHERE m.chat_id = v_chat.id AND m.direction = 'out'
-                              AND m.creado_en > now() - interval '30 minutes'
-                              AND lower(m.body) LIKE '%comprobante%'))
-           AND NOT EXISTS (SELECT 1 FROM public.vl_wa_avisos a
-                            WHERE a.chat_id = v_chat.id AND a.tipo = 'comprobante'
-                              AND a.resuelto_en IS NULL)
-        THEN
-            INSERT INTO public.vl_wa_avisos (tenant_id, chat_id, tipo, detalle)
-            VALUES (p_tenant_id, v_chat.id, 'comprobante',
-                    'El cliente envió una foto mientras atendías tú. Puede ser el comprobante de pago: revisa tu cuenta y, si está, aprieta "Confirmar pago" en el chat.');
+        -- ── MIENTRAS ATIENDE UNA PERSONA (ciclo 20261072) ──
+        -- El bot cede el turno y no contesta, pero lo que es PLATA sí queda
+        -- anotado en el panel: una FOTO que parece el comprobante y un "ya te
+        -- transferí" en texto. Antes (verificado con el chat real del 2026-10-02)
+        -- esto quedaba completamente mudo y la venta dependía de que el dueño
+        -- estuviera mirando la pantalla en ese segundo.
+        IF v_chat.cliente_id IS NOT NULL THEN
+            -- (a) FOTO que parece el comprobante: el bot lo pidió, o el cliente
+            -- venía hablando de transferir/pagar.
+            IF v_tipo = 'imagen'
+               AND ((v_ult_out IS NOT NULL AND lower(v_ult_out) LIKE '%comprobante%')
+                    OR EXISTS (SELECT 1 FROM public.vl_wa_mensajes m
+                                WHERE m.chat_id = v_chat.id AND m.direction = 'out'
+                                  AND m.creado_en > now() - interval '30 minutes'
+                                  AND lower(m.body) LIKE '%comprobante%')
+                    OR (v_ult_texto IS NOT NULL
+                        AND lower(v_ult_texto) ~ 'transfer|pagu|pague|comprob|abon|deposit'))
+               AND NOT EXISTS (SELECT 1 FROM public.vl_wa_avisos a
+                                WHERE a.chat_id = v_chat.id AND a.tipo = 'comprobante'
+                                  AND a.resuelto_en IS NULL)
+            THEN
+                INSERT INTO public.vl_wa_avisos (tenant_id, chat_id, tipo, detalle)
+                VALUES (p_tenant_id, v_chat.id, 'comprobante',
+                        'El cliente envió una foto mientras atendías tú. Puede ser el comprobante: revisa tu cuenta y, si está, aprieta "Confirmar pago" en el chat.');
+            END IF;
+
+            -- (b) Dice que ya pagó / transfirió: aviso igual (es plata).
+            IF v_tipo = 'texto'
+               AND v_low ~ 'ya (te )?(pague|pagué|transferi|transferí|deposite|deposité)|te (transferi|transferí|pague|pagué|transfiero|transfieres)|(ahora|al ?tiro) (te )?transfiero|te mando (la )?transferencia'
+               AND v_low !~ 'no puedo|no pude|a[uú]n no|todav[ií]a no|no me deja|no alcanc'
+               AND NOT EXISTS (SELECT 1 FROM public.vl_wa_avisos a
+                                WHERE a.chat_id = v_chat.id AND a.tipo = 'pago'
+                                  AND a.resuelto_en IS NULL)
+            THEN
+                INSERT INTO public.vl_wa_avisos (tenant_id, chat_id, tipo, detalle)
+                VALUES (p_tenant_id, v_chat.id, 'pago',
+                        'El cliente avisó que ya pagó/transfirió (mientras atendías tú). Revisa tu cuenta y, si está, aprieta "Confirmar pago". Mensaje: "'
+                        || left(v_txt, 180) || '"');
+            END IF;
+        ELSE
+            -- (c) Chat SIN VINCULAR: el negocio cargó la prenda desde el LIVE con
+            -- el nombre del live, pero el número de WhatsApp no quedó ligado a
+            -- ninguna ficha (caso real 2026-10-02: "Mia 6000" en el live, y en el
+            -- chat el número nunca se vinculó a @mia). Si ese chat manda una foto
+            -- o avisa que pagó, se deja el aviso para vincularlo: si no, ni la
+            -- foto ni el pago quedan en la ficha de nadie.
+            IF (v_tipo <> 'texto'
+                OR v_low ~ 'transfer|pagu|pague|comprob|abon|deposit|cuanto|cuánto|total|precio|debo')
+               AND NOT EXISTS (SELECT 1 FROM public.vl_wa_avisos a
+                                WHERE a.chat_id = v_chat.id AND a.tipo = 'sin_cliente'
+                                  AND a.resuelto_en IS NULL)
+            THEN
+                INSERT INTO public.vl_wa_avisos (tenant_id, chat_id, tipo, detalle)
+                VALUES (p_tenant_id, v_chat.id, 'sin_cliente',
+                        'Este chat NO está vinculado a ningún cliente y el cliente mandó '
+                        || CASE WHEN v_tipo = 'texto' THEN 'un mensaje de pago' ELSE 'un ' || v_tipo END
+                        || '. Vincúlalo con su @ del live: si no, ni la foto ni el pago quedan en su ficha.');
+            END IF;
         END IF;
 
         RETURN jsonb_build_object(
@@ -417,7 +488,13 @@ BEGIN
                 WHERE m.chat_id = v_chat.id AND m.direction = 'out'
                   AND m.creado_en > now() - interval '30 minutes'
                   AND lower(m.body) LIKE '%comprobante%'
-            );
+            )
+            -- ciclo 20261072: si el cliente venía hablando de transferir/pagar
+            -- ("te transfiero altiro", "te transferí"), una foto suya es el
+            -- comprobante (caso real 2026-10-02: la foto llegó justo después de
+            -- "Te transfiero altoquemon ❤️" y se leía como prenda).
+            OR (v_ult_texto IS NOT NULL
+                AND lower(v_ult_texto) ~ 'transfer|pagu|pague|comprob|abon|deposit');
 
         v_es_prenda := false;
         v_prenda_cargada := false;
@@ -548,9 +625,11 @@ BEGIN
                 END IF;
             ELSE
                 v_aviso_tipo := 'foto_dudosa';
-                v_aviso_detalle := 'Llegó ' || v_tipo
-                    || ' y no sé si es una prenda o un comprobante de pago. Mensaje: "'
-                    || left(v_txt, 120) || '".';
+                v_aviso_detalle := CASE WHEN v_tipo = 'audio'
+                    THEN 'Llegó un AUDIO y no se pudo transcribir (revisa la clave de transcripción: GROQ_API_KEY u OPENAI_API_KEY). Escúchalo y contéstale tú.'
+                    ELSE 'Llegó ' || v_tipo
+                         || ' y no sé si es una prenda o un comprobante de pago. Mensaje: "'
+                         || left(v_txt, 120) || '".' END;
             END IF;
         END IF;
     END IF;
@@ -722,12 +801,30 @@ BEGIN
                         END IF;
                     END IF;
 
+                -- MEJORA (20261072): AVISA QUE YA PAGÓ / TRANSFIRIÓ. Antes esto solo
+                -- se detectaba en el estado 'listo' y con el texto escrito; un
+                -- audio transcrito ("ya te transferi bonita") caía en el silencio
+                -- de muletillas (empieza con "ya") y NADIE se enteraba. Ahora deja
+                -- el aviso "dice que pagó" + le pide el comprobante.
+                ELSIF v_low ~ 'ya (te )?(pague|pagué|transferi|transferí|deposite|deposité)|te (transferi|transferí|pague|pagué|transfiero|transfieres)|(ahora|al ?tiro|al ?rato|ya) (te )?transfiero|voy a transferir|te mando (la )?transferencia|hice la transferencia|transferencia (hecha|lista)|ya (esta|está) (pagado|transferido)'
+                      AND v_low !~ 'no puedo|no pude|no e podido|no he podido|a[uú]n no|todav[ií]a no|no me deja|no alcanc'
+                THEN
+                    v_avisar := true;
+                    v_aviso_tipo := 'pago';
+                    v_aviso_unico := true;
+                    v_aviso_detalle := 'El cliente dice que ya pagó/transfirió. Revisa tu cuenta y, si está, aprieta "Confirmar pago". Mensaje: "'
+                        || left(v_txt, 180) || '"';
+                    v_reply := public.vl_wa_variar(ARRAY[
+                        'genial bonit@ 💜 me manda el comprobante cuando pueda porfis',
+                        'perfecto bonit@ 💜 quedo atenta al comprobante',
+                        'buenisimo 💜 mandame el comprobante cuando puedas']);
+
                 -- MEJORA (5): escribió algo que el bot no sabe responder (una excusa,
                 -- un tema suelto) y hay un pedido en curso: el bot NO inventa nada,
                 -- queda el aviso para que conteste una persona ("Contesta tú").
                 ELSIF v_proc.id IS NOT NULL
                       AND NOT v_es_saludo
-                      AND v_low !~ '^(ok|okey|okay|dale|gracias|graci|muchas|muchisimas|jaja|jeje|si|sii+|sip|no|nop|ya|listo|hola|holi|holis|holas|buenas|buenos|hey|hi|perfecto|genial|buenisimo|buenísimo|excelente|cuidate|chao|adios|nos vemos|buen dia|buenas noches|buenas tardes)'
+                      AND NOT v_solo_muletillas
                 THEN
                     v_avisar := true;
                     v_aviso_tipo := 'no_entendido';
@@ -1773,7 +1870,7 @@ BEGIN
            OR (v_chat.cliente_id IS NOT NULL
                AND EXISTS (SELECT 1 FROM public.vl_procesos pp
                            WHERE pp.cliente_id = v_chat.cliente_id AND pp.cerrado_en IS NULL)
-               AND v_low !~ '^(ok|okey|okay|dale|gracias|graci|muchas|muchisimas|jaja|jeje|si|sii+|sip|no|nop|ya|listo|hola|holi|holis|holas|buenas|buenos|hey|hi|hello|perfecto|genial|buenisimo|buenísimo|excelente|cuidate|chao|adios|nos vemos|buen dia|buenas noches|buenas tardes|de nada|amor|bonita|linda|buena)')
+               AND NOT v_solo_muletillas)
         THEN
             v_avisar := true;
             v_aviso_tipo := 'no_entendido';
@@ -1807,9 +1904,9 @@ BEGIN
     -- ── Persistir, avisar y responder ──
     UPDATE public.vl_wa_chats
     SET estado = v_nuevo_estado,
-        ultimo_mensaje = CASE WHEN v_tipo = 'texto' THEN left(v_txt, 200)
-                              WHEN v_txt <> '' THEN '[' || v_tipo || '] ' || left(v_txt, 150)
-                              ELSE '[' || v_tipo || ']' END,
+        ultimo_mensaje = CASE WHEN v_tipo_msg = 'texto' THEN left(v_txt, 200)
+                              WHEN v_txt <> '' THEN '[' || v_tipo_msg || '] ' || left(v_txt, 150)
+                              ELSE '[' || v_tipo_msg || ']' END,
         ultimo_en = now()
     WHERE id = v_chat.id;
 
@@ -1929,4 +2026,4 @@ $function$;
 
 NOTIFY pgrst, 'reload schema';
 
-SELECT '[VENTAS LIVE] fotos del chat visibles: bucket privado vl-media + media_path (20261072) OK' AS status;
+SELECT '[VENTAS LIVE] fotos y audios en el chat: bucket privado vl-media + media_path + transcripcion (20261072) OK' AS status;
