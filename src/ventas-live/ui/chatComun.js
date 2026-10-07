@@ -230,6 +230,70 @@ export function fmtHora(iso) {
 }
 
 /**
+ * Nombre legible de un medio entrante (mientras no hay URL firmada).
+ */
+export function etiquetaMedia(tipo) {
+    const t = String(tipo || '').toLowerCase();
+    if (t === 'imagen') return 'Foto';
+    if (t === 'audio') return 'Audio';
+    if (t === 'video') return 'Video';
+    if (t === 'documento') return 'Archivo';
+    return t;
+}
+
+/**
+ * HTML del archivo que mandó el cliente (foto/audio/video/documento).
+ * Las fotos se ven EN el chat: el webhook las guarda en el bucket privado
+ * 'vl-media' y acá se pintan con la URL firmada (media_url). Sin firma queda
+ * el nombre del tipo, nunca una burbuja vacía.
+ */
+function mediaHtml(m) {
+    const tipo = String(m.tipo || 'texto').toLowerCase();
+    if (tipo === 'texto') return '';
+    const url = m.media_url || '';
+    const nombre = escapeHtml(etiquetaMedia(tipo));
+    if (!url) {
+        return `<span class="vl-media-falta"><i class="fas fa-paperclip"></i> ${nombre} (sin vista previa)</span>`;
+    }
+    const u = escapeHtml(url);
+    if (tipo === 'imagen') {
+        return `<a class="vl-media-link" href="${u}" target="_blank" rel="noopener">`
+            + `<img class="vl-burbuja-img" src="${u}" alt="Foto que mandó el cliente" loading="lazy"></a>`;
+    }
+    if (tipo === 'video') {
+        return `<video class="vl-burbuja-video" src="${u}" controls preload="metadata"></video>`;
+    }
+    if (tipo === 'audio') {
+        return `<audio class="vl-burbuja-audio" src="${u}" controls preload="metadata"></audio>`;
+    }
+    return `<a class="vl-media-link archivo" href="${u}" target="_blank" rel="noopener">`
+        + `<i class="fas fa-paperclip"></i> Abrir ${nombre}</a>`;
+}
+
+/**
+ * Firma las URLs de los medios del hilo (bucket privado 'vl-media').
+ * Se hace ANTES de pintar: createSignedUrl exige la sesión del admin, así que
+ * las fotos no pueden ir en una URL pública.
+ * @param {Array} mensajes  mensajes del hilo (se les agrega `media_url`)
+ * @param {object} supabase cliente de Supabase con la sesión del usuario
+ */
+export async function firmarMedias(mensajes, supabase) {
+    const lista = mensajes || [];
+    const paths = [...new Set(lista.filter(m => m && m.media_path && !m.media_url).map(m => m.media_path))];
+    if (!supabase || !paths.length) return lista;
+    try {
+        const { data } = await supabase.storage.from('vl-media').createSignedUrls(paths, 3600);
+        const mapa = {};
+        (data || []).forEach(d => { if (d && d.path && d.signedUrl) mapa[d.path] = d.signedUrl; });
+        lista.forEach(m => { if (m && m.media_path && mapa[m.media_path]) m.media_url = mapa[m.media_path]; });
+    } catch (e) {
+        // Sin firma queda el placeholder del tipo de archivo: el chat no se rompe.
+        console.warn('[chatComun] No se pudieron firmar los medios:', e && e.message);
+    }
+    return lista;
+}
+
+/**
  * HTML del hilo completo. Cada mensaje lleva arriba el autor:
  * el nombre del cliente (entrante), "Bot" o "Tú" (saliente).
  */
@@ -240,6 +304,7 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
     return mensajes.map(m => {
         const saliente = m.direction === 'out';
         const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
+        const media = mediaHtml(m);
         const autor = saliente
             ? (m.origen === 'humano' ? 'Tú' : 'Bot')
             : escapeHtml(nombreCliente);
@@ -247,7 +312,8 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
             <div class="vl-fila-msg ${saliente ? 'out' : 'in'}">
                 <div class="vl-msg-autor">${autor}</div>
                 <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
-                    <div class="vl-burbuja-txt">${cuerpo}</div>
+                    ${media ? `<div class="vl-burbuja-medio">${media}</div>` : ''}
+                    ${cuerpo ? `<div class="vl-burbuja-txt">${cuerpo}</div>` : ''}
                     <div class="vl-burbuja-hora">${escapeHtml(fmtHora(m.creado_en))}</div>
                 </div>
             </div>`;

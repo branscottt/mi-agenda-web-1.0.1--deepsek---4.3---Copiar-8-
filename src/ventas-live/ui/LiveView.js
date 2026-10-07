@@ -8,7 +8,8 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias } from './chatComun.js';
+import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
     initConversacionesDrawer, refrescarContador, toggleConversaciones,
@@ -657,6 +658,8 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     const chat = (res.data && res.data.chat) || {};
     if (chat.modo) _chatModo = chat.modo;
     const mensajes = (res.data && Array.isArray(res.data.mensajes)) ? res.data.mensajes : [];
+    // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media').
+    await firmarMedias(mensajes, getSupabase());
     msgs.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
     autoScrollAbajo(msgs, { forzar: forzarAbajo || !silencioso });
     pintarCabeceraChat();

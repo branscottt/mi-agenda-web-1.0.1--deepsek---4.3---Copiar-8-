@@ -39,11 +39,22 @@ interface WaConfigRow {
   wa_app_secret: string;
 }
 
+interface WaMediaRef {
+  id?: string;
+  caption?: string;
+  filename?: string;
+  mime_type?: string;
+}
+
 interface WaMessage {
   from: string;
   id: string;
   type: string;
   text?: { body?: string };
+  image?: WaMediaRef;
+  audio?: WaMediaRef;
+  video?: WaMediaRef;
+  document?: WaMediaRef;
 }
 
 interface WaChangeValue {
@@ -113,6 +124,7 @@ async function avanzarConversacion(
   waId: string,
   texto: string,
   tipo: string,
+  mediaPath: string | null = null,
 ): Promise<Record<string, unknown> | null> {
   const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/vl_wa_conversacion_avanzar`, {
     method: 'POST',
@@ -126,6 +138,7 @@ async function avanzarConversacion(
       p_wa_id: waId,
       p_texto: texto,
       p_tipo: tipo,
+      p_media_path: mediaPath,
     }),
   });
   if (!resp.ok) {
@@ -174,6 +187,102 @@ function mapearTipo(type: string): string {
     case 'video': return 'video';
     case 'document': return 'documento';
     default: return 'texto';
+  }
+}
+
+/** Texto del mensaje: el body de texto o la LEYENDA de la foto/archivo. */
+function textoDe(message: WaMessage): string {
+  return message.text?.body
+    || message.image?.caption
+    || message.video?.caption
+    || message.document?.caption
+    || '';
+}
+
+/** Extensión de archivo a partir del mime que reporta Meta. */
+function extensionDe(mime: string, tipo: string): string {
+  const m = (mime || '').toLowerCase();
+  if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if (m.includes('png')) return 'png';
+  if (m.includes('webp')) return 'webp';
+  if (m.includes('gif')) return 'gif';
+  if (m.includes('ogg')) return 'ogg';
+  if (m.includes('mpeg') || m.includes('mp3')) return 'mp3';
+  if (m.includes('mp4')) return tipo === 'audio' ? 'm4a' : 'mp4';
+  if (m.includes('amr')) return 'amr';
+  if (m.includes('3gpp')) return '3gp';
+  if (m.includes('pdf')) return 'pdf';
+  return tipo === 'imagen' ? 'jpg' : 'bin';
+}
+
+/**
+ * Baja el archivo que mandó el cliente por WhatsApp y lo guarda en el bucket
+ * privado 'vl-media' (así la FOTO se ve en el panel: sin esto llegaba solo el
+ * id del medio y la burbuja quedaba vacía).
+ * Devuelve la ruta en Storage o null si algo falló (el chat sigue funcionando).
+ */
+async function subirMedia(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  waId: string,
+  message: WaMessage,
+  token: string,
+): Promise<string | null> {
+  const medio = message.image || message.audio || message.video || message.document;
+  const mediaId = medio?.id;
+  if (!mediaId) return null;
+
+  try {
+    // 1) Meta entrega una URL temporal (expira en ~5 min) para ese id.
+    const info = await fetch(`${GRAPH_API}/${mediaId}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!info.ok) {
+      console.error(`[WA-Webhook] No pude resolver el medio ${mediaId} (${info.status})`);
+      return null;
+    }
+    const meta = await info.json() as { url?: string; mime_type?: string };
+    if (!meta.url) return null;
+
+    // 2) Descarga del binario.
+    const bin = await fetch(meta.url, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!bin.ok) {
+      console.error(`[WA-Webhook] No pude bajar el medio ${mediaId} (${bin.status})`);
+      return null;
+    }
+    const bytes = new Uint8Array(await bin.arrayBuffer());
+    if (!bytes.length) return null;
+
+    // 3) Subida a Storage con service_role. Ruta: tenant / número / uuid.ext
+    const tipo = mapearTipo(message.type || '');
+    const mime = meta.mime_type || medio?.mime_type || 'application/octet-stream';
+    const soloDigitos = (waId || '').replace(/\D/g, '');
+    const ruta = `${tenantId}/${soloDigitos}/${crypto.randomUUID()}.${extensionDe(mime, tipo)}`;
+
+    const up = await fetch(`${supabaseUrl}/storage/v1/object/vl-media/${ruta}`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': mime,
+        'x-upsert': 'false',
+      },
+      body: bytes,
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!up.ok) {
+      console.error(`[WA-Webhook] No pude subir el medio (${up.status}):`, (await up.text().catch(() => '')).slice(0, 200));
+      return null;
+    }
+    return ruta;
+  } catch (e) {
+    console.error('[WA-Webhook] Error guardando el medio:', (e as Error).message || String(e));
+    return null;
   }
 }
 
@@ -278,13 +387,22 @@ async function handle(req: Request): Promise<Response> {
 
         for (const message of value.messages) {
           const waId = message.from || '';
-          const texto = message.text?.body || '';
+          const texto = textoDe(message);
           const tipo = mapearTipo(message.type || '');
 
           if (!waId) continue;
 
+          // Si es foto/audio/video/archivo: se baja de Meta y se guarda en
+          // Storage para que se VEA en el panel (y se le pasa la ruta al cerebro).
+          let mediaPath: string | null = null;
+          if (tipo !== 'texto') {
+            mediaPath = await subirMedia(
+              supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, message, cfg.wa_token,
+            );
+          }
+
           const brain = await avanzarConversacion(
-            supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, texto, tipo,
+            supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, texto, tipo, mediaPath,
           );
           if (!brain || brain.ok === false) {
             console.error(`[WA-Webhook] Cerebro falló para wa_id ${waId}:`, JSON.stringify(brain || { ok: false }).slice(0, 200));

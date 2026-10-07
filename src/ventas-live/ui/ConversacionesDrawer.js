@@ -20,7 +20,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
-    quienContesta, procesoChips
+    quienContesta, procesoChips, firmarMedias
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -557,6 +557,9 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     _chatMeta = (res.data && res.data.chat) || null;
     const mensajes = (res.data && Array.isArray(res.data.mensajes)) ? res.data.mensajes : [];
     if (!_chatMeta) { volverALista(); return; }
+
+    // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media').
+    await firmarMedias(mensajes, getSupabase());
 
     const av = avisoDelChat(chatId);
     const banner = av
