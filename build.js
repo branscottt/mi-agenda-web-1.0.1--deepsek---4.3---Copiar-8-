@@ -108,6 +108,22 @@ if (fs.existsSync('sw.js')) {
     console.log('   ✅ dist/sw.js copied');
 }
 
+// 4-bis. Copiar iconos (notificaciones push, favicon, apple-touch, PWA)
+if (fs.existsSync('icons')) {
+    const iconsOut = path.join('dist', 'icons');
+    fs.mkdirSync(iconsOut, { recursive: true });
+    for (const f of fs.readdirSync('icons')) {
+        fs.copyFileSync(path.join('icons', f), path.join(iconsOut, f));
+    }
+    console.log('   ✅ dist/icons/ copied');
+}
+
+// 4-bis-2. Copiar manifest (PWA / icono de notificacion en iOS)
+if (fs.existsSync('manifest.webmanifest')) {
+    fs.copyFileSync('manifest.webmanifest', path.join('dist', 'manifest.webmanifest'));
+    console.log('   ✅ dist/manifest.webmanifest copied');
+}
+
 // 4a. Copiar directorio.js (página pública SEO del directorio)
 if (fs.existsSync('directorio.js')) {
     fs.copyFileSync('directorio.js', 'dist/directorio.js');
