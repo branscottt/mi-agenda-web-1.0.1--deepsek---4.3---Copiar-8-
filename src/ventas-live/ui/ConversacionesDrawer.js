@@ -103,12 +103,23 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); enviar(); }
         });
+        // Al enfocar el cuadro de escribir (móvil/tablet) el teclado sube: se
+        // recalcula el alto DESPUÉS de la animación para que no quede tapado.
+        $('vld-input').addEventListener('focus', () => setTimeout(ajustarAltoDrawer, 320));
 
         _built = true;
     }
 
     iniciarContadorBadge();
     iniciarRealtime();
+
+    // Móvil/tablet: al abrir/cerrar el teclado cambia el alto VISIBLE. Se
+    // recalcula el cajón para que el cuadro de escribir quede siempre a la vista.
+    if (window.visualViewport) {
+        const onVv = () => { if (_abierto) ajustarAltoDrawer(); };
+        window.visualViewport.addEventListener('resize', onVv);
+        window.visualViewport.addEventListener('scroll', onVv);
+    }
 }
 
 /** Refresca el contador de no leídos (lo llama el LIVE al activarse). */
@@ -144,20 +155,9 @@ export function abrirConversaciones() {
     limpiarTituloPendiente();   // al abrir, el aviso del título ya cumplió su función
     const el = $('vl-drawer');
     if (el) {
-        // Panel flotante: deja el mismo margen con los bordes que la CSS
-        // (14px en web/tablet, 10px en móvil) para que el chat no quede
-        // pegado al canto de la pantalla.
-        const MARGEN = window.matchMedia('(max-width: 860px)').matches ? 10 : 14;
-        // Arranca justo debajo de la barra superior para no tapar
-        // "Mis proyectos" / "Cerrar sesión". Se recalcula al abrir (si la
-        // página está scrolleada, la barra ya salió de vista → arranca arriba).
-        const tb = document.querySelector('.vl-topbar');
-        const bordeBarra = tb ? Math.round(tb.getBoundingClientRect().bottom) : 0;
-        const top = Math.max(MARGEN, bordeBarra + 8);
-        el.style.top = top + 'px';
-        el.style.height = `calc(100vh - ${top}px - ${MARGEN}px)`;
         el.classList.add('abierto');
         el.setAttribute('aria-hidden', 'false');
+        ajustarAltoDrawer();   // alto = viewport VISIBLE (con teclado en móvil/tablet)
     }
     volverALista();
     if (_timerAbierto) clearInterval(_timerAbierto);
@@ -167,6 +167,27 @@ export function abrirConversaciones() {
         if (_chatId) cargarHilo(_chatId, { silencioso: true });
         else cargarChats({ silencioso: true });
     }, REFRESCO_ABIERTO_MS);
+}
+
+// Alto del cajón = ALTO VISIBLE real del navegador. En móvil/tablet, cuando
+// aparece el teclado, `100vh` NO se encoge y el cuadro de escribir quedaba
+// TAPADO (no se veía lo escrito ni el botón enviar). Con visualViewport.height,
+// que SÍ descuenta el teclado, el cajón se achica y el composer queda a la vista.
+// Panel flotante: deja el mismo margen que la CSS (14px web/tablet, 10px móvil)
+// y arranca debajo de la barra superior para no tapar "Mis proyectos".
+function ajustarAltoDrawer() {
+    const el = $('vl-drawer');
+    if (!el || !_abierto) return;
+    const MARGEN = window.matchMedia('(max-width: 860px)').matches ? 10 : 14;
+    const tb = document.querySelector('.vl-topbar');
+    const bordeBarra = tb ? Math.round(tb.getBoundingClientRect().bottom) : 0;
+    const top = Math.max(MARGEN, bordeBarra + 8);
+    const vv = window.visualViewport;
+    const vH = vv ? vv.height : window.innerHeight;
+    const vTop = vv ? vv.offsetTop : 0;
+    const ocupadoArriba = Math.max(0, top - vTop);
+    el.style.top = top + 'px';
+    el.style.height = Math.max(220, Math.round(vH - ocupadoArriba - MARGEN)) + 'px';
 }
 
 export function cerrarConversaciones() {

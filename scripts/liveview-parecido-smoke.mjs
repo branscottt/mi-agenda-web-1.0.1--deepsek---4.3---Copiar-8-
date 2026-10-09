@@ -1,8 +1,11 @@
 // scripts/liveview-parecido-smoke.mjs
-// Smoke de la pantalla "Registrar venta" (MODO LIVE) para el aviso de POSIBLE
-// DUPLICADO: si escribes "anubis" y ya existe "@anubisss", (a) sale una franja
-// ámbar informativa, (b) al guardar pide confirmación antes de crear una ficha
-// nueva, y (c) si existe el @ exacto no molesta.
+// Smoke de la pantalla "Registrar venta" (MODO LIVE) con el aviso de POSIBLE
+// DUPLICADO ya fusionado en vl_agregar_item (una sola llamada):
+//   (a) al escribir "anubis" con "@anubisss" existente sale la franja ámbar;
+//   (b) al guardar, la PRIMERA llamada (p_confirmar_parecido=true) devuelve
+//       requiere_confirmacion → si Aceptas no crea; si Cancelas reintenta con
+//       p_confirmar_parecido=false y ahí sí crea;
+//   (c) con el @ EXACTO no pide nada (una sola llamada, sin confirmación).
 // Uso: node scripts/liveview-parecido-smoke.mjs
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
@@ -43,11 +46,18 @@ const rpc = (name, args) => {
     }
     if (name === 'vl_agregar_item') {
         agregarLlamadas.push(args);
-        return Promise.resolve({
-            data: { ok: true, cliente: { tiktok_user: args.p_tiktok_user, es_nuevo: true },
-                    item: { id: 'it1' }, proceso: { id: 'p1' } },
-            error: null
-        });
+        const u = String((args && args.p_tiktok_user) || '').toLowerCase();
+        const exacto = CLIENTES.some(c => c.tiktok_user === u);
+        const parecidos = CLIENTES.filter(c => c.tiktok_user.indexOf(u) === 0 && c.tiktok_user !== u);
+        // El SERVIDOR pide confirmación SIN crear (igual que vl_agregar_item real).
+        if (args.p_confirmar_parecido !== false && !exacto && parecidos.length) {
+            return Promise.resolve({ data: {
+                ok: true, requiere_confirmacion: true, tiktok_user: u,
+                parecidos: parecidos.map(c => ({ cliente_id: c.cliente_id, tiktok_user: c.tiktok_user }))
+            }, error: null });
+        }
+        return Promise.resolve({ data: { ok: true, cliente: { tiktok_user: u, es_nuevo: !exacto },
+                item: { id: 'it1' }, proceso: { id: 'p1' } }, error: null });
     }
     if (name === 'vl_dashboard') {
         return Promise.resolve({ data: { live_actual: null, ventas: { hoy: 0 }, pagos: { hoy: 0 },
@@ -67,6 +77,7 @@ const sugerencias = $('lv-sugerencias');
 const checks = [];
 const ok = (n, c) => checks.push([n, !!c]);
 const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+const click = () => $('lv-agregar').dispatchEvent(new dom.window.Event('click'));
 
 // ---------- 1) escribes "anubis" y ya existe "@anubisss" ----------
 $('lv-usuario').value = 'anubis';
@@ -79,28 +90,37 @@ ok('avisa que confirmará al guardar', /confirmar/i.test(parecido.textContent));
 ok('la franja NO es roja', !/danger|rojo/i.test(parecido.className));
 ok('lista de sugerencias con @anubisss', /@anubisss/.test(sugerencias.textContent));
 
-// ---------- 2) guardar: el usuario dice "usar la existente" (Aceptar) ----------
+// ---------- 2) guardar: "usar la existente" (Aceptar) ----------
 $('lv-precio').value = '9000';
 agregarLlamadas = [];
 window.confirm = () => true;                 // Aceptar = usar la ficha existente
-$('lv-agregar').dispatchEvent(new dom.window.Event('click'));
-await esperar(60);
-ok('con "usar la existente" NO crea cliente nuevo', agregarLlamadas.length === 0);
+click();
+await esperar(120);
+ok('pide confirmación con UNA sola llamada', agregarLlamadas.length === 1 && agregarLlamadas[0].p_confirmar_parecido === true);
+ok('con "usar la existente" NO crea (no hay 2ª llamada)', agregarLlamadas.length === 1);
 ok('no se perdió el usuario escrito', $('lv-usuario').value === 'anubis');
 
-// ---------- 3) guardar: el usuario dice "es otra persona" (Cancelar) ----------
+// ---------- 3) guardar: "es otra persona" (Cancelar) → reintenta y crea ----------
 agregarLlamadas = [];
 window.confirm = () => false;                // Cancelar = crear la ficha nueva
-$('lv-agregar').dispatchEvent(new dom.window.Event('click'));
-await esperar(80);
-ok('con "es otra" SÍ registra la venta', agregarLlamadas.length === 1);
-ok('registra con el @ escrito', agregarLlamadas[0] && agregarLlamadas[0].p_tiktok_user === 'anubis');
+click();
+await esperar(160);
+ok('con "es otra" reintenta (2 llamadas)', agregarLlamadas.length === 2);
+ok('1ª llamada pide confirmación (true)', agregarLlamadas[0] && agregarLlamadas[0].p_confirmar_parecido === true);
+ok('2ª llamada crea sin aviso (false)', agregarLlamadas[1] && agregarLlamadas[1].p_confirmar_parecido === false);
+ok('registra con el @ escrito', agregarLlamadas[1] && agregarLlamadas[1].p_tiktok_user === 'anubis');
 
-// ---------- 4) @ exacto: no molesta con el aviso ----------
+// ---------- 4) @ exacto: no molesta y se registra en UNA llamada ----------
 $('lv-usuario').value = 'anubisss';
 $('lv-usuario').dispatchEvent(new dom.window.Event('input'));
 await esperar(420);
 ok('con @ exacto la franja queda oculta', parecido.hidden === true);
+agregarLlamadas = [];
+$('lv-precio').value = '5000';
+click();
+await esperar(120);
+ok('@ exacto: una sola llamada', agregarLlamadas.length === 1);
+ok('@ exacto: no pide confirmación', agregarLlamadas[0] && agregarLlamadas[0].p_confirmar_parecido === true);
 
 // ---------- 5) campo vacío: todo oculto ----------
 $('lv-usuario').value = '';

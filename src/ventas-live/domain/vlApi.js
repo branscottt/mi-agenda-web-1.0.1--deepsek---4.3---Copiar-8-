@@ -96,8 +96,14 @@ export function normalizarTiktok(user) {
 
 export const vlApi = {
     // ---- MODO LIVE ----
-    agregarItem: (tiktokUser, precio, descripcion = '') =>
-        callRpc('vl_agregar_item', { p_tiktok_user: tiktokUser, p_precio: precio, p_descripcion: descripcion }),
+    // confirmarParecido=true → el servidor avisa si lo escrito empieza igual que
+    // un cliente existente (devuelve requiere_confirmacion SIN crear nada).
+    // Volver a llamar con false crea la ficha nueva (el usuario ya confirmó).
+    agregarItem: (tiktokUser, precio, descripcion = '', confirmarParecido = true) =>
+        callRpc('vl_agregar_item', {
+            p_tiktok_user: tiktokUser, p_precio: precio, p_descripcion: descripcion,
+            p_confirmar_parecido: confirmarParecido
+        }),
     liveActual: () => callRpc('vl_live_actual'),
     abrirLive: (etiqueta = '') => callRpc('vl_abrir_live', { p_etiqueta: etiqueta }),
     cerrarLive: (liveId) => callRpc('vl_cerrar_live', { p_live_id: liveId }),

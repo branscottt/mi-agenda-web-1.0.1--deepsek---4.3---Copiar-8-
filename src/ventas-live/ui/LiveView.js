@@ -181,6 +181,14 @@ function buildDOM() {
     $('lv-chat-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); enviarChat(); }
     });
+    // Móvil/tablet: al enfocar el cuadro de escribir, el teclado puede taparlo (y
+    // al botón enviar). Se trae a la vista cuando termina la animación del teclado.
+    $('lv-chat-input').addEventListener('focus', () => {
+        setTimeout(() => {
+            const el = $('lv-chat-input');
+            if (el) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {} }
+        }, 320);
+    });
     $('lv-chat-modo').addEventListener('click', cambiarModoChat);
 
     // Cajón "Conversaciones": lista quién escribió y permite abrir el chat
@@ -413,35 +421,10 @@ function pintarParecidos(lista, norm = '') {
     box.hidden = false;
 }
 
-/**
- * Si lo escrito NO es exactamente un cliente pero hay alguno que EMPIEZA igual,
- * pide confirmación antes de crear una ficha nueva.
- *   Aceptar  -> se usa la ficha que ya existe (y se muestran las sugerencias)
- *   Cancelar -> se crea el cliente nuevo con lo escrito
- * Devuelve false si el usuario prefirió no crear el duplicado.
- */
-async function confirmarParecido(norm) {
-    const res = await vlApi.buscarClientes(norm, 20);
-    if (!res.ok) return true;
-    const lista = res.data.clientes || [];
-    if (lista.some(c => c.tiktok_user === norm)) return true;
-    const parecidos = lista.filter(c => c.tiktok_user.startsWith(norm));
-    if (!parecidos.length) return true;
-
-    const nicks = parecidos.slice(0, 3).map(c => '@' + c.tiktok_user).join(', ');
-    const usarLaExistente = window.confirm(
-        'Ya existe ' + nicks + ', muy parecido a @' + norm + '.\n\n'
-        + 'Aceptar  = usar ' + nicks + '\n'
-        + 'Cancelar = crear la ficha nueva @' + norm);
-    if (usarLaExistente) {
-        $('lv-usuario').value = norm;
-        await buscarCliente(norm);
-        mostrarToast('Elige de la lista la ficha correcta', 'warning');
-        $('lv-usuario').focus();
-        return false;
-    }
-    return true;
-}
+// NOTA: el aviso de "posible duplicado" (escribiste "anubis" y ya existe
+// "@anubisss") lo hace el SERVIDOR dentro de vl_agregar_item: devuelve
+// {requiere_confirmacion:true, parecidos:[…]} SIN crear nada y el cliente decide.
+// Así la venta normal se registra en UNA sola llamada (antes eran dos seguidas).
 
 /** Aviso neutro cuando lo escrito no coincide con ningún cliente conocido. */
 function pintarSinCoincidencias(mostrar) {
@@ -580,20 +563,40 @@ async function guardar() {
     const precio = parsePrecio($('lv-precio').value);
     if (!precio) { mostrarToast('Escribe un precio válido', 'warning'); $('lv-precio').focus(); return; }
 
-    // Antes de crear un cliente, avisar si ya hay uno MUY parecido (se escribió
-    // "anubis" y ya existe "@anubisss"): sin esto quedaban dos fichas casi iguales.
-    if (!(await confirmarParecido(norm))) return;
-
+    // UNA sola llamada al servidor: vl_agregar_item también hace el aviso de
+    // "posible duplicado" (escribiste "anubis" y ya existe "@anubisss"). Si lo
+    // pide, se confirma aquí SIN que se haya creado nada todavía.
     _guardando = true;
     const btn = $('lv-agregar');
     btn.disabled = true;
     try {
-        const res = await vlApi.agregarItem(norm, precio);
+        let res = await vlApi.agregarItem(norm, precio, '', true);
         if (!res.ok) {
             mostrarToast(res.error || 'No se pudo registrar la venta', 'error');
             return;
         }
-        const d = res.data;
+        let d = res.data;
+        if (d && d.requiere_confirmacion) {
+            const nicks = (d.parecidos || []).map(p => '@' + p.tiktok_user).join(', ');
+            const usarLaExistente = window.confirm(
+                'Ya existe ' + nicks + ', muy parecido a @' + norm + '.\n\n'
+                + 'Aceptar  = usar ' + nicks + '\n'
+                + 'Cancelar = crear la ficha nueva @' + norm);
+            if (usarLaExistente) {
+                $('lv-usuario').value = norm;
+                await buscarCliente(norm);
+                mostrarToast('Elige de la lista la ficha correcta', 'warning');
+                $('lv-usuario').focus();
+                return;
+            }
+            // Confirmó que es otra persona: reintenta sin el aviso (ahora sí crea).
+            res = await vlApi.agregarItem(norm, precio, '', false);
+            if (!res.ok) {
+                mostrarToast(res.error || 'No se pudo registrar la venta', 'error');
+                return;
+            }
+            d = res.data;
+        }
         const nick = d.cliente ? d.cliente.tiktok_user : norm;
         const esNuevo = d.cliente && d.cliente.es_nuevo;
         mostrarToast('@' + nick + ' · ' + formatearDinero(precio) + (esNuevo ? ' · cliente nuevo' : ''), 'success');

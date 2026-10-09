@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta name="robots" content="noindex, nofollow">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
@@ -629,6 +629,7 @@
            tablet y móvil. Sigue sin fondo opaco: lo de atrás no se bloquea. */
         .vl-drawer {
             position: fixed; top: 14px; right: 14px; height: calc(100vh - 28px);
+            height: calc(100dvh - 28px);   /* dvh: se encoge con el teclado en móvil */
             width: min(520px, calc(100vw - 28px));
             background: #12101c;
             border: 1px solid rgba(157, 78, 221, 0.30);
@@ -722,7 +723,7 @@
            desliza en UNA fila en vez de apretarse en dos líneas, los
            botones ganan altura táctil y el chat mantiene alto cómodo. */
         @media (max-width: 860px) {
-            .vl-drawer { top: 10px; right: 10px; height: calc(100vh - 20px); width: calc(100vw - 20px); border-radius: 16px; }
+            .vl-drawer { top: 10px; right: 10px; height: calc(100vh - 20px); height: calc(100dvh - 20px); width: calc(100vw - 20px); border-radius: 16px; }
             .vl-live-grid { gap: 14px; }
         }
         @media (max-width: 720px) {
@@ -798,7 +799,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=124"></script>
+    <script type="module" src="dist/app.js?v=125"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>
