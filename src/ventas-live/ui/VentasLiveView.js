@@ -29,7 +29,7 @@ const GRUPOS = [
     { id: 'foto', emoji: '📸', color: '#ffb4a2', nombre: 'Cuando manda una foto',
       claves: ['prenda_llevas', 'prenda_anotado', 'prenda_total_prometido'] },
     { id: 'pago', emoji: '💰', color: '#ffd166', nombre: 'Total y datos para pagar (cuánto era / me mandas datos)',
-      claves: ['identificado_total_prefix', 'identificado_total_sufijo', 'datos_intro', 'pago_parcial_prefix'] },
+      claves: ['identificado_total_prefix', 'identificado_total_sufijo', 'datos_intro', 'pago_parcial_prefix', 'pago_titulo', 'pago_sin_datos'] },
     { id: 'comprobante', emoji: '🧾', color: '#f5a3c7', nombre: 'Comprobante y pagos',
       claves: ['quiero_pagar_pregunta', 'comprobante_pedir', 'comprobante_recibido', 'ya_pago_comprobante'] },
     { id: 'entrega', emoji: '📦', color: '#9d4edd', nombre: 'Entrega: envío o presencial',
