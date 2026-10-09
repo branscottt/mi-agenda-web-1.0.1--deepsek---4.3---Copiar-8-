@@ -785,6 +785,13 @@ async function enviarChat() {
     _chatEnviando = true;
     if (btn) btn.disabled = true;
 
+    // Feedback INSTANTÁNEO: la burbuja se pinta ya ("enviando…") y el campo se
+    // limpia, sin esperar a WhatsApp (el envío real tarda ~1-2 s). Al reconciliar,
+    // el hilo real la reemplaza; si falla, se quita y se devuelve el texto.
+    const tmpId = 'tmp-' + Date.now();
+    pintarBurbujaPendienteChat(tmpId, texto);
+    input.value = '';
+
     // Si el bot está activo, tomar el control antes de escribir.
     let tomoControl = false;
     if (_chatModo === 'bot') {
@@ -805,10 +812,37 @@ async function enviarChat() {
     _chatEnviando = false;
     if (btn) btn.disabled = false;
 
-    if (!res.ok) { mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error'); return; }
-    input.value = '';
+    if (!res.ok) {
+        quitarBurbujaPendienteChat(tmpId);
+        if (!input.value) input.value = texto;   // no se pierde lo escrito
+        mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error');
+        return;
+    }
     if (tomoControl) mostrarToast('Enviado · el bot espera tu turno', 'success');
-    cargarHiloChat({ forzarAbajo: true });
+    cargarHiloChat({ forzarAbajo: true });   // sin await: la burbuja ya está
+}
+
+// Burbuja optimista del mensaje recién enviado en el chat del LIVE.
+function pintarBurbujaPendienteChat(tmpId, texto) {
+    const msgs = $('lv-chat-msgs');
+    if (!msgs) return;
+    msgs.insertAdjacentHTML('beforeend', burbujasHtml([{
+        id: tmpId, body: texto, direction: 'out', origen: 'humano',
+        tipo: 'texto', creado_en: new Date().toISOString()
+    }], { nombreCliente: 'Cliente' }));
+    const nueva = msgs.lastElementChild;
+    if (nueva) {
+        nueva.dataset.pendiente = tmpId;
+        nueva.style.opacity = '0.62';
+        const hora = nueva.querySelector('.vl-burbuja-hora');
+        if (hora) hora.textContent = 'enviando…';
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+function quitarBurbujaPendienteChat(tmpId) {
+    const el = document.querySelector(`#lv-chat-msgs [data-pendiente="${tmpId}"]`);
+    if (el) el.remove();
 }
 
 async function cambiarModoChat() {

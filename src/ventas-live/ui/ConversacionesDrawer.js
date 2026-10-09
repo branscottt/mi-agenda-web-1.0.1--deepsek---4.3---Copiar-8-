@@ -750,6 +750,14 @@ async function enviar() {
     _enviando = true;
     if (btn) btn.disabled = true;
 
+    // FEEDBACK INSTANTÁNEO: el mensaje se PINTA ya (como "enviando…") y el campo
+    // se limpia, sin esperar a WhatsApp. El envío real tarda ~1-2 s (Edge Function
+    // + API de Meta): antes la nada duraba todo ese rato. Al terminar, el hilo
+    // real reemplaza esta burbuja; si falla, se quita y se devuelve el texto.
+    const tmpId = 'tmp-' + Date.now();
+    pintarBurbujaPendiente(tmpId, texto);
+    if (input) input.value = '';
+
     let tomoControl = false;
     if (_chatMeta && _chatMeta.modo === 'bot') {
         const r = await vlApi.chatModo(_chatId, 'humano');
@@ -770,12 +778,37 @@ async function enviar() {
     if (btn) btn.disabled = false;
 
     if (!res.ok) {
+        quitarBurbujaPendiente(tmpId);
+        if (input && !input.value) input.value = texto;   // no se pierde lo escrito
         mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error');
         return;
     }
-    input.value = '';
     if (tomoControl) mostrarToast('Enviado · el bot espera tu turno', 'success');
-    await cargarHilo(_chatId, { silencioso: true });
+    cargarHilo(_chatId, { silencioso: true });   // sin await: la burbuja ya está
+}
+
+// Burbuja del mensaje recién enviado, ANTES de que WhatsApp confirme (optimista).
+function pintarBurbujaPendiente(tmpId, texto) {
+    const hilo = $('vld-hilo');
+    if (!hilo) return;
+    hilo.insertAdjacentHTML('beforeend', burbujasHtml([{
+        id: tmpId, body: texto, direction: 'out', origen: 'humano',
+        tipo: 'texto', creado_en: new Date().toISOString()
+    }], { nombreCliente: nombreDeCliente(_chatMeta) }));
+    const nueva = hilo.lastElementChild;
+    if (nueva) {
+        nueva.dataset.pendiente = tmpId;
+        nueva.style.opacity = '0.62';
+        const hora = nueva.querySelector('.vl-burbuja-hora');
+        if (hora) hora.textContent = 'enviando…';
+    }
+    const body = $('vld-body');
+    if (body) body.scrollTop = body.scrollHeight;
+}
+
+function quitarBurbujaPendiente(tmpId) {
+    const el = document.querySelector(`#vld-hilo [data-pendiente="${tmpId}"]`);
+    if (el) el.remove();
 }
 
 async function cambiarModo() {
