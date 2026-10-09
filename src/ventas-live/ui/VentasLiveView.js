@@ -372,6 +372,7 @@ function abrirModalRespuestas() {
                 const d = res.data || {};
                 const momentos = Array.isArray(d.momentos) ? d.momentos : [];
                 const reglas = Array.isArray(d.reglas) ? d.reglas : [];
+                const cuentas = Array.isArray(d.cuentas) ? d.cuentas : [];
 
                 const byClave = {};
                 momentos.forEach(m => { byClave[m.clave] = m; });
@@ -436,7 +437,7 @@ function abrirModalRespuestas() {
                     <div id="vlresp-grupos">${gruposHtml || '<div style="color:#adb5bd;">Sin mensajes.</div>'}</div>
                     <div class="vlresp-nota-final">☂️ <b>Cuando el bot no sabe qué decir</b> nunca inventa: te deja un aviso en el chat para que respondas tú. Eso está siempre activo (y también si dejas un mensaje en blanco).</div>
                     <div class="vlresp-tit" style="margin-top:20px;">💳 Cuentas para transferir</div>
-                    <div class="vlresp-hint">Tené varias cuentas (banco A, respaldo…) y elegí CUÁL manda el bot marcando "Usar esta". Es la misma info que recibe el cliente al pagar.</div>
+                    <div class="vlresp-hint">${cuentas.length ? 'Marcá <b>Usar esta</b> para elegir la cuenta que manda el bot.' : 'Hoy el bot usa la cuenta cargada en ⚙️ <b>Configurar espacio</b>. Si agregás cuentas acá, podés elegir cuál manda (marcá <b>Usar esta</b>).'}</div>
                     <div class="vlresp-opc" data-clave="datos_pago"></div>
                     <div class="vlresp-opc-nueva" data-clave="datos_pago">
                         <input class="vl-control vlresp-opc-et" placeholder="Etiqueta (ej: Banco A)">
