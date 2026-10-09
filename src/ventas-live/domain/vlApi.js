@@ -70,9 +70,20 @@ async function callRpc(nombre, params = {}) {
     }
 }
 
-// Normaliza el usuario TikTok igual que el servidor (minúsculas, sin @)
+// Normaliza el usuario TikTok igual que el servidor (minúsculas, sin @).
+// Acepta también el ENLACE pegado/arrastrado desde el LIVE de TikTok
+// (https://www.tiktok.com/@usuario, .../@usuario/live, con ?lang=…): se queda
+// con el @usuario del enlace. En el LIVE TikTok NO deja copiar solo el nombre,
+// pero sí el enlace del perfil; con esto se puede pegar tal cual y funciona.
 export function normalizarTiktok(user) {
-    return String(user || '').toLowerCase().replace(/^@+/, '').replace(/\s+/g, '');
+    let s = String(user || '').trim();
+    const m = s.match(/tiktok\.com\/@?([A-Za-z0-9._]+)/i);
+    if (m) s = m[1];
+    return s
+        .toLowerCase()
+        .replace(/^@+/, '')
+        .replace(/^\.+|\.+$/g, '')
+        .replace(/\s+/g, '');
 }
 
 export const vlApi = {

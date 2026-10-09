@@ -136,6 +136,21 @@ function buildDOM() {
     });
     // Al salir del campo se cierra la lista (los clics usan mousedown y llegan antes).
     $('lv-usuario').addEventListener('blur', ocultarSugerencias);
+
+    // Pegar un ENLACE del LIVE (https://www.tiktok.com/@usuario) lo deja como
+    // @usuario al instante. En el LIVE TikTok no se puede copiar el nombre solo,
+    // pero sí el enlace del perfil: se pega tal cual y queda limpio (no se
+    // guarda el enlace como si fuera el usuario).
+    $('lv-usuario').addEventListener('paste', (e) => {
+        const dt = e.clipboardData || window.clipboardData;
+        const txt = dt ? dt.getData('text') : '';
+        if (!/tiktok\.com/i.test(txt)) return; // pegado normal: no se toca
+        e.preventDefault();
+        const usuario = normalizarTiktok(txt);
+        $('lv-usuario').value = usuario;
+        if (usuario) mostrarToast('Enlace convertido a @' + usuario, 'success');
+        onUsuarioInput();
+    });
     $('lv-precio').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); guardar(); }
     });
