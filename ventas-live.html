@@ -498,6 +498,19 @@
         .vlresp-regla-txt { font-size: 0.85rem; color: #e9d5ff; margin: 4px 0 8px; white-space: pre-wrap; }
         .vlresp-nueva { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(255,255,255,0.12); }
         .vlresp-nueva .vl-btn { align-self: flex-start; }
+        .vlresp-search { margin-bottom: 12px; }
+        .vlresp-grupo { border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; margin-bottom: 10px; overflow: hidden; background: rgba(255,255,255,0.02); }
+        .vlresp-grupo-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 13px; background: transparent; border: 0; border-left: 4px solid var(--gc, #9d4edd); cursor: pointer; text-align: left; color: #e9d5ff; font-weight: 700; font-size: 0.86rem; }
+        .vlresp-grupo-head:hover { background: rgba(255,255,255,0.05); }
+        .vlresp-g-ico { font-size: 1.05rem; }
+        .vlresp-g-nom { flex: 1; }
+        .vlresp-g-n { font-size: 0.72rem; color: #adb5bd; background: rgba(255,255,255,0.07); border-radius: 999px; padding: 1px 9px; }
+        .vlresp-g-edit { font-size: 0.68rem; color: #c77dff; background: rgba(157,78,221,0.16); border: 1px solid rgba(157,78,221,0.45); border-radius: 999px; padding: 1px 8px; }
+        .vlresp-g-chev { color: #adb5bd; transition: transform .18s ease; font-size: 0.8rem; }
+        .vlresp-grupo.abierto .vlresp-g-chev { transform: rotate(180deg); }
+        .vlresp-grupo-body { display: none; padding: 6px 12px 12px; }
+        .vlresp-grupo.abierto .vlresp-grupo-body { display: block; }
+        .vlresp-nota-final { margin-top: 14px; font-size: 0.78rem; color: #adb5bd; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid #6c757d; border-radius: 12px; padding: 10px 12px; line-height: 1.5; }
         .vl-btn:disabled { opacity: .55; cursor: wait; }
 
         /* ===== Modales ===== */
@@ -818,7 +831,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=129"></script>
+    <script type="module" src="dist/app.js?v=130"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

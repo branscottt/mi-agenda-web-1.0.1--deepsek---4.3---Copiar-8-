@@ -15,6 +15,31 @@ import { getAppConfig } from '../../shared/infrastructure/config.js';
 
 const PLAN_LABELS = { vl_free: 'Gratis' };
 
+// Situaciones del bot para el configurador de respuestas: agrupa los momentos
+// del guion por el TIPO de situación (no una lista plana). El orden sigue el
+// camino real de una clienta: nuevo → identificar → conocido → fotos → pago →
+// comprobante → entrega (y sus ramas envío / presencial).
+const GRUPOS = [
+    { id: 'nuevo', emoji: '🟢', color: '#25d366', nombre: 'Cliente nuevo — primer contacto',
+      claves: ['tiktok_inicial', 'prenda_sin_usuario'] },
+    { id: 'identificar', emoji: '🔎', color: '#c77dff', nombre: 'Identificar al usuario (tipo buscador)',
+      claves: ['eres_usuario', 'eres_lista_titulo', 'eres_lista_pie', 'no_encontrado_lista', 'sin_compras', 'reescribe_usuario', 'identif_no_se', 'tienes_fotito'] },
+    { id: 'conocido', emoji: '👋', color: '#4dd0e1', nombre: 'Ya te conoce (escribe desde su WhatsApp)',
+      claves: ['habitual_saludo', 'habitual_saludo_extra'] },
+    { id: 'foto', emoji: '📸', color: '#ffb4a2', nombre: 'Cuando manda una foto',
+      claves: ['prenda_llevas', 'prenda_anotado'] },
+    { id: 'pago', emoji: '💰', color: '#ffd166', nombre: 'Total y datos para pagar (cuánto era / me mandas datos)',
+      claves: ['identificado_total_prefix', 'identificado_total_sufijo', 'datos_intro', 'pago_parcial_prefix'] },
+    { id: 'comprobante', emoji: '🧾', color: '#f5a3c7', nombre: 'Comprobante y pagos',
+      claves: ['quiero_pagar_pregunta', 'comprobante_pedir', 'comprobante_recibido', 'ya_pago_comprobante'] },
+    { id: 'entrega', emoji: '📦', color: '#9d4edd', nombre: 'Entrega: envío o presencial',
+      claves: ['pregunta_entrega', 'responde_envio', 'responde_presencial', 'datos_mandados', 'identificado_datitos', 'pospone_compra'] },
+    { id: 'envio', emoji: '🚚', color: '#4c8bf5', nombre: '↳ Rama ENVÍO (courier)',
+      claves: ['confirma_misma_direccion', 'falta_courier', 'pide_otra_direccion'] },
+    { id: 'presencial', emoji: '🤝', color: '#2dd4bf', nombre: '↳ Rama ENTREGA PRESENCIAL (vernos)',
+      claves: ['pedir_dia', 'no_puede_pagar', 'pagara_presencial'] }
+];
+
 // URL pública del webhook de WhatsApp (la misma que se pega en Meta).
 const WA_WEBHOOK_URL = (getAppConfig().supabaseUrl || '').replace(/\/+$/, '') + '/functions/v1/wa-webhook';
 
@@ -348,11 +373,14 @@ function abrirModalRespuestas() {
                 const momentos = Array.isArray(d.momentos) ? d.momentos : [];
                 const reglas = Array.isArray(d.reglas) ? d.reglas : [];
 
-                const filas = momentos.map(m => {
+                const byClave = {};
+                momentos.forEach(m => { byClave[m.clave] = m; });
+
+                const itemHtml = (m) => {
                     const chip = m.blanqueada
                         ? '<span class="vlresp-chip aviso">En blanco: el bot te avisará para que respondas tú</span>'
-                        : (m.editada ? '<span class="vlresp-chip editada">Personalizada por ti</span>'
-                                     : '<span class="vlresp-chip base">Base (para todos)</span>');
+                        : (m.editada ? '<span class="vlresp-chip editada">Personalizada</span>'
+                                     : '<span class="vlresp-chip base">Base</span>');
                     return `
                         <div class="vlresp-item" data-clave="${escapeHtml(m.clave)}">
                             <div class="vlresp-desc">${escapeHtml(m.descripcion)}</div>
@@ -362,6 +390,26 @@ function abrirModalRespuestas() {
                                 <button class="vl-btn primary vlresp-guardar" type="button"><i class="fas fa-save"></i> Guardar</button>
                                 ${m.editada ? '<button class="vl-btn vlresp-quitar" type="button"><i class="fas fa-rotate-left"></i> Quitar</button>' : ''}
                             </div>
+                        </div>`;
+                };
+
+                const gruposHtml = GRUPOS.map(g => {
+                    const claves = g.claves.filter(c => byClave[c]);
+                    if (!claves.length) return '';
+                    const items = claves.map(c => itemHtml(byClave[c])).join('');
+                    const editadas = claves.filter(c => byClave[c].editada).length;
+                    const badge = editadas
+                        ? `<span class="vlresp-g-edit">${editadas} tuya${editadas > 1 ? 's' : ''}</span>` : '';
+                    return `
+                        <div class="vlresp-grupo" data-grupo="${g.id}" style="--gc:${g.color}">
+                            <button class="vlresp-grupo-head" type="button">
+                                <span class="vlresp-g-ico">${g.emoji}</span>
+                                <span class="vlresp-g-nom">${escapeHtml(g.nombre)}</span>
+                                ${badge}
+                                <span class="vlresp-g-n">${claves.length}</span>
+                                <i class="fas fa-chevron-down vlresp-g-chev"></i>
+                            </button>
+                            <div class="vlresp-grupo-body">${items}</div>
                         </div>`;
                 }).join('');
 
@@ -373,17 +421,43 @@ function abrirModalRespuestas() {
                     </div>`).join('');
 
                 body.innerHTML = `
-                    <div class="vlresp-tit">Mensajes del guion</div>
-                    <div class="vlresp-hint">Si un mensaje sale con varias variantes, ponlas una por línea (el bot elige una al azar). Donde va el @ del cliente, usa <b>&lt;usuario&gt;</b>.</div>
-                    ${filas || '<div style="color:#adb5bd;">Sin mensajes.</div>'}
-                    <div class="vlresp-tit" style="margin-top:18px;">Tus respuestas inventadas</div>
-                    <div class="vlresp-hint">Si el cliente dice algo que incluye una de estas frases, el bot responde esto (y no sigue el guion). Ideal para preguntas frecuentes.</div>
+                    <input class="vl-control vlresp-search" id="vlresp-buscar" placeholder="🔎 Busca por situación o texto (banco, envío, cuánto, comprobante…)">
+                    <div id="vlresp-grupos">${gruposHtml || '<div style="color:#adb5bd;">Sin mensajes.</div>'}</div>
+                    <div class="vlresp-nota-final">☂️ <b>Cuando el bot no sabe qué decir</b> nunca inventa: te deja un aviso en el chat para que respondas tú. Eso está siempre activo (y también si dejas un mensaje en blanco).</div>
+                    <div class="vlresp-tit" style="margin-top:18px;">🙋 Respuestas inventadas (si dice X → responde Y)</div>
+                    <div class="vlresp-hint">Si el cliente escribe algo que incluye una de estas frases, el bot responde esto y no sigue el guion. Ideal para preguntas frecuentes o casos propios de tu negocio.</div>
                     <div id="vlresp-reglas">${reglasHtml || '<div style="color:#adb5bd;font-size:0.82rem;">Todavía no inventaste ninguna.</div>'}</div>
                     <div class="vlresp-nueva">
                         <input class="vl-control" id="vlresp-gat" placeholder="Si el cliente dice… (varias frases separadas por coma)">
                         <textarea class="vl-control" id="vlresp-cuerpo" rows="2" placeholder="…responder esto"></textarea>
                         <button class="vl-btn primary" id="vlresp-agregar" type="button"><i class="fas fa-plus"></i> Agregar respuesta</button>
                     </div>`;
+
+                // Acordeón por situación (la primera abierta)
+                body.querySelectorAll('.vlresp-grupo-head').forEach(h => {
+                    h.addEventListener('click', () => h.parentElement.classList.toggle('abierto'));
+                });
+                const primero = body.querySelector('.vlresp-grupo');
+                if (primero) primero.classList.add('abierto');
+                // Buscador: filtra por situación/texto y abre las que matchean
+                const buscar = body.querySelector('#vlresp-buscar');
+                buscar.addEventListener('input', () => {
+                    const q = buscar.value.trim().toLowerCase();
+                    body.querySelectorAll('.vlresp-grupo').forEach(g => {
+                        let vis = 0;
+                        g.querySelectorAll('.vlresp-item').forEach(it => {
+                            const show = !q || it.textContent.toLowerCase().includes(q);
+                            it.style.display = show ? '' : 'none';
+                            if (show) vis++;
+                        });
+                        g.style.display = (!q || vis) ? '' : 'none';
+                        if (q) g.classList.add('abierto');
+                    });
+                    if (!q) {
+                        body.querySelectorAll('.vlresp-grupo').forEach(g => g.classList.remove('abierto'));
+                        const p = body.querySelector('.vlresp-grupo'); if (p) p.classList.add('abierto');
+                    }
+                });
 
                 body.querySelectorAll('.vlresp-item').forEach(item => {
                     const clave = item.dataset.clave;
