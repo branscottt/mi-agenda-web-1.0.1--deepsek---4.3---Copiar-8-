@@ -134,6 +134,16 @@
             padding: 16px 16px 16px 4px;
         }
         .vl-input::placeholder { color: #6c757d; font-weight: 500; }
+        /* Botón "Pegar" dentro del campo: pega el usuario o el enlace del LIVE
+           (equivale a Ctrl+Shift+V). El input se encoge para dejarle sitio. */
+        .vl-input-wrap .vl-input { flex: 1 1 auto; min-width: 0; }
+        .vl-input-paste {
+            flex: 0 0 auto; align-self: stretch; display: flex; align-items: center; justify-content: center;
+            background: transparent; border: none; cursor: pointer; color: #c77dff;
+            font-size: 1rem; padding: 0 16px; transition: color .15s, background .15s;
+        }
+        .vl-input-paste:hover { color: #f8f9fa; background: rgba(157,78,221,0.18); }
+        .vl-input-paste:active { background: rgba(157,78,221,0.32); }
         /* Sugerencias de usuario: al escribir las primeras letras de un cliente
            que ya existe aparece la lista (clic o flechas + Enter). El contenedor
            del campo lleva .vl-field-rel porque .vl-input-wrap recorta (overflow). */
@@ -788,7 +798,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=123"></script>
+    <script type="module" src="dist/app.js?v=124"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

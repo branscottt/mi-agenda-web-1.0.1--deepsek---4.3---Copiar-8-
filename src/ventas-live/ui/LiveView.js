@@ -44,13 +44,17 @@ function buildDOM() {
             <div>
                 <div class="vl-card">
                     <h2><i class="fas fa-bolt"></i> Registrar venta</h2>
-                    <div class="sub">Escribe el usuario de TikTok y el precio. Con las primeras letras te sugerimos los clientes que ya tienes. Enter = siguiente campo.</div>
+                    <div class="sub">Escribe el usuario de TikTok y el precio. ¿TikTok no te deja copiar el nombre? Pega el enlace del perfil (clic derecho o mantener → Pegar) y se limpia solo. Enter = siguiente campo.</div>
                     <div class="vl-field vl-field-rel">
                         <label for="lv-usuario">Usuario TikTok</label>
                         <div class="vl-input-wrap">
                             <span class="vl-input-prefix">@</span>
                             <input class="vl-input" id="lv-usuario" inputmode="text" autocomplete="off"
                                    placeholder="cliente123" enterkeyhint="next" autofocus>
+                            <button class="vl-input-paste" id="lv-usuario-pegar" type="button"
+                                    title="Pegar usuario o enlace del LIVE (Ctrl+Shift+V)">
+                                <i class="fas fa-paste"></i>
+                            </button>
                         </div>
                         <div class="vl-sugerencias" id="lv-sugerencias" hidden></div>
                         <div class="vl-parecido" id="lv-parecido" hidden></div>
@@ -137,19 +141,35 @@ function buildDOM() {
     // Al salir del campo se cierra la lista (los clics usan mousedown y llegan antes).
     $('lv-usuario').addEventListener('blur', ocultarSugerencias);
 
-    // Pegar un ENLACE del LIVE (https://www.tiktok.com/@usuario) lo deja como
-    // @usuario al instante. En el LIVE TikTok no se puede copiar el nombre solo,
-    // pero sí el enlace del perfil: se pega tal cual y queda limpio (no se
-    // guarda el enlace como si fuera el usuario).
+    // PEGAR (PC: clic derecho → Pegar · móvil/tablet: mantener → Pegar · o Ctrl+V).
+    // Si lo pegado NO es un nombre limpio (un ENLACE del LIVE, una @mención, texto
+    // con espacios…), se limpia al instante y queda como @usuario. TikTok no deja
+    // copiar solo el nombre en el LIVE: se pega el enlace y aquí queda exacto.
     $('lv-usuario').addEventListener('paste', (e) => {
         const dt = e.clipboardData || window.clipboardData;
         const txt = dt ? dt.getData('text') : '';
-        if (!/tiktok\.com/i.test(txt)) return; // pegado normal: no se toca
+        if (!txt) return;
+        const limpio = normalizarTiktok(txt);
+        if (!limpio || limpio === txt.trim()) return; // ya venía limpio: pegado normal
         e.preventDefault();
-        const usuario = normalizarTiktok(txt);
-        $('lv-usuario').value = usuario;
-        if (usuario) mostrarToast('Enlace convertido a @' + usuario, 'success');
-        onUsuarioInput();
+        aplicarUsuarioPegado(limpio);
+        mostrarToast('Convertido a @' + limpio, 'success');
+    });
+
+    // Botón "Pegar" (icono): lee el portapapeles. En PC funciona directo; en
+    // móvil/tablet el pegado nativo (mantener → Pegar sobre el campo) es la vía.
+    $('lv-usuario-pegar').addEventListener('click', pegarDesdePortapapeles);
+
+    // Atajo PC: Ctrl+Shift+V (Cmd+Shift+V en Mac) pega el usuario desde el
+    // portapapeles SIN tener que tocar el campo. Solo actúa con la pestaña LIVE
+    // a la vista, para no interferir en otras pantallas.
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
+        if (String(e.key).toLowerCase() !== 'v') return;
+        const vista = $('vl-view-live');
+        if (!vista || !vista.classList.contains('active')) return;
+        e.preventDefault();
+        pegarDesdePortapapeles();
     });
     $('lv-precio').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); guardar(); }
@@ -314,6 +334,35 @@ function onUsuarioInput() {
     const norm = normalizarTiktok($('lv-usuario').value);
     if (!norm) { ocultarResumen(); ocultarSugerencias(); pintarParecidos([]); return; }
     _debounce = setTimeout(() => buscarCliente(norm), 300);
+}
+
+// Escribe el usuario ya limpio en el campo y dispara la búsqueda/preview.
+function aplicarUsuarioPegado(usuario) {
+    const el = $('lv-usuario');
+    if (!el) return;
+    el.value = usuario;
+    onUsuarioInput();
+}
+
+// Lee el portapapeles y pega el usuario limpio (botón "Pegar" y Ctrl+Shift+V).
+// Si el navegador no da permiso de lectura (habitual en móvil/tablet), guía al
+// pegado nativo en vez de fallar en silencio.
+async function pegarDesdePortapapeles() {
+    let txt = '';
+    try {
+        txt = await navigator.clipboard.readText();
+    } catch (_) {
+        txt = '';
+    }
+    const limpio = normalizarTiktok(txt);
+    if (!limpio) {
+        const el = $('lv-usuario');
+        if (el) el.focus();
+        mostrarToast('Mantén presionado el campo y elige "Pegar" (o Ctrl+V)', 'warning');
+        return;
+    }
+    aplicarUsuarioPegado(limpio);
+    mostrarToast('Pegado: @' + limpio, 'success');
 }
 
 async function buscarCliente(norm) {

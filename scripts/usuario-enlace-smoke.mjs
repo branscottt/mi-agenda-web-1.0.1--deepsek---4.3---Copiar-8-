@@ -40,7 +40,12 @@ t('enlace con punto final', n('https://www.tiktok.com/@ianaianita.'), 'ianaianit
 t('enlace con espacios al pegar', n('  https://www.tiktok.com/@ianaianita  '), 'ianaianita');
 t('mayúsculas en el enlace', n('https://www.TikTok.com/@IanaIanita'), 'ianaianita');
 
-// 2) Casos de siempre (no deben romperse)
+// 2) @menciones y texto pegado de cualquier formato
+t('@mención suelta', n('@ianaianita hola'), 'ianaianita');
+t('@mención en medio del texto', n('mira @ianaianita dale'), 'ianaianita');
+t('@mención con punto final', n('@maria.jose.'), 'maria.jose');
+
+// 3) Casos de siempre (no deben romperse)
 t('@ directo', n('@ianaianita'), 'ianaianita');
 t('sin @', n('ianaianita'), 'ianaianita');
 t('con espacios internos', n('iana ianita'), 'ianaianita');
