@@ -34,6 +34,10 @@ const REFRESCO_ABIERTO_MS = 5000;
 const REFRESCO_BADGE_MS = 8000;
 const NOTIF_KEY = 'vl_notif_avisos';
 
+// Clave pública VAPID para Web Push (es pública por diseño; la privada vive en
+// los secrets de la Edge Function wa-push y NUNCA llega al navegador).
+const VAPID_PUBLIC_KEY = 'BDPgk-hicFx7kZGvZK2cYvnV8azivt991eLtIJJXG7_MVxYtPMFEtKg7hK-e2IOjNEn2trqnSjgx7iBwCxob_0A';
+
 let _built = false;
 let _abierto = false;
 let _chatId = null;
@@ -62,6 +66,12 @@ export function initConversacionesDrawer({ onBadge } = {}) {
     _onBadge = onBadge || null;
 
     try { _notifActivas = localStorage.getItem(NOTIF_KEY) === '1'; } catch (e) { _notifActivas = false; }
+
+    // Si el dueño ya había activado los avisos, se re-registra la suscripción push
+    // en silencio (por si reinstaló o el navegador la perdió). Sin pedir permiso.
+    if (_notifActivas && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        suscribirPush();
+    }
 
     if (!_built) {
         const el = document.createElement('div');
@@ -255,6 +265,54 @@ export function notificacionesEstado() {
     };
 }
 
+/** Convierte la clave pública VAPID (base64url) al Uint8Array que pide el navegador. */
+function urlBase64ToUint8Array(base64) {
+    const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+    const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(b64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+}
+
+/**
+ * Registra la suscripción PUSH del dispositivo para recibir avisos con la web
+ * CERRADA (Web Push, gratis). Si el navegador no la da, no pasa nada: queda la
+ * notificación normal mientras la página esté abierta. Devuelve true si quedó.
+ */
+async function suscribirPush() {
+    try {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+        const reg = await navigator.serviceWorker.ready;
+        if (!reg || !reg.pushManager) return false;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+            sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+            });
+        }
+        const j = sub.toJSON ? sub.toJSON() : null;
+        if (!j || !j.endpoint || !j.keys || !j.keys.p256dh || !j.keys.auth) return false;
+        const r = await vlApi.guardarPushSub(j.endpoint, j.keys.p256dh, j.keys.auth);
+        return !!(r && r.ok);
+    } catch (e) {
+        return false;
+    }
+}
+
+/** Quita la suscripción push del dispositivo (al apagar los avisos). */
+async function desuscribirPush() {
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = (reg && reg.pushManager) ? await reg.pushManager.getSubscription() : null;
+        if (sub) {
+            await vlApi.borrarPushSub(sub.endpoint);
+            await sub.unsubscribe();
+        }
+    } catch (_) { /* da igual */ }
+}
+
 /** Pide permiso al navegador (necesita un clic del usuario). */
 export async function activarNotificaciones() {
     if (typeof Notification === 'undefined') {
@@ -270,6 +328,7 @@ export async function activarNotificaciones() {
     _notifActivas = true;
     if (_avisosVistos === null) _avisosVistos = new Set();
     try { localStorage.setItem(NOTIF_KEY, '1'); } catch (e) { /* modo privado */ }
+    await suscribirPush();   // ademas del permiso: push para avisos con la app cerrada
     return { ok: true };
 }
 
@@ -277,6 +336,7 @@ export async function activarNotificaciones() {
 export function desactivarNotificaciones() {
     _notifActivas = false;
     try { localStorage.setItem(NOTIF_KEY, '0'); } catch (e) { /* modo privado */ }
+    desuscribirPush();   // también deja de llegar el push
 }
 
 /** Aviso abierto del chat (para el banner del hilo). */

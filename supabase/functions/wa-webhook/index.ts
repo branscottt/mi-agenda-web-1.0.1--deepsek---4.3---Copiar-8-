@@ -118,6 +118,32 @@ async function buscarConfigPorPhone(
 }
 
 /**
+ * Notificación PUSH al dueño (Web Push, gratis). Llega aunque tenga la web
+ * CERRADA. Es "mejor esfuerzo": si falla, el bot sigue funcionando igual.
+ * La manda la Edge Function wa-push (aislada, con las claves VAPID).
+ */
+async function avisarPush(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  titulo: string,
+  cuerpo: string,
+): Promise<void> {
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/wa-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ tenant_id: tenantId, titulo, cuerpo }),
+    });
+  } catch (e) {
+    console.error('[WA-Webhook] push falló:', (e as Error).message || String(e));
+  }
+}
+
+/**
  * Red de seguridad: deja un aviso "te escribieron y el bot no respondió" cuando
  * el cerebro no respondió y no dejó aviso propio. Los acuses y los avisos
  * repetidos los filtra la propia RPC (vl_wa_avisar_sin_respuesta).
@@ -510,15 +536,31 @@ async function handle(req: Request): Promise<Response> {
                 return;
               }
 
-              if (brain.enviar === true && typeof brain.mensaje === 'string' && brain.mensaje !== '') {
-                const ok = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje);
+              const modoHumano = String(brain.modo || '') === 'humano';
+              const respondio = brain.enviar === true
+                && typeof brain.mensaje === 'string' && brain.mensaje !== '';
+
+              if (respondio) {
+                const ok = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje as string);
                 if (!ok) console.error(`[WA-Webhook] No pude enviar la respuesta a ${waId}`);
-              } else if (brain.avisar_negocio !== true) {
+              } else if (!modoHumano && brain.avisar_negocio !== true) {
                 // RED DE SEGURIDAD: el bot no respondió y tampoco dejó aviso
                 // (p. ej. cliente conocido SIN pedido en curso que escribe algo que
                 // el bot no entiende). Al menos queda el aviso de que le
                 // escribieron, con el mismo tipo que ya pinta la web ("Contesta tú").
                 await rpcAvisoSinRespuesta(supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, textoFinal);
+              }
+
+              // PUSH al dueño: hay algo que revisar y NO está atendiendo a mano.
+              // Llega con la web cerrada; si falla, no afecta al bot.
+              if (!respondio && !modoHumano) {
+                const nick = typeof brain.cliente_tiktok === 'string' && brain.cliente_tiktok
+                  ? ' (@' + brain.cliente_tiktok + ')' : '';
+                await avisarPush(
+                  supabaseUrl, serviceRoleKey, cfg.tenant_id,
+                  '💬 Ventas Live',
+                  'Te escribieron y el bot necesita que respondas tú' + nick + '.',
+                );
               }
             } catch (e) {
               console.error('[WA-Webhook] Error procesando el mensaje:', (e as Error).message || String(e));

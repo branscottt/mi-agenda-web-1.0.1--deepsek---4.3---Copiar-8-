@@ -174,6 +174,11 @@ export const vlApi = {
     }),
     chatProceso: (chatId) => callRpc('vl_wa_chat_proceso', { p_chat_id: chatId }),
     chatOcultar: (chatId, oculto = true) => callRpc('vl_wa_chat_ocultar', { p_chat_id: chatId, p_oculto: oculto }),
+
+    // ---- Notificaciones PUSH (llegan con la app CERRADA; Web Push, gratis) ----
+    guardarPushSub: (endpoint, p256dh, auth) =>
+        callRpc('vl_push_guardar', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }),
+    borrarPushSub: (endpoint) => callRpc('vl_push_borrar', { p_endpoint: endpoint }),
     enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto),
 
     // ---- Diagrama de procesos (todos de una, con puntos presionables) ----

@@ -2,7 +2,7 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v129';
+const CACHE_NAME = 'agendapro-v130';
 // Solo assets estáticos con hash/versión fija se precachean.
 // Los HTML NO se precachean: cada deploy cambia headers (CSP) y estructura,
 // y un HTML viejo en caché rompe la navegación y la política de seguridad.
@@ -128,3 +128,37 @@ async function fetchAndCache(request) {
     }
     return response;
 }
+
+// ── PUSH: notificación que llega con la web CERRADA (Web Push, gratis) ──
+// El backend (Edge Function wa-push) manda {title, body, url} cuando el bot
+// deja un aviso "contesta tú". Aquí se muestra en el teléfono / PC.
+self.addEventListener('push', (event) => {
+    let data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (_) { data = {}; }
+    const opciones = {
+        body: data.body || 'Tienes algo que revisar.',
+        icon: '/logo.png',
+        badge: '/logo.png',
+        data: { url: data.url || '/ventas-live.html' },
+        tag: 'vl-aviso',
+        renotify: true,
+        vibrate: [120, 60, 120]
+    };
+    event.waitUntil(self.registration.showNotification(data.title || 'Ventas Live', opciones));
+});
+
+// Al tocar la notificación: enfocar la pestaña de Ventas Live o abrirla.
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const destino = (event.notification.data && event.notification.data.url) || '/ventas-live.html';
+    event.waitUntil((async () => {
+        const lista = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const c of lista) {
+            if (c.url.includes('/ventas-live.html')) {
+                try { await c.focus(); return; } catch (_) { /* sigue */ }
+            }
+        }
+        if (clients.openWindow) await clients.openWindow(destino);
+    })());
+});
+
