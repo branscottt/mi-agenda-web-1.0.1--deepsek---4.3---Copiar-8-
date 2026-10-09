@@ -117,6 +117,33 @@ async function buscarConfigPorPhone(
   return { tenant_id: row.tenant_id, wa_token: row.wa_token || '', wa_app_secret: row.wa_app_secret || '' };
 }
 
+/**
+ * Red de seguridad: deja un aviso "te escribieron y el bot no respondió" cuando
+ * el cerebro no respondió y no dejó aviso propio. Los acuses y los avisos
+ * repetidos los filtra la propia RPC (vl_wa_avisar_sin_respuesta).
+ */
+async function rpcAvisoSinRespuesta(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  waId: string,
+  texto: string,
+): Promise<void> {
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/rpc/vl_wa_avisar_sin_respuesta`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_tenant_id: tenantId, p_wa_id: waId, p_texto: texto }),
+    });
+  } catch (e) {
+    console.error('[WA-Webhook] No pude crear el aviso "sin respuesta":', (e as Error).message || String(e));
+  }
+}
+
 /** Llama al cerebro del bot y devuelve su respuesta JSON. */
 async function avanzarConversacion(
   supabaseUrl: string,
@@ -486,6 +513,12 @@ async function handle(req: Request): Promise<Response> {
               if (brain.enviar === true && typeof brain.mensaje === 'string' && brain.mensaje !== '') {
                 const ok = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje);
                 if (!ok) console.error(`[WA-Webhook] No pude enviar la respuesta a ${waId}`);
+              } else if (brain.avisar_negocio !== true) {
+                // RED DE SEGURIDAD: el bot no respondió y tampoco dejó aviso
+                // (p. ej. cliente conocido SIN pedido en curso que escribe algo que
+                // el bot no entiende). Al menos queda el aviso de que le
+                // escribieron, con el mismo tipo que ya pinta la web ("Contesta tú").
+                await rpcAvisoSinRespuesta(supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, textoFinal);
               }
             } catch (e) {
               console.error('[WA-Webhook] Error procesando el mensaje:', (e as Error).message || String(e));

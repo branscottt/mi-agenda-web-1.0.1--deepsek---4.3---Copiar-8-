@@ -803,10 +803,11 @@ async function enviarChat() {
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
     // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta
-    // (y retoma solo cuando dejas de escribir). Antes el bot se encimaba.
+    // (y retoma solo cuando dejas de escribir). NO se espera: la burbuja ya está.
     if (tomoControl) {
-        const rb = await vlApi.chatModo(_chatId, 'bot');
-        if (rb.ok) { _chatModo = 'bot'; pintarCabeceraChat(); }
+        vlApi.chatModo(_chatId, 'bot').then((rb) => {
+            if (rb && rb.ok) { _chatModo = 'bot'; pintarCabeceraChat(); }
+        });
     }
 
     _chatEnviando = false;
