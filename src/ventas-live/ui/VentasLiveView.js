@@ -27,7 +27,7 @@ const GRUPOS = [
     { id: 'conocido', emoji: '👋', color: '#4dd0e1', nombre: 'Ya te conoce (escribe desde su WhatsApp)',
       claves: ['habitual_saludo', 'habitual_saludo_extra'] },
     { id: 'foto', emoji: '📸', color: '#ffb4a2', nombre: 'Cuando manda una foto',
-      claves: ['prenda_llevas', 'prenda_anotado'] },
+      claves: ['prenda_llevas', 'prenda_anotado', 'prenda_total_prometido'] },
     { id: 'pago', emoji: '💰', color: '#ffd166', nombre: 'Total y datos para pagar (cuánto era / me mandas datos)',
       claves: ['identificado_total_prefix', 'identificado_total_sufijo', 'datos_intro', 'pago_parcial_prefix'] },
     { id: 'comprobante', emoji: '🧾', color: '#f5a3c7', nombre: 'Comprobante y pagos',
@@ -381,14 +381,25 @@ function abrirModalRespuestas() {
                         ? '<span class="vlresp-chip aviso">En blanco: el bot te avisará para que respondas tú</span>'
                         : (m.editada ? '<span class="vlresp-chip editada">Personalizada</span>'
                                      : '<span class="vlresp-chip base">Base</span>');
+                    const fijo = (m.modo === 'fijo');
+                    const cuerpo = fijo ? `
+                            <div class="vlresp-hint">Elegís UNA opción y el bot manda esa:</div>
+                            <div class="vlresp-opc" data-clave="${escapeHtml(m.clave)}"></div>
+                            <div class="vlresp-opc-nueva" data-clave="${escapeHtml(m.clave)}">
+                                <input class="vl-control vlresp-opc-et" placeholder="Etiqueta (ej: Opción 1)">
+                                <textarea class="vl-control vlresp-opc-tx" rows="2" placeholder="Respuesta de esta opción"></textarea>
+                                <button class="vl-btn primary vlresp-opc-add" type="button"><i class="fas fa-plus"></i> Agregar opción</button>
+                            </div>`
+                        : `<textarea class="vl-control vlresp-txt" rows="2">${escapeHtml(m.cuerpo || '')}</textarea>`;
                     return `
-                        <div class="vlresp-item" data-clave="${escapeHtml(m.clave)}">
+                        <div class="vlresp-item" data-clave="${escapeHtml(m.clave)}" data-modo="${fijo ? 'fijo' : 'aleatorio'}">
                             <div class="vlresp-desc">${escapeHtml(m.descripcion)}</div>
-                            <textarea class="vl-control vlresp-txt" rows="2">${escapeHtml(m.cuerpo || '')}</textarea>
+                            ${cuerpo}
                             <div class="vlresp-acciones">${chip}
                                 <span style="flex:1"></span>
-                                <button class="vl-btn primary vlresp-guardar" type="button"><i class="fas fa-save"></i> Guardar</button>
-                                ${m.editada ? '<button class="vl-btn vlresp-quitar" type="button"><i class="fas fa-rotate-left"></i> Quitar</button>' : ''}
+                                <button class="vlresp-modo" data-clave="${escapeHtml(m.clave)}" data-modo="${fijo ? 'fijo' : 'aleatorio'}" type="button" title="Cómo elige el bot entre los textos">${fijo ? '✅ Elegir una' : '🔀 Aleatorio'}</button>
+                                ${fijo ? '' : '<button class="vl-btn primary vlresp-guardar" type="button"><i class="fas fa-save"></i> Guardar</button>'}
+                                ${(m.editada && !fijo) ? '<button class="vl-btn vlresp-quitar" type="button"><i class="fas fa-rotate-left"></i> Quitar</button>' : ''}
                             </div>
                         </div>`;
                 };
@@ -424,6 +435,14 @@ function abrirModalRespuestas() {
                     <input class="vl-control vlresp-search" id="vlresp-buscar" placeholder="🔎 Busca por situación o texto (banco, envío, cuánto, comprobante…)">
                     <div id="vlresp-grupos">${gruposHtml || '<div style="color:#adb5bd;">Sin mensajes.</div>'}</div>
                     <div class="vlresp-nota-final">☂️ <b>Cuando el bot no sabe qué decir</b> nunca inventa: te deja un aviso en el chat para que respondas tú. Eso está siempre activo (y también si dejas un mensaje en blanco).</div>
+                    <div class="vlresp-tit" style="margin-top:20px;">💳 Cuentas para transferir</div>
+                    <div class="vlresp-hint">Tené varias cuentas (banco A, respaldo…) y elegí CUÁL manda el bot marcando "Usar esta". Es la misma info que recibe el cliente al pagar.</div>
+                    <div class="vlresp-opc" data-clave="datos_pago"></div>
+                    <div class="vlresp-opc-nueva" data-clave="datos_pago">
+                        <input class="vl-control vlresp-opc-et" placeholder="Etiqueta (ej: Banco A)">
+                        <textarea class="vl-control vlresp-opc-tx" rows="2" placeholder="Datos de la cuenta (banco, titular, cuenta, rut…)"></textarea>
+                        <button class="vl-btn primary vlresp-opc-add" type="button"><i class="fas fa-plus"></i> Agregar cuenta</button>
+                    </div>
                     <div class="vlresp-tit" style="margin-top:18px;">🙋 Respuestas inventadas (si dice X → responde Y)</div>
                     <div class="vlresp-hint">Si el cliente escribe algo que incluye una de estas frases, el bot responde esto y no sigue el guion. Ideal para preguntas frecuentes o casos propios de tu negocio.</div>
                     <div id="vlresp-reglas">${reglasHtml || '<div style="color:#adb5bd;font-size:0.82rem;">Todavía no inventaste ninguna.</div>'}</div>
@@ -459,10 +478,61 @@ function abrirModalRespuestas() {
                     }
                 });
 
+                // ── Modo del momento: aleatorio ↔ elegir una ──
+                body.querySelectorAll('.vlresp-modo').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const nuevo = btn.dataset.modo === 'fijo' ? 'aleatorio' : 'fijo';
+                        const r = await vlApi.respuestaModo(btn.dataset.clave, nuevo);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo cambiar', 'error'); return; }
+                        cargar();
+                    });
+                });
+
+                // ── Opciones (burbujas etiquetadas): momentos "elegir una" y cuentas ──
+                async function llenarOpciones(cont) {
+                    const clave = cont.dataset.clave;
+                    const res = await vlApi.opcionesListar(clave);
+                    const ops = (res.ok && res.data && Array.isArray(res.data.opciones)) ? res.data.opciones : [];
+                    cont.innerHTML = ops.length ? ops.map(o => `
+                        <div class="vlresp-opc-item ${o.activa ? 'activa' : ''}" data-id="${escapeHtml(String(o.id))}">
+                            <div class="vlresp-opc-cab"><span class="vlresp-opc-etq">${escapeHtml(o.etiqueta || '(sin etiqueta)')}</span>${o.activa ? '<span class="vlresp-opc-uso">✓ la que manda el bot</span>' : ''}</div>
+                            <div class="vlresp-opc-tx">${escapeHtml(o.texto)}</div>
+                            <div class="vlresp-acciones">
+                                ${o.activa ? '' : '<button class="vl-btn vlresp-opc-usar" type="button"><i class="fas fa-check"></i> Usar esta</button>'}
+                                <button class="vl-btn danger vlresp-opc-del" type="button"><i class="fas fa-trash"></i> Eliminar</button>
+                            </div>
+                        </div>`).join('')
+                        : '<div class="vlresp-hint">Todavía no hay opciones. Agregá la primera 👇</div>';
+                    cont.querySelectorAll('.vlresp-opc-usar').forEach(bt => bt.addEventListener('click', async () => {
+                        const r = await vlApi.opcionActivar(bt.closest('.vlresp-opc-item').dataset.id);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo', 'error'); return; }
+                        mostrarToast('Listo: el bot usará esa ✔', 'success'); cargar();
+                    }));
+                    cont.querySelectorAll('.vlresp-opc-del').forEach(bt => bt.addEventListener('click', async () => {
+                        if (!window.confirm('¿Eliminar esta opción?')) return;
+                        const r = await vlApi.opcionEliminar(bt.closest('.vlresp-opc-item').dataset.id);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo', 'error'); return; }
+                        cargar();
+                    }));
+                }
+                body.querySelectorAll('.vlresp-opc').forEach(cont => llenarOpciones(cont));
+                body.querySelectorAll('.vlresp-opc-nueva').forEach(nueva => {
+                    const clave = nueva.dataset.clave;
+                    nueva.querySelector('.vlresp-opc-add').addEventListener('click', async () => {
+                        const et = nueva.querySelector('.vlresp-opc-et').value;
+                        const tx = nueva.querySelector('.vlresp-opc-tx').value;
+                        if (!tx.trim()) { mostrarToast('Escribe la respuesta de la opción', 'warning'); return; }
+                        const r = await vlApi.opcionGuardar(clave, et, tx, false);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo agregar', 'error'); return; }
+                        mostrarToast('Opción agregada ✔', 'success'); cargar();
+                    });
+                });
+
                 body.querySelectorAll('.vlresp-item').forEach(item => {
                     const clave = item.dataset.clave;
                     const txt = item.querySelector('.vlresp-txt');
-                    item.querySelector('.vlresp-guardar').addEventListener('click', async () => {
+                    const g = item.querySelector('.vlresp-guardar');
+                    if (g && txt) g.addEventListener('click', async () => {
                         const r = await vlApi.respuestaGuardar(clave, txt.value, true);
                         if (!r.ok) { mostrarToast(r.error || 'No se pudo guardar', 'error'); return; }
                         mostrarToast('Guardado ✔', 'success');

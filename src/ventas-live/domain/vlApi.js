@@ -174,6 +174,14 @@ export const vlApi = {
         callRpc('vl_wa_respuesta_crear', { p_gatillos: gatillos, p_cuerpo: cuerpo }),
     respuestaReglaEliminar: (id) => callRpc('vl_wa_respuesta_regla_eliminar', { p_id: id }),
     respuestasReset: () => callRpc('vl_wa_respuestas_reset'),
+    // Modo por momento ('aleatorio' rota variantes | 'fijo' manda la opción activa)
+    respuestaModo: (clave, modo) => callRpc('vl_wa_respuesta_modo', { p_clave: clave, p_modo: modo }),
+    // Opciones etiquetadas (burbujas) de un momento — incluye la clave 'datos_pago'
+    opcionesListar: (clave) => callRpc('vl_wa_opciones_listar', { p_clave: clave }),
+    opcionGuardar: (clave, etiqueta, texto, activa = false, id = null) =>
+        callRpc('vl_wa_opcion_guardar', { p_clave: clave, p_etiqueta: etiqueta, p_texto: texto, p_activa: activa, p_id: id }),
+    opcionActivar: (id) => callRpc('vl_wa_opcion_activar', { p_id: id }),
+    opcionEliminar: (id) => callRpc('vl_wa_opcion_eliminar', { p_id: id }),
 
     // ---- Chats de WhatsApp (intervención humana) ----
     chatsListar: () => callRpc('vl_wa_chats_listar'),

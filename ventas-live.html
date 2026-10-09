@@ -511,6 +511,17 @@
         .vlresp-grupo-body { display: none; padding: 6px 12px 12px; }
         .vlresp-grupo.abierto .vlresp-grupo-body { display: block; }
         .vlresp-nota-final { margin-top: 14px; font-size: 0.78rem; color: #adb5bd; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-left: 4px solid #6c757d; border-radius: 12px; padding: 10px 12px; line-height: 1.5; }
+        .vlresp-modo { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16); color: #ced4da; border-radius: 9px; padding: 5px 10px; font-size: 0.74rem; cursor: pointer; font-weight: 700; }
+        .vlresp-modo:hover { background: rgba(255,255,255,0.12); }
+        .vlresp-opc { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
+        .vlresp-opc-item { border: 1px solid rgba(255,255,255,0.10); border-left: 4px solid #6c757d; border-radius: 11px; padding: 9px 11px; background: rgba(255,255,255,0.03); }
+        .vlresp-opc-item.activa { border-left-color: #25d366; background: rgba(37,211,102,0.08); }
+        .vlresp-opc-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .vlresp-opc-etq { font-weight: 700; color: #e9d5ff; font-size: 0.82rem; }
+        .vlresp-opc-uso { font-size: 0.7rem; color: #7ff5d8; background: rgba(0,184,148,0.14); border: 1px solid rgba(0,184,148,0.45); border-radius: 999px; padding: 1px 8px; }
+        .vlresp-opc-tx { font-size: 0.82rem; color: #dee2e6; white-space: pre-wrap; margin-bottom: 6px; }
+        .vlresp-opc-nueva { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
+        .vlresp-opc-nueva .vl-btn { align-self: flex-start; }
         .vl-btn:disabled { opacity: .55; cursor: wait; }
 
         /* ===== Modales ===== */
@@ -831,7 +842,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=130"></script>
+    <script type="module" src="dist/app.js?v=131"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>
