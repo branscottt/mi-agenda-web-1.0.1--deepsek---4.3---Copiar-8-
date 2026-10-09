@@ -163,6 +163,18 @@ export const vlApi = {
     guardarConfigWa: (params) => callRpc('vl_guardar_config_wa', params),
     waConexionInfo: () => callRpc('vl_wa_conexion_info'),
 
+    // ---- Configurador de respuestas del bot (sin programar) ----
+    // El guion base lo ven todos; los overrides son por tenant. Dejar una
+    // respuesta en blanco => el bot calla y deja aviso al negocio.
+    respuestasListar: () => callRpc('vl_wa_respuestas_listar'),
+    respuestaGuardar: (clave, cuerpo, activo = true) =>
+        callRpc('vl_wa_respuesta_guardar', { p_clave: clave, p_cuerpo: cuerpo, p_activo: activo }),
+    respuestaRestaurar: (clave) => callRpc('vl_wa_respuesta_restaurar', { p_clave: clave }),
+    respuestaCrear: (gatillos, cuerpo) =>
+        callRpc('vl_wa_respuesta_crear', { p_gatillos: gatillos, p_cuerpo: cuerpo }),
+    respuestaReglaEliminar: (id) => callRpc('vl_wa_respuesta_regla_eliminar', { p_id: id }),
+    respuestasReset: () => callRpc('vl_wa_respuestas_reset'),
+
     // ---- Chats de WhatsApp (intervención humana) ----
     chatsListar: () => callRpc('vl_wa_chats_listar'),
     chatHilo: (chatId) => callRpc('vl_wa_chat_hilo', { p_chat_id: chatId }),

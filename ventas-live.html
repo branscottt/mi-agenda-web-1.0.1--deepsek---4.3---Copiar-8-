@@ -483,6 +483,21 @@
         .vl-btn.danger { background: rgba(230,60,60,0.14); border-color: rgba(230,60,60,0.5); color: #ff9f9f; }
         .vl-btn.danger:hover { background: rgba(230,60,60,0.26); }
         .vl-btn.warn { background: rgba(255,193,7,0.12); border-color: rgba(255,193,7,0.45); color: #ffe066; }
+        /* ===== Configurador de respuestas del bot ===== */
+        .vlresp-tit { font-size: 0.82rem; font-weight: 800; color: #e9d5ff; text-transform: uppercase; letter-spacing: .04em; margin: 2px 0 6px; }
+        .vlresp-hint { font-size: 0.76rem; color: #adb5bd; margin-bottom: 10px; line-height: 1.5; }
+        .vlresp-item { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+        .vlresp-desc { font-size: 0.78rem; color: #ced4da; margin-bottom: 6px; }
+        .vlresp-txt { width: 100%; resize: vertical; font-size: 0.82rem; }
+        .vlresp-acciones { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+        .vlresp-chip { font-size: 0.7rem; padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); color: #adb5bd; background: rgba(255,255,255,0.04); }
+        .vlresp-chip.base { color: #adb5bd; }
+        .vlresp-chip.editada { color: #c77dff; border-color: rgba(157,78,221,0.5); background: rgba(157,78,221,0.14); }
+        .vlresp-chip.aviso { color: #ffe066; border-color: rgba(255,193,7,0.45); background: rgba(255,193,7,0.10); }
+        .vlresp-regla { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+        .vlresp-regla-txt { font-size: 0.85rem; color: #e9d5ff; margin: 4px 0 8px; white-space: pre-wrap; }
+        .vlresp-nueva { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(255,255,255,0.12); }
+        .vlresp-nueva .vl-btn { align-self: flex-start; }
         .vl-btn:disabled { opacity: .55; cursor: wait; }
 
         /* ===== Modales ===== */
@@ -780,6 +795,7 @@
                     </div>
                     <div class="vl-ws-acciones">
                         <span class="vl-pill" id="vl-plan"><i class="fas fa-circle-notch fa-spin"></i></span>
+                        <button class="vl-config-btn" id="vl-resp-btn" type="button" title="Respuestas del bot (editar sin programar)"><i class="fas fa-comments"></i></button>
                         <button class="vl-config-btn" id="vl-wa-btn" type="button" title="Conectar WhatsApp (bot automático)"><i class="fab fa-whatsapp"></i></button>
                         <button class="vl-config-btn" id="vl-config-btn" type="button" title="Configurar nombre y WhatsApp del espacio"><i class="fas fa-gear"></i></button>
                     </div>
@@ -802,7 +818,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=128"></script>
+    <script type="module" src="dist/app.js?v=129"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

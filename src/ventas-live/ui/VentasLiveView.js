@@ -197,6 +197,10 @@ async function pintarWhatsappYConfig() {
             abrirModalWhatsApp(fresh.ok && fresh.data ? fresh.data : {});
         });
     }
+
+    // Botón "Respuestas del bot" (configurador no-code del guion)
+    const respBtn = document.getElementById('vl-resp-btn');
+    if (respBtn) respBtn.addEventListener('click', () => abrirModalRespuestas());
 }
 
 function pintarEstadoWa(conn) {
@@ -301,6 +305,128 @@ function abrirModalWhatsApp(conn) {
                 if (conn2.ok && conn2.data) pintarEstadoWa(conn2.data);
                 mostrarToast('Conexión guardada ✔', 'success');
             }
+        }
+    });
+}
+
+// Configurador de respuestas del bot (sin programar).
+// Muestra el guion base (para todos) + las personalizaciones del tenant.
+// Editar / Quitar / inventar reglas. Dejar un mensaje EN BLANCO => el bot NO lo
+// dice y deja un aviso al negocio para que responda una persona.
+function abrirModalRespuestas() {
+    abrirModal({
+        titulo: '💬 Respuestas del bot',
+        sub: 'Estos son los mensajes que manda el bot. Los de arriba vienen para todos; puedes editarlos o inventar los tuyos. Si dejas uno en blanco, el bot no lo dice y te deja un aviso para que respondas tú.',
+        ancho: '680px',
+        html: `
+            <div id="vlresp-body" style="max-height:62vh;overflow:auto;padding-right:6px;">
+                <div style="text-align:center;color:#adb5bd;padding:26px;"><i class="fas fa-circle-notch fa-spin"></i> Cargando…</div>
+            </div>
+            <div class="vl-modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <button class="vl-btn danger" id="vlresp-reset" type="button"><i class="fas fa-rotate-left"></i> Restaurar todo a las bases</button>
+                <button class="vl-btn" id="vlresp-cerrar" type="button">Cerrar</button>
+            </div>`,
+        onMount: (modal) => {
+            const body = modal.querySelector('#vlresp-body');
+            modal.querySelector('#vlresp-cerrar').addEventListener('click', () => cerrarModal(true));
+            modal.querySelector('#vlresp-reset').addEventListener('click', async () => {
+                if (!window.confirm('Esto borra TODAS tus personalizaciones y deja las respuestas base nuestras. ¿Continuar?')) return;
+                if (!window.confirm('¿Seguro? Esta acción no se puede deshacer.')) return;
+                const r = await vlApi.respuestasReset();
+                if (!r.ok) { mostrarToast(r.error || 'No se pudo restaurar', 'error'); return; }
+                mostrarToast('Respuestas restauradas a las bases ✔', 'success');
+                cargar();
+            });
+
+            async function cargar() {
+                const res = await vlApi.respuestasListar();
+                if (!res.ok) {
+                    body.innerHTML = `<div style="color:#ff9f9f;padding:14px;">${escapeHtml(res.error || 'No se pudo cargar')}</div>`;
+                    return;
+                }
+                const d = res.data || {};
+                const momentos = Array.isArray(d.momentos) ? d.momentos : [];
+                const reglas = Array.isArray(d.reglas) ? d.reglas : [];
+
+                const filas = momentos.map(m => {
+                    const chip = m.blanqueada
+                        ? '<span class="vlresp-chip aviso">En blanco: el bot te avisará para que respondas tú</span>'
+                        : (m.editada ? '<span class="vlresp-chip editada">Personalizada por ti</span>'
+                                     : '<span class="vlresp-chip base">Base (para todos)</span>');
+                    return `
+                        <div class="vlresp-item" data-clave="${escapeHtml(m.clave)}">
+                            <div class="vlresp-desc">${escapeHtml(m.descripcion)}</div>
+                            <textarea class="vl-control vlresp-txt" rows="2">${escapeHtml(m.cuerpo || '')}</textarea>
+                            <div class="vlresp-acciones">${chip}
+                                <span style="flex:1"></span>
+                                <button class="vl-btn primary vlresp-guardar" type="button"><i class="fas fa-save"></i> Guardar</button>
+                                ${m.editada ? '<button class="vl-btn vlresp-quitar" type="button"><i class="fas fa-rotate-left"></i> Quitar</button>' : ''}
+                            </div>
+                        </div>`;
+                }).join('');
+
+                const reglasHtml = reglas.map(r => `
+                    <div class="vlresp-regla" data-id="${escapeHtml(String(r.id))}">
+                        <div class="vlresp-desc">Si el cliente dice: <b>${escapeHtml((r.gatillos || []).join(', '))}</b></div>
+                        <div class="vlresp-regla-txt">${escapeHtml(r.cuerpo || '')}</div>
+                        <button class="vl-btn vlresp-regla-del" type="button"><i class="fas fa-trash"></i> Eliminar</button>
+                    </div>`).join('');
+
+                body.innerHTML = `
+                    <div class="vlresp-tit">Mensajes del guion</div>
+                    <div class="vlresp-hint">Si un mensaje sale con varias variantes, ponlas una por línea (el bot elige una al azar). Donde va el @ del cliente, usa <b>&lt;usuario&gt;</b>.</div>
+                    ${filas || '<div style="color:#adb5bd;">Sin mensajes.</div>'}
+                    <div class="vlresp-tit" style="margin-top:18px;">Tus respuestas inventadas</div>
+                    <div class="vlresp-hint">Si el cliente dice algo que incluye una de estas frases, el bot responde esto (y no sigue el guion). Ideal para preguntas frecuentes.</div>
+                    <div id="vlresp-reglas">${reglasHtml || '<div style="color:#adb5bd;font-size:0.82rem;">Todavía no inventaste ninguna.</div>'}</div>
+                    <div class="vlresp-nueva">
+                        <input class="vl-control" id="vlresp-gat" placeholder="Si el cliente dice… (varias frases separadas por coma)">
+                        <textarea class="vl-control" id="vlresp-cuerpo" rows="2" placeholder="…responder esto"></textarea>
+                        <button class="vl-btn primary" id="vlresp-agregar" type="button"><i class="fas fa-plus"></i> Agregar respuesta</button>
+                    </div>`;
+
+                body.querySelectorAll('.vlresp-item').forEach(item => {
+                    const clave = item.dataset.clave;
+                    const txt = item.querySelector('.vlresp-txt');
+                    item.querySelector('.vlresp-guardar').addEventListener('click', async () => {
+                        const r = await vlApi.respuestaGuardar(clave, txt.value, true);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo guardar', 'error'); return; }
+                        mostrarToast('Guardado ✔', 'success');
+                        cargar();
+                    });
+                    const q = item.querySelector('.vlresp-quitar');
+                    if (q) q.addEventListener('click', async () => {
+                        if (!window.confirm('¿Volver este mensaje a la base nuestra?')) return;
+                        const r = await vlApi.respuestaRestaurar(clave);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo restaurar', 'error'); return; }
+                        mostrarToast('Restaurado ✔', 'success');
+                        cargar();
+                    });
+                });
+
+                body.querySelectorAll('.vlresp-regla .vlresp-regla-del').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const id = btn.closest('.vlresp-regla').dataset.id;
+                        if (!window.confirm('¿Eliminar esta respuesta inventada?')) return;
+                        const r = await vlApi.respuestaReglaEliminar(id);
+                        if (!r.ok) { mostrarToast(r.error || 'No se pudo eliminar', 'error'); return; }
+                        mostrarToast('Eliminada ✔', 'success');
+                        cargar();
+                    });
+                });
+
+                body.querySelector('#vlresp-agregar').addEventListener('click', async () => {
+                    const gatillos = body.querySelector('#vlresp-gat').value.split(',').map(s => s.trim()).filter(Boolean);
+                    const cuerpo = body.querySelector('#vlresp-cuerpo').value;
+                    if (!gatillos.length) { mostrarToast('Escribe al menos una frase gatillo', 'warning'); return; }
+                    if (!cuerpo.trim()) { mostrarToast('Escribe la respuesta', 'warning'); return; }
+                    const r = await vlApi.respuestaCrear(gatillos, cuerpo);
+                    if (!r.ok) { mostrarToast(r.error || 'No se pudo agregar', 'error'); return; }
+                    mostrarToast('Respuesta agregada ✔', 'success');
+                    cargar();
+                });
+            }
+            cargar();
         }
     });
 }
