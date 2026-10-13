@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, candidatosHtml, bindCandidatos } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -105,6 +105,7 @@ function buildDOM() {
                         </div>
                     </div>
                     <div class="sub" id="lv-chat-sub">Escribe un @usuario conocido para ver su conversación acá.</div>
+                    <div id="lv-chat-quien"></div>
                     <div id="lv-chat-proc-acc"></div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
@@ -728,32 +729,53 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media').
     await firmarMedias(mensajes, getSupabase());
 
-    // Si el chat NO está vinculado: "¿Quién es?" con los usuarios posibles
-    // APRETABLES (sobre todo los que compraron y quedaron sin vincular).
-    let candsHtml = '';
-    if (!chat.cliente_id) {
-        try {
-            const cr = await vlApi.candidatosChat(_chatId);
-            if (cr && cr.ok && cr.data && !cr.data.vinculado) {
-                candsHtml = candidatosHtml(cr.data.candidatos);
-            }
-        } catch (_) { /* sin candidatos: el chat se ve igual */ }
-    }
+    // "¿Quién es?": SIEMPRE en el chat. Muestra los usuarios que compraron
+    // (primero los que quedaron SIN vincular) y deja buscar a cualquiera por su
+    // @ — así el dueño puede asignarlo aunque el bot no lo haya encontrado.
+    await pintarQuienEs($('lv-chat-quien'), _chatId, () => cargarHiloChat({ forzarAbajo: true }));
 
-    msgs.innerHTML = candsHtml + burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
-    bindCandidatos(msgs, async (clienteId, nick) => {
-        if (!window.confirm('¿Vincular esta conversación de WhatsApp con ' + nick + '?\n\n'
-            + 'Se guarda su número en la ficha (para que el bot lo reconozca solo la próxima vez).')) return;
-        const r = await vlApi.vincularChatCliente(_chatId, clienteId);
-        if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo vincular', 'error'); return; }
-        const d = r.data || {};
-        mostrarToast('Vinculado con ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
-        if (d.otro_chat_abierto) mostrarToast('Ojo: ese cliente ya tenía otra conversación abierta', 'warning');
-        cargarHiloChat({ forzarAbajo: true });
-    });
+    msgs.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
 
     autoScrollAbajo(msgs, { forzar: forzarAbajo || !silencioso });
     pintarCabeceraChat();
+}
+
+/**
+ * Pinta el bloque "¿Quién es?" (asignar el usuario del chat a mano) y lo deja
+ * enganchado: buscar + apretar el correcto. Se usa en los DOS lados del chat
+ * (el chat del panel Live y el cajón de conversaciones).
+ */
+async function pintarQuienEs(host, chatId, onVinculado) {
+    if (!host) return null;
+    let data = null;
+    try {
+        const cr = await vlApi.usuariosParaChat(chatId, null);
+        if (cr && cr.ok && cr.data) data = cr.data;
+    } catch (_) { /* sin lista: el chat se ve igual */ }
+    if (!data) { host.innerHTML = ''; return null; }
+
+    host.innerHTML = quienEsHtml({
+        vinculado: !!data.vinculado,
+        clienteActual: data.cliente_actual || null,
+        usuarios: data.usuarios || []
+    });
+
+    return bindQuienEs(host, {
+        onBuscar: async (texto) => {
+            const r = await vlApi.usuariosParaChat(chatId, texto);
+            return (r && r.ok && r.data) ? r.data : { usuarios: [] };
+        },
+        onElegir: async (clienteId, nick) => {
+            if (!window.confirm('¿Asignar esta conversación de WhatsApp a ' + nick + '?\n\n'
+                + 'Se guarda su número en la ficha, así el bot lo reconoce solo la próxima vez.')) return;
+            const r = await vlApi.vincularChatCliente(chatId, clienteId);
+            if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo asignar', 'error'); return; }
+            const d = r.data || {};
+            mostrarToast('Asignado a ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
+            if (d.otro_chat_abierto) mostrarToast('Ojo: ese usuario ya tenía otra conversación abierta', 'warning');
+            if (typeof onVinculado === 'function') onVinculado();
+        }
+    });
 }
 
 function pintarCabeceraChat() {

@@ -20,7 +20,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
-    quienContesta, procesoChips, firmarMedias, candidatosHtml, bindCandidatos
+    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -94,6 +94,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 </button>
             </div>
             <div class="vld-sub" id="vld-sub">Quién te escribió por WhatsApp</div>
+            <div id="vld-quien"></div>
             <div class="vld-body" id="vld-body"></div>
             <div class="vld-foot" id="vld-foot" style="display:none;">
                 <input class="vl-control" id="vld-input" maxlength="1000"
@@ -650,18 +651,6 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
            </div>`
         : '';
 
-    // Si el chat NO está vinculado: "¿Quién es?" con los usuarios posibles
-    // APRETABLES (sobre todo los que compraron y quedaron sin vincular).
-    let candsHtml = '';
-    if (!_chatMeta.cliente_id) {
-        try {
-            const cr = await vlApi.candidatosChat(chatId);
-            if (cr && cr.ok && cr.data && !cr.data.vinculado) {
-                candsHtml = candidatosHtml(cr.data.candidatos);
-            }
-        } catch (_) { /* sin candidatos: el chat se ve igual */ }
-    }
-
     // Proceso abierto del chat: hace falta el proceso_id para poder cerrar la
     // entrega DESDE ACÁ (el listado de chats no lo trae). Los botones reusan los
     // modales de siempre, así se hace lo mismo desde el chat o desde el diagrama.
@@ -681,7 +670,6 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         + procesoChipsHtml(procChat) + accionesChatHtml(_chatProc)
         + `</div>`
         + banner
-        + candsHtml
         + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
 
     // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
@@ -696,21 +684,53 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         cargarChats({ silencioso: true });
     });
 
-    // "¿Quién es?": apretar un candidato vincula el chat con esa ficha a mano.
-    bindCandidatos(body, async (clienteId, nick) => {
-        if (!window.confirm('¿Vincular esta conversación de WhatsApp con ' + nick + '?\n\n'
-            + 'Se guarda su número en la ficha (para que el bot lo reconozca solo la próxima vez).')) return;
-        const r = await vlApi.vincularChatCliente(chatId, clienteId);
-        if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo vincular', 'error'); return; }
-        const d = r.data || {};
-        mostrarToast('Vinculado con ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
-        if (d.otro_chat_abierto) mostrarToast('Ojo: ese cliente ya tenía otra conversación abierta', 'warning');
+    // "¿Quién es?": SIEMPRE arriba del hilo (no se pierde al bajar el chat).
+    // Muestra los usuarios que compraron (primero los sin vincular) y deja
+    // buscar a cualquiera por su @: así se asigna aunque el bot no lo hallara.
+    await pintarQuienEs($('vld-quien'), chatId, () => {
         cargarHilo(chatId, { silencioso: true });
         cargarChats({ silencioso: true });
     });
 
     pintarModoChat();
     if (!silencioso) cargarChats({ silencioso: true });
+}
+
+/**
+ * Pinta el bloque "¿Quién es?" (asignar el usuario del chat a mano) y lo deja
+ * enganchado: buscar + apretar el correcto.
+ */
+async function pintarQuienEs(host, chatId, onVinculado) {
+    if (!host) return null;
+    let data = null;
+    try {
+        const cr = await vlApi.usuariosParaChat(chatId, null);
+        if (cr && cr.ok && cr.data) data = cr.data;
+    } catch (_) { /* sin lista: el chat se ve igual */ }
+    if (!data) { host.innerHTML = ''; return null; }
+
+    host.innerHTML = quienEsHtml({
+        vinculado: !!data.vinculado,
+        clienteActual: data.cliente_actual || null,
+        usuarios: data.usuarios || []
+    });
+
+    return bindQuienEs(host, {
+        onBuscar: async (texto) => {
+            const r = await vlApi.usuariosParaChat(chatId, texto);
+            return (r && r.ok && r.data) ? r.data : { usuarios: [] };
+        },
+        onElegir: async (clienteId, nick) => {
+            if (!window.confirm('¿Asignar esta conversación de WhatsApp a ' + nick + '?\n\n'
+                + 'Se guarda su número en la ficha, así el bot lo reconoce solo la próxima vez.')) return;
+            const r = await vlApi.vincularChatCliente(chatId, clienteId);
+            if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo asignar', 'error'); return; }
+            const d = r.data || {};
+            mostrarToast('Asignado a ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
+            if (d.otro_chat_abierto) mostrarToast('Ojo: ese usuario ya tenía otra conversación abierta', 'warning');
+            if (typeof onVinculado === 'function') onVinculado();
+        }
+    });
 }
 
 function pintarModoChat() {

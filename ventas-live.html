@@ -632,6 +632,26 @@
         .vl-cand-nick { font-weight: 700; font-size: 0.88rem; }
         .vl-cand-dato { font-size: 0.72rem; color: #cbb8e6; }
         .vl-cand-motivo { font-size: 0.66rem; color: #a89bb8; font-style: italic; }
+
+        /* ===== "¿Quién es?": ASIGNAR el usuario del chat a mano (siempre visible).
+           Va pegado arriba (fuera del hilo que scrollea) para que no se pierda al
+           bajar la conversación. Morado suave: asignar NO es destructivo. ===== */
+        .vl-quien { padding: 9px 12px 10px; background: rgba(157,78,221,0.09); border-bottom: 1px solid rgba(157,78,221,0.22); flex-shrink: 0; }
+        .vl-quien-cab { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px 0; background: transparent; border: none; color: #e9edef; font-family: inherit; font-size: 0.82rem; text-align: left; cursor: pointer; }
+        .vl-quien-cab > i.fa-user-check { color: #c77dff; }
+        .vl-quien-cab:hover .vl-quien-titulo { color: #fff; }
+        .vl-quien-titulo { flex: 1; min-width: 0; line-height: 1.35; }
+        .vl-quien-flecha { color: #cbb8e6; font-size: 0.8rem; transition: transform .16s ease; }
+        .vl-quien.abierto .vl-quien-flecha { transform: rotate(180deg); }
+        .vl-quien-panel { margin-top: 9px; }
+        .vl-quien-busca { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 10px; background: #241b38; border: 1px solid rgba(157,78,221,0.35); }
+        .vl-quien-busca > i { color: #a89bb8; font-size: 0.8rem; }
+        .vl-quien-busca .vl-control { flex: 1; min-height: 32px; padding: 0; background: transparent; border: none; color: #e9edef; }
+        .vl-quien-busca .vl-control:focus { outline: none; box-shadow: none; }
+        .vl-quien-busca .vl-control::placeholder { color: #a89bb8; }
+        .vl-quien-ayuda { margin: 7px 2px 6px; font-size: 0.68rem; line-height: 1.45; color: #a89bb8; }
+        .vl-quien-lista { display: flex; flex-wrap: wrap; gap: 7px; max-height: 236px; overflow-y: auto; }
+        .vl-quien-vacio { padding: 2px; font-size: 0.78rem; line-height: 1.5; color: #a89bb8; }
         .vl-transcripcion-label { font-size: 0.68rem; letter-spacing: 0.03em; text-transform: uppercase; opacity: 0.7; margin: 6px 0 2px; }
 
         @media (max-width: 860px) {
@@ -842,7 +862,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=133"></script>
+    <script type="module" src="dist/app.js?v=134"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

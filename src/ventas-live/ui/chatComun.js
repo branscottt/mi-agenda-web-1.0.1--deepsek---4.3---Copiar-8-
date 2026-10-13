@@ -323,20 +323,137 @@ export async function firmarMedias(mensajes, supabase) {
 export function candidatosHtml(cands) {
     const lista = Array.isArray(cands) ? cands : [];
     if (!lista.length) return '';
-    const botones = lista.map(c => {
-        const saldo = Number(c.saldo || 0);
-        const nick = c.tiktok_user ? '@' + c.tiktok_user : (c.nombre_real || '(sin @)');
-        return `<button class="vl-cand" type="button" data-cliente="${escapeHtml(c.cliente_id)}">`
-            + `<span class="vl-cand-nick">${escapeHtml(nick)}</span>`
-            + `<span class="vl-cand-dato">${Number(c.prendas || 0)} prenda(s)`
-            + `${saldo > 0 ? ' · $' + saldo.toLocaleString('es-CL') : ''}</span>`
-            + `<span class="vl-cand-motivo">${escapeHtml(c.motivo || '')}</span>`
-            + `</button>`;
-    }).join('');
     return `<div class="vl-cands" id="vl-cands">
         <div class="vl-cands-titulo"><i class="fas fa-user-check"></i> ¿Quién es? Aprieta el correcto y queda vinculado 👇</div>
-        <div class="vl-cands-lista">${botones}</div>
+        <div class="vl-cands-lista">${botonesUsuariosHtml(lista)}</div>
     </div>`;
+}
+
+/** Los botones (@ + prendas + saldo + motivo) de una lista de usuarios. */
+function botonesUsuariosHtml(lista) {
+    return (Array.isArray(lista) ? lista : []).map(u => {
+        const saldo = Number(u.saldo || 0);
+        const abierto = Number(u.saldo_abierto || 0);
+        const nick = u.tiktok_user ? '@' + u.tiktok_user : (u.nombre_real || '(sin @)');
+        const dato = [Number(u.prendas || 0) + ' prenda(s)']
+            .concat(saldo > 0 ? ['$' + saldo.toLocaleString('es-CL')] : [])
+            .concat(abierto > 0 && abierto !== saldo ? ['por cobrar $' + abierto.toLocaleString('es-CL')] : [])
+            .join(' · ');
+        return `<button class="vl-cand" type="button" data-cliente="${escapeHtml(u.cliente_id)}">`
+            + `<span class="vl-cand-nick">${escapeHtml(nick)}</span>`
+            + `<span class="vl-cand-dato">${escapeHtml(dato)}</span>`
+            + `<span class="vl-cand-motivo">${escapeHtml(u.motivo || '')}</span>`
+            + `</button>`;
+    }).join('');
+}
+
+/**
+ * "¿Quién es?" — ASIGNAR el usuario del chat a mano. Va SIEMPRE en el chat (no
+ * sólo cuando el bot adivina): al abrirlo muestra la lista de usuarios que
+ * compraron (primero los que quedaron SIN vincular) y un buscador para
+ * encontrar a cualquiera por @, nombre o número — compre o no.
+ * Con el chat ya asignado, sirve para CAMBIARLO si quedó con la persona mal.
+ * @param {Object} o {vinculado, clienteActual, usuarios, q}
+ */
+export function quienEsHtml({ vinculado = false, clienteActual = null, usuarios = [], q = '' } = {}) {
+    const la = clienteActual || {};
+    const nickActual = la.tiktok_user ? '@' + la.tiktok_user
+        : (la.nombre_real || 'este número');
+    const titulo = vinculado
+        ? `Asignado a ${escapeHtml(nickActual)} — si no es, aprieta el correcto`
+        : '¿Quién es? Aprieta el correcto y queda asignado 👇';
+    return `<div class="vl-quien${vinculado ? '' : ' abierto'}" id="vl-quien" data-vinculado="${vinculado ? '1' : '0'}">
+        <button class="vl-quien-cab" id="vl-quien-cab" type="button" aria-expanded="${vinculado ? 'false' : 'true'}">
+            <i class="fas fa-user-check"></i>
+            <span class="vl-quien-titulo">${titulo}</span>
+            <span class="vl-quien-flecha"><i class="fas fa-chevron-down"></i></span>
+        </button>
+        <div class="vl-quien-panel" id="vl-quien-panel"${vinculado ? ' hidden' : ''}>
+            <div class="vl-quien-busca">
+                <i class="fas fa-magnifying-glass"></i>
+                <input class="vl-control" id="vl-quien-input" autocomplete="off"
+                       placeholder="Escribe el @, el nombre o el número…" value="${escapeHtml(q)}">
+            </div>
+            <div class="vl-quien-ayuda" id="vl-quien-ayuda">Los que compraron y no están vinculados salen primero. Si no aparece, búscalo por su @.</div>
+            <div class="vl-quien-lista" id="vl-quien-lista">${listaUsuariosHtml(usuarios)}</div>
+        </div>
+    </div>`;
+}
+
+/** Lista de botones para el panel "¿Quién es?" (con texto si no hay nadie). */
+function listaUsuariosHtml(usuarios) {
+    const l = Array.isArray(usuarios) ? usuarios : [];
+    if (!l.length) {
+        return '<div class="vl-quien-vacio">Nadie con ese texto. Prueba con el @ exacto del live (por ejemplo @su_usuario).</div>';
+    }
+    return botonesUsuariosHtml(l);
+}
+
+/**
+ * Engancha el panel "¿Quién es?": abre/cierra, BUSCA (con freno para no
+ * disparar una consulta por tecla) y entrega el usuario apretado.
+ * @param {HTMLElement} cont contenedor donde se pintó quienEsHtml()
+ * @param {Object} cb {onBuscar(texto)->Promise<{usuarios}>, onElegir(clienteId, nick)}
+ * @returns {Object} {setLista, setAyuda, abrir, cerrar}
+ */
+export function bindQuienEs(cont, { onBuscar, onElegir } = {}) {
+    const c = cont || (typeof document !== 'undefined' ? document.getElementById('vl-quien') : null);
+    const vacio = { setLista() {}, setAyuda() {}, abrir() {}, cerrar() {} };
+    if (!c) return vacio;
+
+    const cab = c.querySelector('.vl-quien-cab');
+    const panel = c.querySelector('.vl-quien-panel');
+    const input = c.querySelector('.vl-quien-busca .vl-control');
+    const lista = c.querySelector('.vl-quien-lista');
+    const ayuda = c.querySelector('.vl-quien-ayuda');
+
+    const pintar = (usuarios) => { if (lista) lista.innerHTML = listaUsuariosHtml(usuarios); };
+    const estaAbierto = () => !!(panel && !panel.hidden);
+    const fijar = (abierto) => {
+        if (panel) panel.hidden = !abierto;
+        c.classList.toggle('abierto', abierto);
+        if (cab) cab.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+        if (abierto && input) { try { input.focus(); } catch (_) {} }
+    };
+    const abrir = () => fijar(true);
+    const cerrar = () => fijar(false);
+
+    if (cab) cab.addEventListener('click', (e) => { e.preventDefault(); fijar(!estaAbierto()); });
+
+    let freno = null;
+    if (input) {
+        input.addEventListener('input', () => {
+            clearTimeout(freno);
+            const texto = input.value.trim();
+            const ayudaTx = texto
+                ? 'Buscando…'
+                : 'Los que compraron y no están vinculados salen primero. Si no aparece, búscalo por su @.';
+            const poner = () => { if (ayuda) ayuda.textContent = ayudaTx; };
+            poner();
+            freno = setTimeout(async () => {
+                if (typeof onBuscar !== 'function') return;
+                try {
+                    const r = await onBuscar(texto);
+                    pintar(r && r.usuarios ? r.usuarios : []);
+                } catch (_) { pintar([]); }
+                if (ayuda) {
+                    ayuda.textContent = texto
+                        ? 'Si la persona no está, revisa que su ficha tenga ese @.'
+                        : 'Los que compraron y no están vinculados salen primero. Si no aparece, búscalo por su @.';
+                }
+            }, 300);
+        });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); } });
+    }
+
+    c.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('.vl-cand') : null;
+        if (!btn || !c.contains(btn)) return;
+        const nick = btn.querySelector('.vl-cand-nick');
+        if (typeof onElegir === 'function') onElegir(btn.dataset.cliente, nick ? nick.textContent : 'usuario');
+    });
+
+    return { setLista: pintar, setAyuda: (t) => { if (ayuda) ayuda.textContent = t; }, abrir, cerrar };
 }
 
 /** Engancha los botones de "¿Quién es?": cb(clienteId, nick). */

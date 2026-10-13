@@ -189,6 +189,11 @@ export const vlApi = {
     chatModo: (chatId, modo) => callRpc('vl_wa_chat_modo', { p_chat_id: chatId, p_modo: modo }),
     chatPorCliente: (clienteId) => callRpc('vl_wa_chat_por_cliente', { p_cliente_id: clienteId }),
     candidatosChat: (chatId) => callRpc('vl_wa_candidatos_chat', { p_chat_id: chatId }),
+    // Lista para ASIGNAR el usuario del chat a mano (siempre disponible): los que
+    // compraron (primero los que quedaron sin vincular) y búsqueda por @/nombre.
+    usuariosParaChat: (chatId, texto) => callRpc('vl_wa_usuarios_para_chat', {
+        p_chat_id: chatId, p_texto: (texto && texto.trim()) ? texto.trim() : null
+    }),
     vincularChatCliente: (chatId, clienteId) => callRpc('vl_wa_vincular_chat', {
         p_chat_id: chatId, p_cliente_id: clienteId
     }),
