@@ -752,13 +752,21 @@ async function pintarQuienEs(host, chatId, onVinculado) {
         const cr = await vlApi.usuariosParaChat(chatId, null);
         if (cr && cr.ok && cr.data) data = cr.data;
     } catch (_) { /* sin lista: el chat se ve igual */ }
-    if (!data) { host.innerHTML = ''; return null; }
+    if (!data) { host.innerHTML = ''; delete host.dataset.quienClave; return null; }
+
+    // El chat se refresca solo cada pocos segundos: si el bloque YA está pintado
+    // para este chat y este estado, NO se repinta (si no, se borraría lo que el
+    // dueño alcanzó a escribir en el buscador).
+    const clave = String(chatId) + '|' + (data.vinculado ? '1' : '0') + '|'
+        + ((data.cliente_actual && data.cliente_actual.cliente_id) || '');
+    if (host.dataset.quienClave === clave) return null;
 
     host.innerHTML = quienEsHtml({
         vinculado: !!data.vinculado,
         clienteActual: data.cliente_actual || null,
         usuarios: data.usuarios || []
     });
+    host.dataset.quienClave = clave;
 
     return bindQuienEs(host, {
         onBuscar: async (texto) => {
