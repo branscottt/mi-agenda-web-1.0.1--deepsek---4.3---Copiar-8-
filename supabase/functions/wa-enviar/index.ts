@@ -1,9 +1,11 @@
 // wa-enviar/index.ts
 // Envío MANUAL de un mensaje de WhatsApp desde el panel de Ventas Live
-// (intervención humana en una conversación del bot).
+// (intervención humana en una conversación del bot): TEXTO o FOTO/VIDEO con
+// comentario, desde computador, celular o tablet.
 //
 // Uso: POST /functions/v1/wa-enviar
-// Body: { chat_id: uuid, texto: string }
+// Body texto: { chat_id: uuid, texto: string }
+// Body media: { chat_id, texto?: string (comentario), media_path, media_tipo, media_mime }
 // Response: { ok: true, mensaje: { id, body, creado_en } }
 //
 // Flujo:
@@ -13,13 +15,18 @@
 //      usuario es admin del tenant dueño de la conversación y devuelve
 //      phone_id + token del tenant. Esos secretos viven server-side y
 //      NUNCA se devuelven al cliente.
-//   3. POST a Graph API /<phone_id>/messages.
-//   4. `vl_wa_registrar_saliente` (service_role) guarda el 'out' en el
-//      historial y actualiza el resumen del chat.
+//   3. Para un archivo: el panel YA lo subió al bucket privado 'vl-media' en la
+//      carpeta de su negocio (política propia) → acá se baja con service_role,
+//      se sube a Meta (media endpoint) y se manda como imagen/video con el
+//      comentario como caption.
+//   4. POST a Graph API /<phone_id>/messages.
+//   5. `vl_wa_registrar_saliente` / `vl_wa_registrar_saliente_media`
+//      (service_role) guardan el 'out' en el historial y actualizan el resumen.
 //
 // Seguridad:
 //   - Sin JWT válido → 401 (la plataforma ya lo exige con verify_jwt).
 //   - El usuario solo puede enviar en conversaciones de SU espacio.
+//   - El archivo debe estar en la carpeta del tenant de ESA conversación.
 //   - El token del tenant jamás sale de esta función hacia el navegador.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -27,6 +34,18 @@ import { applySecurityHeaders } from '../_shared/security-headers.ts';
 
 const GRAPH_API = 'https://graph.facebook.com/v21.0';
 const MAX_TEXTO = 4000;
+const MAX_COMENTARIO = 1024; // caption de WhatsApp para imagen/video
+const TIMEOUT_MS = 25000;
+
+// Límites de WhatsApp y formatos que acepta.
+const LIMITES: Record<string, number> = {
+  imagen: 5 * 1024 * 1024,
+  video: 16 * 1024 * 1024,
+};
+const MIMES: Record<string, string[]> = {
+  imagen: ['image/jpeg', 'image/jpg', 'image/png'],
+  video: ['video/mp4', 'video/3gpp'],
+};
 
 interface JwtPayload {
   sub?: string;
@@ -36,6 +55,9 @@ interface JwtPayload {
 interface EnviarRequest {
   chat_id?: string;
   texto?: string;
+  media_path?: string;
+  media_tipo?: string;
+  media_mime?: string;
 }
 
 /** Decodifica el payload del JWT (la firma ya la verificó la plataforma). */
@@ -109,6 +131,85 @@ async function enviarGraph(phoneId: string, token: string, to: string, body: str
   return { ok: true, detalle: '' };
 }
 
+/** Baja el archivo del bucket privado con service_role (nunca lo ve el navegador). */
+async function bajarArchivo(ruta: string): Promise<Uint8Array | null> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  const resp = await fetch(
+    `${supabaseUrl}/storage/v1/object/vl-media/${ruta.split('/').map(encodeURIComponent).join('/')}`,
+    {
+      headers: { 'apikey': serviceRoleKey, 'Authorization': `Bearer ${serviceRoleKey}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    },
+  );
+  if (!resp.ok) {
+    console.error(`[wa-enviar] No pude bajar el archivo (${resp.status})`);
+    return null;
+  }
+  const bytes = new Uint8Array(await resp.arrayBuffer());
+  return bytes.length ? bytes : null;
+}
+
+/**
+ * Sube el archivo a Meta y devuelve su media id. Meta guarda el id ~30 días y
+ * solo entonces se puede mandar por mensaje.
+ */
+async function subirAMeta(
+  phoneId: string, token: string, bytes: Uint8Array, mime: string, tipo: string,
+): Promise<{ ok: boolean; mediaId: string; detalle: string }> {
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', tipo);
+  form.append('file', new Blob([bytes], { type: mime }), tipo === 'video' ? 'video.mp4' : 'foto.jpg');
+
+  const resp = await fetch(`${GRAPH_API}/${phoneId}/media`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: form,
+    signal: AbortSignal.timeout(60000),
+  });
+  const txt = await resp.text().catch(() => '');
+  if (!resp.ok) {
+    console.error(`[wa-enviar] Meta rechazó el archivo (${resp.status}):`, txt.slice(0, 400));
+    return { ok: false, mediaId: '', detalle: txt.slice(0, 300) };
+  }
+  try {
+    const data = JSON.parse(txt) as { id?: string };
+    if (!data.id) return { ok: false, mediaId: '', detalle: 'Sin id de archivo' };
+    return { ok: true, mediaId: data.id, detalle: '' };
+  } catch (_) {
+    return { ok: false, mediaId: '', detalle: 'Respuesta inesperada de WhatsApp' };
+  }
+}
+
+/** Manda la imagen/video ya subida, con el comentario como caption. */
+async function enviarMediaGraph(
+  phoneId: string, token: string, to: string, tipo: string, mediaId: string, caption: string,
+): Promise<{ ok: boolean; detalle: string }> {
+  const cuerpo: Record<string, unknown> = { id: mediaId };
+  if (caption) cuerpo.caption = caption.slice(0, MAX_COMENTARIO);
+  const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: tipo,                    // 'image' | 'video'
+      [tipo]: cuerpo,
+    }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text().catch(() => '');
+    console.error(`[wa-enviar] Graph API media error (${resp.status}):`, err.slice(0, 400));
+    return { ok: false, detalle: err.slice(0, 300) };
+  }
+  return { ok: true, detalle: '' };
+}
+
 async function handle(req: Request): Promise<Response> {
   const requestOrigin = req.headers.get('origin') || '';
   const allowedOriginsEnv = Deno.env.get('ALLOWED_ORIGINS') || '';
@@ -150,15 +251,29 @@ async function handle(req: Request): Promise<Response> {
     const body = (await req.json().catch(() => ({}))) as EnviarRequest;
     const chatId = (body.chat_id || '').trim();
     const texto = (body.texto || '').trim();
+    const mediaPath = (body.media_path || '').trim();
+    const mediaTipo = (body.media_tipo || '').trim().toLowerCase();
+    const mediaMime = (body.media_mime || '').trim().toLowerCase();
 
     if (!UUID_RE.test(chatId)) {
       return json({ ok: false, error: 'chat_id inválido' }, 400);
     }
-    if (texto === '') {
-      return json({ ok: false, error: 'El mensaje no puede estar vacío' }, 400);
-    }
-    if (texto.length > MAX_TEXTO) {
-      return json({ ok: false, error: `El mensaje supera ${MAX_TEXTO} caracteres` }, 400);
+
+    const conArchivo = mediaPath !== '';
+    if (!conArchivo) {
+      if (texto === '') {
+        return json({ ok: false, error: 'El mensaje no puede estar vacío' }, 400);
+      }
+      if (texto.length > MAX_TEXTO) {
+        return json({ ok: false, error: `El mensaje supera ${MAX_TEXTO} caracteres` }, 400);
+      }
+    } else {
+      if (!(mediaTipo in LIMITES)) {
+        return json({ ok: false, error: 'Solo se pueden mandar fotos o videos' }, 400);
+      }
+      if (texto.length > MAX_COMENTARIO) {
+        return json({ ok: false, error: `El comentario supera ${MAX_COMENTARIO} caracteres` }, 400);
+      }
     }
 
     // Autorización + credenciales del tenant (service_role)
@@ -171,10 +286,74 @@ async function handle(req: Request): Promise<Response> {
     const phoneId = String(cfg.phone_id || '');
     const token = String(cfg.token || '');
     const waId = String(cfg.wa_id || '');
+    const tenantId = String(cfg.tenant_id || '');
     if (!phoneId || !token || !waId) {
       return json({ ok: false, error: 'Conexión de WhatsApp incompleta' }, 500);
     }
 
+    // ── CON ARCHIVO: bajar del bucket → subir a Meta → mandar con comentario ──
+    if (conArchivo) {
+      if (!tenantId || !mediaPath.startsWith(tenantId + '/')) {
+        return json({ ok: false, error: 'El archivo no es de este negocio' }, 403);
+      }
+      const mimes = MIMES[mediaTipo] || [];
+      if (mediaMime && mimes.length && !mimes.includes(mediaMime)) {
+        return json({
+          ok: false,
+          error: mediaTipo === 'imagen'
+            ? 'WhatsApp solo acepta fotos JPG o PNG'
+            : 'WhatsApp solo acepta videos MP4',
+        }, 400);
+      }
+
+      const bytes = await bajarArchivo(mediaPath);
+      if (!bytes) {
+        return json({ ok: false, error: 'No se encontró el archivo subido' }, 404);
+      }
+      const limite = LIMITES[mediaTipo];
+      if (bytes.length > limite) {
+        return json({
+          ok: false,
+          error: `El archivo pesa ${(bytes.length / 1048576).toFixed(1)} MB y WhatsApp acepta hasta ${Math.round(limite / 1048576)} MB`,
+        }, 413);
+      }
+
+      const tipoMeta = mediaTipo === 'video' ? 'video' : 'image';
+      const mimeReal = mediaMime || (tipoMeta === 'video' ? 'video/mp4' : 'image/jpeg');
+      const subida = await subirAMeta(phoneId, token, bytes, mimeReal, tipoMeta);
+      if (!subida.ok) {
+        return json({ ok: false, error: 'WhatsApp rechazó el archivo', detalle: subida.detalle }, 502);
+      }
+
+      const envio = await enviarMediaGraph(phoneId, token, waId, tipoMeta, subida.mediaId, texto);
+      if (!envio.ok) {
+        return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
+      }
+
+      const reg = await rpc('vl_wa_registrar_saliente_media', {
+        p_chat_id: chatId,
+        p_texto: texto,
+        p_tipo: mediaTipo,
+        p_media_path: mediaPath,
+      });
+      if (!reg || reg.ok !== true) {
+        console.error('[wa-enviar] El archivo se envió pero no se pudo registrar en el historial');
+        return json({ ok: false, error: 'Se envió, pero no se pudo guardar en el historial' }, 500);
+      }
+
+      return json({
+        ok: true,
+        mensaje: {
+          id: reg.mensaje_id,
+          body: reg.body,
+          creado_en: reg.creado_en,
+          media_path: reg.media_path,
+          tipo: mediaTipo,
+        },
+      }, 200);
+    }
+
+    // ── SOLO TEXTO ──
     const envio = await enviarGraph(phoneId, token, waId, texto);
     if (!envio.ok) {
       return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);

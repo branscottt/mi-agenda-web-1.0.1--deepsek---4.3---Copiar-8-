@@ -53,6 +53,71 @@ async function enviarMensajeManual(chatId, texto) {
     }
 }
 
+// Envío manual de FOTO/VIDEO con comentario. Dos pasos:
+//   1. El archivo se sube al bucket privado 'vl-media' en la carpeta del negocio
+//      ({tenant}/{chat}/{uuid}.ext) — la política de storage lo permite.
+//   2. La Edge Function wa-enviar lo baja con service_role, lo sube a Meta y lo
+//      manda por WhatsApp con el comentario como caption.
+// Si el envío falla, se borra lo subido (no queda basura en el bucket).
+function extensionDeArchivo(archivo, tipo) {
+    const mime = String((archivo && archivo.type) || '').toLowerCase();
+    const porMime = {
+        'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png',
+        'video/mp4': 'mp4', 'video/3gpp': '3gp'
+    };
+    if (porMime[mime]) return porMime[mime];
+    const ext = String((archivo && archivo.name) || '').split('.').pop().toLowerCase();
+    if (/^[a-z0-9]{2,5}$/.test(ext)) return ext;
+    return tipo === 'video' ? 'mp4' : 'jpg';
+}
+
+async function enviarMediaManual(chatId, { archivo, tipo, comentario = '' } = {}) {
+    try {
+        const cfg = getAppConfig();
+        const base = (cfg.edgeFunctionsUrl ||
+            ((cfg.supabaseUrl || '').replace(/\/+$/, '') + '/functions/v1'));
+        const token = getAuthToken();
+        const supabase = getSupabase();
+        if (!token || !supabase) return { ok: false, error: 'Sesión no disponible' };
+
+        const ten = await callRpc('get_vl_tenant_id');
+        const tenantId = (ten && ten.ok && typeof ten.data === 'string') ? ten.data : '';
+        if (!tenantId) return { ok: false, error: 'No se pudo identificar tu negocio' };
+
+        const ruta = `${tenantId}/${chatId}/${crypto.randomUUID()}.${extensionDeArchivo(archivo, tipo)}`;
+        const up = await supabase.storage.from('vl-media').upload(ruta, archivo, {
+            contentType: archivo.type || (tipo === 'video' ? 'video/mp4' : 'image/jpeg'),
+            upsert: false
+        });
+        if (up && up.error) {
+            return { ok: false, error: up.error.message || 'No se pudo subir el archivo' };
+        }
+
+        const resp = await fetch(`${base}/wa-enviar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                chat_id: chatId,
+                texto: comentario || null,
+                media_path: ruta,
+                media_tipo: tipo,
+                media_mime: archivo.type || ''
+            })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data || data.ok !== true) {
+            try { await supabase.storage.from('vl-media').remove([ruta]); } catch (_) { /* sin permiso: se deja */ }
+            return { ok: false, error: (data && data.error) || `Error HTTP ${resp.status}` };
+        }
+        return { ok: true, data: data.mensaje };
+    } catch (e) {
+        return { ok: false, error: e.message || 'Error inesperado' };
+    }
+}
+
 async function callRpc(nombre, params = {}) {
     const supabase = getSupabase();
     if (!supabase) return { ok: false, error: 'Sesión no disponible' };
@@ -205,6 +270,8 @@ export const vlApi = {
         callRpc('vl_push_guardar', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }),
     borrarPushSub: (endpoint) => callRpc('vl_push_borrar', { p_endpoint: endpoint }),
     enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto),
+    // Foto o video con comentario (desde computador, celular o tablet).
+    enviarMediaManual: (chatId, opciones) => enviarMediaManual(chatId, opciones),
 
     // ---- Diagrama de procesos (todos de una, con puntos presionables) ----
     diagramaProcesos: () => callRpc('vl_procesos_diagrama'),

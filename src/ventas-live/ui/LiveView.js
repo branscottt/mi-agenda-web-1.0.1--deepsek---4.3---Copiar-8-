@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -29,6 +29,9 @@ let _chatId = null;
 let _chatModo = 'bot';
 let _chatPoll = null;
 let _chatEnviando = false;
+// Adjuntar foto/video: archivo elegido (si hay) y a qué chat pertenece.
+let _adjunto = null;
+let _adjuntoChatId = null;
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
 let _sugerencias = [];
@@ -108,9 +111,15 @@ function buildDOM() {
                     <div id="lv-chat-quien"></div>
                     <div id="lv-chat-proc-acc"></div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
+                    <div class="vl-chat-previa" id="lv-chat-previa" hidden></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
+                        <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto o video">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <input type="file" class="vl-adj-input" id="lv-chat-file" accept="image/jpeg,image/png,video/mp4"
+                               style="display:none">
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
-                               placeholder="Responder por WhatsApp…" autocomplete="off">
+                               placeholder="Responde por WhatsApp…" autocomplete="off">
                         <button class="vl-btn primary" id="lv-chat-enviar" type="button" title="Enviar">
                             <i class="fas fa-paper-plane"></i>
                         </button>
@@ -179,6 +188,20 @@ function buildDOM() {
 
     // Chat del cliente (panel lateral del LIVE)
     $('lv-chat-enviar').addEventListener('click', enviarChat);
+    // Adjuntar foto/video: en el celular y la tablet el selector ofrece cámara y
+    // galería; en el computador, el explorador. Se valida antes de subir.
+    if (!_adjunto) {
+        _adjunto = montarAdjunto(document, {
+            btn: '#lv-chat-adj',
+            input: '#lv-chat-file',
+            previa: '#lv-chat-previa',
+            alCambiar: (archivo, error) => {
+                if (error) mostrarToast(error, 'error');
+                const inp = $('lv-chat-input');
+                if (inp) inp.placeholder = archivo ? 'Escribe un comentario…' : 'Responde por WhatsApp…';
+            }
+        });
+    }
     $('lv-chat-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); enviarChat(); }
     });
@@ -720,6 +743,12 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     const msgs = $('lv-chat-msgs');
     if (!msgs) return;
 
+    // Se cambió de conversación: el archivo que quedó elegido era de la otra.
+    if (_adjuntoChatId !== _chatId) {
+        if (_adjunto) _adjunto.limpiar();
+        _adjuntoChatId = _chatId;
+    }
+
     const res = await vlApi.chatHilo(_chatId);
     if (!res.ok) return;
 
@@ -810,7 +839,9 @@ async function enviarChat() {
     const btn = $('lv-chat-enviar');
     if (!input || !_chatId) return;
     const texto = input.value.trim();
-    if (!texto) return;
+    const adj = (_adjunto && _adjunto.tiene()) ? _adjunto.archivo() : null;
+    const tipoAdj = adj ? _adjunto.tipo() : '';
+    if (!texto && !adj) return;
 
     _chatEnviando = true;
     if (btn) btn.disabled = true;
@@ -819,7 +850,10 @@ async function enviarChat() {
     // limpia, sin esperar a WhatsApp (el envío real tarda ~1-2 s). Al reconciliar,
     // el hilo real la reemplaza; si falla, se quita y se devuelve el texto.
     const tmpId = 'tmp-' + Date.now();
-    pintarBurbujaPendienteChat(tmpId, texto);
+    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…' : '📷 Enviando foto…';
+    pintarBurbujaPendienteChat(tmpId, adj
+        ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
+        : texto);
     input.value = '';
 
     // Si el bot está activo, tomar el control antes de escribir.
@@ -829,7 +863,11 @@ async function enviarChat() {
         if (r.ok) { _chatModo = 'humano'; tomoControl = true; pintarCabeceraChat(); }
     }
 
-    const res = await vlApi.enviarManual(_chatId, texto);
+    // Foto/video con comentario, o mensaje de texto.
+    const res = adj
+        ? await vlApi.enviarMediaManual(_chatId, { archivo: adj, tipo: tipoAdj, comentario: texto })
+        : await vlApi.enviarManual(_chatId, texto);
+    if (adj && res && res.ok && _adjunto) _adjunto.limpiar();
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
     // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta

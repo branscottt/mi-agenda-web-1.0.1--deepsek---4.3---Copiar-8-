@@ -468,6 +468,166 @@ export function bindCandidatos(cont, cb) {
     });
 }
 
+// ── Adjuntar FOTO/VIDEO al chat (computador, celular o tablet) ───────────────
+// WhatsApp (Cloud API) solo acepta fotos JPG/PNG (hasta 5 MB) y videos MP4/3GPP
+// (hasta 16 MB). Se valida ANTES de subir para no gastar datos al pepe.
+export const ADJUNTO_LIMITES = { imagen: 5 * 1024 * 1024, video: 16 * 1024 * 1024 };
+export const ADJUNTO_MIMES = {
+    imagen: ['image/jpeg', 'image/jpg', 'image/png'],
+    video: ['video/mp4', 'video/3gpp']
+};
+
+/** 'imagen' | 'video' | '' según el archivo elegido. */
+export function tipoDeArchivo(archivo) {
+    const mime = String((archivo && archivo.type) || '').toLowerCase();
+    if (mime.startsWith('image/')) return 'imagen';
+    if (mime.startsWith('video/')) return 'video';
+    return '';
+}
+
+/** "350 KB" / "2.4 MB" para mostrar en la vista previa. */
+export function etiquetaPeso(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return Math.round(n / 1024) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+}
+
+/** ¿Se puede mandar? {ok, tipo, error} — el error explica qué hacer. */
+export function validarAdjunto(archivo) {
+    const tipo = tipoDeArchivo(archivo);
+    if (!tipo) {
+        return { ok: false, tipo: '', error: 'Solo se pueden mandar fotos o videos.' };
+    }
+    const mime = String(archivo.type || '').toLowerCase();
+    if (!ADJUNTO_MIMES[tipo].includes(mime)) {
+        const ext = (String(archivo.name || '').split('.').pop() || '').toUpperCase();
+        return {
+            ok: false, tipo,
+            error: tipo === 'video'
+                ? `WhatsApp solo acepta videos MP4${ext && ext !== 'MP4' ? ` (este es ${ext})` : ''}.`
+                : `WhatsApp solo acepta fotos JPG o PNG${ext ? ` (esta es ${ext})` : ''}.`
+        };
+    }
+    const limite = ADJUNTO_LIMITES[tipo];
+    if (Number(archivo.size) > limite) {
+        return {
+            ok: false, tipo,
+            error: `Pesa ${etiquetaPeso(archivo.size)} y WhatsApp acepta hasta ${Math.round(limite / 1048576)} MB.`
+        };
+    }
+    return { ok: true, tipo, error: '' };
+}
+
+/** Vista previa del archivo elegido: miniatura + nombre + peso + quitar. */
+export function previaAdjuntoHtml({ nombre = '', tipo = 'imagen', url = '', peso = 0 } = {}) {
+    const mini = tipo === 'video'
+        ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
+        : `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`;
+    return `<div class="vl-adj-previa" id="vl-adj-previa">
+        ${mini}
+        <div class="vl-adj-datos">
+            <div class="vl-adj-nombre">${escapeHtml(nombre || (tipo === 'video' ? 'Video' : 'Foto'))}</div>
+            <div class="vl-adj-peso">${tipo === 'video' ? '🎬 Video' : '📷 Foto'} · ${escapeHtml(etiquetaPeso(peso))}</div>
+        </div>
+        <button class="vl-adj-quitar" id="vl-adj-quitar" type="button" title="Quitar el archivo">
+            <i class="fas fa-xmark"></i>
+        </button>
+    </div>`;
+}
+
+/**
+ * Engancha el adjuntar: el botón abre el selector de archivos (en el celular y
+ * la tablet eso da cámara y galería; en el computador, el explorador), valida,
+ * muestra la vista previa y deja el archivo listo para mandar.
+ * @param {HTMLElement} cont contenedor donde viven el botón/input/previa
+ * @param {Object} o {btn, input, previa, alCambiar(archivo|null, error)}
+ * @returns {Object} {archivo(), tipo(), tiene(), limpiar()}
+ */
+export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
+    const raiz = cont || (typeof document !== 'undefined' ? document : null);
+    const q = (sel) => {
+        if (!sel) return null;
+        if (typeof sel !== 'string') return sel;
+        return raiz && raiz.querySelector ? raiz.querySelector(sel) : null;
+    };
+    const b = q(btn);
+    const f = q(input);
+    const pr = q(previa);
+    let archivo = null;
+    let tipo = '';
+    let urlMini = null;
+
+    const soltarUrl = () => {
+        if (urlMini && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+            try { URL.revokeObjectURL(urlMini); } catch (_) { /* nada */ }
+        }
+        urlMini = null;
+    };
+
+    // La miniatura es un lujo: si el navegador no puede crearla, el envío sigue
+    // igual (por eso nunca puede cortar el flujo con una excepción).
+    const crearUrlMini = (a) => {
+        try {
+            if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+                return URL.createObjectURL(a) || '';
+            }
+        } catch (_) { /* sin miniatura */ }
+        return '';
+    };
+
+    const limpiar = () => {
+        soltarUrl();
+        archivo = null;
+        tipo = '';
+        if (pr) { pr.innerHTML = ''; pr.hidden = true; }
+        if (f) { try { f.value = ''; } catch (_) { /* nada */ } }
+        if (typeof alCambiar === 'function') alCambiar(null, '');
+    };
+
+    if (b && f) {
+        b.addEventListener('click', (e) => {
+            e.preventDefault();
+            try { f.click(); } catch (_) { /* nada */ }
+        });
+    }
+
+    if (f) {
+        f.addEventListener('change', () => {
+            const nuevo = (f.files && f.files[0]) || null;
+            if (!nuevo) return;
+            const v = validarAdjunto(nuevo);
+            if (!v.ok) {
+                limpiar();
+                if (typeof alCambiar === 'function') alCambiar(null, v.error);
+                return;
+            }
+            soltarUrl();
+            archivo = nuevo;
+            tipo = v.tipo;
+            urlMini = crearUrlMini(nuevo);
+            if (pr) {
+                pr.innerHTML = previaAdjuntoHtml({
+                    nombre: nuevo.name, tipo, url: urlMini, peso: nuevo.size
+                });
+                pr.hidden = false;
+            }
+            if (typeof alCambiar === 'function') alCambiar(nuevo, '');
+        });
+    }
+
+    if (pr) {
+        pr.addEventListener('click', (e) => {
+            const x = e.target && e.target.closest ? e.target.closest('.vl-adj-quitar') : null;
+            if (!x) return;
+            e.preventDefault();
+            limpiar();
+        });
+    }
+
+    return { archivo: () => archivo, tipo: () => tipo, tiene: () => !!archivo, limpiar };
+}
+
 /**
  * HTML del hilo completo. Cada mensaje lleva arriba el autor:
  * el nombre del cliente (entrante), "Bot" o "Tú" (saliente).

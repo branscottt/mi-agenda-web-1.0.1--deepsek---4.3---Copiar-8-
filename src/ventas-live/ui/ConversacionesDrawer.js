@@ -20,7 +20,8 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
-    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs
+    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs,
+    montarAdjunto
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -47,6 +48,9 @@ let _enviando = false;
 let _onBadge = null;
 let _timerAbierto = null;
 let _timerBadge = null;
+// Adjuntar foto/video: archivo elegido (si hay) y a qué chat pertenece.
+let _adjunto = null;
+let _adjuntoChatId = null;
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
@@ -96,9 +100,15 @@ export function initConversacionesDrawer({ onBadge } = {}) {
             <div class="vld-sub" id="vld-sub">Quién te escribió por WhatsApp</div>
             <div id="vld-quien"></div>
             <div class="vld-body" id="vld-body"></div>
+            <div class="vl-chat-previa" id="vld-previa" hidden></div>
             <div class="vld-foot" id="vld-foot" style="display:none;">
+                <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto o video">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                <input type="file" class="vl-adj-input" id="vld-file" accept="image/jpeg,image/png,video/mp4"
+                       style="display:none">
                 <input class="vl-control" id="vld-input" maxlength="1000"
-                       placeholder="Responder por WhatsApp…" autocomplete="off">
+                       placeholder="Responde por WhatsApp…" autocomplete="off">
                 <button class="vl-btn primary" id="vld-enviar" type="button" title="Enviar">
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -111,6 +121,20 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-ocultos').addEventListener('click', toggleOcultos);
         $('vld-ocultar').addEventListener('click', ocultarChatActual);
         $('vld-enviar').addEventListener('click', enviar);
+        // Mandar FOTO/VIDEO con comentario: en celular y tablet el selector
+        // ofrece cámara y galería; en computador, el explorador.
+        if (!_adjunto) {
+            _adjunto = montarAdjunto(document, {
+                btn: '#vld-adj',
+                input: '#vld-file',
+                previa: '#vld-previa',
+                alCambiar: (archivo, error) => {
+                    if (error) mostrarToast(error, 'error');
+                    const inp = $('vld-input');
+                    if (inp) inp.placeholder = archivo ? 'Escribe un comentario…' : 'Responde por WhatsApp…';
+                }
+            });
+        }
         $('vld-input').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); enviar(); }
         });
@@ -630,6 +654,12 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const body = $('vld-body');
     if (!body) return;
 
+    // Se cambió de conversación: el archivo que quedó elegido era de la otra.
+    if (_adjuntoChatId !== chatId) {
+        if (_adjunto) _adjunto.limpiar();
+        _adjuntoChatId = chatId;
+    }
+
     const res = await vlApi.chatHilo(chatId);
     if (!res.ok) {
         mostrarToast(res.error || 'No se pudo abrir la conversación', 'error');
@@ -810,6 +840,8 @@ function volverALista() {
     _chatId = null;
     _chatMeta = null;
     _enviando = false;
+    _adjuntoChatId = null;
+    if (_adjunto) _adjunto.limpiar();
 
     const titulo = $('vld-titulo');
     const sub = $('vld-sub');
@@ -833,7 +865,9 @@ async function enviar() {
     const input = $('vld-input');
     const btn = $('vld-enviar');
     const texto = input ? input.value.trim() : '';
-    if (!texto) return;
+    const adj = (_adjunto && _adjunto.tiene()) ? _adjunto.archivo() : null;
+    const tipoAdj = adj ? _adjunto.tipo() : '';
+    if (!texto && !adj) return;
 
     _enviando = true;
     if (btn) btn.disabled = true;
@@ -843,7 +877,10 @@ async function enviar() {
     // + API de Meta): antes la nada duraba todo ese rato. Al terminar, el hilo
     // real reemplaza esta burbuja; si falla, se quita y se devuelve el texto.
     const tmpId = 'tmp-' + Date.now();
-    pintarBurbujaPendiente(tmpId, texto);
+    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…' : '📷 Enviando foto…';
+    pintarBurbujaPendiente(tmpId, adj
+        ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
+        : texto);
     if (input) input.value = '';
 
     let tomoControl = false;
@@ -852,7 +889,11 @@ async function enviar() {
         if (r.ok) { _chatMeta.modo = 'humano'; tomoControl = true; pintarModoChat(); }
     }
 
-    const res = await vlApi.enviarManual(_chatId, texto);
+    // Foto/video con comentario, o mensaje de texto.
+    const res = adj
+        ? await vlApi.enviarMediaManual(_chatId, { archivo: adj, tipo: tipoAdj, comentario: texto })
+        : await vlApi.enviarManual(_chatId, texto);
+    if (adj && res && res.ok && _adjunto) _adjunto.limpiar();
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
     // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta
