@@ -659,7 +659,9 @@ function citaHtml(m, nombreCliente) {
         // sistema guardara los wamid). Se avisa y se deja elegirlo A MANO entre
         // los mensajes de la propia conversación.
         if (!m || !m.context_wa_id) return '';
-        return '<div class="vl-cita-nota"><i class="fas fa-reply"></i> Responde a un mensaje anterior'
+        return '<div class="vl-cita-nota" title="WhatsApp no nos mandó la ficha del mensaje citado'
+            + ' (es anterior a que se guardaran). Elige tú cuál era y queda guardado.">'
+            + '<i class="fas fa-reply"></i> Responde a un mensaje anterior'
             + (m.id ? '<button type="button" class="vl-cita-elegir" data-elegir="1">Elegir cuál</button>' : '')
             + '</div>';
     }
@@ -851,61 +853,13 @@ function opcionCitaHtml(c, mensajeId) {
     const mini = esFoto
         ? `<img class="vl-cita-op-mini" src="${escapeHtml(c.media_url)}" alt="Foto citada">`
         : `<span class="vl-cita-op-icono"><i class="fas fa-${tipo === 'texto' ? 'comment' : 'paperclip'}"></i></span>`;
-    return `<button type="button" class="vl-cita-op${c.probable ? ' probable' : ''}"`
+    return `<button type="button" class="vl-cita-op"`
         + ` data-mensaje="${escapeHtml(mensajeId)}" data-citado="${escapeHtml(c.id)}">`
         + mini
         + `<span class="vl-cita-op-txt">${txt || escapeHtml(etiquetaMedia(tipo))}`
         + `<span class="vl-cita-op-meta">${escapeHtml(quien)} · ${escapeHtml(fmtHora(c.creado_en))}`
-        + (c.probable ? ' · <b>la más probable</b>' : '')
         + `</span></span>`
         + `</button>`;
-}
-
-/**
- * Sugerencia automática: cuando el cliente CITÓ una imagen pero la referencia no se
- * pudo resolver (mensaje viejo, sin wamid), se le muestra al dueño la foto más
- * probable DENTRO de la burbuja, para que confirme de un toque — así "no se sabe a
- * cuál se refiere" deja de pasar. Devuelve cuántas sugerencias pintó.
- */
-async function sugerirCitas(contenedor, cargarCandidatas, cache) {
-    if (!contenedor || typeof cargarCandidatas !== 'function') return 0;
-    const filas = contenedor.querySelectorAll('.vl-fila-msg[data-cita-sin-resolver="1"]');
-    let pintadas = 0;
-    for (const fila of filas) {
-        const burbuja = fila.querySelector('.vl-burbuja');
-        if (!burbuja || burbuja.querySelector('.vl-cita-sugerencia')) continue;
-        const mensajeId = fila.dataset ? (fila.dataset.id || '') : '';
-        if (!mensajeId) continue;
-        let lista = cache.get(mensajeId);
-        if (!lista) {
-            try {
-                lista = await cargarCandidatas(mensajeId);
-            } catch (_) {
-                lista = [];
-            }
-            cache.set(mensajeId, Array.isArray(lista) ? lista : []);
-            lista = cache.get(mensajeId);
-        }
-        // La foto más probable (la última imagen que se mandó antes de su respuesta).
-        const foto = lista.find((c) => c && c.probable && (c.tipo === 'imagen' || c.tipo === 'sticker'))
-            || lista.find((c) => c && (c.tipo === 'imagen' || c.tipo === 'sticker'));
-        if (!foto || !foto.media_url) continue;
-        const quien = foto.direction === 'out'
-            ? (foto.origen === 'humano' ? 'Tú' : 'Bot') : 'Cliente';
-        burbuja.insertAdjacentHTML('beforeend',
-            '<div class="vl-cita-sugerencia">'
-            + '<div class="vl-cita-sug-titulo">¿Era esta la foto?</div>'
-            + `<img class="vl-cita-mini" src="${escapeHtml(foto.media_url)}" alt="Foto citada, la más probable">`
-            + `<div class="vl-cita-sug-meta">${escapeHtml(quien)} · ${escapeHtml(fmtHora(foto.creado_en))}`
-            + (foto.body ? ' · ' + escapeHtml(String(foto.body).slice(0, 40)) : '') + '</div>'
-            + '<div class="vl-cita-sug-pie">'
-            + `<button type="button" class="vl-cita-op" data-mensaje="${escapeHtml(mensajeId)}"`
-            + ` data-citado="${escapeHtml(foto.id)}">Sí, es esta</button>`
-            + '<button type="button" class="vl-cita-elegir">Ver otras</button>'
-            + '</div></div>');
-        pintadas += 1;
-    }
-    return pintadas;
 }
 
 /**
@@ -919,7 +873,6 @@ async function sugerirCitas(contenedor, cargarCandidatas, cache) {
 export function montarCitas({ contenedor, cargarCandidatas, vincular, alVincular } = {}) {
     if (!contenedor || contenedor.__citasMontado) return null;
     contenedor.__citasMontado = true;
-    const cache = new Map();
 
     function cerrarPaneles() {
         contenedor.querySelectorAll('.vl-cita-opciones').forEach((p) => p.remove());
@@ -968,9 +921,6 @@ export function montarCitas({ contenedor, cargarCandidatas, vincular, alVincular
             return;
         }
         cerrarPaneles();
-        // Si estaba la sugerencia automática, se quita: ahora manda el panel completo.
-        const sug = burbuja.querySelector('.vl-cita-sugerencia');
-        if (sug) sug.remove();
         const mensajeId = (fila.dataset && fila.dataset.id) || '';
         if (!mensajeId || typeof cargarCandidatas !== 'function') return;
 
@@ -997,12 +947,7 @@ export function montarCitas({ contenedor, cargarCandidatas, vincular, alVincular
             + lista.map((c) => opcionCitaHtml(c, mensajeId)).join('');
     });
 
-    return {
-        cerrarPaneles,
-        // Lo llaman las vistas después de pintar el hilo: pinta la foto probable
-        // dentro de las burbujas que citaron algo que no tenemos.
-        sugerir: () => sugerirCitas(contenedor, cargarCandidatas, cache),
-    };
+    return { cerrarPaneles };
 }
 
 let _timerSaltoCita = null;

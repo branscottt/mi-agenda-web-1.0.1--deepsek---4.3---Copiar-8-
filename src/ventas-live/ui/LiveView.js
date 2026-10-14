@@ -795,8 +795,6 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     await pintarQuienEs($('lv-chat-quien'), _chatId, () => cargarHiloChat({ forzarAbajo: true }));
 
     msgs.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
-    // Citas sin resolver: muestra la foto más probable para confirmarla de un toque.
-    if (_citas) _citas.sugerir();
 
     autoScrollAbajo(msgs, { forzar: forzarAbajo || !silencioso });
     pintarCabeceraChat();
