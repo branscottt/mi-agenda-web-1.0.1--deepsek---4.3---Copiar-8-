@@ -65,6 +65,7 @@ let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
 let _verOcultos = false;     // mostrar también los chats ocultos (no-venta)
+let _verArchivados = false;  // mostrar también los chats archivados
 let _canalRt = null;         // canal Realtime (mensajes al instante)
 let _visibilidad = null;     // listener de "volviste a la pestaña"
 let _audioCtx = null;        // WebAudio para el pitido de alarma
@@ -102,9 +103,15 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 <button class="vld-icon" id="vld-ocultos" type="button" title="Ver chats ocultos" style="display:none;">
                     <i class="fas fa-eye"></i>
                 </button>
+                <button class="vld-icon" id="vld-archivados" type="button" title="Ver chats archivados" style="display:none;">
+                    <i class="fas fa-box-archive"></i>
+                </button>
                 <button class="vl-btn" id="vld-ocultar" type="button" style="display:none;"></button>
                 <button class="vld-icon" id="vld-buscar-btn" type="button" title="Buscar en la conversación" style="display:none;">
                     <i class="fas fa-magnifying-glass"></i>
+                </button>
+                <button class="vld-icon" id="vld-menu-btn" type="button" title="Más acciones" style="display:none;">
+                    <i class="fas fa-ellipsis-vertical"></i>
                 </button>
                 <button class="vld-icon" id="vld-cerrar" type="button" title="Cerrar">
                     <i class="fas fa-xmark"></i>
@@ -112,6 +119,11 @@ export function initConversacionesDrawer({ onBadge } = {}) {
             </div>
             <div class="vld-sub" id="vld-sub">Quién te escribió por WhatsApp</div>
             <div id="vld-quien"></div>
+            <div class="vl-chat-menu" id="vld-menu" hidden>
+                <button type="button" class="vl-menu-item" data-pref="fijado"><i class="fas fa-thumbtack"></i> <span id="vld-menu-fijado-t">Fijar</span></button>
+                <button type="button" class="vl-menu-item" data-pref="silenciado"><i class="fas fa-bell-slash"></i> <span id="vld-menu-silenciado-t">Silenciar</span></button>
+                <button type="button" class="vl-menu-item" data-pref="archivado"><i class="fas fa-box-archive"></i> <span id="vld-menu-archivado-t">Archivar</span></button>
+            </div>
             <div class="vl-busq-barra" id="vld-busq" hidden>
                 <i class="fas fa-magnifying-glass"></i>
                 <input id="vld-busq-inp" placeholder="Buscar en la conversación…" autocomplete="off">
@@ -152,6 +164,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-volver').addEventListener('click', volverALista);
         $('vld-modo').addEventListener('click', cambiarModo);
         $('vld-ocultos').addEventListener('click', toggleOcultos);
+        $('vld-archivados').addEventListener('click', toggleArchivados);
         $('vld-ocultar').addEventListener('click', ocultarChatActual);
         $('vld-enviar').addEventListener('click', enviar);
 
@@ -166,6 +179,38 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-busq-next').addEventListener('click', () => irABusqueda(1));
         $('vld-busq-x').addEventListener('click', () => abrirBusqueda(false));
         montarEmojis({ contenedor: $('vld-foot'), btn: $('vld-emoji'), input: $('vld-input') });
+        // Menú ⋮ del chat: fijar / silenciar / archivar (como WhatsApp).
+        $('vld-menu-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = $('vld-menu');
+            m.hidden = !m.hidden;
+            if (!m.hidden) refrescarMenuChat();
+        });
+        document.addEventListener('click', (e) => {
+            const m = $('vld-menu');
+            if (!m || m.hidden) return;
+            if (m.contains(e.target) || $('vld-menu-btn').contains(e.target)) return;
+            m.hidden = true;
+        });
+        document.querySelectorAll('#vld-menu .vl-menu-item').forEach((b) => {
+            b.addEventListener('click', async () => {
+                const campo = b.dataset.pref;
+                const c = _chats.find((x) => String(x.id) === String(_chatId));
+                const nuevo = !(c && c[campo]);
+                const r = await vlApi.chatPreferencia(_chatId, campo, nuevo);
+                if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo guardar', 'error'); return; }
+                if (c) c[campo] = nuevo;
+                $('vld-menu').hidden = true;
+                refrescarMenuChat();
+                await cargarChats({ silencioso: true });
+                const dicho = campo === 'fijado' ? (nuevo ? 'Fijada arriba' : 'Ya no queda fija')
+                    : campo === 'silenciado' ? (nuevo ? 'Silenciada: no suena ni avisa' : 'Avisos activados')
+                    : (nuevo ? 'Archivada: sale de la lista' : 'Desarchivada');
+                mostrarToast(dicho, 'success');
+                if (campo === 'archivado' && nuevo) volverALista();
+            });
+        });
+
         montarGrabadora({
             btn: $('vld-mic'),
             btnCancelar: $('vld-mic-x'),
@@ -546,6 +591,13 @@ function notificar(chat, esAviso) {
     const leyendo = !document.hidden && _abierto && _chatId === chat.id;
     const pendientes = _chats.reduce((a, c) => a + (Number(c.sin_leer) || 0), 0);
 
+    // Chat SILENCIADO: no suena, no vibra y no aparece el aviso del navegador.
+    // El contador de pendientes SÍ se actualiza (igual que en WhatsApp).
+    if (chat.silenciado) {
+        tituloPendiente(pendientes);
+        return;
+    }
+
     if (!leyendo) {
         sonarAlarma();
         vibrarAlarma();
@@ -598,7 +650,12 @@ async function cargarChats({ silencioso = false } = {}) {
 
 // Chats que se muestran: los ocultos (no-venta) solo si el ojo está activo.
 function chatsVisibles() {
-    return _chats.filter(c => _verOcultos || !c.oculto);
+    return _chats.filter(c => (_verOcultos || !c.oculto) && (_verArchivados || !c.archivado));
+}
+
+/** Cuántos chats archivados hay (para el botón "Ver archivados"). */
+function cuantosArchivados() {
+    return _chats.filter(c => c.archivado && (_verOcultos || !c.oculto)).length;
 }
 
 // Proceso (puntos del pedido) del chat abierto: lo devuelve chats_listar.
@@ -618,6 +675,16 @@ function renderLista() {
         ojo.style.display = 'inline-flex';
         ojo.classList.toggle('activo', _verOcultos);
         ojo.title = _verOcultos ? 'Ocultar los chats no-venta' : 'Ver chats ocultos';
+    }
+    // Botón "Ver archivados": aparece solo si hay alguno, con cuántos hay.
+    const archBtn = $('vld-archivados');
+    if (archBtn) {
+        const n = cuantosArchivados();
+        archBtn.style.display = n > 0 ? 'inline-flex' : 'none';
+        archBtn.title = _verArchivados ? 'Ocultar los archivados' : `Ver archivados (${n})`;
+        archBtn.innerHTML = _verArchivados
+            ? '<i class="fas fa-box-archive"></i> <span style="font-size:0.72rem;">ocultar</span>'
+            : `<i class="fas fa-box-archive"></i> <span style="font-size:0.72rem;">${n}</span>`;
     }
     if (ocuBtn) ocuBtn.style.display = 'none';
 
@@ -649,10 +716,17 @@ function renderLista() {
         const quien = `<div class="vl-conv-quien ${qc.tipo}" title="${escapeHtml(qc.detalle || '')}">${escapeHtml(qc.label)}</div>`;
         const tuTurno = qc.tipo === 'humano' ? ' tu-turno' : '';
 
+        // Fijada / silenciada / archivada: se ve de un vistazo en la lista.
+        const marcas = [
+            c.fijado ? '<span class="vl-conv-marca" title="Fijada: queda arriba">📌</span>' : '',
+            c.silenciado ? '<span class="vl-conv-marca" title="Silenciada: no suena ni avisa">🔇</span>' : '',
+            c.archivado ? '<span class="vl-conv-marca" title="Archivada">📦</span>' : '',
+        ].join('');
+
         return `
-            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${c.oculto ? ' oculto' : ''}${tuTurno}" data-chat="${escapeHtml(c.id)}" type="button">
+            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${c.oculto ? ' oculto' : ''}${c.fijado ? ' fijada' : ''}${tuTurno}" data-chat="${escapeHtml(c.id)}" type="button">
                 <div class="vl-conv-top">
-                    <span class="vl-conv-nombre">${escapeHtml(nombre)}</span>
+                    <span class="vl-conv-nombre">${marcas}${escapeHtml(nombre)}</span>
                     <span class="vl-conv-hora">${escapeHtml(fmtHora(c.ultimo_en))}</span>
                 </div>
                 <div class="vl-conv-num">${escapeHtml(sub)}</div>
@@ -826,6 +900,11 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         vlApi.marcarLeido(chatId);
     }
 
+    // El hilo se carga con await: si mientras tanto el dueño volvió a la lista (o
+    // archivó el chat, que también vuelve a la lista), _chatMeta ya es null. Antes
+    // eso reventaba con "Cannot read properties of null (reading 'tiktok_user')";
+    // ahora simplemente se corta y no se pinta nada en una vista que ya no está.
+    if (!_chatMeta || String(_chatId) !== String(chatId)) return;
     bindAccionesChat(procesoParaModales(_chatProc, _chatMeta.tiktok_user), () => {
         cargarHilo(chatId, { silencioso: true });
         cargarChats({ silencioso: true });
@@ -914,9 +993,12 @@ function pintarModoChat() {
         modoBtn.dataset.modo = humano ? 'humano' : 'bot';
     }
 
-    // La lupa solo tiene sentido con una conversación abierta.
+    // La lupa y el menú ⋮ solo tienen sentido con una conversación abierta.
     const busBtn = $('vld-buscar-btn');
     if (busBtn) busBtn.style.display = 'inline-flex';
+    const menuBtn = $('vld-menu-btn');
+    if (menuBtn) menuBtn.style.display = 'inline-flex';
+    refrescarMenuChat();
 
     // Ocultar / mostrar ESTE chat (los no-venta no aparecen en la lista)
     const ojoLista = $('vld-ocultos');
@@ -951,10 +1033,28 @@ async function ocultarChatActual() {
 }
 
 // Muestra / esconde los chats ocultos (no-venta) en la lista.
+function toggleArchivados() {
+    _verArchivados = !_verArchivados;
+    renderLista();
+    mostrarToast(_verArchivados ? 'Mostrando también los archivados' : 'Archivados ocultos', 'success');
+}
+
 function toggleOcultos() {
     _verOcultos = !_verOcultos;
     renderLista();
     mostrarToast(_verOcultos ? 'Mostrando también los chats ocultos' : 'Chats no-venta ocultos', 'success');
+}
+
+/**
+ * Las etiquetas del menú ⋮ dicen qué va a pasar (no el estado actual): si ya está
+ * fijada, el botón dice "Dejar de fijar". Así nunca hay que adivinar.
+ */
+function refrescarMenuChat() {
+    const c = _chats.find((x) => String(x.id) === String(_chatId)) || {};
+    const poner = (id, texto) => { const el = $(id); if (el) el.textContent = texto; };
+    poner('vld-menu-fijado-t', c.fijado ? 'Dejar de fijar' : 'Fijar arriba');
+    poner('vld-menu-silenciado-t', c.silenciado ? 'Activar avisos' : 'Silenciar');
+    poner('vld-menu-archivado-t', c.archivado ? 'Desarchivar' : 'Archivar');
 }
 
 // ── Nota de voz ─────────────────────────────────────────────────────────────
@@ -1036,6 +1136,10 @@ function volverALista() {
     abrirBusqueda(false);
     const lupa = $('vld-buscar-btn');
     if (lupa) lupa.style.display = 'none';
+    const menuBtn = $('vld-menu-btn');
+    if (menuBtn) menuBtn.style.display = 'none';
+    const menu = $('vld-menu');
+    if (menu) menu.hidden = true;
     if (_responder) _responder.limpiar();
     _chatId = null;
     _chatMeta = null;

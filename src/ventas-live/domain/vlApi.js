@@ -336,6 +336,8 @@ export const vlApi = {
     }),
     chatProceso: (chatId) => callRpc('vl_wa_chat_proceso', { p_chat_id: chatId }),
     chatOcultar: (chatId, oculto = true) => callRpc('vl_wa_chat_ocultar', { p_chat_id: chatId, p_oculto: oculto }),
+    // Fijar / silenciar / archivar una conversación (como WhatsApp).
+    chatPreferencia: (chatId, campo, valor) => callRpc('vl_wa_chat_preferencia', { p_chat_id: chatId, p_campo: campo, p_valor: !!valor }),
 
     // ---- Notificaciones PUSH (llegan con la app CERRADA; Web Push, gratis) ----
     guardarPushSub: (endpoint, p256dh, auth) =>
