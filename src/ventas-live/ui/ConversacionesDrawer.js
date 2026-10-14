@@ -20,7 +20,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
-    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs,
+    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder,
     montarAdjunto
 } from './chatComun.js';
 import {
@@ -51,6 +51,7 @@ let _timerBadge = null;
 // Adjuntar foto/video: archivo elegido (si hay) y a qué chat pertenece.
 let _adjunto = null;
 let _adjuntoChatId = null;
+let _responder = null;        // "responder citando" del chat abierto
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
@@ -101,6 +102,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
             <div id="vld-quien"></div>
             <div class="vld-body" id="vld-body"></div>
             <div class="vl-chat-previa" id="vld-previa" hidden></div>
+            <div class="vl-cita-previa" id="vld-cita" hidden></div>
             <div class="vld-foot" id="vld-foot" style="display:none;">
                 <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto o video">
                     <i class="fas fa-paperclip"></i>
@@ -121,6 +123,15 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-ocultos').addEventListener('click', toggleOcultos);
         $('vld-ocultar').addEventListener('click', ocultarChatActual);
         $('vld-enviar').addEventListener('click', enviar);
+        // "Responder citando": el listener va a #vld-body (el hilo de adentro se
+        // repinta en cada refresco; ese contenedor sí es estable).
+        if (!_responder) {
+            _responder = montarResponder({
+                contenedor: $('vld-body'),
+                previa: $('vld-cita'),
+                input: $('vld-input'),
+            });
+        }
         // Mandar FOTO/VIDEO con comentario: en celular y tablet el selector
         // ofrece cámara y galería; en computador, el explorador.
         if (!_adjunto) {
@@ -641,6 +652,9 @@ function procesoChipsHtml(proc) {
 
 // ── Conversación abierta ────────────────────────────────────────────
 async function abrirChat(chatId) {
+    // Cambió de conversación: la cita elegida era del chat anterior (una cita
+    // cruzada mandaría el mensaje equivocado).
+    if (_responder && _chatId !== chatId) _responder.limpiar();
     _chatId = chatId;
     _chatMeta = null;
     const body = $('vld-body');
@@ -837,6 +851,7 @@ function toggleOcultos() {
 }
 
 function volverALista() {
+    if (_responder) _responder.limpiar();
     _chatId = null;
     _chatMeta = null;
     _enviando = false;
@@ -889,11 +904,16 @@ async function enviar() {
         if (r.ok) { _chatMeta.modo = 'humano'; tomoControl = true; pintarModoChat(); }
     }
 
-    // Foto/video con comentario, o mensaje de texto.
+    // Foto/video con comentario, o mensaje de texto. Si hay una cita elegida
+    // ("responder citando"), va su wamid: al cliente le llega el mensaje citado.
+    const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
     const res = adj
-        ? await vlApi.enviarMediaManual(_chatId, { archivo: adj, tipo: tipoAdj, comentario: texto })
-        : await vlApi.enviarManual(_chatId, texto);
+        ? await vlApi.enviarMediaManual(_chatId, {
+            archivo: adj, tipo: tipoAdj, comentario: texto, contexto: citaWamid
+        })
+        : await vlApi.enviarManual(_chatId, texto, citaWamid);
     if (adj && res && res.ok && _adjunto) _adjunto.limpiar();
+    if (citaWamid && _responder) _responder.limpiar();
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
     // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta

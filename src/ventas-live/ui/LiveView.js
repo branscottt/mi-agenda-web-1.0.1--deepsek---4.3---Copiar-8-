@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -32,6 +32,7 @@ let _chatEnviando = false;
 // Adjuntar foto/video: archivo elegido (si hay) y a qué chat pertenece.
 let _adjunto = null;
 let _adjuntoChatId = null;
+let _responder = null;   // "responder citando" del chat del LIVE
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
 let _sugerencias = [];
@@ -112,6 +113,7 @@ function buildDOM() {
                     <div id="lv-chat-proc-acc"></div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
                     <div class="vl-chat-previa" id="lv-chat-previa" hidden></div>
+                    <div class="vl-cita-previa" id="lv-chat-cita" hidden></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
                         <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto o video">
                             <i class="fas fa-paperclip"></i>
@@ -188,6 +190,15 @@ function buildDOM() {
 
     // Chat del cliente (panel lateral del LIVE)
     $('lv-chat-enviar').addEventListener('click', enviarChat);
+    // "Responder citando": el listener va al contenedor del hilo (que NO se
+    // reemplaza en cada refresco) y mantiene la cita elegida hasta enviar.
+    if (!_responder) {
+        _responder = montarResponder({
+            contenedor: $('lv-chat-msgs'),
+            previa: $('lv-chat-cita'),
+            input: $('lv-chat-input'),
+        });
+    }
     // Adjuntar foto/video: en el celular y la tablet el selector ofrece cámara y
     // galería; en el computador, el explorador. Se valida antes de subir.
     if (!_adjunto) {
@@ -680,6 +691,7 @@ async function deshacerUltima() {
 // salir del MODO LIVE (mismo circuito que la pestaña Chats).
 // ============================================================
 function limpiarChat() {
+    if (_responder) _responder.limpiar();
     _chatClienteId = null;
     _chatId = null;
     _chatModo = 'bot';
@@ -729,6 +741,7 @@ async function cargarChatCliente(c) {
         return;
     }
 
+    if (_responder && _chatId !== chatId) _responder.limpiar();
     _chatId = chatId;
     _chatModo = (res.data && res.data.modo) || 'bot';
     const card = $('lv-chat-card');
@@ -863,11 +876,18 @@ async function enviarChat() {
         if (r.ok) { _chatModo = 'humano'; tomoControl = true; pintarCabeceraChat(); }
     }
 
-    // Foto/video con comentario, o mensaje de texto.
+    // Foto/video con comentario, o mensaje de texto. Si hay una cita elegida
+    // ("responder citando"), se manda su wamid para que al cliente le aparezca
+    // el mensaje citado, igual que en WhatsApp.
+    const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
     const res = adj
-        ? await vlApi.enviarMediaManual(_chatId, { archivo: adj, tipo: tipoAdj, comentario: texto })
-        : await vlApi.enviarManual(_chatId, texto);
+        ? await vlApi.enviarMediaManual(_chatId, {
+            archivo: adj, tipo: tipoAdj, comentario: texto, contexto: citaWamid
+        })
+        : await vlApi.enviarManual(_chatId, texto, citaWamid);
     if (adj && res && res.ok && _adjunto) _adjunto.limpiar();
+    // La cita ya se usó (o falló): se limpia en ambos casos para no reenviarla.
+    if (citaWamid && _responder) _responder.limpiar();
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
     // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta

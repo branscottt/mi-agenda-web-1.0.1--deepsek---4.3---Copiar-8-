@@ -27,7 +27,7 @@ function getAuthToken() {
 
 // Envío manual de WhatsApp: pasa por la Edge Function (el token del tenant
 // vive server-side y nunca llega al navegador).
-async function enviarMensajeManual(chatId, texto) {
+async function enviarMensajeManual(chatId, texto, contexto = '') {
     try {
         const cfg = getAppConfig();
         const base = (cfg.edgeFunctionsUrl ||
@@ -41,7 +41,7 @@ async function enviarMensajeManual(chatId, texto) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ chat_id: chatId, texto })
+            body: JSON.stringify({ chat_id: chatId, texto, contexto_wa_id: contexto || null })
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data || data.ok !== true) {
@@ -71,7 +71,7 @@ function extensionDeArchivo(archivo, tipo) {
     return tipo === 'video' ? 'mp4' : 'jpg';
 }
 
-async function enviarMediaManual(chatId, { archivo, tipo, comentario = '' } = {}) {
+async function enviarMediaManual(chatId, { archivo, tipo, comentario = '', contexto = '' } = {}) {
     try {
         const cfg = getAppConfig();
         const base = (cfg.edgeFunctionsUrl ||
@@ -104,7 +104,8 @@ async function enviarMediaManual(chatId, { archivo, tipo, comentario = '' } = {}
                 texto: comentario || null,
                 media_path: ruta,
                 media_tipo: tipo,
-                media_mime: archivo.type || ''
+                media_mime: archivo.type || '',
+                contexto_wa_id: contexto || null
             })
         });
         const data = await resp.json().catch(() => ({}));
@@ -269,7 +270,7 @@ export const vlApi = {
     guardarPushSub: (endpoint, p256dh, auth) =>
         callRpc('vl_push_guardar', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }),
     borrarPushSub: (endpoint) => callRpc('vl_push_borrar', { p_endpoint: endpoint }),
-    enviarManual: (chatId, texto) => enviarMensajeManual(chatId, texto),
+    enviarManual: (chatId, texto, contexto = '') => enviarMensajeManual(chatId, texto, contexto),
     // Foto o video con comentario (desde computador, celular o tablet).
     enviarMediaManual: (chatId, opciones) => enviarMediaManual(chatId, opciones),
 

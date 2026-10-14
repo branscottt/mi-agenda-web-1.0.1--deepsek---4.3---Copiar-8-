@@ -75,10 +75,26 @@ interface WaMessage {
   contacts?: Array<{ name?: { formatted_name?: string } }>;
 }
 
+interface WaStatusError {
+  code?: number;
+  title?: string;
+  message?: string;
+  error_data?: { details?: string };
+}
+
+/** Aviso de entrega de un mensaje NUESTRO (sent / delivered / read / failed). */
+interface WaStatus {
+  id?: string;
+  status?: string;
+  timestamp?: string;
+  recipient_id?: string;
+  errors?: WaStatusError[];
+}
+
 interface WaChangeValue {
   metadata?: { phone_number_id?: string };
   messages?: WaMessage[];
-  statuses?: unknown[];
+  statuses?: WaStatus[];
 }
 
 interface WaWebhookPayload {
@@ -302,6 +318,53 @@ async function guardarMetaWa(
     }
   } catch (e) {
     console.warn('[WA-Webhook] Error guardando el wamid:', (e as Error).message || String(e));
+  }
+}
+
+/**
+ * Guarda el estado de entrega de un mensaje nuestro (✓ enviado, ✓✓ entregado,
+ * ✓✓ azul leído, o falló + motivo). Se cruza por wamid. Mejor esfuerzo.
+ */
+async function actualizarEstado(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  wamid: string,
+  estado: string,
+  error: string,
+): Promise<void> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/vl_wa_actualizar_estado`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_tenant_id: tenantId,
+        p_wa_message_id: wamid,
+        p_estado: estado,
+        p_error: error || null,
+      }),
+    });
+    if (!resp.ok) {
+      console.warn(`[WA-Webhook] No pude guardar el estado '${estado}' (${resp.status})`);
+    }
+  } catch (e) {
+    console.warn('[WA-Webhook] Error guardando el estado:', (e as Error).message || String(e));
+  }
+}
+
+/** Traduce el status de Meta al estado que guarda el panel. */
+function mapearEstado(status: string): string {
+  switch (status) {
+    case 'sent': return 'enviado';
+    case 'delivered': return 'entregado';
+    case 'read':
+    case 'played': return 'leido';     // 'played' = audio escuchado
+    case 'failed': return 'fallido';
+    default: return '';
   }
 }
 
@@ -614,7 +677,10 @@ async function handle(req: Request): Promise<Response> {
     for (const entry of payload.entry || []) {
       for (const change of entry.changes || []) {
         const value = change.value;
-        if (!value || !value.messages || value.messages.length === 0) continue; // statuses/eco: ignorar
+        const hayMensajes = Array.isArray(value?.messages) && value!.messages!.length > 0;
+        // `statuses` = avisos de entrega de mensajes NUESTROS (✓ ✓✓ leído, o falló).
+        const hayEstados = Array.isArray(value?.statuses) && value!.statuses!.length > 0;
+        if (!value || (!hayMensajes && !hayEstados)) continue;
 
         const phoneNumberId = value.metadata?.phone_number_id || '';
         if (!phoneNumberId) {
@@ -640,7 +706,31 @@ async function handle(req: Request): Promise<Response> {
         } else {
           console.warn(`[WA-Webhook] Tenant ${cfg.tenant_id} sin wa_app_secret — saltando validación de firma`);
         }
-        for (const message of value.messages) {
+
+        // ── Avisos de entrega (ticks) ────────────────────────────────────────
+        if (hayEstados) {
+          const estados = async () => {
+            for (const st of value.statuses || []) {
+              const estado = mapearEstado(st.status || '');
+              const wamid = st.id || '';
+              if (!estado || !wamid) continue;
+              const detalle = (st.errors || [])
+                .map((e) => [e.title, e.message, e.error_data?.details]
+                  .filter(Boolean).join(' — '))
+                .filter(Boolean).join(' | ');
+              await actualizarEstado(
+                supabaseUrl, serviceRoleKey, cfg.tenant_id, wamid, estado, detalle,
+              );
+            }
+          };
+          const rtE = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+          if (rtE && typeof rtE.waitUntil === 'function') rtE.waitUntil(estados());
+          else await estados();
+        }
+
+        if (!hayMensajes) continue;
+
+        for (const message of value.messages!) {
           const waId = message.from || '';
           const texto = textoDe(message);
           const tipo = mapearTipo(message.type || '');

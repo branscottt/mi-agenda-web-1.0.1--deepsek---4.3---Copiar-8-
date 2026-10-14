@@ -4,8 +4,12 @@
 // comentario, desde computador, celular o tablet.
 //
 // Uso: POST /functions/v1/wa-enviar
-// Body texto: { chat_id: uuid, texto: string }
-// Body media: { chat_id, texto?: string (comentario), media_path, media_tipo, media_mime }
+// Body texto: { chat_id: uuid, texto: string, contexto_wa_id?: string }
+// Body media: { chat_id, texto?: string (comentario), media_path, media_tipo, media_mime,
+//               contexto_wa_id?: string }
+// `contexto_wa_id` = wamid del mensaje que se está CITANDO (responder a…): se
+// manda como `context.message_id` a Graph y se guarda para que el panel muestre
+// la cita en la burbuja saliente.
 // Response: { ok: true, mensaje: { id, body, creado_en } }
 //
 // Flujo:
@@ -58,6 +62,7 @@ interface EnviarRequest {
   media_path?: string;
   media_tipo?: string;
   media_mime?: string;
+  contexto_wa_id?: string;
 }
 
 /** Decodifica el payload del JWT (la firma ya la verificó la plataforma). */
@@ -109,21 +114,24 @@ async function rpc(
 
 /** Envía un texto por Graph API. Devuelve el wamid que asigna WhatsApp. */
 async function enviarGraph(
-  phoneId: string, token: string, to: string, body: string,
+  phoneId: string, token: string, to: string, body: string, contextId = '',
 ): Promise<{ ok: boolean; detalle: string; wamid: string }> {
+  const msg: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'text',
+    text: { body, preview_url: false },
+  };
+  // Responder CITANDO: WhatsApp lo muestra como "respondiendo a…" en el chat del cliente.
+  if (contextId) msg.context = { message_id: contextId };
   const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'text',
-      text: { body, preview_url: false },
-    }),
+    body: JSON.stringify(msg),
   });
   if (!resp.ok) {
     const err = await resp.text().catch(() => '');
@@ -146,8 +154,9 @@ async function guardarWamid(p: {
   tipo: string;
   texto?: string;
   mediaPath?: string;
+  contextId?: string;
 }): Promise<void> {
-  if (!p.wamid) return;
+  if (!p.wamid && !p.contextId) return;
   try {
     const resp = await fetch(
       `${Deno.env.get('SUPABASE_URL') || ''}/rest/v1/rpc/vl_wa_guardar_meta_wa`,
@@ -161,8 +170,9 @@ async function guardarWamid(p: {
         body: JSON.stringify({
           p_tenant_id: p.tenantId,
           p_direction: 'out',
-          p_wa_message_id: p.wamid,
+          p_wa_message_id: p.wamid || null,
           p_chat_id: p.chatId,
+          p_context_wa_id: p.contextId || null,
           p_tipo: p.tipo,
           p_texto: p.texto || null,
           p_media_path: p.mediaPath || null,
@@ -230,23 +240,26 @@ async function subirAMeta(
 
 /** Manda la imagen/video ya subida, con el comentario como caption. */
 async function enviarMediaGraph(
-  phoneId: string, token: string, to: string, tipo: string, mediaId: string, caption: string,
+  phoneId: string, token: string, to: string, tipo: string, mediaId: string,
+  caption: string, contextId = '',
 ): Promise<{ ok: boolean; detalle: string; wamid: string }> {
   const cuerpo: Record<string, unknown> = { id: mediaId };
   if (caption) cuerpo.caption = caption.slice(0, MAX_COMENTARIO);
+  const msg: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: tipo,                    // 'image' | 'video'
+    [tipo]: cuerpo,
+  };
+  if (contextId) msg.context = { message_id: contextId };
   const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: tipo,                    // 'image' | 'video'
-      [tipo]: cuerpo,
-    }),
+    body: JSON.stringify(msg),
   });
   if (!resp.ok) {
     const err = await resp.text().catch(() => '');
@@ -301,6 +314,11 @@ async function handle(req: Request): Promise<Response> {
     const mediaPath = (body.media_path || '').trim();
     const mediaTipo = (body.media_tipo || '').trim().toLowerCase();
     const mediaMime = (body.media_mime || '').trim().toLowerCase();
+    // Wamid del mensaje que se cita (responder a…). Solo el id: si viene
+    // cualquier otra cosa se ignora en vez de romper el envío.
+    const contexto = /^wamid\.[A-Za-z0-9_\-=+/]{6,200}$/.test((body.contexto_wa_id || '').trim())
+      ? (body.contexto_wa_id || '').trim()
+      : '';
 
     if (!UUID_RE.test(chatId)) {
       return json({ ok: false, error: 'chat_id inválido' }, 400);
@@ -372,7 +390,7 @@ async function handle(req: Request): Promise<Response> {
         return json({ ok: false, error: 'WhatsApp rechazó el archivo', detalle: subida.detalle }, 502);
       }
 
-      const envio = await enviarMediaGraph(phoneId, token, waId, tipoMeta, subida.mediaId, texto);
+      const envio = await enviarMediaGraph(phoneId, token, waId, tipoMeta, subida.mediaId, texto, contexto);
       if (!envio.ok) {
         return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
       }
@@ -395,6 +413,7 @@ async function handle(req: Request): Promise<Response> {
         wamid: envio.wamid,
         tipo: mediaTipo,
         mediaPath,
+        contextId: contexto,
       });
 
       return json({
@@ -410,7 +429,7 @@ async function handle(req: Request): Promise<Response> {
     }
 
     // ── SOLO TEXTO ──
-    const envio = await enviarGraph(phoneId, token, waId, texto);
+    const envio = await enviarGraph(phoneId, token, waId, texto, contexto);
     if (!envio.ok) {
       return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
     }
@@ -421,7 +440,7 @@ async function handle(req: Request): Promise<Response> {
       return json({ ok: false, error: 'El mensaje se envió pero no se pudo guardar en el historial' }, 500);
     }
 
-    await guardarWamid({ tenantId, chatId, wamid: envio.wamid, tipo: 'texto', texto });
+    await guardarWamid({ tenantId, chatId, wamid: envio.wamid, tipo: 'texto', texto, contextId: contexto });
 
     return json({
       ok: true,

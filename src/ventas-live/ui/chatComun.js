@@ -684,6 +684,34 @@ function citaHtml(m, nombreCliente) {
         + `</div>`;
 }
 
+/** Ticks de entrega de un mensaje NUESTRO (✓ enviado, ✓✓ entregado, ✓✓ azul leído). */
+function ticksHtml(m) {
+    if (String(m.direction || '') !== 'out') return '';
+    const e = String(m.estado_wa || '').toLowerCase();
+    if (!e) return '';   // sin acuse de WhatsApp todavía: no se inventa nada
+    if (e === 'enviado') {
+        return '<span class="vl-tick" title="Enviado a WhatsApp"><i class="fas fa-check"></i></span>';
+    }
+    if (e === 'entregado') {
+        return '<span class="vl-tick" title="Entregado al teléfono del cliente"><i class="fas fa-check-double"></i></span>';
+    }
+    if (e === 'leido') {
+        return '<span class="vl-tick leido" title="Leído por el cliente"><i class="fas fa-check-double"></i></span>';
+    }
+    if (e === 'fallido') {
+        const det = m.error_wa ? ': ' + escapeHtml(String(m.error_wa)).slice(0, 160) : '';
+        return `<span class="vl-tick fallido" title="No se pudo entregar${det}"><i class="fas fa-exclamation-triangle"></i></span>`;
+    }
+    return '';
+}
+
+/** Botón "responder citando" de una burbuja (solo si Meta ya nos dio su wamid). */
+function responderBtnHtml(m) {
+    if (!m.wa_message_id) return '';
+    return '<button class="vl-msg-responder" type="button" title="Responder citando este mensaje"'
+        + ' aria-label="Responder citando este mensaje"><i class="fas fa-reply"></i></button>';
+}
+
 /**
  * HTML del hilo completo. Cada mensaje lleva arriba el autor:
  * el nombre del cliente (entrante), "Bot" o "Tú" (saliente).
@@ -706,18 +734,100 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
         const autor = saliente
             ? (m.origen === 'humano' ? 'Tú' : 'Bot')
             : escapeHtml(nombreCliente);
+        // Lo que necesita el "responder citando" para armar la vista previa.
+        const attr = (v) => escapeHtml(String(v == null ? '' : v));
         return `
-            <div class="vl-fila-msg ${saliente ? 'out' : 'in'}">
+            <div class="vl-fila-msg ${saliente ? 'out' : 'in'}"
+                 data-id="${attr(m.id)}"
+                 data-wamid="${attr(m.wa_message_id)}"
+                 data-dir="${saliente ? 'out' : 'in'}"
+                 data-autor="${attr(autor)}"
+                 data-tipo="${attr(m.tipo || 'texto')}"
+                 data-body="${attr(String(m.body || '').slice(0, 160))}"
+                 data-media="${attr(m.media_url || '')}">
                 <div class="vl-msg-autor">${autor}</div>
                 <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
                     ${citaHtml(m, nombreCliente)}
                     ${media ? `<div class="vl-burbuja-medio">${media}</div>` : ''}
                     ${rotuloTranscripcion}
                     ${cuerpo ? `<div class="vl-burbuja-txt">${cuerpo}</div>` : ''}
-                    <div class="vl-burbuja-hora">${escapeHtml(fmtHora(m.creado_en))}</div>
+                    <div class="vl-burbuja-hora">${responderBtnHtml(m)}${escapeHtml(fmtHora(m.creado_en))}${ticksHtml(m)}</div>
                 </div>
             </div>`;
     }).join('');
+}
+
+/**
+ * "Responder citando" (como en WhatsApp): deja apretable el botón de cada
+ * burbuja del hilo y mantiene la cita elegida hasta que se manda el mensaje.
+ * `contenedor` debe ser un elemento ESTABLE (el hilo se repinta en cada refresco,
+ * así que el listener va al padre que no se reemplaza).
+ * Devuelve { cita, limpiar } — `cita()` da el wamid a citar (o null).
+ */
+export function montarResponder({ contenedor, previa, input, onCambio } = {}) {
+    let elegida = null;
+
+    function pintar() {
+        if (!previa) return;
+        if (!elegida) {
+            previa.hidden = true;
+            previa.innerHTML = '';
+            return;
+        }
+        const c = elegida;
+        const txt = escapeHtml(String(c.body || '').replace(/\n+/g, ' ').trim()).slice(0, 120);
+        const esFoto = !!c.media_url && (c.tipo === 'imagen' || c.tipo === 'sticker');
+        const cuerpo = esFoto
+            ? `<img class="vl-cita-mini" src="${escapeHtml(c.media_url)}" alt="Imagen citada">`
+                + (txt ? `<span class="vl-cita-txt">${txt}</span>` : '')
+            : `<span class="vl-cita-txt">${txt || escapeHtml(etiquetaMedia(c.tipo) || 'Mensaje')}</span>`;
+        previa.innerHTML = `<div class="vl-cita-previa-top">`
+            + `<span><i class="fas fa-reply"></i> Respondiendo a ${escapeHtml(c.autor)}</span>`
+            + `<button type="button" class="vl-cita-previa-x" title="Quitar la cita"`
+            + ` aria-label="Quitar la cita"><i class="fas fa-times"></i></button></div>`
+            + `<div class="vl-cita-cuerpo">${cuerpo}</div>`;
+        previa.hidden = false;
+    }
+
+    function limpiar() {
+        elegida = null;
+        pintar();
+        if (typeof onCambio === 'function') onCambio(null);
+    }
+
+    if (contenedor && !contenedor.__responderMontado) {
+        contenedor.__responderMontado = true;
+        contenedor.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('.vl-msg-responder') : null;
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const fila = btn.closest('.vl-fila-msg');
+            const wamid = fila && fila.dataset ? (fila.dataset.wamid || '') : '';
+            if (!wamid) return;
+            elegida = {
+                wamid,
+                autor: fila.dataset.autor || 'Cliente',
+                tipo: fila.dataset.tipo || 'texto',
+                body: fila.dataset.body || '',
+                media_url: fila.dataset.media || '',
+            };
+            pintar();
+            if (input && typeof input.focus === 'function') input.focus();
+            if (typeof onCambio === 'function') onCambio(elegida);
+        });
+    }
+
+    if (previa) {
+        previa.addEventListener('click', (e) => {
+            const x = e.target && e.target.closest ? e.target.closest('.vl-cita-previa-x') : null;
+            if (!x) return;
+            e.preventDefault();
+            limpiar();
+        });
+    }
+
+    return { cita: () => elegida, limpiar, pintar };
 }
 
 /** Nombre con el que se etiqueta al cliente en el hilo. */
