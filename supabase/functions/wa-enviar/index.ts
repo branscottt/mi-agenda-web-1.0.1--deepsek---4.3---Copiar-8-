@@ -146,7 +146,10 @@ async function enviarGraph(
     recipient_type: 'individual',
     to,
     type: 'text',
-    text: { body, preview_url: false },
+    // preview_url: true = WhatsApp arma la tarjeta del link (como cuando
+    // escribís desde el celular). Antes iba en false y los enlaces llegaban
+    // pelados, sin título ni imagen.
+    text: { body, preview_url: true },
   };
   // Responder CITANDO: WhatsApp lo muestra como "respondiendo a…" en el chat del cliente.
   if (contextId) msg.context = { message_id: contextId };
