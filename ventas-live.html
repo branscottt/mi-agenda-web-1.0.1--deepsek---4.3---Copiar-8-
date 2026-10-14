@@ -1082,6 +1082,10 @@
         .vl-chip-quien { width: auto; max-width: calc(100% - 28px); align-self: flex-start;
             font-size: 0.72rem; padding: 5px 9px; gap: 6px; margin: 6px 14px 0; }
         .vl-chip-quien i { font-size: 0.7rem; }
+        @media (max-width: 720px) {
+            /* En táctil el aviso sigue siendo chico pero con alto de dedo (32px). */
+            .vl-chip-quien { min-height: 32px; padding: 6px 10px; }
+        }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
