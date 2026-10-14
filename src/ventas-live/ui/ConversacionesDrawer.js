@@ -734,6 +734,8 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         + `</div>`
         + banner
         + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
+    // Citas sin resolver: muestra la foto más probable para confirmarla de un toque.
+    if (_citas) _citas.sugerir();
 
     // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
     // no scrollea). Antes se llamaba con #vld-hilo y el panel quedaba mostrando lo

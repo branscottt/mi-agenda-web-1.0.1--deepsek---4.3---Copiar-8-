@@ -632,9 +632,17 @@
         .vl-cita-cuerpo { display: flex; align-items: center; gap: 7px; min-width: 0; }
         .vl-cita-txt { font-size: 0.78rem; color: #cbb8e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
         .vl-burbuja.out .vl-cita-txt { color: rgba(255,255,255,0.88); }
-        /* Miniatura de la foto citada: tiene que verse la prenda, no un cuadradito. */
-        .vl-cita-mini { flex: 0 0 auto; width: 64px; height: 64px; object-fit: cover; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.14); }
-        .vl-cita-previa .vl-cita-mini { width: 44px; height: 44px; }
+        /* Foto citada: se muestra EN GRANDE (como el preview de WhatsApp), para que
+           se distinga la prenda sin salir del chat. */
+        .vl-cita-mini { display: block; flex: 0 0 auto; width: auto; height: auto; max-width: min(220px, 100%); max-height: 150px; object-fit: cover; border-radius: 7px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.14); }
+        .vl-cita-previa .vl-cita-mini { width: 44px; height: 44px; max-width: 44px; max-height: 44px; }
+        /* Sugerencia: "¿era esta la foto?" dentro de la burbuja del mensaje que citó. */
+        .vl-cita-sugerencia { margin: 7px 0 2px; padding: 8px 9px; border-radius: 10px; background: rgba(0,0,0,0.30); border: 1px solid rgba(157,78,221,0.45); }
+        .vl-cita-sug-titulo { font-size: 0.72rem; font-weight: 700; color: #c77dff; margin-bottom: 6px; }
+        .vl-cita-sug-meta { font-size: 0.68rem; color: #a89bb8; margin: 5px 0 7px; }
+        .vl-cita-sug-pie { display: flex; align-items: center; gap: 7px; }
+        .vl-cita-sug-pie .vl-cita-op { width: auto; flex: 1 1 auto; font-size: 0.74rem; font-weight: 700; color: #e9edef; justify-content: center; }
+        .vl-cita-sug-pie .vl-cita-elegir { margin-left: 0; flex: 0 0 auto; }
         /* La cita es APRETABLE: lleva al mensaje citado dentro del chat (y lo marca). */
         .vl-cita[data-cita-id] { cursor: pointer; transition: background .12s; }
         .vl-cita[data-cita-id]:hover { background: rgba(157,78,221,0.22); }
@@ -668,8 +676,8 @@
         .vl-cita-op { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.10); background: rgba(36,29,56,0.85); color: #e9edef; font-family: inherit; text-align: left; cursor: pointer; }
         .vl-cita-op:hover { border-color: #c77dff; background: rgba(157,78,221,0.22); }
         .vl-cita-op.probable { border-color: rgba(157,78,221,0.75); }
-        .vl-cita-op-mini { flex: 0 0 auto; width: 38px; height: 38px; object-fit: cover; border-radius: 6px; background: rgba(0,0,0,0.3); }
-        .vl-cita-op-icono { flex: 0 0 auto; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: rgba(0,0,0,0.25); color: #cbb8e6; }
+        .vl-cita-op-mini { flex: 0 0 auto; width: 64px; height: 64px; object-fit: cover; border-radius: 7px; background: rgba(0,0,0,0.3); }
+        .vl-cita-op-icono { flex: 0 0 auto; width: 64px; height: 64px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(0,0,0,0.25); color: #cbb8e6; }
         .vl-cita-op-txt { min-width: 0; font-size: 0.78rem; line-height: 1.35; overflow: hidden; }
         .vl-cita-op-meta { display: block; font-size: 0.66rem; color: #a89bb8; }
         .vl-cita-op-meta b { color: #c77dff; }
@@ -958,7 +966,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=141"></script>
+    <script type="module" src="dist/app.js?v=142"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>
