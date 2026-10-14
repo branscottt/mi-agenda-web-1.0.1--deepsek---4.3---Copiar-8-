@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -144,6 +144,12 @@ function buildDOM() {
                         <button class="vl-btn vl-adj-btn" id="lv-chat-emoji" type="button" title="Emojis">
                             <i class="fas fa-face-smile"></i>
                         </button>
+                        <button class="vl-btn vl-adj-btn" id="lv-chat-mic" type="button" title="Grabar nota de voz">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button class="vl-btn vl-adj-btn" id="lv-chat-mic-x" type="button" title="Cancelar la grabación" hidden>
+                            <i class="fas fa-xmark"></i>
+                        </button>
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
                                placeholder="Responde por WhatsApp…" autocomplete="off">
                         <button class="vl-btn primary" id="lv-chat-enviar" type="button" title="Enviar">
@@ -226,6 +232,13 @@ function buildDOM() {
     $('lv-chat-busq-next').addEventListener('click', () => irABusqueda(1));
     $('lv-chat-busq-x').addEventListener('click', () => abrirBusquedaChat(false));
     montarEmojis({ contenedor: $('lv-chat-composer'), btn: $('lv-chat-emoji'), input: $('lv-chat-input') });
+    montarGrabadora({
+        btn: $('lv-chat-mic'),
+        btnCancelar: $('lv-chat-mic-x'),
+        onGrabado: (archivo) => encolarAudioGrabado(archivo),
+        onError: (m) => mostrarToast(m, 'warning'),
+        onEstado: (grabando, seg) => pintarGrabandoChat(grabando, seg),
+    });
     // "Responder citando": el listener va al contenedor del hilo (que NO se
     // reemplaza en cada refresco) y mantiene la cita elegida hasta enviar.
     if (!_responder) {
@@ -1072,6 +1085,32 @@ function marcarPendienteFallidoChat(tmpId, motivo) {
     delete el.dataset.pendiente;
     const hora = el.querySelector('.vl-burbuja-hora');
     if (hora) hora.innerHTML = '<span class="vl-fallo-marca"><i class="fas fa-exclamation-triangle"></i> no enviado</span>';
+}
+
+// ── Nota de voz ─────────────────────────────────────────────────────────────
+/** El botón del micrófono muestra el tiempo grabando (o la forma normal). */
+function pintarGrabandoChat(grabando, segundos) {
+    const btn = $('lv-chat-mic');
+    const x = $('lv-chat-mic-x');
+    if (!btn) return;
+    btn.classList.toggle('grabando', !!grabando);
+    btn.innerHTML = grabando
+        ? `<i class="fas fa-stop"></i> ${String(Math.floor(segundos / 60)).padStart(2, '0')}:${String(segundos % 60).padStart(2, '0')}`
+        : '<i class="fas fa-microphone"></i>';
+    btn.title = grabando ? 'Toca para terminar y enviar' : 'Grabar nota de voz';
+    if (x) x.hidden = !grabando;
+}
+
+/** La nota de voz recién grabada entra por la MISMA cola que todo lo demás. */
+function encolarAudioGrabado(archivo) {
+    if (!_chatId) return;
+    const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    pintarBurbujaPendienteChat(tmpId, '🎤 Enviando nota de voz…');
+    _enviosPendientes.push({
+        tmpId, chatId: _chatId, texto: '',
+        adjuntos: [{ archivo, tipo: 'audio' }], citaWamid: '',
+    });
+    drenarEnvios();
 }
 
 // ── Buscar dentro de la conversación (la lupa) ──────────────────────────────

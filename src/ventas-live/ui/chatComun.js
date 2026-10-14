@@ -1369,6 +1369,119 @@ export function barraEmojisHtml() {
         + '</div>';
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTA DE VOZ: grabar en el panel y mandarla (como el micrófono de WhatsApp)
+// ═══════════════════════════════════════════════════════════════════════════
+// OJO con el formato: WhatsApp NO acepta webm, y varios navegadores (Chrome en
+// muchas plataformas) graban en webm por defecto. Se pide primero audio/mp4
+// (verificado: Chrome graba mp4 real y Meta lo acepta; Firefox da ogg, también
+// aceptado). Si el navegador termina entregando webm, NO se manda: se avisa, así
+// el dueño no pierde la grabación en un envío que WhatsApp iba a rechazar.
+export const AUDIO_GRABABLE = ['audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/webm;codecs=opus', 'audio/webm'];
+export const AUDIO_QUE_WHATSAPP_ACEPTA = ['audio/mp4', 'audio/x-m4a', 'audio/ogg', 'audio/aac', 'audio/mpeg', 'audio/amr'];
+
+/** Primer formato grabable en este navegador que además sirva para WhatsApp. */
+export function formatoGrabable() {
+    if (typeof MediaRecorder === 'undefined') return '';
+    for (const t of AUDIO_GRABABLE) {
+        try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (_) { /* sigue */ }
+    }
+    return '';
+}
+
+/**
+ * Conecta el botón del micrófono: un toque empieza a grabar (el botón se pone
+ * rojo con el tiempo), otro toque termina y entrega el archivo listo para
+ * mandar. Escape o el botón ✕ cancelan sin mandar nada.
+ */
+export function montarGrabadora({ btn, btnCancelar, onGrabado, onError, onEstado } = {}) {
+    if (!btn) return null;
+    const formato = formatoGrabable();
+    if (!formato || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+        btn.disabled = true;
+        btn.title = 'Este navegador no puede grabar audio';
+        return null;
+    }
+    let rec = null;
+    let stream = null;
+    let trozos = [];
+    let t0 = 0;
+    let timer = null;
+    let cancelado = false;
+
+    const estado = (grabando, segundos) => { if (typeof onEstado === 'function') onEstado(grabando, segundos || 0); };
+    const soltar = () => {
+        if (stream) stream.getTracks().forEach((t) => { try { t.stop(); } catch (_) { /* ya */ } });
+        stream = null;
+        if (timer) { clearInterval(timer); timer = null; }
+    };
+
+    const terminar = async () => {
+        if (!rec || rec.state === 'inactive') return;
+        const tipoCrudo = rec.mimeType || formato;
+        await new Promise((res) => { rec.onstop = res; rec.stop(); });
+        soltar();
+        estado(false, 0);
+        const segundos = (Date.now() - t0) / 1000;
+        const capturado = trozos.slice();
+        const fueCancelado = cancelado;
+        rec = null; trozos = []; cancelado = false;
+        if (fueCancelado) return;
+        if (segundos < 1) {
+            if (onError) onError('La nota de voz quedó muy corta. Mantené un segundo o más.');
+            return;
+        }
+        const base = String(tipoCrudo).split(';')[0].toLowerCase();
+        if (!AUDIO_QUE_WHATSAPP_ACEPTA.includes(base)) {
+            if (onError) onError('Este navegador grabó en un formato que WhatsApp no acepta (' + base + '). Mandá el audio como archivo, o probá desde Chrome, Edge o Safari actualizado.');
+            return;
+        }
+        const ext = base.includes('mp4') ? 'm4a' : base.includes('ogg') ? 'ogg' : 'aac';
+        const blob = new Blob(capturado, { type: base });
+        if (!blob.size) {
+            if (onError) onError('No se grabó nada: revisá que el micrófono esté conectado y permitido.');
+            return;
+        }
+        const archivo = new File([blob], 'nota-de-voz-' + Date.now() + '.' + ext, { type: base });
+        if (typeof onGrabado === 'function') onGrabado(archivo, segundos);
+    };
+
+    const empezar = async () => {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (_) {
+            if (onError) onError('No pude usar el micrófono. Fijate que el navegador tenga permiso.');
+            return;
+        }
+        trozos = [];
+        cancelado = false;
+        try {
+            rec = new MediaRecorder(stream, { mimeType: formato });
+        } catch (_) {
+            try { rec = new MediaRecorder(stream); } catch (_) { soltar(); rec = null; }
+        }
+        if (!rec) { if (onError) onError('Este navegador no pudo empezar a grabar.'); return; }
+        rec.ondataavailable = (e) => { if (e.data && e.data.size) trozos.push(e.data); };
+        rec.start();
+        t0 = Date.now();
+        estado(true, 0);
+        timer = setInterval(() => estado(true, Math.floor((Date.now() - t0) / 1000)), 500);
+    };
+
+    btn.addEventListener('click', () => {
+        if (rec && rec.state === 'recording') terminar(); else empezar();
+    });
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', () => {
+            if (rec && rec.state === 'recording') { cancelado = true; terminar(); }
+        });
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && rec && rec.state === 'recording') { cancelado = true; terminar(); }
+    });
+
+    return { grabando: () => !!(rec && rec.state === 'recording') };
+}
 /**
  * Conecta el botón de emojis con su panel: el emoji se inserta DONDE está el
  * cursor (no siempre al final, que es lo que molesta). El panel SE QUEDA ABIERTO

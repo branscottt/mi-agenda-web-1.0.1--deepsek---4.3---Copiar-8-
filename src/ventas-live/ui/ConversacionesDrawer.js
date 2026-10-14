@@ -22,7 +22,7 @@ import {
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
     montarAdjunto, montarReaccion, pintarHilo, olvidarHilo,
-    barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda
+    barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -128,6 +128,12 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 <button class="vl-btn vl-adj-btn" id="vld-emoji" type="button" title="Emojis">
                     <i class="fas fa-face-smile"></i>
                 </button>
+                <button class="vl-btn vl-adj-btn" id="vld-mic" type="button" title="Grabar nota de voz">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="vl-btn vl-adj-btn" id="vld-mic-x" type="button" title="Cancelar la grabación" hidden>
+                    <i class="fas fa-xmark"></i>
+                </button>
                 <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto, video, archivo o audio">
                     <i class="fas fa-paperclip"></i>
                 </button>
@@ -160,6 +166,13 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-busq-next').addEventListener('click', () => irABusqueda(1));
         $('vld-busq-x').addEventListener('click', () => abrirBusqueda(false));
         montarEmojis({ contenedor: $('vld-foot'), btn: $('vld-emoji'), input: $('vld-input') });
+        montarGrabadora({
+            btn: $('vld-mic'),
+            btnCancelar: $('vld-mic-x'),
+            onGrabado: (archivo) => encolarAudioGrabado(archivo),
+            onError: (m) => mostrarToast(m, 'warning'),
+            onEstado: (grabando, seg) => pintarGrabando(grabando, seg),
+        });
         // "Responder citando": el listener va a #vld-body (el hilo de adentro se
         // repinta en cada refresco; ese contenedor sí es estable).
         if (!_responder) {
@@ -942,6 +955,32 @@ function toggleOcultos() {
     _verOcultos = !_verOcultos;
     renderLista();
     mostrarToast(_verOcultos ? 'Mostrando también los chats ocultos' : 'Chats no-venta ocultos', 'success');
+}
+
+// ── Nota de voz ─────────────────────────────────────────────────────────────
+/** El botón del micrófono muestra el tiempo grabando (o la forma normal). */
+function pintarGrabando(grabando, segundos) {
+    const btn = $('vld-mic');
+    const x = $('vld-mic-x');
+    if (!btn) return;
+    btn.classList.toggle('grabando', !!grabando);
+    btn.innerHTML = grabando
+        ? `<i class="fas fa-stop"></i> ${String(Math.floor(segundos / 60)).padStart(2, '0')}:${String(segundos % 60).padStart(2, '0')}`
+        : '<i class="fas fa-microphone"></i>';
+    btn.title = grabando ? 'Toca para terminar y enviar' : 'Grabar nota de voz';
+    if (x) x.hidden = !grabando;
+}
+
+/** La nota de voz recién grabada entra por la MISMA cola que todo lo demás. */
+function encolarAudioGrabado(archivo) {
+    if (!_chatId) return;
+    const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    pintarBurbujaPendiente(tmpId, '🎤 Enviando nota de voz…');
+    _enviosPendientes.push({
+        tmpId, chatId: _chatId, texto: '',
+        adjuntos: [{ archivo, tipo: 'audio' }], citaWamid: '',
+    });
+    drenarEnvios();
 }
 
 // ── Buscar dentro de la conversación (la lupa) ──────────────────────────────
