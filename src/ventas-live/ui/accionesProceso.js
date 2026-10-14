@@ -495,14 +495,18 @@ export function modalPunto(proceso, puntoKey, punto, onDone) {
 // ---------- Bloquear usuario y borrar sus datos (DESTRUCTIVO) ----------
 // Pedido del dueño: tras decidir (p. ej. soltar la prenda) puede bloquear al
 // usuario y borrar TODO. Sus prendas quedan liberadas y esos montos dejan de
-// contar como venta. Doble confirmación: nunca en un solo clic.
+// contar como venta.
+// DOBLE CONFIRMACIÓN = DOS CLICS (pedido expreso: nada de escribir ni tildar):
+//   1er clic en "Bloquear y borrar" → el aviso se pone rojo y pregunta de nuevo;
+//   2do clic en "Sí, bloquear y borrar" → borra. El botón final se habilita a
+//   los 350 ms para que un doble clic apurado no confirme solo.
 export function modalBloquearBorrar(cliente, onDone) {
     const nick = (cliente && cliente.tiktok_user) ? cliente.tiktok_user : 'cliente';
     abrirModal({
         titulo: '🚫 Bloquear y borrar — @' + escapeHtml(nick),
         sub: 'Se borra el usuario completo. No se puede deshacer.',
         html: `
-            <div style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
+            <div id="vbb-aviso" style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
                 Se <b>borra todo el usuario</b>: nombre, WhatsApp, correo, contacto, dirección,
                 comuna/ciudad, notas y su conversación de WhatsApp.<br>
                 Sus prendas quedan <b>liberadas</b> y el pedido se cierra como
@@ -513,30 +517,40 @@ export function modalBloquearBorrar(cliente, onDone) {
                 Ojo: como el usuario se borra, si vuelve a comprar en un LIVE aparecerá como
                 cliente nuevo (no queda registro de que estaba bloqueado).
             </div>
-            <label class="vl-check-item" style="margin-top:12px;">
-                <input type="checkbox" id="vbb-confirmo">
-                <span style="flex:1;">Entiendo: se borra el usuario y sus prendas quedan liberadas.</span>
-            </label>
-            <div class="vl-modal-actions">
+            <div class="vl-modal-actions" id="vbb-acciones">
                 <button class="vl-btn" id="vbb-cancelar" type="button">Cancelar</button>
-                <button class="vl-btn danger" id="vbb-ok" type="button" disabled><i class="fas fa-user-slash"></i> Bloquear y borrar</button>
+                <button class="vl-btn danger" id="vbb-ok" type="button"><i class="fas fa-user-slash"></i> Bloquear y borrar</button>
             </div>`,
         onMount: (modal) => {
-            const chk = modal.querySelector('#vbb-confirmo');
-            const ok = modal.querySelector('#vbb-ok');
-            chk.addEventListener('change', () => { ok.disabled = !chk.checked; });
+            const acciones = modal.querySelector('#vbb-acciones');
             modal.querySelector('#vbb-cancelar').addEventListener('click', () => cerrarModal(true));
-            ok.addEventListener('click', async () => {
-                if (!chk.checked) return;
-                if (!window.confirm('Última confirmación: ¿borrar por completo a @' + nick + ', liberar sus prendas y cerrar su pedido? Esta acción no se puede deshacer.')) return;
-                ok.disabled = true;
-                const res = await vlApi.clienteBloquearBorrar(cliente.cliente_id);
-                if (!res.ok) { mostrarToast(res.error || 'No se pudo bloquear', 'error'); ok.disabled = false; return; }
-                cerrarModal(true);
-                const d = res.data || {};
-                mostrarToast('@' + nick + ' borrado · ' + (d.prendas_liberadas || 0)
-                    + ' prenda(s) liberada(s) · ya no cuenta como venta', 'success');
-                if (typeof onDone === 'function') onDone();
+
+            // PRIMER CLIC: no borra nada, pide el segundo.
+            modal.querySelector('#vbb-ok').addEventListener('click', () => {
+                const aviso = modal.querySelector('#vbb-aviso');
+                if (aviso) {
+                    aviso.innerHTML = `<b>¿Seguro? Última vez.</b><br>`
+                        + `Se borra <b>@${escapeHtml(nick)}</b> por completo, sus prendas quedan`
+                        + ` liberadas y su pedido se cierra como «no pagó». <b>No se puede deshacer.</b>`;
+                }
+                acciones.innerHTML = `
+                    <button class="vl-btn" id="vbb-no" type="button">Cancelar</button>
+                    <button class="vl-btn danger" id="vbb-ok2" type="button" disabled><i class="fas fa-user-slash"></i> Sí, bloquear y borrar</button>`;
+                const ok2 = modal.querySelector('#vbb-ok2');
+                modal.querySelector('#vbb-no').addEventListener('click', () => cerrarModal(true));
+                // 350 ms de freno: un doble clic apurado no confirma solo.
+                setTimeout(() => { ok2.disabled = false; }, 350);
+                ok2.addEventListener('click', async () => {
+                    if (ok2.disabled) return;
+                    ok2.disabled = true;
+                    const res = await vlApi.clienteBloquearBorrar(cliente.cliente_id);
+                    if (!res.ok) { mostrarToast(res.error || 'No se pudo bloquear', 'error'); ok2.disabled = false; return; }
+                    cerrarModal(true);
+                    const d = res.data || {};
+                    mostrarToast('@' + nick + ' borrado · ' + (d.prendas_liberadas || 0)
+                        + ' prenda(s) liberada(s) · ya no cuenta como venta', 'success');
+                    if (typeof onDone === 'function') onDone();
+                });
             });
         }
     });
@@ -653,15 +667,18 @@ export function modalEliminarCliente(cliente, onDone) {
 // ---------- Eliminar compra (DESTRUCTIVO) ----------
 // Pedido del dueño: para el que "juega a comprar", borrar la compra como si
 // nunca hubiera existido (desaparece de Procesos/Envíos/Finanzas). NO borra la
-// ficha del cliente (el bloqueo en TikTok lo hace el negocio aparte). Doble
-// confirmación: hay que escribir ELIMINAR.
+// ficha del cliente (el bloqueo en TikTok lo hace el negocio aparte).
+// DOBLE CONFIRMACIÓN = DOS CLICS (pedido expreso: nada de escribir ELIMINAR):
+//   1er clic en "Eliminar compra" → el aviso se pone rojo y pregunta de nuevo;
+//   2do clic en "Sí, eliminar" → borra. El botón final se habilita a los
+//   350 ms para que un doble clic apurado no confirme solo.
 export function modalEliminarCompra(proceso, onDone) {
     const nick = (proceso && proceso.cliente && proceso.cliente.tiktok_user) ? proceso.cliente.tiktok_user : 'cliente';
     abrirModal({
         titulo: '🗑️ Eliminar compra — @' + escapeHtml(nick),
         sub: 'La compra desaparece del panel. No se puede deshacer.',
         html: `
-            <div style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
+            <div id="vel-aviso" style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
                 Se <b>borra la compra</b>: sus prendas, su envío y el pedido. Deja de aparecer en
                 Procesos, Envíos y Finanzas, como si nunca hubiera existido.<br>
                 La <b>ficha del cliente NO se toca</b> (si quieres, bloquéalo en TikTok por tu lado).
@@ -669,27 +686,38 @@ export function modalEliminarCompra(proceso, onDone) {
             <div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;line-height:1.5;">
                 Si la compra ya tiene pagos registrados no se puede eliminar (ahí usá <b>Liberar prenda</b>).
             </div>
-            <div class="vl-form-row" style="margin-top:12px;">
-                <label for="vel-conf">Escribí <b>ELIMINAR</b> para confirmar</label>
-                <input class="vl-control" id="vel-conf" placeholder="ELIMINAR" autocomplete="off">
-            </div>
-            <div class="vl-modal-actions">
+            <div class="vl-modal-actions" id="vel-acciones">
                 <button class="vl-btn" id="vel-cancelar" type="button">Cancelar</button>
-                <button class="vl-btn danger" id="vel-ok" type="button" disabled><i class="fas fa-trash"></i> Eliminar compra</button>
+                <button class="vl-btn danger" id="vel-ok" type="button"><i class="fas fa-trash"></i> Eliminar compra</button>
             </div>`,
         onMount: (modal) => {
-            const inp = modal.querySelector('#vel-conf');
-            const ok = modal.querySelector('#vel-ok');
-            inp.addEventListener('input', () => { ok.disabled = inp.value.trim().toUpperCase() !== 'ELIMINAR'; });
+            const acciones = modal.querySelector('#vel-acciones');
             modal.querySelector('#vel-cancelar').addEventListener('click', () => cerrarModal(true));
-            ok.addEventListener('click', async () => {
-                if (inp.value.trim().toUpperCase() !== 'ELIMINAR') return;
-                ok.disabled = true;
-                const res = await vlApi.eliminarCompra(proceso.proceso_id);
-                if (!res.ok) { mostrarToast(res.error || 'No se pudo eliminar', 'error'); ok.disabled = false; return; }
-                cerrarModal(true);
-                mostrarToast('Compra eliminada ✔', 'success');
-                if (typeof onDone === 'function') onDone();
+
+            // PRIMER CLIC: no borra nada, pide el segundo.
+            modal.querySelector('#vel-ok').addEventListener('click', () => {
+                const aviso = modal.querySelector('#vel-aviso');
+                if (aviso) {
+                    aviso.innerHTML = `<b>¿Seguro? Última vez.</b><br>`
+                        + `Se borra la compra de <b>@${escapeHtml(nick)}</b>: prendas, envío y pedido.`
+                        + ` <b>No se puede deshacer.</b>`;
+                }
+                acciones.innerHTML = `
+                    <button class="vl-btn" id="vel-no" type="button">Cancelar</button>
+                    <button class="vl-btn danger" id="vel-ok2" type="button" disabled><i class="fas fa-trash"></i> Sí, eliminar</button>`;
+                const ok2 = modal.querySelector('#vel-ok2');
+                modal.querySelector('#vel-no').addEventListener('click', () => cerrarModal(true));
+                // 350 ms de freno: un doble clic apurado no confirma solo.
+                setTimeout(() => { ok2.disabled = false; }, 350);
+                ok2.addEventListener('click', async () => {
+                    if (ok2.disabled) return;
+                    ok2.disabled = true;
+                    const res = await vlApi.eliminarCompra(proceso.proceso_id);
+                    if (!res.ok) { mostrarToast(res.error || 'No se pudo eliminar', 'error'); ok2.disabled = false; return; }
+                    cerrarModal(true);
+                    mostrarToast('Compra eliminada ✔', 'success');
+                    if (typeof onDone === 'function') onDone();
+                });
             });
         }
     });
