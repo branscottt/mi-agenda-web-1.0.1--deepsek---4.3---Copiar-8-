@@ -728,6 +728,10 @@
         .vl-cand-nick { font-weight: 700; font-size: 0.88rem; }
         .vl-cand-dato { font-size: 0.72rem; color: #cbb8e6; }
         .vl-cand-motivo { font-size: 0.66rem; color: #a89bb8; font-style: italic; }
+        /* Ya reconocido (tiene número o está en otra conversación): se puede elegir,
+           pero avisado — ámbar suave, sin rojo ni parpadeo. */
+        .vl-cand.ya { border-style: dashed; border-color: rgba(255,193,7,0.45); }
+        .vl-cand-aviso { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 0.64rem; font-weight: 600; color: #ffd479; }
 
         /* ===== "¿Quién es?": ASIGNAR el usuario del chat a mano (siempre visible).
            Va pegado arriba (fuera del hilo que scrollea) para que no se pierda al
@@ -987,7 +991,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=145"></script>
+    <script type="module" src="dist/app.js?v=146"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

@@ -358,10 +358,23 @@ function botonesUsuariosHtml(lista) {
             .concat(saldo > 0 ? ['$' + saldo.toLocaleString('es-CL')] : [])
             .concat(abierto > 0 && abierto !== saldo ? ['por cobrar $' + abierto.toLocaleString('es-CL')] : [])
             .join(' · ');
-        return `<button class="vl-cand" type="button" data-cliente="${escapeHtml(u.cliente_id)}">`
+        // Ya reconocido (tiene número o ya está en otra conversación): se puede
+        // elegir —el dueño manda— pero NO en silencio: se avisa con una etiqueta
+        // ámbar (aviso informativo, nunca rojo ni parpadeo) para no pisar una
+        // asignación buena por error.
+        const ya = u.ya_reconocido === true;
+        const motivo = ya
+            ? ((u.motivo || '') + ' · ya tiene número o está en otra conversación').trim()
+            : (u.motivo || '');
+        const aviso = ya
+            ? '<span class="vl-cand-aviso" title="Esta persona ya está reconocida: tiene número guardado o una conversación vinculada. Si la asignas acá, quedará en las dos.">'
+                + '<i class="fas fa-circle-check"></i> ya reconocido</span>'
+            : '';
+        return `<button class="vl-cand${ya ? ' ya' : ''}" type="button" data-cliente="${escapeHtml(u.cliente_id)}">`
             + `<span class="vl-cand-nick">${escapeHtml(nick)}</span>`
             + `<span class="vl-cand-dato">${escapeHtml(dato)}</span>`
-            + `<span class="vl-cand-motivo">${escapeHtml(u.motivo || '')}</span>`
+            + `<span class="vl-cand-motivo">${escapeHtml(motivo)}</span>`
+            + aviso
             + `</button>`;
     }).join('');
 }
@@ -393,7 +406,7 @@ export function quienEsHtml({ vinculado = false, clienteActual = null, usuarios 
                 <input class="vl-control" id="vl-quien-input" autocomplete="off"
                        placeholder="Escribe el @, el nombre o el número…" value="${escapeHtml(q)}">
             </div>
-            <div class="vl-quien-ayuda" id="vl-quien-ayuda">Los que compraron y no están vinculados salen primero. Si no aparece, búscalo por su @.</div>
+            <div class="vl-quien-ayuda" id="vl-quien-ayuda">Solo salen ventas ACTIVAS sin usuario reconocido. Si no aparece, búscalo por su @.</div>
             <div class="vl-quien-lista" id="vl-quien-lista">${listaUsuariosHtml(usuarios)}</div>
         </div>
     </div>`;
@@ -446,7 +459,7 @@ export function bindQuienEs(cont, { onBuscar, onElegir } = {}) {
             const texto = input.value.trim();
             const ayudaTx = texto
                 ? 'Buscando…'
-                : 'Los que compraron y no están vinculados salen primero. Si no aparece, búscalo por su @.';
+                : 'Solo salen ventas ACTIVAS sin usuario reconocido. Si no aparece, búscalo por su @.';
             const poner = () => { if (ayuda) ayuda.textContent = ayudaTx; };
             poner();
             freno = setTimeout(async () => {
@@ -457,8 +470,8 @@ export function bindQuienEs(cont, { onBuscar, onElegir } = {}) {
                 } catch (_) { pintar([]); }
                 if (ayuda) {
                     ayuda.textContent = texto
-                        ? 'Si la persona no está, revisa que su ficha tenga ese @.'
-                        : 'Los que compraron y no están vinculados salen primero. Si no aparece, búscalo por su @.';
+                        ? 'Deliberado: acá sale cualquiera. Si ya está reconocido, te lo aviso antes.'
+                        : 'Solo salen ventas ACTIVAS sin usuario reconocido. Si no aparece, búscalo por su @.';
                 }
             }, 300);
         });
