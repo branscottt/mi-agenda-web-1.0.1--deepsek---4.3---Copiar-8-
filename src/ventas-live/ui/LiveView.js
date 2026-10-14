@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarCitas, montarSaltoCita } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -33,7 +33,6 @@ let _chatEnviando = false;
 let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;   // "responder citando" del chat del LIVE
-let _citas = null;       // "¿a cuál respondía?" (citas de mensajes viejos)
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
 let _sugerencias = [];
@@ -202,21 +201,6 @@ function buildDOM() {
     }
     // Apretar la cita lleva al mensaje citado (y lo marca un instante).
     montarSaltoCita({ contenedor: $('lv-chat-msgs') });
-    // "¿A cuál respondía?" cuando la cita no se pudo resolver (mensajes viejos).
-    if (!_citas) {
-        _citas = montarCitas({
-            contenedor: $('lv-chat-msgs'),
-            cargarCandidatas: async (mensajeId) => {
-                const r = await vlApi.citaCandidatas(mensajeId);
-                if (!r.ok) return [];
-                const lista = (r.data && Array.isArray(r.data.candidatas)) ? r.data.candidatas : [];
-                await firmarMedias(lista, getSupabase());
-                return lista;
-            },
-            vincular: (mensajeId, citadoId) => vlApi.citaVincular(mensajeId, citadoId),
-            alVincular: () => { cargarHiloChat({ forzarAbajo: true }); },
-        });
-    }
     // Adjuntar foto/video: en el celular y la tablet el selector ofrece cámara y
     // galería; en el computador, el explorador. Se valida antes de subir.
     if (!_adjunto) {

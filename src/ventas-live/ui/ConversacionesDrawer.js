@@ -20,8 +20,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
-    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarCitas,
-    montarSaltoCita,
+    quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
     montarAdjunto
 } from './chatComun.js';
 import {
@@ -53,7 +52,6 @@ let _timerBadge = null;
 let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;        // "responder citando" del chat abierto
-let _citas = null;            // "¿a cuál respondía?" (citas de mensajes viejos)
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
@@ -136,21 +134,6 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         }
         // Apretar la cita lleva al mensaje citado (y lo marca un instante).
         montarSaltoCita({ contenedor: $('vld-body') });
-        // "¿A cuál respondía?" cuando la cita no se pudo resolver (mensajes viejos).
-        if (!_citas) {
-            _citas = montarCitas({
-                contenedor: $('vld-body'),
-                cargarCandidatas: async (mensajeId) => {
-                    const r = await vlApi.citaCandidatas(mensajeId);
-                    if (!r.ok) return [];
-                    const lista = (r.data && Array.isArray(r.data.candidatas)) ? r.data.candidatas : [];
-                    await firmarMedias(lista, getSupabase());
-                    return lista;
-                },
-                vincular: (mensajeId, citadoId) => vlApi.citaVincular(mensajeId, citadoId),
-                alVincular: () => { if (_chatId) cargarHilo(_chatId); },
-            });
-        }
         // Mandar FOTO/VIDEO con comentario: en celular y tablet el selector
         // ofrece cámara y galería; en computador, el explorador.
         if (!_adjunto) {

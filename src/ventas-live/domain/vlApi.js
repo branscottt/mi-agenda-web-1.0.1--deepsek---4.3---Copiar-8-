@@ -274,13 +274,6 @@ export const vlApi = {
     // Foto o video con comentario (desde computador, celular o tablet).
     enviarMediaManual: (chatId, opciones) => enviarMediaManual(chatId, opciones),
 
-    // ---- Cita sin resolver: elegir a mano a qué mensaje responde ----
-    // (pasa cuando el cliente cita un mensaje enviado ANTES de que el sistema
-    // guardara los wamid: WhatsApp nos dio la referencia pero no tenemos la fila)
-    citaCandidatas: (mensajeId, limite = 8) =>
-        callRpc('vl_wa_cita_candidatas', { p_mensaje_id: mensajeId, p_limite: limite }),
-    citaVincular: (mensajeId, citadoId) =>
-        callRpc('vl_wa_cita_vincular', { p_mensaje_id: mensajeId, p_citado_id: citadoId }),
 
     // ---- Diagrama de procesos (todos de una, con puntos presionables) ----
     diagramaProcesos: () => callRpc('vl_procesos_diagrama'),

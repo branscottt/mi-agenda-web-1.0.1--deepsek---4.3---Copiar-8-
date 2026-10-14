@@ -657,24 +657,6 @@
         .vl-cita-tipo { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #cbb8e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .vl-burbuja.out .vl-cita-tipo { color: rgba(255,255,255,0.88); }
         .vl-cita-nota { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 0.72rem; font-style: italic; color: #a89bb8; }
-        /* "Responde a un mensaje que no tenemos" (mensajes viejos, sin wamid):
-           el dueño puede apretar cuál era y queda guardado. */
-        .vl-cita-elegir { margin-left: auto; padding: 3px 9px; border-radius: 8px; border: 1px solid rgba(157,78,221,0.6); background: rgba(157,78,221,0.18); color: #e3d3ff; font-family: inherit; font-style: normal; font-size: 0.68rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
-        .vl-cita-elegir:hover { background: rgba(157,78,221,0.35); border-color: #c77dff; color: #fff; }
-        .vl-cita-manual { margin-left: 5px; font-size: 0.66rem; opacity: 0.8; }
-        .vl-cita-opciones { display: flex; flex-direction: column; gap: 4px; margin: 7px 0 2px; padding: 7px 8px; border-radius: 9px; background: rgba(0,0,0,0.28); border: 1px solid rgba(157,78,221,0.35); }
-        .vl-cita-op-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.7rem; font-weight: 700; color: #c77dff; font-style: normal; }
-        .vl-cita-cerrar { width: 20px; height: 20px; padding: 0; border: none; border-radius: 5px; background: transparent; color: #cbb8e6; cursor: pointer; }
-        .vl-cita-cerrar:hover { background: rgba(255,255,255,0.14); color: #fff; }
-        .vl-cita-op { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.10); background: rgba(36,29,56,0.85); color: #e9edef; font-family: inherit; text-align: left; cursor: pointer; }
-        .vl-cita-op:hover { border-color: #c77dff; background: rgba(157,78,221,0.22); }
-        .vl-cita-op-mini { flex: 0 0 auto; width: 64px; height: 64px; object-fit: cover; border-radius: 7px; background: rgba(0,0,0,0.3); }
-        .vl-cita-op-icono { flex: 0 0 auto; width: 64px; height: 64px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(0,0,0,0.25); color: #cbb8e6; }
-        .vl-cita-op-txt { min-width: 0; font-size: 0.78rem; line-height: 1.35; overflow: hidden; }
-        .vl-cita-op-meta { display: block; font-size: 0.66rem; color: #a89bb8; }
-        .vl-cita-op-meta b { color: #c77dff; }
-        .vl-cita-op-cargando, .vl-cita-op-vacio { font-size: 0.74rem; color: #cbb8e6; font-style: normal; }
-        .vl-cita-error { font-size: 0.72rem; color: #ffb3a7; margin-bottom: 3px; }
         /* "Responder citando" desde el panel: botón chico en la línea de la hora
            (abajo-derecha, no tapa el texto) + la cita elegida arriba del input. */
         .vl-burbuja-hora { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
@@ -958,7 +940,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=143"></script>
+    <script type="module" src="dist/app.js?v=144"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

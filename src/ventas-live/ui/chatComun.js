@@ -659,11 +659,12 @@ function citaHtml(m, nombreCliente) {
         // sistema guardara los wamid). Se avisa y se deja elegirlo A MANO entre
         // los mensajes de la propia conversación.
         if (!m || !m.context_wa_id) return '';
-        return '<div class="vl-cita-nota" title="WhatsApp no nos mandó la ficha del mensaje citado'
-            + ' (es anterior a que se guardaran). Elige tú cuál era y queda guardado.">'
-            + '<i class="fas fa-reply"></i> Responde a un mensaje anterior'
-            + (m.id ? '<button type="button" class="vl-cita-elegir" data-elegir="1">Elegir cuál</button>' : '')
-            + '</div>';
+        // El cliente respondió A ALGO, pero el mensaje citado no está en el historial
+        // (es anterior a que guardáramos los wamid). Se avisa y nada más: cuál era
+        // solo lo sabe el cliente, así que conviene preguntarle.
+        return '<div class="vl-cita-nota" title="El cliente respondió a un mensaje, pero no tenemos'
+            + ' su ficha (es anterior al sistema). Pregúntale cuál era.">'
+            + '<i class="fas fa-reply"></i> Responde a un mensaje anterior</div>';
     }
     const saliente = c.direction === 'out';
     const autor = saliente
@@ -682,16 +683,12 @@ function citaHtml(m, nombreCliente) {
             + `${txt ? ' · ' + txt : ''}</span>`;
     }
     const aparte = esFoto && txt ? `<span class="vl-cita-txt">${txt}</span>` : '';
-    // `manual` = el dueño la eligió a mano (la cita original de WhatsApp no se pudo resolver).
-    const marcaManual = c.manual
-        ? '<span class="vl-cita-manual" title="La elegiste tú: WhatsApp no nos dio la referencia de ese mensaje">'
-            + '<i class="fas fa-pen"></i></span>'
-        : '';
+
     // Apretable, igual que WhatsApp: lleva AL mensaje citado dentro del chat.
     const destino = c.id ? ` data-cita-id="${escapeHtml(c.id)}"` : '';
     return `<div class="vl-cita"${destino} role="button" tabindex="0"`
         + ` title="Ir al mensaje citado">`
-        + `<div class="vl-cita-autor"><i class="fas fa-reply"></i> ${autor}${marcaManual}`
+        + `<div class="vl-cita-autor"><i class="fas fa-reply"></i> ${autor}`
         + `<span class="vl-cita-ir" aria-hidden="true"><i class="fas fa-arrow-up"></i></span></div>`
         + `<div class="vl-cita-cuerpo">${cuerpo}${aparte}</div>`
         + `</div>`;
@@ -751,7 +748,6 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
         const attr = (v) => escapeHtml(String(v == null ? '' : v));
         return `
             <div class="vl-fila-msg ${saliente ? 'out' : 'in'}"
-                 data-cita-sin-resolver="${m.cita_sin_resolver ? '1' : '0'}"
                  data-id="${attr(m.id)}"
                  data-wamid="${attr(m.wa_message_id)}"
                  data-dir="${saliente ? 'out' : 'in'}"
@@ -844,112 +840,6 @@ export function montarResponder({ contenedor, previa, input, onCambio } = {}) {
     return { cita: () => elegida, limpiar, pintar };
 }
 
-/** Una opción del panel "¿a cuál respondía?" (un mensaje anterior de la conversación). */
-function opcionCitaHtml(c, mensajeId) {
-    const tipo = String(c.tipo || 'texto').toLowerCase();
-    const txt = escapeHtml(String(c.body || '').replace(/\n+/g, ' ').trim()).slice(0, 70);
-    const esFoto = !!c.media_url && (tipo === 'imagen' || tipo === 'sticker');
-    const quien = c.direction === 'out' ? (c.origen === 'humano' ? 'Tú' : 'Bot') : 'Cliente';
-    const mini = esFoto
-        ? `<img class="vl-cita-op-mini" src="${escapeHtml(c.media_url)}" alt="Foto citada">`
-        : `<span class="vl-cita-op-icono"><i class="fas fa-${tipo === 'texto' ? 'comment' : 'paperclip'}"></i></span>`;
-    return `<button type="button" class="vl-cita-op"`
-        + ` data-mensaje="${escapeHtml(mensajeId)}" data-citado="${escapeHtml(c.id)}">`
-        + mini
-        + `<span class="vl-cita-op-txt">${txt || escapeHtml(etiquetaMedia(tipo))}`
-        + `<span class="vl-cita-op-meta">${escapeHtml(quien)} · ${escapeHtml(fmtHora(c.creado_en))}`
-        + `</span></span>`
-        + `</button>`;
-}
-
-/**
- * "¿A cuál respondía?" — cuando un mensaje CITÓ algo que no tenemos (mensajes
- * viejos, anteriores a que guardáramos los wamid), se le ofrecen al dueño los
- * últimos mensajes de ESA conversación para que apriete el correcto. La elección
- * se guarda (cita_manual_de) y desde ahí la cita se ve como cualquier otra.
- * `cargarCandidatas(mensajeId)` y `vincular(mensajeId, citadoId)` los inyecta la
- * vista (este módulo no habla con Supabase).
- */
-export function montarCitas({ contenedor, cargarCandidatas, vincular, alVincular } = {}) {
-    if (!contenedor || contenedor.__citasMontado) return null;
-    contenedor.__citasMontado = true;
-
-    function cerrarPaneles() {
-        contenedor.querySelectorAll('.vl-cita-opciones').forEach((p) => p.remove());
-    }
-
-    contenedor.addEventListener('click', async (e) => {
-        const t = e.target;
-        if (!t || !t.closest) return;
-
-        if (t.closest('.vl-cita-cerrar')) {
-            e.preventDefault();
-            cerrarPaneles();
-            return;
-        }
-
-        const op = t.closest('.vl-cita-op');
-        if (op) {
-            e.preventDefault();
-            const citadoId = op.dataset.citado || '';
-            const mensajeId = op.dataset.mensaje || '';
-            if (!citadoId || !mensajeId || typeof vincular !== 'function') return;
-            op.disabled = true;
-            const r = await vincular(mensajeId, citadoId);
-            if (!r || r.ok !== true) {
-                op.disabled = false;
-                const panel = op.closest('.vl-cita-opciones');
-                if (panel) {
-                    panel.insertAdjacentHTML('afterbegin',
-                        `<div class="vl-cita-error">${escapeHtml((r && r.error) || 'No se pudo guardar')}</div>`);
-                }
-                return;
-            }
-            cerrarPaneles();
-            if (typeof alVincular === 'function') alVincular();
-            return;
-        }
-
-        const btn = t.closest('.vl-cita-elegir');
-        if (!btn) return;
-        e.preventDefault();
-        const fila = btn.closest('.vl-fila-msg');
-        const burbuja = btn.closest('.vl-burbuja');
-        if (!fila || !burbuja) return;
-        if (burbuja.querySelector('.vl-cita-opciones')) {
-            cerrarPaneles();
-            return;
-        }
-        cerrarPaneles();
-        const mensajeId = (fila.dataset && fila.dataset.id) || '';
-        if (!mensajeId || typeof cargarCandidatas !== 'function') return;
-
-        burbuja.insertAdjacentHTML('beforeend',
-            '<div class="vl-cita-opciones"><div class="vl-cita-op-cargando">'
-            + '<i class="fas fa-spinner fa-spin"></i> Buscando los mensajes anteriores…</div></div>');
-
-        let lista = [];
-        try {
-            lista = await cargarCandidatas(mensajeId);
-        } catch (_) {
-            lista = [];
-        }
-        const panel = burbuja.querySelector('.vl-cita-opciones');
-        if (!panel) return;
-        if (!Array.isArray(lista) || lista.length === 0) {
-            panel.innerHTML = '<div class="vl-cita-op-vacio">No hay mensajes anteriores en esta conversación.</div>';
-            return;
-        }
-        panel.innerHTML = '<div class="vl-cita-op-cab">'
-            + '<span>¿A cuál respondía? Aprieta el correcto 👇</span>'
-            + '<button type="button" class="vl-cita-cerrar" title="Cerrar" aria-label="Cerrar">'
-            + '<i class="fas fa-times"></i></button></div>'
-            + lista.map((c) => opcionCitaHtml(c, mensajeId)).join('');
-    });
-
-    return { cerrarPaneles };
-}
-
 let _timerSaltoCita = null;
 
 /**
@@ -967,7 +857,7 @@ export function montarSaltoCita({ contenedor } = {}) {
         const bloque = t.closest('.vl-cita');
         if (!bloque || !contenedor.contains(bloque)) return;
         const id = bloque.dataset ? (bloque.dataset.citaId || '') : '';
-        if (!id) return;              // cita sin resolver: no hay a dónde ir
+        if (!id) return;              // no hay a dónde ir
         const destino = contenedor.querySelector(`.vl-fila-msg[data-id="${id}"]`);
         if (!destino) return;         // el mensaje citado no está en esta vista
         e.preventDefault();
@@ -990,7 +880,7 @@ export function montarSaltoCita({ contenedor } = {}) {
         bloque.click();
     });
 
-    return { };
+    return {};
 }
 
 /** Nombre con el que se etiqueta al cliente en el hilo. */
