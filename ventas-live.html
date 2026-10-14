@@ -620,6 +620,28 @@
         .vl-fila-msg.vl-fallida .vl-burbuja { box-shadow: inset 0 0 0 1.5px rgba(255, 138, 101, 0.85); opacity: 0.92; }
         .vl-fila-msg.vl-fallida .vl-burbuja-hora { color: #ffccbc; }
         .vl-fallo-marca { color: #ffab91; font-size: 0.68rem; font-weight: 600; }
+
+        /* ===== Buscar dentro de la conversación (la lupa de WhatsApp) ===== */
+        .vl-busq-barra { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 2px 0 6px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; }
+        .vl-busq-barra > i { color: #adb5bd; font-size: 0.85rem; }
+        .vl-busq-barra input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #f8f9fa; font-size: 0.88rem; }
+        .vl-busq-n { font-size: 0.74rem; color: #adb5bd; white-space: nowrap; }
+        .vl-busq-salto { background: transparent; border: 0; color: #adb5bd; cursor: pointer; padding: 3px 6px; border-radius: 6px; font-size: 0.8rem; }
+        .vl-busq-salto:hover { background: rgba(255,255,255,0.08); color: #f8f9fa; }
+        mark.vl-busq { background: rgba(199,125,255,0.35); color: inherit; border-radius: 3px; padding: 0 1px; }
+        mark.vl-busq.actual { background: #ffd479; color: #1a1a1a; }
+
+        /* ===== Selector de emojis (para escribir) ===== */
+        .vl-chat-mini-composer, .vld-foot { position: relative; }
+        .vl-emoji-panel { position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 40;
+            display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 8px;
+            background: rgba(20,20,30,0.98); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-height: 190px; overflow-y: auto; width: min(340px, 92vw); }
+        .vl-emoji-panel[hidden] { display: none; }
+        .vl-emoji { background: transparent; border: 0; cursor: pointer; font-size: 1.15rem; line-height: 1; padding: 4px 2px; border-radius: 8px; }
+        .vl-emoji:hover { background: rgba(255,255,255,0.10); }
+        .vl-adj-btn.activo { background: rgba(157,78,221,0.35); border-color: rgba(157,78,221,0.7); }
         /* Medios que manda el cliente (foto/audio/video/archivo) */
         .vl-burbuja-medio { margin-bottom: 5px; }
         .vl-burbuja-img { display: block; max-width: 100%; max-height: 260px; width: auto; height: auto; border-radius: 9px; cursor: zoom-in; background: rgba(0,0,0,0.25); }
@@ -1019,7 +1041,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=151"></script>
+    <script type="module" src="dist/app.js?v=152"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

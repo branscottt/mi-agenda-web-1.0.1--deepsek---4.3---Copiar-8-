@@ -21,7 +21,8 @@ import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
-    montarAdjunto, montarReaccion, pintarHilo, olvidarHilo
+    montarAdjunto, montarReaccion, pintarHilo, olvidarHilo,
+    barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -57,6 +58,8 @@ let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;        // "responder citando" del chat abierto
 let _leidoWamid = '';         // último entrante ya marcado como leído (✓✓ azul)
+// Buscador de la conversación (la lupa de WhatsApp).
+let _busq = { texto: '', i: 0, n: 0, chat: null };
 let _fijoPintado = null;      // bloque de proceso/aviso ya pintado (para no repintar de más)
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
@@ -100,16 +103,31 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                     <i class="fas fa-eye"></i>
                 </button>
                 <button class="vl-btn" id="vld-ocultar" type="button" style="display:none;"></button>
+                <button class="vld-icon" id="vld-buscar-btn" type="button" title="Buscar en la conversación" style="display:none;">
+                    <i class="fas fa-magnifying-glass"></i>
+                </button>
                 <button class="vld-icon" id="vld-cerrar" type="button" title="Cerrar">
                     <i class="fas fa-xmark"></i>
                 </button>
             </div>
             <div class="vld-sub" id="vld-sub">Quién te escribió por WhatsApp</div>
             <div id="vld-quien"></div>
+            <div class="vl-busq-barra" id="vld-busq" hidden>
+                <i class="fas fa-magnifying-glass"></i>
+                <input id="vld-busq-inp" placeholder="Buscar en la conversación…" autocomplete="off">
+                <span class="vl-busq-n" id="vld-busq-n">0 de 0</span>
+                <button class="vl-busq-salto" id="vld-busq-prev" type="button" title="Anterior"><i class="fas fa-chevron-up"></i></button>
+                <button class="vl-busq-salto" id="vld-busq-next" type="button" title="Siguiente"><i class="fas fa-chevron-down"></i></button>
+                <button class="vl-busq-salto" id="vld-busq-x" type="button" title="Cerrar la búsqueda"><i class="fas fa-xmark"></i></button>
+            </div>
             <div class="vld-body" id="vld-body"></div>
             <div class="vl-chat-previa" id="vld-previa" hidden></div>
             <div class="vl-cita-previa" id="vld-cita" hidden></div>
             <div class="vld-foot" id="vld-foot" style="display:none;">
+                ${barraEmojisHtml()}
+                <button class="vl-btn vl-adj-btn" id="vld-emoji" type="button" title="Emojis">
+                    <i class="fas fa-face-smile"></i>
+                </button>
                 <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto, video, archivo o audio">
                     <i class="fas fa-paperclip"></i>
                 </button>
@@ -130,6 +148,18 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-ocultos').addEventListener('click', toggleOcultos);
         $('vld-ocultar').addEventListener('click', ocultarChatActual);
         $('vld-enviar').addEventListener('click', enviar);
+
+        // Buscar dentro de la conversación + selector de emojis.
+        $('vld-buscar-btn').addEventListener('click', () => abrirBusqueda($('vld-busq').hidden));
+        $('vld-busq-inp').addEventListener('input', (e) => buscarEnChat(e.target.value));
+        $('vld-busq-inp').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); irABusqueda(1); }
+            if (e.key === 'Escape') { e.preventDefault(); abrirBusqueda(false); }
+        });
+        $('vld-busq-prev').addEventListener('click', () => irABusqueda(-1));
+        $('vld-busq-next').addEventListener('click', () => irABusqueda(1));
+        $('vld-busq-x').addEventListener('click', () => abrirBusqueda(false));
+        montarEmojis({ contenedor: $('vld-foot'), btn: $('vld-emoji'), input: $('vld-input') });
         // "Responder citando": el listener va a #vld-body (el hilo de adentro se
         // repinta en cada refresco; ese contenedor sí es estable).
         if (!_responder) {
@@ -755,10 +785,12 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     // toca el DOM). Antes se repintaba TODO cada 5 s y el chat parpadeaba.
     if ($('vld-hilo') && _fijoPintado === fijoHtml) {
         const modo = pintarHilo($('vld-hilo'), mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
+        aplicarBusqueda();
         if (modo === 'igual' && silencioso) { autoScrollAbajo(body); return; }
     } else {
         body.innerHTML = fijoHtml + `<div class="vld-hilo" id="vld-hilo"></div>`;
         pintarHilo($('vld-hilo'), mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
+        aplicarBusqueda();
         _fijoPintado = fijoHtml;
     }
 
@@ -869,6 +901,10 @@ function pintarModoChat() {
         modoBtn.dataset.modo = humano ? 'humano' : 'bot';
     }
 
+    // La lupa solo tiene sentido con una conversación abierta.
+    const busBtn = $('vld-buscar-btn');
+    if (busBtn) busBtn.style.display = 'inline-flex';
+
     // Ocultar / mostrar ESTE chat (los no-venta no aparecen en la lista)
     const ojoLista = $('vld-ocultos');
     const ocuBtn = $('vld-ocultar');
@@ -908,7 +944,59 @@ function toggleOcultos() {
     mostrarToast(_verOcultos ? 'Mostrando también los chats ocultos' : 'Chats no-venta ocultos', 'success');
 }
 
+// ── Buscar dentro de la conversación (la lupa) ──────────────────────────────
+function aplicarBusqueda() {
+    const hilo = $('vld-hilo');
+    const barra = $('vld-busq');
+    const inp = $('vld-busq-inp');
+    const nEl = $('vld-busq-n');
+    if (!hilo || !barra || !inp) return;
+    if (_busq.chat && _busq.chat !== _chatId) {
+        _busq = { texto: '', i: 0, n: 0, chat: _chatId };
+        inp.value = '';
+    }
+    _busq.chat = _chatId;
+    if (barra.hidden || !_busq.texto) return;
+    _busq.n = resaltarBusqueda(hilo, _busq.texto, _busq.i);
+    if (nEl) {
+        nEl.textContent = _busq.n
+            ? `${((_busq.i % _busq.n) + _busq.n) % _busq.n + 1} de ${_busq.n}` : 'sin resultados';
+    }
+}
+
+function buscarEnChat(texto) {
+    _busq.texto = String(texto || '');
+    _busq.i = 0;
+    aplicarBusqueda();
+}
+
+function irABusqueda(delta) {
+    if (!_busq.n) return;
+    _busq.i = ((_busq.i + delta) % _busq.n + _busq.n) % _busq.n;
+    aplicarBusqueda();
+}
+
+function abrirBusqueda(abrir) {
+    const barra = $('vld-busq');
+    if (!barra) return;
+    barra.hidden = !abrir;
+    const inp = $('vld-busq-inp');
+    const nEl = $('vld-busq-n');
+    if (abrir) {
+        if (inp) inp.focus();
+        aplicarBusqueda();
+        return;
+    }
+    _busq = { texto: '', i: 0, n: 0, chat: _chatId };
+    if (inp) inp.value = '';
+    if (nEl) nEl.textContent = '0 de 0';
+    limpiarBusqueda($('vld-hilo'));
+}
+
 function volverALista() {
+    abrirBusqueda(false);
+    const lupa = $('vld-buscar-btn');
+    if (lupa) lupa.style.display = 'none';
     if (_responder) _responder.limpiar();
     _chatId = null;
     _chatMeta = null;

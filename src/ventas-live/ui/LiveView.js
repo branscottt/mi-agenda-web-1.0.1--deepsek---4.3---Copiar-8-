@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -38,6 +38,8 @@ let _drenandoEnvios = false;
 let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;   // "responder citando" del chat del LIVE
+// Buscador de la conversación (la lupa de WhatsApp): texto + aparición actual.
+let _busq = { texto: '', i: 0, n: 0, chat: null };
 let _leidoWamid = '';    // último entrante ya marcado como leído (✓✓ azul)
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
@@ -111,22 +113,37 @@ function buildDOM() {
                             <button class="vl-btn" id="lv-chat-bell" type="button" title="Avísame en el navegador cuando haya algo que revisar">
                                 <i class="fas fa-bell"></i> <span id="lv-chat-bell-t">Avisos</span>
                             </button>
+                            <button class="vl-btn" id="lv-chat-buscar-btn" type="button" title="Buscar en la conversación">
+                                <i class="fas fa-magnifying-glass"></i>
+                            </button>
                             <button class="vl-btn" id="lv-chat-modo" type="button" style="display:none;"></button>
                         </div>
                     </div>
                     <div class="sub" id="lv-chat-sub">Escribe un @usuario conocido para ver su conversación acá.</div>
                     <div id="lv-chat-quien"></div>
                     <div id="lv-chat-proc-acc"></div>
+                    <div class="vl-busq-barra" id="lv-chat-busq" hidden>
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input id="lv-chat-busq-inp" placeholder="Buscar en la conversación…" autocomplete="off">
+                        <span class="vl-busq-n" id="lv-chat-busq-n">0 de 0</span>
+                        <button class="vl-busq-salto" id="lv-chat-busq-prev" type="button" title="Anterior"><i class="fas fa-chevron-up"></i></button>
+                        <button class="vl-busq-salto" id="lv-chat-busq-next" type="button" title="Siguiente"><i class="fas fa-chevron-down"></i></button>
+                        <button class="vl-busq-salto" id="lv-chat-busq-x" type="button" title="Cerrar la búsqueda"><i class="fas fa-xmark"></i></button>
+                    </div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
                     <div class="vl-chat-previa" id="lv-chat-previa" hidden></div>
                     <div class="vl-cita-previa" id="lv-chat-cita" hidden></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
+                        ${barraEmojisHtml()}
                         <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto, video, archivo o audio">
                             <i class="fas fa-paperclip"></i>
                         </button>
                         <input type="file" class="vl-adj-input" id="lv-chat-file" multiple
                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
                                style="display:none">
+                        <button class="vl-btn vl-adj-btn" id="lv-chat-emoji" type="button" title="Emojis">
+                            <i class="fas fa-face-smile"></i>
+                        </button>
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
                                placeholder="Responde por WhatsApp…" autocomplete="off">
                         <button class="vl-btn primary" id="lv-chat-enviar" type="button" title="Enviar">
@@ -197,6 +214,18 @@ function buildDOM() {
 
     // Chat del cliente (panel lateral del LIVE)
     $('lv-chat-enviar').addEventListener('click', enviarChat);
+
+    // Buscar dentro de la conversación + selector de emojis.
+    $('lv-chat-buscar-btn').addEventListener('click', () => abrirBusquedaChat($('lv-chat-busq').hidden));
+    $('lv-chat-busq-inp').addEventListener('input', (e) => buscarEnChat(e.target.value));
+    $('lv-chat-busq-inp').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); irABusqueda(1); }
+        if (e.key === 'Escape') { e.preventDefault(); abrirBusquedaChat(false); }
+    });
+    $('lv-chat-busq-prev').addEventListener('click', () => irABusqueda(-1));
+    $('lv-chat-busq-next').addEventListener('click', () => irABusqueda(1));
+    $('lv-chat-busq-x').addEventListener('click', () => abrirBusquedaChat(false));
+    montarEmojis({ contenedor: $('lv-chat-composer'), btn: $('lv-chat-emoji'), input: $('lv-chat-input') });
     // "Responder citando": el listener va al contenedor del hilo (que NO se
     // reemplaza en cada refresco) y mantiene la cita elegida hasta enviar.
     if (!_responder) {
@@ -799,6 +828,8 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
 
     // Pintado fluido: si nada cambió no se toca el DOM (nada de parpadeo cada 5 s).
     pintarHilo(msgs, mensajes, { nombreCliente: nombreDeCliente(chat) });
+    // Si hay una búsqueda abierta, se vuelve a resaltar (el repintado borra las marcas).
+    aplicarBusquedaChat();
 
     // ✓✓ AZUL al cliente: se marca el chat como leído al abrirlo y cada vez que
     // llega algo nuevo mientras lo tienes abierto (igual que WhatsApp). Se pide
@@ -1041,6 +1072,56 @@ function marcarPendienteFallidoChat(tmpId, motivo) {
     delete el.dataset.pendiente;
     const hora = el.querySelector('.vl-burbuja-hora');
     if (hora) hora.innerHTML = '<span class="vl-fallo-marca"><i class="fas fa-exclamation-triangle"></i> no enviado</span>';
+}
+
+// ── Buscar dentro de la conversación (la lupa) ──────────────────────────────
+function aplicarBusquedaChat() {
+    const msgs = $('lv-chat-msgs');
+    const barra = $('lv-chat-busq');
+    const inp = $('lv-chat-busq-inp');
+    const nEl = $('lv-chat-busq-n');
+    if (!msgs || !barra || !inp) return;
+    // Si se abrió OTRA conversación, la búsqueda anterior ya no aplica.
+    if (_busq.chat && _busq.chat !== _chatId) {
+        _busq = { texto: '', i: 0, n: 0, chat: _chatId };
+        inp.value = '';
+    }
+    _busq.chat = _chatId;
+    if (barra.hidden || !_busq.texto) return;
+    _busq.n = resaltarBusqueda(msgs, _busq.texto, _busq.i);
+    if (nEl) {
+        nEl.textContent = _busq.n
+            ? `${((_busq.i % _busq.n) + _busq.n) % _busq.n + 1} de ${_busq.n}` : 'sin resultados';
+    }
+}
+
+function buscarEnChat(texto) {
+    _busq.texto = String(texto || '');
+    _busq.i = 0;
+    aplicarBusquedaChat();
+}
+
+function irABusqueda(delta) {
+    if (!_busq.n) return;
+    _busq.i = ((_busq.i + delta) % _busq.n + _busq.n) % _busq.n;
+    aplicarBusquedaChat();
+}
+
+function abrirBusquedaChat(abrir) {
+    const barra = $('lv-chat-busq');
+    if (!barra) return;
+    barra.hidden = !abrir;
+    const inp = $('lv-chat-busq-inp');
+    const nEl = $('lv-chat-busq-n');
+    if (abrir) {
+        if (inp) inp.focus();
+        aplicarBusquedaChat();
+        return;
+    }
+    _busq = { texto: '', i: 0, n: 0, chat: _chatId };
+    if (inp) inp.value = '';
+    if (nEl) nEl.textContent = '0 de 0';
+    limpiarBusqueda($('lv-chat-msgs'));
 }
 
 async function cambiarModoChat() {

@@ -1282,3 +1282,126 @@ export function autoScrollAbajo(el, { forzar = false } = {}) {
     const cercaDelFinal = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     if (forzar || cercaDelFinal) el.scrollTop = el.scrollHeight;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BUSCAR DENTRO DE LA CONVERSACIÓN (la lupa de WhatsApp)
+// ═══════════════════════════════════════════════════════════════════════════
+// El resaltado se hace sobre el DOM del hilo (no sobre los datos), así que no
+// toca el memo de pintarHilo. Cuando llegan mensajes nuevos hay que volver a
+// aplicarlo: para eso las vistas llaman a aplicarBusqueda() después de pintar.
+
+/** Quita todos los resaltados que haya dejado una búsqueda. */
+export function limpiarBusqueda(cont) {
+    if (!cont) return;
+    cont.querySelectorAll('mark.vl-busq').forEach((m) => {
+        const padre = m.parentNode;
+        if (!padre) return;
+        padre.replaceChild(document.createTextNode(m.textContent || ''), m);
+        padre.normalize();
+    });
+}
+
+/**
+ * Resalta todas las apariciones de `texto` en los cuerpos de las burbujas y deja
+ * la número `indice` como "actual" (más visible) y a la vista.
+ * Devuelve cuántas encontró.
+ */
+export function resaltarBusqueda(cont, texto, indice = 0) {
+    if (!cont) return 0;
+    limpiarBusqueda(cont);
+    const q = String(texto || '').trim();
+    if (!q) return 0;
+    const objetivo = q.toLowerCase();
+    const marcas = [];
+
+    cont.querySelectorAll('.vl-burbuja-txt').forEach((div) => {
+        const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null);
+        const nodos = [];
+        while (walker.nextNode()) nodos.push(walker.currentNode);
+        for (const nodo of nodos) {
+            const txt = nodo.nodeValue || '';
+            const bajo = txt.toLowerCase();
+            let desde = 0;
+            let idx = bajo.indexOf(objetivo, desde);
+            if (idx === -1) continue;
+            const partes = [];
+            while (idx !== -1) {
+                if (idx > desde) partes.push(document.createTextNode(txt.slice(desde, idx)));
+                const mk = document.createElement('mark');
+                mk.className = 'vl-busq';
+                mk.textContent = txt.slice(idx, idx + objetivo.length);
+                partes.push(mk);
+                marcas.push(mk);
+                desde = idx + objetivo.length;
+                idx = bajo.indexOf(objetivo, desde);
+            }
+            if (desde < txt.length) partes.push(document.createTextNode(txt.slice(desde)));
+            const frag = document.createDocumentFragment();
+            partes.forEach((x) => frag.appendChild(x));
+            if (nodo.parentNode) nodo.parentNode.replaceChild(frag, nodo);
+        }
+    });
+
+    const n = marcas.length;
+    if (n) {
+        const i = ((Number(indice) || 0) % n + n) % n;
+        marcas.forEach((m, k) => m.classList.toggle('actual', k === i));
+        try { marcas[i].scrollIntoView({ block: 'center' }); } catch (_) { /* sin scroll */ }
+    }
+    return n;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SELECTOR DE EMOJIS (para escribir, no solo para reaccionar)
+// ═══════════════════════════════════════════════════════════════════════════
+export const EMOJIS_TECLADO = [
+    '😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😎', '🤩', '🥰',
+    '😅', '🙃', '😉', '😇', '🤗', '🤔', '😴', '😢', '😭', '😮',
+    '😱', '🤯', '😤', '🥳', '😴', '🙌', '👏', '👍', '👎', '🙏',
+    '💪', '👌', '✌️', '🫶', '❤️', '💜', '💔', '🔥', '✨', '💯',
+    '✅', '❌', '⚠️', '📦', '🚚', '💳', '💰', '📷', '🎁', '🛍️',
+];
+
+/** Panel de emojis (oculto hasta que se toca el botón). */
+export function barraEmojisHtml() {
+    return '<div class="vl-emoji-panel" hidden>'
+        + EMOJIS_TECLADO.map((e) => `<button type="button" class="vl-emoji" data-emoji="${e}">${e}</button>`).join('')
+        + '</div>';
+}
+
+/**
+ * Conecta el botón de emojis con su panel: el emoji se inserta DONDE está el
+ * cursor (no siempre al final, que es lo que molesta). El panel SE QUEDA ABIERTO
+ * después de elegir (igual que WhatsApp: así se pueden poner varios seguidos) y
+ * se cierra al tocar el botón otra vez, al tocar afuera o con Escape.
+ */
+export function montarEmojis({ contenedor, btn, input } = {}) {
+    if (!btn || !input) return;
+    const panel = contenedor ? contenedor.querySelector('.vl-emoji-panel') : null;
+    if (!panel) return;
+    const cerrar = () => { panel.hidden = true; btn.classList.remove('activo'); };
+    const abrir = () => { panel.hidden = false; btn.classList.add('activo'); };
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (panel.hidden) abrir(); else cerrar();
+    });
+    panel.addEventListener('click', (e) => {
+        const b = e.target.closest('.vl-emoji');
+        if (!b) return;
+        const emoji = b.dataset.emoji || '';
+        const ini = typeof input.selectionStart === 'number' ? input.selectionStart : input.value.length;
+        const fin = typeof input.selectionEnd === 'number' ? input.selectionEnd : input.value.length;
+        input.value = input.value.slice(0, ini) + emoji + input.value.slice(fin);
+        const pos = ini + emoji.length;
+        try { input.setSelectionRange(pos, pos); } catch (_) { /* sin foco */ }
+        input.focus();
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    document.addEventListener('click', (e) => {
+        if (panel.hidden) return;
+        if (panel.contains(e.target) || btn.contains(e.target)) return;
+        cerrar();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.hidden) cerrar(); });
+    return cerrar;
+}
