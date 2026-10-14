@@ -21,6 +21,7 @@ import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarCitas,
+    montarSaltoCita,
     montarAdjunto
 } from './chatComun.js';
 import {
@@ -133,6 +134,8 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 input: $('vld-input'),
             });
         }
+        // Apretar la cita lleva al mensaje citado (y lo marca un instante).
+        montarSaltoCita({ contenedor: $('vld-body') });
         // "¿A cuál respondía?" cuando la cita no se pudo resolver (mensajes viejos).
         if (!_citas) {
             _citas = montarCitas({

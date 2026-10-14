@@ -632,7 +632,27 @@
         .vl-cita-cuerpo { display: flex; align-items: center; gap: 7px; min-width: 0; }
         .vl-cita-txt { font-size: 0.78rem; color: #cbb8e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
         .vl-burbuja.out .vl-cita-txt { color: rgba(255,255,255,0.88); }
-        .vl-cita-mini { flex: 0 0 auto; width: 42px; height: 42px; object-fit: cover; border-radius: 5px; background: rgba(0,0,0,0.3); }
+        /* Miniatura de la foto citada: tiene que verse la prenda, no un cuadradito. */
+        .vl-cita-mini { flex: 0 0 auto; width: 64px; height: 64px; object-fit: cover; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.14); }
+        .vl-cita-previa .vl-cita-mini { width: 44px; height: 44px; }
+        /* La cita es APRETABLE: lleva al mensaje citado dentro del chat (y lo marca). */
+        .vl-cita[data-cita-id] { cursor: pointer; transition: background .12s; }
+        .vl-cita[data-cita-id]:hover { background: rgba(157,78,221,0.22); }
+        .vl-cita[data-cita-id]:focus-visible { outline: 2px solid #c77dff; outline-offset: 1px; }
+        .vl-cita-ir { margin-left: auto; font-size: 0.62rem; opacity: 0.55; }
+        .vl-cita[data-cita-id]:hover .vl-cita-ir { opacity: 1; }
+        /* Marca del mensaje al que se saltó: un brillo suave que se apaga UNA vez
+           (sin parpadeo). */
+        @keyframes vl-hallada {
+            0%   { box-shadow: 0 0 0 3px rgba(199,125,255,1), 0 0 26px rgba(157,78,221,0.65); }
+            60%  { box-shadow: 0 0 0 3px rgba(199,125,255,0.95), 0 0 22px rgba(157,78,221,0.55); }
+            100% { box-shadow: 0 0 0 2px rgba(199,125,255,0.18), 0 0 0 rgba(157,78,221,0); }
+        }
+        /* Mantiene el brillo ~1,5 s y se apaga UNA vez (nunca parpadea). */
+        .vl-msg-hallada .vl-burbuja { animation: vl-hallada 2.6s ease-out forwards; }
+        @media (prefers-reduced-motion: reduce) {
+            .vl-msg-hallada .vl-burbuja { animation: none; box-shadow: 0 0 0 2px rgba(199,125,255,0.85); }
+        }
         .vl-cita-tipo { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #cbb8e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .vl-burbuja.out .vl-cita-tipo { color: rgba(255,255,255,0.88); }
         .vl-cita-nota { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 0.72rem; font-style: italic; color: #a89bb8; }
@@ -938,7 +958,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=140"></script>
+    <script type="module" src="dist/app.js?v=141"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>

@@ -685,8 +685,12 @@ function citaHtml(m, nombreCliente) {
         ? '<span class="vl-cita-manual" title="La elegiste tú: WhatsApp no nos dio la referencia de ese mensaje">'
             + '<i class="fas fa-pen"></i></span>'
         : '';
-    return `<div class="vl-cita">`
-        + `<div class="vl-cita-autor"><i class="fas fa-reply"></i> ${autor}${marcaManual}</div>`
+    // Apretable, igual que WhatsApp: lleva AL mensaje citado dentro del chat.
+    const destino = c.id ? ` data-cita-id="${escapeHtml(c.id)}"` : '';
+    return `<div class="vl-cita"${destino} role="button" tabindex="0"`
+        + ` title="Ir al mensaje citado">`
+        + `<div class="vl-cita-autor"><i class="fas fa-reply"></i> ${autor}${marcaManual}`
+        + `<span class="vl-cita-ir" aria-hidden="true"><i class="fas fa-arrow-up"></i></span></div>`
         + `<div class="vl-cita-cuerpo">${cuerpo}${aparte}</div>`
         + `</div>`;
 }
@@ -942,6 +946,49 @@ export function montarCitas({ contenedor, cargarCandidatas, vincular, alVincular
     });
 
     return { cerrarPaneles };
+}
+
+let _timerSaltoCita = null;
+
+/**
+ * Ir al mensaje citado: apretar el bloque "respondiendo a…" lleva a la burbuja
+ * original dentro del chat y la marca un instante (como WhatsApp), para que se
+ * entienda a QUÉ se refería el cliente.
+ */
+export function montarSaltoCita({ contenedor } = {}) {
+    if (!contenedor || contenedor.__saltoCitaMontado) return null;
+    contenedor.__saltoCitaMontado = true;
+
+    contenedor.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!t || !t.closest) return;
+        const bloque = t.closest('.vl-cita');
+        if (!bloque || !contenedor.contains(bloque)) return;
+        const id = bloque.dataset ? (bloque.dataset.citaId || '') : '';
+        if (!id) return;              // cita sin resolver: no hay a dónde ir
+        const destino = contenedor.querySelector(`.vl-fila-msg[data-id="${id}"]`);
+        if (!destino) return;         // el mensaje citado no está en esta vista
+        e.preventDefault();
+        e.stopPropagation();
+        destino.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        destino.classList.add('vl-msg-hallada');
+        if (_timerSaltoCita) clearTimeout(_timerSaltoCita);
+        _timerSaltoCita = setTimeout(() => {
+            contenedor.querySelectorAll('.vl-msg-hallada')
+                .forEach((el) => el.classList.remove('vl-msg-hallada'));
+        }, 1800);
+    });
+
+    // Accesible con teclado (Enter/Espacio) sobre el bloque de la cita.
+    contenedor.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const bloque = e.target && e.target.closest ? e.target.closest('.vl-cita') : null;
+        if (!bloque) return;
+        e.preventDefault();
+        bloque.click();
+    });
+
+    return { };
 }
 
 /** Nombre con el que se etiqueta al cliente en el hilo. */

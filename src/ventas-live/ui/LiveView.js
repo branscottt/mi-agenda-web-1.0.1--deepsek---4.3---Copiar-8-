@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarCitas } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarCitas, montarSaltoCita } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -200,6 +200,8 @@ function buildDOM() {
             input: $('lv-chat-input'),
         });
     }
+    // Apretar la cita lleva al mensaje citado (y lo marca un instante).
+    montarSaltoCita({ contenedor: $('lv-chat-msgs') });
     // "¿A cuál respondía?" cuando la cita no se pudo resolver (mensajes viejos).
     if (!_citas) {
         _citas = montarCitas({
