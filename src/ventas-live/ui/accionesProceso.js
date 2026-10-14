@@ -542,6 +542,100 @@ export function modalBloquearBorrar(cliente, onDone) {
     });
 }
 
+// ---------- ELIMINAR CLIENTE (DESTRUCTIVO) ----------
+// Pedido del dueño: "en clientes debería poder eliminar clientes: o porque nunca
+// compraron y los bloqueamos, o porque soltaron prenda y no los quiero de
+// clientes". ANTES de ofrecer el botón se pregunta al servidor QUÉ se va a
+// borrar y SI SE PUEDE: los dos candados son venta en curso y plata cobrada
+// (esa no se puede perder: cambiaría lo que muestran Finanzas y "recibido").
+// Doble confirmación: hay que ESCRIBIR el @ y después confirmar en el navegador.
+export function modalEliminarCliente(cliente, onDone) {
+    const nick = (cliente && cliente.tiktok_user) ? cliente.tiktok_user : 'cliente';
+    const id = cliente && cliente.cliente_id;
+    abrirModal({
+        titulo: '🗑️ Eliminar cliente — @' + escapeHtml(nick),
+        sub: 'La ficha desaparece de Clientes. No se puede deshacer.',
+        html: `<div id="vcli-cuerpo"><div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Revisando qué hay colgando de este cliente…</div></div>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vcli-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn danger" id="vcli-ok" type="button" disabled><i class="fas fa-trash"></i> Eliminar cliente</button>
+            </div>`,
+        onMount: async (modal) => {
+            const cuerpo = modal.querySelector('#vcli-cuerpo');
+            const ok = modal.querySelector('#vcli-ok');
+            modal.querySelector('#vcli-cancelar').addEventListener('click', () => cerrarModal(true));
+
+            const rev = await vlApi.clienteEliminar(id, true);
+            if (!rev.ok) {
+                cuerpo.innerHTML = `<div class="vl-empty">No se pudo revisar: ${escapeHtml(rev.error || 'error')}</div>`;
+                return;
+            }
+            const d = rev.data || {};
+
+            // NO SE PUEDE: se explica con los números reales y no se ofrece el botón.
+            if (d.puede !== true) {
+                cuerpo.innerHTML = `
+                    <div style="background:rgba(255,193,7,0.10);border:1px solid rgba(255,193,7,0.35);border-radius:12px;padding:12px 14px;color:#ffd479;font-size:0.88rem;line-height:1.55;">
+                        <b>No se puede eliminar todavía.</b><br>${escapeHtml(d.motivo || '')}
+                    </div>
+                    <div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;line-height:1.5;">
+                        Si igual no la querés: usá <b>Liberar prendas</b> en su proceso, o dejá la ficha
+                        <b>bloqueada</b> (no aparece más en el panel ni en las listas).
+                    </div>`;
+                ok.style.display = 'none';
+                return;
+            }
+
+            // SE PUEDE: se muestra EXACTAMENTE lo que se borra y lo que NO.
+            const n = (x) => Number(x || 0);
+            const filas = [];
+            if (n(d.procesos) > 0) {
+                filas.push(`<li><b>${n(d.procesos)}</b> venta(s) con <b>${n(d.prendas)}</b> prenda(s) — todas anuladas o cerradas, sin plata cobrada</li>`);
+            } else {
+                filas.push('<li>No tiene ventas registradas</li>');
+            }
+            filas.push(`<li>Su <b>ficha completa</b>: @${escapeHtml(d.tiktok_user || nick)}, nombre, WhatsApp, correo, contacto, dirección, comuna y notas</li>`);
+            if (n(d.chats) > 0) {
+                filas.push(`<li><b>Ojo:</b> sus <b>${n(d.chats)}</b> conversación(es) de WhatsApp NO se borran — quedan sin cliente${n(d.avisos) > 0 ? ' y sus ' + n(d.avisos) + ' aviso(s) abierto(s) se cierran' : ''}</li>`);
+            }
+
+            cuerpo.innerHTML = `
+                <div style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
+                    Se borra <b>definitivamente</b> del panel:<ul style="margin:8px 0 0 18px;padding:0;">${filas.join('')}</ul>
+                </div>
+                <div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;line-height:1.5;">
+                    Si vuelve a comprar en un LIVE, aparecerá como <b>cliente nuevo</b>
+                    (no queda registro de que la eliminaste).
+                </div>
+                <div class="vl-form-row" style="margin-top:12px;">
+                    <label for="vcli-conf">Escribí <b>@${escapeHtml(d.tiktok_user || nick)}</b> para confirmar</label>
+                    <input class="vl-control" id="vcli-conf" autocomplete="off" placeholder="@${escapeHtml(d.tiktok_user || nick)}">
+                </div>`;
+            const inp = modal.querySelector('#vcli-conf');
+            const esperado = (d.tiktok_user || nick).toLowerCase();
+            inp.addEventListener('input', () => {
+                ok.disabled = inp.value.trim().replace(/^@/, '').toLowerCase() !== esperado;
+            });
+            ok.addEventListener('click', async () => {
+                if (ok.disabled) return;
+                if (!window.confirm('Última confirmación: se borra la ficha de @' + nick + ' y sus ventas anuladas. No se puede deshacer.')) return;
+                ok.disabled = true;
+                const res = await vlApi.clienteEliminar(id, false);
+                if (!res.ok) {
+                    mostrarToast(res.error || 'No se pudo eliminar', 'error');
+                    ok.disabled = false;
+                    return;
+                }
+                cerrarModal(true);
+                const b = res.data || {};
+                mostrarToast('@' + nick + ' eliminado · ' + Number(b.procesos || 0) + ' venta(s) y '
+                    + Number(b.prendas || 0) + ' prenda(s) borradas', 'success');
+                if (typeof onDone === 'function') onDone();
+            });
+        }
+    });
+}
+
 // ---------- Eliminar compra (DESTRUCTIVO) ----------
 // Pedido del dueño: para el que "juega a comprar", borrar la compra como si
 // nunca hubiera existido (desaparece de Procesos/Envíos/Finanzas). NO borra la

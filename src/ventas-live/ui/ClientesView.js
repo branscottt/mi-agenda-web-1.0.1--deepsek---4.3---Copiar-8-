@@ -9,7 +9,7 @@ import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
 import {
     modalConfirmarPago, modalPagaraPresencial, modalDecisionEntrega,
-    modalCrearEnvio, modalMarcarEntregado, modalLiberarItems
+    modalCrearEnvio, modalMarcarEntregado, modalLiberarItems, modalEliminarCliente
 } from './accionesProceso.js';
 
 let _built = false;
@@ -143,6 +143,7 @@ function pintarFicha() {
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <span class="vl-badge ${info.clase}">${info.label}</span>
                     <button class="vl-btn" id="vf-editar" type="button"><i class="fas fa-pen"></i> Editar perfil</button>
+                    <button class="vl-btn danger" id="vf-eliminar" type="button" title="Borrar la ficha del cliente: para los que nunca compraron o soltaron la prenda"><i class="fas fa-trash"></i> Eliminar cliente</button>
                     <button class="vl-btn" id="vf-volver" type="button"><i class="fas fa-arrow-left"></i> Volver</button>
                 </div>
             </div>
@@ -179,6 +180,12 @@ function pintarFicha() {
     $('vf-editar').addEventListener('click', () => modalEditarPerfil(c, async () => {
         await cargarFicha(_clienteId);
     }));
+    // Eliminar la ficha (destructivo, con doble confirmación y candados de plata):
+    // al borrarla ya no hay ficha que mostrar, así que se vuelve al listado.
+    $('vf-eliminar').addEventListener('click', () => modalEliminarCliente(
+        { cliente_id: c.cliente_id, tiktok_user: c.tiktok_user },
+        () => volverLista()
+    ));
 
     if (pa) bindAccionesProceso(pa, c);
 }

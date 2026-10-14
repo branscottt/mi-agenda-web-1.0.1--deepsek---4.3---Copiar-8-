@@ -315,6 +315,10 @@ export const vlApi = {
 
     // ---- Bloqueo + borrado de datos del cliente (destructivo) ----
     clienteBloquearBorrar: (clienteId) => callRpc('vl_cliente_bloquear_borrar', { p_cliente_id: clienteId }),
+    // Eliminar la FICHA del cliente de verdad. Con soloVer=true NO borra:
+    // devuelve qué se borraría y si se puede (candados de venta activa y plata).
+    clienteEliminar: (clienteId, soloVer = false) =>
+        callRpc('vl_cliente_eliminar', { p_cliente_id: clienteId, p_solo_ver: soloVer }),
     eliminarCompra: (procesoId) => callRpc('vl_eliminar_compra', { p_proceso_id: procesoId })
 };
 
