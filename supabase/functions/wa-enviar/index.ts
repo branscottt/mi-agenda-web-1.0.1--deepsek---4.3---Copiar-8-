@@ -213,6 +213,29 @@ async function guardarWamid(p: {
 }
 
 /**
+ * Traduce el rechazo de WhatsApp a algo que se entienda en el panel. El caso que
+ * importa es 131047: pasaron más de 24 h desde el último mensaje del cliente y
+ * WhatsApp NO permite escribirle texto libre hasta que él vuelva a escribir (o
+ * hasta mandar una plantilla aprobada). Antes eso salía como un genérico
+ * "WhatsApp rechazó el envío" y no había forma de saber qué hacer.
+ */
+function mensajeDeRechazo(detalle: string): string {
+  const d = detalle || '';
+  if (d.includes('131047') || /re-?engagement/i.test(d)) {
+    return 'Pasaron más de 24 horas desde el último mensaje del cliente y WhatsApp '
+      + 'no deja escribirle sin una plantilla aprobada. Pedile que te escriba algo '
+      + '(aunque sea un "hola") y contestá ahí mismo.';
+  }
+  if (d.includes('131026') || /not a valid whatsapp/i.test(d)) {
+    return 'Ese número no tiene WhatsApp o no puede recibir mensajes.';
+  }
+  if (d.includes('470') && /24/.test(d)) {
+    return 'La ventana de 24 horas se cerró: pedile al cliente que te escriba de nuevo.';
+  }
+  return 'WhatsApp rechazó el envío';
+}
+
+/**
  * Corre una promesa SIN que el navegador espere por ella. Es para tareas de
  * "mejor esfuerzo" que no deben retrasar la respuesta al panel (el mensaje ya
  * se envió y ya quedó registrado). EdgeRuntime.waitUntil mantiene viva la
@@ -562,7 +585,7 @@ async function handle(req: Request): Promise<Response> {
         phoneId, token, waId, tipoMeta, subida.mediaId, texto, contexto, nombre,
       );
       if (!envio.ok) {
-        return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
+        return json({ ok: false, error: mensajeDeRechazo(envio.detalle), detalle: envio.detalle }, 502);
       }
 
       // El wamid va en la MISMA inserción: antes había que pegarlo después con
@@ -609,7 +632,7 @@ async function handle(req: Request): Promise<Response> {
     // ── SOLO TEXTO ──
     const envio = await enviarGraph(phoneId, token, waId, texto, contexto);
     if (!envio.ok) {
-      return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
+      return json({ ok: false, error: mensajeDeRechazo(envio.detalle), detalle: envio.detalle }, 502);
     }
 
     // El wamid (y la cita) van en la MISMA inserción: antes había que pegarlos
