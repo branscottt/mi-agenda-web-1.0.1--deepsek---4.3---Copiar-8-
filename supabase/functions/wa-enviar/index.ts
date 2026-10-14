@@ -215,6 +215,42 @@ async function guardarWamid(p: {
   }
 }
 
+// ── Caché corta de las credenciales del negocio ─────────────────────────────
+// `vl_wa_chat_para_envio` cuesta ~300 ms medidos (6 tomas) y devuelve LO MISMO
+// mientras el dueño no reconecte el número, así que en una ráfaga (varios mensajes
+// seguidos a la misma conversación) se pedía una y otra vez para nada.
+//
+// CLAVE: la clave incluye el ID DEL USUARIO. Esa RPC no solo trae credenciales,
+// también es la que AUTORIZA (confirma que el usuario es admin del negocio dueño de
+// la conversación). Si se cacheara solo por chat, otro usuario podría aprovechar la
+// autorización del primero. Se guarda por (chat + usuario), nunca sin el usuario.
+const CACHE_ENVIO_MS = 60_000;   // 1 minuto: si reconectás el número, se corrige solo
+const CACHE_ENVIO_MAX = 200;     // tope de memoria; al llenarse, se tira entera
+const cacheEnvio = new Map<string, { t: number; cfg: Record<string, unknown> }>();
+
+async function cfgDeEnvio(chatId: string, userId: string): Promise<Record<string, unknown> | null> {
+  const k = chatId + '|' + userId;
+  const guardada = cacheEnvio.get(k);
+  if (guardada && Date.now() - guardada.t < CACHE_ENVIO_MS) return guardada.cfg;
+  const cfg = await rpc('vl_wa_chat_para_envio', { p_chat_id: chatId, p_user_id: userId });
+  if (cfg && cfg.ok === true) {
+    if (cacheEnvio.size >= CACHE_ENVIO_MAX) cacheEnvio.clear();
+    cacheEnvio.set(k, { t: Date.now(), cfg });
+  }
+  return cfg;
+}
+
+/** Meta dijo que la credencial no sirve: se tira de la caché y se relee al toque. */
+function olvidarCredencial(chatId: string, userId: string): void {
+  cacheEnvio.delete(chatId + '|' + userId);
+}
+
+/** ¿El rechazo es porque el token quedó viejo? (el error real que devuelve Meta) */
+function credencialVencida(detalle: string): boolean {
+  const d = String(detalle || '');
+  return d.includes('OAuthException') || d.includes('"code":190') || d.includes('"code": 190');
+}
+
 /**
  * Traduce el rechazo de WhatsApp a algo que se entienda en el panel. El caso que
  * importa es 131047: pasaron más de 24 h desde el último mensaje del cliente y
@@ -458,7 +494,7 @@ async function handle(req: Request): Promise<Response> {
     const quiereLeido = body.marcar_leido === true;
 
     if (quiereReaccion || quiereLeido) {
-      const cfgR = await rpc('vl_wa_chat_para_envio', { p_chat_id: chatId, p_user_id: jwt.sub });
+      const cfgR = await cfgDeEnvio(chatId, jwt.sub);
       if (!cfgR || cfgR.ok !== true) {
         const motivo = (cfgR && (cfgR.error as string)) || 'No se pudo autorizar el envío';
         return json({ ok: false, error: motivo }, 403);
@@ -528,8 +564,9 @@ async function handle(req: Request): Promise<Response> {
       }
     }
 
-    // Autorización + credenciales del tenant (service_role)
-    const cfg = await rpc('vl_wa_chat_para_envio', { p_chat_id: chatId, p_user_id: jwt.sub });
+    // Autorización + credenciales del tenant (service_role). Con caché corta: sólo
+    // se consulta de nuevo si pasó el minuto o si Meta dijo que el token no sirve.
+    const cfg = await cfgDeEnvio(chatId, jwt.sub);
     if (!cfg || cfg.ok !== true) {
       const motivo = (cfg && (cfg.error as string)) || 'No se pudo autorizar el envío';
       return json({ ok: false, error: motivo }, 403);
@@ -581,6 +618,7 @@ async function handle(req: Request): Promise<Response> {
       const nombre = nombreArchivo(mediaPath, mediaTipo);
       const subida = await subirAMeta(phoneId, token, bytes, mimeReal, tipoMeta, nombre);
       if (!subida.ok) {
+        if (credencialVencida(subida.detalle)) olvidarCredencial(chatId, jwt.sub);
         return json({ ok: false, error: 'WhatsApp rechazó el archivo', detalle: subida.detalle }, 502);
       }
 
@@ -588,6 +626,7 @@ async function handle(req: Request): Promise<Response> {
         phoneId, token, waId, tipoMeta, subida.mediaId, texto, contexto, nombre,
       );
       if (!envio.ok) {
+        if (credencialVencida(envio.detalle)) olvidarCredencial(chatId, jwt.sub);
         return json({ ok: false, error: mensajeDeRechazo(envio.detalle), detalle: envio.detalle }, 502);
       }
 
@@ -635,6 +674,7 @@ async function handle(req: Request): Promise<Response> {
     // ── SOLO TEXTO ──
     const envio = await enviarGraph(phoneId, token, waId, texto, contexto);
     if (!envio.ok) {
+      if (credencialVencida(envio.detalle)) olvidarCredencial(chatId, jwt.sub);
       return json({ ok: false, error: mensajeDeRechazo(envio.detalle), detalle: envio.detalle }, 502);
     }
 
