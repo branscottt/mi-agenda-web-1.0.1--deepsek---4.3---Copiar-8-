@@ -548,7 +548,10 @@ export function modalBloquearBorrar(cliente, onDone) {
 // clientes". ANTES de ofrecer el botón se pregunta al servidor QUÉ se va a
 // borrar y SI SE PUEDE: los dos candados son venta en curso y plata cobrada
 // (esa no se puede perder: cambiaría lo que muestran Finanzas y "recibido").
-// Doble confirmación: hay que ESCRIBIR el @ y después confirmar en el navegador.
+// DOBLE CONFIRMACIÓN = DOS CLICS (pedido expreso: nada de escribir el nombre):
+//   1er clic en "Eliminar cliente" → el aviso se pone rojo y pregunta de nuevo;
+//   2do clic en "Sí, eliminar" → se borra. El botón final se habilita a los
+//   350 ms para que un doble clic apurado no confirme solo.
 export function modalEliminarCliente(cliente, onDone) {
     const nick = (cliente && cliente.tiktok_user) ? cliente.tiktok_user : 'cliente';
     const id = cliente && cliente.cliente_id;
@@ -556,18 +559,20 @@ export function modalEliminarCliente(cliente, onDone) {
         titulo: '🗑️ Eliminar cliente — @' + escapeHtml(nick),
         sub: 'La ficha desaparece de Clientes. No se puede deshacer.',
         html: `<div id="vcli-cuerpo"><div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Revisando qué hay colgando de este cliente…</div></div>
-            <div class="vl-modal-actions">
+            <div class="vl-modal-actions" id="vcli-acciones">
                 <button class="vl-btn" id="vcli-cancelar" type="button">Cancelar</button>
                 <button class="vl-btn danger" id="vcli-ok" type="button" disabled><i class="fas fa-trash"></i> Eliminar cliente</button>
             </div>`,
         onMount: async (modal) => {
             const cuerpo = modal.querySelector('#vcli-cuerpo');
+            const acciones = modal.querySelector('#vcli-acciones');
             const ok = modal.querySelector('#vcli-ok');
             modal.querySelector('#vcli-cancelar').addEventListener('click', () => cerrarModal(true));
 
             const rev = await vlApi.clienteEliminar(id, true);
             if (!rev.ok) {
                 cuerpo.innerHTML = `<div class="vl-empty">No se pudo revisar: ${escapeHtml(rev.error || 'error')}</div>`;
+                acciones.style.display = 'none';
                 return;
             }
             const d = rev.data || {};
@@ -582,7 +587,7 @@ export function modalEliminarCliente(cliente, onDone) {
                         Si igual no la querés: usá <b>Liberar prendas</b> en su proceso, o dejá la ficha
                         <b>bloqueada</b> (no aparece más en el panel ni en las listas).
                     </div>`;
-                ok.style.display = 'none';
+                acciones.style.display = 'none';
                 return;
             }
 
@@ -600,37 +605,46 @@ export function modalEliminarCliente(cliente, onDone) {
             }
 
             cuerpo.innerHTML = `
-                <div style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
+                <div id="vcli-aviso" style="background:rgba(230,60,60,0.10);border:1px solid rgba(230,60,60,0.35);border-radius:12px;padding:12px 14px;color:#ffb3b3;font-size:0.88rem;line-height:1.55;">
                     Se borra <b>definitivamente</b> del panel:<ul style="margin:8px 0 0 18px;padding:0;">${filas.join('')}</ul>
                 </div>
                 <div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;line-height:1.5;">
                     Si vuelve a comprar en un LIVE, aparecerá como <b>cliente nuevo</b>
                     (no queda registro de que la eliminaste).
-                </div>
-                <div class="vl-form-row" style="margin-top:12px;">
-                    <label for="vcli-conf">Escribí <b>@${escapeHtml(d.tiktok_user || nick)}</b> para confirmar</label>
-                    <input class="vl-control" id="vcli-conf" autocomplete="off" placeholder="@${escapeHtml(d.tiktok_user || nick)}">
                 </div>`;
-            const inp = modal.querySelector('#vcli-conf');
-            const esperado = (d.tiktok_user || nick).toLowerCase();
-            inp.addEventListener('input', () => {
-                ok.disabled = inp.value.trim().replace(/^@/, '').toLowerCase() !== esperado;
-            });
-            ok.addEventListener('click', async () => {
-                if (ok.disabled) return;
-                if (!window.confirm('Última confirmación: se borra la ficha de @' + nick + ' y sus ventas anuladas. No se puede deshacer.')) return;
-                ok.disabled = true;
-                const res = await vlApi.clienteEliminar(id, false);
-                if (!res.ok) {
-                    mostrarToast(res.error || 'No se pudo eliminar', 'error');
-                    ok.disabled = false;
-                    return;
+
+            // PRIMER CLIC: no borra nada, pide el segundo.
+            ok.disabled = false;
+            ok.addEventListener('click', () => {
+                const aviso = modal.querySelector('#vcli-aviso');
+                if (aviso) {
+                    aviso.innerHTML = `<b>¿Seguro? Última vez.</b><br>`
+                        + `Se borra la ficha de @${escapeHtml(nick)}`
+                        + (n(d.procesos) > 0 ? ` y sus ${n(d.procesos)} venta(s) anuladas` : '')
+                        + `. <b>No se puede deshacer.</b>`;
                 }
-                cerrarModal(true);
-                const b = res.data || {};
-                mostrarToast('@' + nick + ' eliminado · ' + Number(b.procesos || 0) + ' venta(s) y '
-                    + Number(b.prendas || 0) + ' prenda(s) borradas', 'success');
-                if (typeof onDone === 'function') onDone();
+                acciones.innerHTML = `
+                    <button class="vl-btn" id="vcli-no" type="button">Cancelar</button>
+                    <button class="vl-btn danger" id="vcli-ok2" type="button" disabled><i class="fas fa-trash"></i> Sí, eliminar</button>`;
+                const ok2 = modal.querySelector('#vcli-ok2');
+                modal.querySelector('#vcli-no').addEventListener('click', () => cerrarModal(true));
+                // 350 ms de freno: un doble clic apurado no confirma solo.
+                setTimeout(() => { ok2.disabled = false; }, 350);
+                ok2.addEventListener('click', async () => {
+                    if (ok2.disabled) return;
+                    ok2.disabled = true;
+                    const res = await vlApi.clienteEliminar(id, false);
+                    if (!res.ok) {
+                        mostrarToast(res.error || 'No se pudo eliminar', 'error');
+                        ok2.disabled = false;
+                        return;
+                    }
+                    cerrarModal(true);
+                    const b = res.data || {};
+                    mostrarToast('@' + nick + ' eliminado · ' + Number(b.procesos || 0) + ' venta(s) y '
+                        + Number(b.prendas || 0) + ' prenda(s) borradas', 'success');
+                    if (typeof onDone === 'function') onDone();
+                });
             });
         }
     });
