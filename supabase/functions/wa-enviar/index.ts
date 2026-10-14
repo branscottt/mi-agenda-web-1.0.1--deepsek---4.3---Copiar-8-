@@ -107,8 +107,10 @@ async function rpc(
   return Array.isArray(data) ? (data[0] as Record<string, unknown>) : (data as Record<string, unknown>);
 }
 
-/** Envía un texto por Graph API. */
-async function enviarGraph(phoneId: string, token: string, to: string, body: string): Promise<{ ok: boolean; detalle: string }> {
+/** Envía un texto por Graph API. Devuelve el wamid que asigna WhatsApp. */
+async function enviarGraph(
+  phoneId: string, token: string, to: string, body: string,
+): Promise<{ ok: boolean; detalle: string; wamid: string }> {
   const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
     method: 'POST',
     headers: {
@@ -126,9 +128,53 @@ async function enviarGraph(phoneId: string, token: string, to: string, body: str
   if (!resp.ok) {
     const err = await resp.text().catch(() => '');
     console.error(`[wa-enviar] Graph API error (${resp.status}):`, err.slice(0, 400));
-    return { ok: false, detalle: err.slice(0, 300) };
+    return { ok: false, detalle: err.slice(0, 300), wamid: '' };
   }
-  return { ok: true, detalle: '' };
+  const data = await resp.json().catch(() => ({})) as { messages?: Array<{ id?: string }> };
+  return { ok: true, detalle: '', wamid: data?.messages?.[0]?.id || '' };
+}
+
+/**
+ * Guarda el wamid del mensaje que se acaba de enviar (y la cita, si la hubiera)
+ * en la fila que ya quedó registrada en vl_wa_mensajes. "Mejor esfuerzo": si
+ * falla, el mensaje YA se envió y solo no se podrá resolver como cita.
+ */
+async function guardarWamid(p: {
+  tenantId: string;
+  chatId: string;
+  wamid: string;
+  tipo: string;
+  texto?: string;
+  mediaPath?: string;
+}): Promise<void> {
+  if (!p.wamid) return;
+  try {
+    const resp = await fetch(
+      `${Deno.env.get('SUPABASE_URL') || ''}/rest/v1/rpc/vl_wa_guardar_meta_wa`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          p_tenant_id: p.tenantId,
+          p_direction: 'out',
+          p_wa_message_id: p.wamid,
+          p_chat_id: p.chatId,
+          p_tipo: p.tipo,
+          p_texto: p.texto || null,
+          p_media_path: p.mediaPath || null,
+        }),
+      },
+    );
+    if (!resp.ok) {
+      console.warn(`[wa-enviar] No pude guardar el wamid (${resp.status})`);
+    }
+  } catch (e) {
+    console.warn('[wa-enviar] Error guardando el wamid:', (e as Error).message || String(e));
+  }
 }
 
 /** Baja el archivo del bucket privado con service_role (nunca lo ve el navegador). */
@@ -185,7 +231,7 @@ async function subirAMeta(
 /** Manda la imagen/video ya subida, con el comentario como caption. */
 async function enviarMediaGraph(
   phoneId: string, token: string, to: string, tipo: string, mediaId: string, caption: string,
-): Promise<{ ok: boolean; detalle: string }> {
+): Promise<{ ok: boolean; detalle: string; wamid: string }> {
   const cuerpo: Record<string, unknown> = { id: mediaId };
   if (caption) cuerpo.caption = caption.slice(0, MAX_COMENTARIO);
   const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
@@ -205,9 +251,10 @@ async function enviarMediaGraph(
   if (!resp.ok) {
     const err = await resp.text().catch(() => '');
     console.error(`[wa-enviar] Graph API media error (${resp.status}):`, err.slice(0, 400));
-    return { ok: false, detalle: err.slice(0, 300) };
+    return { ok: false, detalle: err.slice(0, 300), wamid: '' };
   }
-  return { ok: true, detalle: '' };
+  const data = await resp.json().catch(() => ({})) as { messages?: Array<{ id?: string }> };
+  return { ok: true, detalle: '', wamid: data?.messages?.[0]?.id || '' };
 }
 
 async function handle(req: Request): Promise<Response> {
@@ -341,6 +388,15 @@ async function handle(req: Request): Promise<Response> {
         return json({ ok: false, error: 'Se envió, pero no se pudo guardar en el historial' }, 500);
       }
 
+      // Wamid del archivo enviado: permite resolver después si el cliente lo cita.
+      await guardarWamid({
+        tenantId,
+        chatId,
+        wamid: envio.wamid,
+        tipo: mediaTipo,
+        mediaPath,
+      });
+
       return json({
         ok: true,
         mensaje: {
@@ -364,6 +420,8 @@ async function handle(req: Request): Promise<Response> {
       console.error('[wa-enviar] El mensaje se envió pero no se pudo registrar en el historial');
       return json({ ok: false, error: 'El mensaje se envió pero no se pudo guardar en el historial' }, 500);
     }
+
+    await guardarWamid({ tenantId, chatId, wamid: envio.wamid, tipo: 'texto', texto });
 
     return json({
       ok: true,

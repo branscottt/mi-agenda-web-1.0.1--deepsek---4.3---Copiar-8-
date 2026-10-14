@@ -239,8 +239,21 @@ export function etiquetaMedia(tipo) {
     if (t === 'video') return 'Video';
     if (t === 'documento') return 'Archivo';
     if (t === 'sticker') return 'Sticker';
+    // Mensajes que WhatsApp manda y el bot NO procesa (se ven igual en el panel).
+    if (t === 'reaccion') return 'Reacción';
+    if (t === 'ubicacion') return 'Ubicación';
+    if (t === 'contacto') return 'Contacto';
+    if (t === 'respuesta') return 'Respuesta';
+    if (t === 'pedido') return 'Pedido';
+    if (t === 'sistema') return 'Aviso de WhatsApp';
+    if (t === 'otro') return 'Mensaje no soportado';
     return t;
 }
+
+/** Tipos que NO son archivos: su contenido es texto (se pinta como burbuja). */
+const TIPOS_SIN_ARCHIVO = new Set([
+    'texto', 'reaccion', 'ubicacion', 'contacto', 'respuesta', 'pedido', 'sistema', 'otro',
+]);
 
 /**
  * HTML del archivo que mandó el cliente (foto/audio/video/documento).
@@ -250,7 +263,7 @@ export function etiquetaMedia(tipo) {
  */
 function mediaHtml(m) {
     const tipo = String(m.tipo || 'texto').toLowerCase();
-    if (tipo === 'texto') return '';
+    if (TIPOS_SIN_ARCHIVO.has(tipo)) return '';
     const url = m.media_url || '';
     const nombre = escapeHtml(etiquetaMedia(tipo));
     if (!url) {
@@ -291,11 +304,17 @@ export async function firmarMedias(mensajes, supabase) {
     const lista = mensajes || [];
     const ahora = Date.now();
     const porFirmar = new Set();
+    // Cada mensaje puede necesitar DOS firmas: la del archivo propio y la del
+    // mensaje que CITA (la miniatura de "respondiendo a…").
+    const pendientes = [];
     lista.forEach(m => {
-        if (!m || !m.media_path || m.media_url) return;
-        const enCache = _cacheMedias.get(m.media_path);
-        if (enCache && enCache.exp > ahora + 60000) m.media_url = enCache.url;
-        else porFirmar.add(m.media_path);
+        if (!m) return;
+        [m, m.cita].forEach(obj => {
+            if (!obj || !obj.media_path || obj.media_url) return;
+            const enCache = _cacheMedias.get(obj.media_path);
+            if (enCache && enCache.exp > ahora + 60000) obj.media_url = enCache.url;
+            else { porFirmar.add(obj.media_path); pendientes.push(obj); }
+        });
     });
     const paths = [...porFirmar];
     if (!supabase || !paths.length) return lista;
@@ -304,7 +323,7 @@ export async function firmarMedias(mensajes, supabase) {
         (data || []).forEach(d => {
             if (!d || !d.path || !d.signedUrl) return;
             _cacheMedias.set(d.path, { url: d.signedUrl, exp: ahora + _MS_FIRMA });
-            lista.forEach(m => { if (m && m.media_path === d.path) m.media_url = d.signedUrl; });
+            pendientes.forEach(obj => { if (obj.media_path === d.path) obj.media_url = d.signedUrl; });
         });
     } catch (e) {
         // Sin firma queda el placeholder del tipo de archivo: el chat no se rompe.
@@ -629,6 +648,43 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
 }
 
 /**
+ * "Respondiendo a…" — la CITA del mensaje, igual que WhatsApp.
+ * El servidor ya resolvió a qué mensaje responde (tipo/body/media_path), así
+ * que acá solo se pinta: autor + texto o miniatura de la foto citada.
+ */
+function citaHtml(m, nombreCliente) {
+    const c = m && m.cita;
+    if (!c) {
+        // Citó algo que no tenemos en el historial (p. ej. anterior a esta
+        // función): se dice sin romper la burbuja ni inventar contenido.
+        return (m && m.context_wa_id)
+            ? '<div class="vl-cita-nota"><i class="fas fa-reply"></i> Responde a un mensaje anterior</div>'
+            : '';
+    }
+    const saliente = c.direction === 'out';
+    const autor = saliente
+        ? (c.origen === 'humano' ? 'Tú' : 'Bot')
+        : escapeHtml(nombreCliente);
+    const tipo = String(c.tipo || 'texto').toLowerCase();
+    const txt = escapeHtml(String(c.body || '').replace(/\n+/g, ' ').trim()).slice(0, 140);
+    const esFoto = !!c.media_url && (tipo === 'imagen' || tipo === 'sticker');
+    let cuerpo;
+    if (esFoto) {
+        cuerpo = `<img class="vl-cita-mini" src="${escapeHtml(c.media_url)}" alt="Imagen citada" loading="lazy">`;
+    } else if (tipo === 'texto' || !tipo) {
+        cuerpo = `<span class="vl-cita-txt">${txt || 'Mensaje'}</span>`;
+    } else {
+        cuerpo = `<span class="vl-cita-tipo"><i class="fas fa-paperclip"></i> ${escapeHtml(etiquetaMedia(tipo))}`
+            + `${txt ? ' · ' + txt : ''}</span>`;
+    }
+    const aparte = esFoto && txt ? `<span class="vl-cita-txt">${txt}</span>` : '';
+    return `<div class="vl-cita">`
+        + `<div class="vl-cita-autor"><i class="fas fa-reply"></i> ${autor}</div>`
+        + `<div class="vl-cita-cuerpo">${cuerpo}${aparte}</div>`
+        + `</div>`;
+}
+
+/**
  * HTML del hilo completo. Cada mensaje lleva arriba el autor:
  * el nombre del cliente (entrante), "Bot" o "Tú" (saliente).
  */
@@ -654,6 +710,7 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
             <div class="vl-fila-msg ${saliente ? 'out' : 'in'}">
                 <div class="vl-msg-autor">${autor}</div>
                 <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
+                    ${citaHtml(m, nombreCliente)}
                     ${media ? `<div class="vl-burbuja-medio">${media}</div>` : ''}
                     ${rotuloTranscripcion}
                     ${cuerpo ? `<div class="vl-burbuja-txt">${cuerpo}</div>` : ''}

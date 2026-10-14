@@ -56,6 +56,23 @@ interface WaMessage {
   video?: WaMediaRef;
   document?: WaMediaRef;
   sticker?: WaMediaRef;
+  /**
+   * "Responder a…": el mensaje CITADO. Meta manda acá el wamid de ese mensaje
+   * (no su texto). Sin esto no se puede saber a QUÉ se refería el cliente
+   * cuando escribe "quiero este" sobre una foto.
+   */
+  context?: { id?: string; from?: string };
+  // Tipos que el cerebro NO procesa: se guardan para que se VEAN en el panel.
+  reaction?: { emoji?: string; message_id?: string };
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  button?: { text?: string };
+  interactive?: {
+    type?: string;
+    button_reply?: { title?: string };
+    list_reply?: { title?: string };
+  };
+  system?: { body?: string };
+  contacts?: Array<{ name?: { formatted_name?: string } }>;
 }
 
 interface WaChangeValue {
@@ -203,13 +220,13 @@ async function avanzarConversacion(
   return Array.isArray(data) ? (data[0] as Record<string, unknown>) : (data as Record<string, unknown>);
 }
 
-/** Envía un mensaje de texto por Graph API. */
+/** Envía un mensaje de texto por Graph API. Devuelve el wamid que asigna Meta. */
 async function enviarMensaje(
   phoneId: string,
   token: string,
   to: string,
   body: string,
-): Promise<boolean> {
+): Promise<{ ok: boolean; wamid: string }> {
   const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
     method: 'POST',
     headers: {
@@ -227,9 +244,104 @@ async function enviarMensaje(
   if (!resp.ok) {
     const err = await resp.text().catch(() => '');
     console.error(`[WA-Webhook] Error enviando mensaje a ${to} (${resp.status}):`, err.slice(0, 300));
-    return false;
+    return { ok: false, wamid: '' };
   }
-  return true;
+  const data = await resp.json().catch(() => ({})) as { messages?: Array<{ id?: string }> };
+  return { ok: true, wamid: data?.messages?.[0]?.id || '' };
+}
+
+/**
+ * Pega el wamid — y la CITA (a qué mensaje responde) — al mensaje que YA quedó
+ * registrado en vl_wa_mensajes. Es "mejor esfuerzo": si falla, el chat sigue
+ * funcionando igual, solo ese mensaje no se podrá resolver como cita.
+ */
+async function guardarMetaWa(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  p: {
+    tenantId: string;
+    direction: 'in' | 'out';
+    wamid?: string;
+    contextId?: string;
+    chatId?: string;
+    waId?: string;
+    tipo?: string;
+    texto?: string;
+    mediaPath?: string;
+  },
+): Promise<void> {
+  if (!p.wamid && !p.contextId) return;
+  try {
+    const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/vl_wa_guardar_meta_wa`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_tenant_id: p.tenantId,
+        p_direction: p.direction,
+        p_wa_message_id: p.wamid || null,
+        p_chat_id: p.chatId || null,
+        p_wa_id: p.waId || null,
+        p_context_wa_id: p.contextId || null,
+        p_tipo: p.tipo || null,
+        p_texto: p.texto || null,
+        p_media_path: p.mediaPath || null,
+      }),
+    });
+    if (!resp.ok) {
+      console.warn(`[WA-Webhook] No pude guardar el wamid (${resp.status})`);
+      return;
+    }
+    const data = await resp.json().catch(() => null);
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || row.ok !== true) {
+      console.warn('[WA-Webhook] wamid sin fila destino:', JSON.stringify(row || {}).slice(0, 160));
+    }
+  } catch (e) {
+    console.warn('[WA-Webhook] Error guardando el wamid:', (e as Error).message || String(e));
+  }
+}
+
+/**
+ * Guarda un mensaje que el cerebro NO entiende (reacción, ubicación, contacto,
+ * respuesta de botón…) para que se vea en el panel, sin correr el bot.
+ */
+async function registrarEntranteCrudo(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  waId: string,
+  tipo: string,
+  texto: string,
+  messageId: string,
+  contextId: string,
+): Promise<void> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/vl_wa_registrar_entrante_crudo`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_tenant_id: tenantId,
+        p_wa_id: waId,
+        p_tipo: tipo,
+        p_texto: texto || null,
+        p_wa_message_id: messageId || null,
+        p_context_wa_id: contextId || null,
+      }),
+    });
+    if (!resp.ok) {
+      console.warn(`[WA-Webhook] No pude guardar el mensaje '${tipo}' (${resp.status})`);
+    }
+  } catch (e) {
+    console.warn('[WA-Webhook] Error guardando el mensaje crudo:', (e as Error).message || String(e));
+  }
 }
 
 /** Traduce el type de mensaje de Meta al tipo del dominio (cerebro). */
@@ -241,16 +353,45 @@ function mapearTipo(type: string): string {
     case 'video': return 'video';
     case 'document': return 'documento';
     case 'sticker': return 'sticker';
-    default: return 'texto';
+    // Mensajes que el cerebro NO entiende. Antes caían en `default: 'texto'` y
+    // entraban a la máquina de estados como mensaje VACÍO (ensuciaban el estado
+    // del chat y disparaban avisos que no correspondían). Ahora se guardan —
+    // para que se VEAN en el panel — y NO despiertan al bot.
+    case 'reaction': return 'reaccion';
+    case 'location': return 'ubicacion';
+    case 'contacts': return 'contacto';
+    case 'interactive':
+    case 'button': return 'respuesta';
+    case 'order': return 'pedido';
+    case 'system': return 'sistema';
+    default: return 'otro';
   }
 }
 
-/** Texto del mensaje: el body de texto o la LEYENDA de la foto/archivo. */
+/** Tipos que SÍ corren el cerebro (los demás solo se registran). */
+const TIPOS_CEREBRO = new Set(['texto', 'imagen', 'audio', 'video', 'documento', 'sticker']);
+
+/**
+ * Texto del mensaje: el body de texto, la LEYENDA de la foto/archivo o el
+ * contenido de los tipos "raros" (emoji de una reacción, respuesta de botón,
+ * dirección de una ubicación…) para que la burbuja nunca quede vacía.
+ */
 function textoDe(message: WaMessage): string {
   return message.text?.body
     || message.image?.caption
     || message.video?.caption
     || message.document?.caption
+    || message.reaction?.emoji
+    || message.button?.text
+    || message.interactive?.button_reply?.title
+    || message.interactive?.list_reply?.title
+    || message.system?.body
+    || (message.location
+        ? [message.location.name, message.location.address].filter(Boolean).join(' — ')
+          || [message.location.latitude, message.location.longitude]
+              .filter((v) => v != null).join(', ')
+        : '')
+    || message.contacts?.[0]?.name?.formatted_name
     || '';
 }
 
@@ -513,6 +654,18 @@ async function handle(req: Request): Promise<Response> {
           // responder a tiempo, así que se responde 200 primero (waitUntil).
           const trabajo = async () => {
             try {
+              // Mensajes que el cerebro NO entiende (reacción 👍, ubicación,
+              // contacto, respuesta de botón…): se guardan para que se VEAN en
+              // el panel, pero NO corren el bot ni disparan avisos. Antes caían
+              // como 'texto' vacío y ensuciaban el estado de la conversación.
+              if (!TIPOS_CEREBRO.has(tipo)) {
+                await registrarEntranteCrudo(
+                  supabaseUrl, serviceRoleKey, cfg.tenant_id, waId,
+                  tipo, texto, message.id || '', message.context?.id || '',
+                );
+                return;
+              }
+
               // Foto/audio/video/archivo: se guarda en Storage para que se
               // VEA/ESCUCHE en el panel. Si es AUDIO, además se transcribe: el
               // texto hace de mensaje, así el bot lo entiende igual que escrito.
@@ -536,13 +689,41 @@ async function handle(req: Request): Promise<Response> {
                 return;
               }
 
+              // El mensaje ya quedó registrado por el cerebro: se le pega su
+              // wamid y — si el cliente respondió CITANDO otro mensaje — a qué
+              // mensaje responde. Esto es lo que permite que el panel muestre
+              // "Respondiendo a: …" en vez de un "quiero este" a ciegas.
+              await guardarMetaWa(supabaseUrl, serviceRoleKey, {
+                tenantId: cfg.tenant_id,
+                direction: 'in',
+                wamid: message.id || '',
+                contextId: message.context?.id || '',
+                waId,
+                tipo,
+                texto: textoFinal,
+                mediaPath: mediaPath || undefined,
+              });
+
               const modoHumano = String(brain.modo || '') === 'humano';
               const respondio = brain.enviar === true
                 && typeof brain.mensaje === 'string' && brain.mensaje !== '';
 
               if (respondio) {
-                const ok = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje as string);
-                if (!ok) console.error(`[WA-Webhook] No pude enviar la respuesta a ${waId}`);
+                const envio = await enviarMensaje(phoneNumberId, cfg.wa_token, waId, brain.mensaje as string);
+                if (!envio.ok) {
+                  console.error(`[WA-Webhook] No pude enviar la respuesta a ${waId}`);
+                } else if (envio.wamid) {
+                  // Wamid de la respuesta del bot: si el cliente la cita después,
+                  // se podrá resolver igual que cualquier otro mensaje.
+                  await guardarMetaWa(supabaseUrl, serviceRoleKey, {
+                    tenantId: cfg.tenant_id,
+                    direction: 'out',
+                    wamid: envio.wamid,
+                    waId,
+                    tipo: 'texto',
+                    texto: brain.mensaje as string,
+                  });
+                }
               } else if (!modoHumano && brain.avisar_negocio !== true) {
                 // RED DE SEGURIDAD: el bot no respondió y tampoco dejó aviso
                 // (p. ej. cliente conocido SIN pedido en curso que escribe algo que

@@ -623,6 +623,19 @@
         .vl-media-link.archivo { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: underline; font-size: 0.86rem; }
         .vl-media-falta { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; opacity: 0.75; }
         .vl-burbuja-sticker { display: block; width: 92px; height: 92px; object-fit: contain; }
+        /* "Respondiendo a…" — la cita, igual que en WhatsApp: barra de color a la
+           izquierda, quién lo dijo y el texto o la miniatura de la foto citada. */
+        .vl-cita { margin: 0 0 6px; padding: 5px 8px 6px; border-left: 3px solid rgba(157,78,221,0.95); border-radius: 6px; background: rgba(0,0,0,0.24); max-width: 100%; }
+        .vl-burbuja.out .vl-cita { border-left-color: rgba(255,255,255,0.92); background: rgba(0,0,0,0.20); }
+        .vl-cita-autor { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; font-weight: 700; color: #c77dff; margin-bottom: 3px; }
+        .vl-burbuja.out .vl-cita-autor { color: #ffffff; }
+        .vl-cita-cuerpo { display: flex; align-items: center; gap: 7px; min-width: 0; }
+        .vl-cita-txt { font-size: 0.78rem; color: #cbb8e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .vl-burbuja.out .vl-cita-txt { color: rgba(255,255,255,0.88); }
+        .vl-cita-mini { flex: 0 0 auto; width: 42px; height: 42px; object-fit: cover; border-radius: 5px; background: rgba(0,0,0,0.3); }
+        .vl-cita-tipo { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #cbb8e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vl-burbuja.out .vl-cita-tipo { color: rgba(255,255,255,0.88); }
+        .vl-cita-nota { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 0.72rem; font-style: italic; color: #a89bb8; }
         /* "¿Quién es?" — candidatos apretables para vincular el chat a mano */
         .vl-cands { margin: 0 0 10px; padding: 10px 11px; border-radius: 12px; background: rgba(157,78,221,0.10); border: 1px solid rgba(157,78,221,0.35); }
         .vl-cands-titulo { font-size: 0.82rem; color: #e9edef; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
@@ -891,7 +904,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=137"></script>
+    <script type="module" src="dist/app.js?v=138"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>
