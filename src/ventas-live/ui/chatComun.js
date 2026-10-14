@@ -487,20 +487,57 @@ export function bindCandidatos(cont, cb) {
     });
 }
 
-// ── Adjuntar FOTO/VIDEO al chat (computador, celular o tablet) ───────────────
-// WhatsApp (Cloud API) solo acepta fotos JPG/PNG (hasta 5 MB) y videos MP4/3GPP
-// (hasta 16 MB). Se valida ANTES de subir para no gastar datos al pepe.
-export const ADJUNTO_LIMITES = { imagen: 5 * 1024 * 1024, video: 16 * 1024 * 1024 };
+// ── Adjuntar FOTO/VIDEO/ARCHIVO/AUDIO al chat (computador, celular o tablet) ──
+// WhatsApp (Cloud API) acepta fotos JPG/PNG (5 MB), videos MP4/3GPP (16 MB),
+// documentos PDF/Word/Excel/PPT/TXT/ZIP (100 MB) y audios MP3/M4A/AAC/AMR/OGG
+// (16 MB). Se valida ANTES de subir para no gastar datos al pepe.
+export const ADJUNTO_LIMITES = {
+    imagen: 5 * 1024 * 1024,
+    video: 16 * 1024 * 1024,
+    documento: 100 * 1024 * 1024,
+    audio: 16 * 1024 * 1024
+};
 export const ADJUNTO_MIMES = {
     imagen: ['image/jpeg', 'image/jpg', 'image/png'],
-    video: ['video/mp4', 'video/3gpp']
+    video: ['video/mp4', 'video/3gpp'],
+    documento: [
+        'application/pdf', 'text/plain', 'application/zip', 'text/csv',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ],
+    audio: ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/x-m4a', 'audio/wav']
 };
 
-/** 'imagen' | 'video' | '' según el archivo elegido. */
+// Extensiones aceptadas por si el navegador NO dice el tipo (pasa en el celular).
+const ADJUNTO_EXT = {
+    imagen: ['jpg', 'jpeg', 'png'],
+    video: ['mp4', '3gp', '3gpp'],
+    documento: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv'],
+    audio: ['mp3', 'm4a', 'aac', 'amr', 'ogg', 'opus', 'wav']
+};
+
+/** Extensión en minúsculas del archivo elegido ('' si no tiene). */
+function extensionDe(archivo) {
+    const partes = String((archivo && archivo.name) || '').toLowerCase().split('.');
+    return partes.length > 1 ? partes.pop() : '';
+}
+
+/** 'imagen' | 'video' | 'documento' | 'audio' | '' según el archivo elegido. */
 export function tipoDeArchivo(archivo) {
     const mime = String((archivo && archivo.type) || '').toLowerCase();
-    if (mime.startsWith('image/')) return 'imagen';
-    if (mime.startsWith('video/')) return 'video';
+    const ext = extensionDe(archivo);
+    const porMime = mime.startsWith('image/') ? 'imagen'
+        : mime.startsWith('video/') ? 'video'
+        : mime.startsWith('audio/') ? 'audio'
+        : mime === 'application/pdf' || mime === 'application/zip' || mime === 'text/plain'
+            || mime === 'text/csv' || mime.startsWith('application/vnd') ? 'documento'
+        : '';
+    if (porMime) return porMime;
+    // Sin tipo declarado: se decide por la extensión (celulares viejos).
+    for (const t of ['imagen', 'video', 'documento', 'audio']) {
+        if (ADJUNTO_EXT[t].includes(ext)) return t;
+    }
     return '';
 }
 
@@ -516,17 +553,24 @@ export function etiquetaPeso(bytes) {
 export function validarAdjunto(archivo) {
     const tipo = tipoDeArchivo(archivo);
     if (!tipo) {
-        return { ok: false, tipo: '', error: 'Solo se pueden mandar fotos o videos.' };
+        return {
+            ok: false, tipo: '',
+            error: 'Solo se pueden mandar fotos, videos, archivos (PDF, Word, Excel…) o audios.'
+        };
     }
     const mime = String(archivo.type || '').toLowerCase();
-    if (!ADJUNTO_MIMES[tipo].includes(mime)) {
-        const ext = (String(archivo.name || '').split('.').pop() || '').toUpperCase();
-        return {
-            ok: false, tipo,
-            error: tipo === 'video'
-                ? `WhatsApp solo acepta videos MP4${ext && ext !== 'MP4' ? ` (este es ${ext})` : ''}.`
-                : `WhatsApp solo acepta fotos JPG o PNG${ext ? ` (esta es ${ext})` : ''}.`
-        };
+    const ext = extensionDe(archivo);
+    // Vale el tipo declarado O la extensión: hay celulares que suben el archivo
+    // sin tipo ("application/octet-stream") y no hay por qué rechazarlo.
+    const mimeOk = mime ? ADJUNTO_MIMES[tipo].includes(mime) : false;
+    const extOk = ADJUNTO_EXT[tipo].includes(ext);
+    if (!mimeOk && !extOk) {
+        const muestra = (ext ? ext.toUpperCase() : (mime.split('/').pop() || '').toUpperCase()) || 'desconocido';
+        const error = tipo === 'imagen' ? `WhatsApp solo acepta fotos JPG o PNG (esta es ${muestra}).`
+            : tipo === 'video' ? `WhatsApp solo acepta videos MP4 (este es ${muestra}).`
+            : tipo === 'audio' ? `WhatsApp solo acepta audios MP3, M4A, AAC, AMR u OGG (este es ${muestra}).`
+            : `WhatsApp no acepta archivos ${muestra} (sí PDF, Word, Excel, PPT, TXT o ZIP).`;
+        return { ok: false, tipo, error };
     }
     const limite = ADJUNTO_LIMITES[tipo];
     if (Number(archivo.size) > limite) {
@@ -542,12 +586,25 @@ export function validarAdjunto(archivo) {
 export function previaAdjuntoHtml({ nombre = '', tipo = 'imagen', url = '', peso = 0 } = {}) {
     const mini = tipo === 'video'
         ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
-        : `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`;
+        : tipo === 'imagen'
+            ? `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`
+            // Un archivo o un audio no tienen miniatura: va el icono, igual que
+            // el clip de WhatsApp.
+            : `<div class="vl-adj-icon" aria-hidden="true"><i class="fas ${
+                tipo === 'audio' ? 'fa-microphone' : 'fa-file-lines'}"></i></div>`;
+    const rotulo = tipo === 'video' ? '🎬 Video'
+        : tipo === 'audio' ? '🎤 Audio'
+        : tipo === 'documento' ? '📄 Archivo'
+        : '📷 Foto';
+    const porDefecto = tipo === 'video' ? 'Video'
+        : tipo === 'audio' ? 'Audio'
+        : tipo === 'documento' ? 'Archivo'
+        : 'Foto';
     return `<div class="vl-adj-previa" id="vl-adj-previa">
         ${mini}
         <div class="vl-adj-datos">
-            <div class="vl-adj-nombre">${escapeHtml(nombre || (tipo === 'video' ? 'Video' : 'Foto'))}</div>
-            <div class="vl-adj-peso">${tipo === 'video' ? '🎬 Video' : '📷 Foto'} · ${escapeHtml(etiquetaPeso(peso))}</div>
+            <div class="vl-adj-nombre">${escapeHtml(nombre || porDefecto)}</div>
+            <div class="vl-adj-peso">${rotulo} · ${escapeHtml(etiquetaPeso(peso))}</div>
         </div>
         <button class="vl-adj-quitar" id="vl-adj-quitar" type="button" title="Quitar el archivo">
             <i class="fas fa-xmark"></i>
@@ -722,31 +779,84 @@ function responderBtnHtml(m) {
         + ' aria-label="Responder citando este mensaje"><i class="fas fa-reply"></i></button>';
 }
 
+/** Emojis que se ofrecen para reaccionar (los mismos de WhatsApp). */
+export const EMOJIS_REACCION = ['❤️', '👍', '😂', '😮', '😢', '🔥', '🙏'];
+
+/** Botón "reaccionar" de una burbuja (solo si el mensaje tiene wamid). */
+function reaccionBtnHtml(m) {
+    if (!m.wa_message_id) return '';
+    return '<button class="vl-msg-reaccionar" type="button" title="Reaccionar a este mensaje"'
+        + ' aria-label="Reaccionar a este mensaje"><i class="far fa-face-smile"></i></button>';
+}
+
+/**
+ * Las reacciones puestas sobre un mensaje, pegadas a la burbuja como en WhatsApp:
+ * la del cliente abajo a la izquierda y la nuestra abajo a la derecha.
+ * @param {Object} r {in?: emoji, out?: emoji}
+ */
+function reaccionesHtml(r) {
+    if (!r) return '';
+    const suya = String(r.in || '').trim();
+    const mia = String(r.out || '').trim();
+    if (!suya && !mia) return '';
+    const chip = (emoji, clase, quien) =>
+        `<span class="vl-reaccion ${clase}" title="${quien}">${escapeHtml(emoji)}</span>`;
+    return (suya ? chip(suya, 'in', 'Reacción del cliente') : '')
+        + (mia ? chip(mia, 'out', 'Tu reacción') : '');
+}
+
+/** "Reenviado" / "Reenviado muchas veces" — Meta lo dice (context.forwarded). */
+function reenvioHtml(m) {
+    const g = Number(m.reenviado || 0);
+    if (g < 1) return '';
+    const txt = g >= 2 ? 'Reenviado muchas veces' : 'Reenviado';
+    return `<div class="vl-reenvio"><i class="fas fa-share"></i> ${txt}</div>`;
+}
+
 /**
  * HTML del hilo completo. Cada mensaje lleva arriba el autor:
  * el nombre del cliente (entrante), "Bot" o "Tú" (saliente).
+ * Las REACCIONES no son burbujas: se pintan como emoji ENCIMA del mensaje al que
+ * reaccionaron (igual que WhatsApp), para eso se arma un mapa por wamid.
  */
 export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
-    if (!mensajes || mensajes.length === 0) {
+    const lista = (mensajes || []).filter(Boolean);
+    if (lista.length === 0) {
         return '<div class="vl-empty">Sin mensajes todavía.</div>';
     }
-    return mensajes.map(m => {
-        const saliente = m.direction === 'out';
-        const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
-        const media = mediaHtml(m);
-        // Un AUDIO que se pudo transcribir trae su texto en body: se rotula para
-        // que se entienda que ese texto lo dijo él en el audio.
-        const esAudioConTexto = String(m.tipo || '').toLowerCase() === 'audio'
-            && !!(m.body || '').trim();
-        const rotuloTranscripcion = esAudioConTexto
-            ? '<div class="vl-transcripcion-label"><i class="fas fa-quote-left"></i> Transcripción</div>'
-            : '';
-        const autor = saliente
-            ? (m.origen === 'humano' ? 'Tú' : 'Bot')
-            : escapeHtml(nombreCliente);
-        // Lo que necesita el "responder citando" para armar la vista previa.
-        const attr = (v) => escapeHtml(String(v == null ? '' : v));
-        return `
+    // wamid → {in: emoji del cliente, out: emoji nuestro}
+    const reacciones = {};
+    lista.forEach(m => {
+        if (String(m.tipo || '').toLowerCase() !== 'reaccion') return;
+        const destino = m.context_wa_id;
+        if (!destino) return;
+        const emoji = String(m.body || '').trim();
+        if (!emoji) return;
+        const lado = m.direction === 'out' ? 'out' : 'in';
+        reacciones[destino] = reacciones[destino] || {};
+        reacciones[destino][lado] = emoji;
+    });
+
+    return lista
+        // Una reacción no es un mensaje: no lleva burbuja propia.
+        .filter(m => String(m.tipo || '').toLowerCase() !== 'reaccion')
+        .map(m => {
+            const saliente = m.direction === 'out';
+            const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
+            const media = mediaHtml(m);
+            // Un AUDIO que se pudo transcribir trae su texto en body: se rotula para
+            // que se entienda que ese texto lo dijo él en el audio.
+            const esAudioConTexto = String(m.tipo || '').toLowerCase() === 'audio'
+                && !!(m.body || '').trim();
+            const rotuloTranscripcion = esAudioConTexto
+                ? '<div class="vl-transcripcion-label"><i class="fas fa-quote-left"></i> Transcripción</div>'
+                : '';
+            const autor = saliente
+                ? (m.origen === 'humano' ? 'Tú' : 'Bot')
+                : escapeHtml(nombreCliente);
+            // Lo que necesita el "responder citando" para armar la vista previa.
+            const attr = (v) => escapeHtml(String(v == null ? '' : v));
+            return `
             <div class="vl-fila-msg ${saliente ? 'out' : 'in'}"
                  data-id="${attr(m.id)}"
                  data-wamid="${attr(m.wa_message_id)}"
@@ -758,13 +868,15 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
                 <div class="vl-msg-autor">${autor}</div>
                 <div class="vl-burbuja ${saliente ? 'out' : 'in'}">
                     ${citaHtml(m, nombreCliente)}
+                    ${reenvioHtml(m)}
                     ${media ? `<div class="vl-burbuja-medio">${media}</div>` : ''}
                     ${rotuloTranscripcion}
                     ${cuerpo ? `<div class="vl-burbuja-txt">${cuerpo}</div>` : ''}
-                    <div class="vl-burbuja-hora">${responderBtnHtml(m)}${escapeHtml(fmtHora(m.creado_en))}${ticksHtml(m)}</div>
+                    <div class="vl-burbuja-hora">${responderBtnHtml(m)}${reaccionBtnHtml(m)}${escapeHtml(fmtHora(m.creado_en))}${ticksHtml(m)}</div>
+                    ${reaccionesHtml(reacciones[m.wa_message_id])}
                 </div>
             </div>`;
-    }).join('');
+        }).join('');
 }
 
 /**
@@ -838,6 +950,121 @@ export function montarResponder({ contenedor, previa, input, onCambio } = {}) {
     }
 
     return { cita: () => elegida, limpiar, pintar };
+}
+
+let _pickerReaccion = null;
+
+/**
+ * "Reaccionar" (como en WhatsApp): la carita de una burbuja abre los emojis y
+ * elegir uno manda la reacción a ESE mensaje. Elegir el mismo que ya estaba
+ * puesto la QUITA (igual que WhatsApp).
+ * El listener va al contenedor del hilo, que NO se reemplaza en cada refresco.
+ * El panel va pegado a <body> con posición fija: así no lo recorta el scroll del
+ * hilo ni se sale de la pantalla en el celular.
+ * @param {Object} o {contenedor, onReaccionar(wamid, emoji, emojiPuesto)}
+ * @returns {Object|null} {cerrar}
+ */
+export function montarReaccion({ contenedor, onReaccionar } = {}) {
+    if (!contenedor || contenedor.__reaccionMontado) return null;
+    contenedor.__reaccionMontado = true;
+
+    const cerrar = () => {
+        if (_pickerReaccion) {
+            try { _pickerReaccion.remove(); } catch (_) { /* ya no está */ }
+            _pickerReaccion = null;
+        }
+    };
+
+    /** Emoji que YA tenemos puesto en ese mensaje (chip de la derecha). */
+    const mioPuesto = (burbuja) => {
+        const chip = burbuja ? burbuja.querySelector('.vl-reaccion.out') : null;
+        return chip ? String(chip.textContent || '').trim() : '';
+    };
+
+    const ANCHO_PANEL = 7 * 34 + 14;
+
+    const abrir = (fila) => {
+        const burbuja = fila ? fila.querySelector('.vl-burbuja') : null;
+        if (!burbuja) return;
+        cerrar();
+        const mio = mioPuesto(burbuja);
+        const esSaliente = String(fila.dataset.dir || '') === 'out';
+        const panel = document.createElement('div');
+        panel.className = 'vl-reaccion-picker';
+        panel.setAttribute('role', 'menu');
+        panel.innerHTML = EMOJIS_REACCION.map(e =>
+            `<button type="button" class="vl-reaccion-op${e === mio ? ' puesta' : ''}" data-emoji="${escapeHtml(e)}"`
+            + ` title="${e === mio ? 'Quitar tu reacción' : 'Reaccionar con ' + escapeHtml(e)}">${escapeHtml(e)}</button>`
+        ).join('');
+        document.body.appendChild(panel);
+
+        // Pegado a la burbuja: arriba suyo; si no cabe (mensaje al tope del
+        // chat), va abajo. Siempre dentro de la pantalla.
+        const r = burbuja.getBoundingClientRect();
+        const alto = panel.offsetHeight || 40;
+        const ancho = panel.offsetWidth || ANCHO_PANEL;
+        let left = esSaliente ? r.right - ancho : r.left;
+        left = Math.max(8, Math.min(left, (window.innerWidth || 0) - ancho - 8));
+        let top = r.top - alto - 8;
+        if (top < 8) top = r.bottom + 8;
+        panel.style.left = Math.round(left) + 'px';
+        panel.style.top = Math.round(top) + 'px';
+        _pickerReaccion = panel;
+    };
+
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!t || !t.closest) { cerrar(); return; }
+
+        // Elegir un emoji (el panel vive fuera del hilo: se atiende PRIMERO).
+        const op = t.closest('.vl-reaccion-op');
+        if (op && _pickerReaccion && _pickerReaccion.contains(op)) {
+            e.preventDefault();
+            e.stopPropagation();
+            const emoji = String(op.dataset.emoji || '');
+            const mio = String(_pickerReaccion.__mio || '');
+            const wamid = String(_pickerReaccion.__wamid || '');
+            cerrar();
+            if (typeof onReaccionar === 'function' && wamid) {
+                // El mismo emoji = quitarla (WhatsApp).
+                onReaccionar(wamid, emoji === mio ? '' : emoji, mio);
+            }
+            return;
+        }
+
+        if (!contenedor.contains(t)) { cerrar(); return; }
+
+        // Abrir/cerrar el panel desde la carita de la burbuja.
+        const btn = t.closest('.vl-msg-reaccionar');
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const fila = btn.closest('.vl-fila-msg');
+            if (!fila || !fila.dataset.wamid) return;
+            const panelAbierto = _pickerReaccion;
+            if (panelAbierto && panelAbierto.__fila === fila) { cerrar(); return; }
+            abrir(fila);
+            if (_pickerReaccion) {
+                _pickerReaccion.__fila = fila;
+                _pickerReaccion.__wamid = fila.dataset.wamid || '';
+                _pickerReaccion.__mio = mioPuesto(fila.querySelector('.vl-burbuja'));
+            }
+            return;
+        }
+
+        cerrar();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && _pickerReaccion) { e.stopPropagation(); cerrar(); }
+    });
+
+    // Si el chat se mueve (scroll del hilo, teclado del celular, rotar la
+    // pantalla), el panel pegado a la burbuja quedaría descolocado: se cierra.
+    contenedor.addEventListener('scroll', cerrar, { passive: true });
+    if (typeof window !== 'undefined') window.addEventListener('resize', cerrar);
+
+    return { cerrar };
 }
 
 let _timerSaltoCita = null;

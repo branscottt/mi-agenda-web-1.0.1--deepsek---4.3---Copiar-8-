@@ -1,16 +1,19 @@
 // wa-enviar/index.ts
-// Envío MANUAL de un mensaje de WhatsApp desde el panel de Ventas Live
-// (intervención humana en una conversación del bot): TEXTO o FOTO/VIDEO con
-// comentario, desde computador, celular o tablet.
+// Envío MANUAL de WhatsApp desde el panel de Ventas Live (intervención humana en
+// una conversación del bot): TEXTO, FOTO/VIDEO, ARCHIVO (PDF/Word/Excel…), AUDIO,
+// REACCIÓN a un mensaje y MARCAR COMO LEÍDO — desde computador, celular o tablet.
 //
 // Uso: POST /functions/v1/wa-enviar
-// Body texto: { chat_id: uuid, texto: string, contexto_wa_id?: string }
-// Body media: { chat_id, texto?: string (comentario), media_path, media_tipo, media_mime,
-//               contexto_wa_id?: string }
+// Body texto:   { chat_id: uuid, texto: string, contexto_wa_id?: string }
+// Body archivo: { chat_id, texto?: string (comentario), media_path, media_tipo,
+//                 media_mime, contexto_wa_id?: string }
+//               media_tipo: 'imagen' | 'video' | 'documento' | 'audio'
+// Body reacción:{ chat_id, reaccion: { wamid, emoji } }   (emoji '' = quitarla)
+// Body leído:   { chat_id, marcar_leido: true }           (✓✓ azul al cliente)
 // `contexto_wa_id` = wamid del mensaje que se está CITANDO (responder a…): se
 // manda como `context.message_id` a Graph y se guarda para que el panel muestre
 // la cita en la burbuja saliente.
-// Response: { ok: true, mensaje: { id, body, creado_en } }
+// Response: { ok: true, mensaje: { id, body, creado_en } } | { ok: true, leido }
 //
 // Flujo:
 //   1. verify_jwt = true → Supabase ya validó la firma; decodificamos los
@@ -21,11 +24,12 @@
 //      NUNCA se devuelven al cliente.
 //   3. Para un archivo: el panel YA lo subió al bucket privado 'vl-media' en la
 //      carpeta de su negocio (política propia) → acá se baja con service_role,
-//      se sube a Meta (media endpoint) y se manda como imagen/video con el
-//      comentario como caption.
+//      se sube a Meta (media endpoint) y se manda como imagen/video/archivo/audio
+//      con el comentario como caption.
 //   4. POST a Graph API /<phone_id>/messages.
-//   5. `vl_wa_registrar_saliente` / `vl_wa_registrar_saliente_media`
-//      (service_role) guardan el 'out' en el historial y actualizan el resumen.
+//   5. `vl_wa_registrar_saliente` / `vl_wa_registrar_saliente_media` /
+//      `vl_wa_reaccion` (service_role) guardan el 'out' en el historial y
+//      actualizan el resumen.
 //
 // Seguridad:
 //   - Sin JWT válido → 401 (la plataforma ya lo exige con verify_jwt).
@@ -45,11 +49,28 @@ const TIMEOUT_MS = 25000;
 const LIMITES: Record<string, number> = {
   imagen: 5 * 1024 * 1024,
   video: 16 * 1024 * 1024,
+  documento: 100 * 1024 * 1024,
+  audio: 16 * 1024 * 1024,
 };
 const MIMES: Record<string, string[]> = {
   imagen: ['image/jpeg', 'image/jpg', 'image/png'],
   video: ['video/mp4', 'video/3gpp'],
+  documento: [
+    'application/pdf', 'text/plain', 'application/zip',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ],
+  audio: ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/x-m4a'],
 };
+
+// Nombre de archivo que se le muestra al cliente (Meta lo exige en `document`).
+function nombreArchivo(mediaPath: string, tipo: string): string {
+  const base = String(mediaPath || '').split('/').pop() || '';
+  if (base && /\.[A-Za-z0-9]{2,5}$/.test(base)) return base.slice(0, 240);
+  const ext = tipo === 'imagen' ? 'jpg' : tipo === 'video' ? 'mp4' : tipo === 'audio' ? 'ogg' : 'archivo';
+  return `archivo.${ext}`;
+}
 
 interface JwtPayload {
   sub?: string;
@@ -63,6 +84,10 @@ interface EnviarRequest {
   media_tipo?: string;
   media_mime?: string;
   contexto_wa_id?: string;
+  /** Reaccionar a un mensaje: { wamid del mensaje, emoji ('' = quitarla) }. */
+  reaccion?: { wamid?: string; emoji?: string };
+  /** Marcar el chat como leído (✓✓ azul al cliente, como al abrir WhatsApp). */
+  marcar_leido?: boolean;
 }
 
 /** Decodifica el payload del JWT (la firma ya la verificó la plataforma). */
@@ -212,11 +237,14 @@ async function bajarArchivo(ruta: string): Promise<Uint8Array | null> {
  */
 async function subirAMeta(
   phoneId: string, token: string, bytes: Uint8Array, mime: string, tipo: string,
+  nombre = '',
 ): Promise<{ ok: boolean; mediaId: string; detalle: string }> {
+  const nombreReal = nombre || (tipo === 'video' ? 'video.mp4'
+    : tipo === 'audio' ? 'audio.ogg' : tipo === 'document' ? 'archivo.pdf' : 'foto.jpg');
   const form = new FormData();
   form.append('messaging_product', 'whatsapp');
   form.append('type', tipo);
-  form.append('file', new Blob([bytes], { type: mime }), tipo === 'video' ? 'video.mp4' : 'foto.jpg');
+  form.append('file', new Blob([bytes], { type: mime }), nombreReal);
 
   const resp = await fetch(`${GRAPH_API}/${phoneId}/media`, {
     method: 'POST',
@@ -238,18 +266,24 @@ async function subirAMeta(
   }
 }
 
-/** Manda la imagen/video ya subida, con el comentario como caption. */
+/** Manda la imagen/video/archivo ya subida, con el comentario como caption. */
 async function enviarMediaGraph(
   phoneId: string, token: string, to: string, tipo: string, mediaId: string,
-  caption: string, contextId = '',
+  caption: string, contextId = '', nombre = '',
 ): Promise<{ ok: boolean; detalle: string; wamid: string }> {
   const cuerpo: Record<string, unknown> = { id: mediaId };
-  if (caption) cuerpo.caption = caption.slice(0, MAX_COMENTARIO);
+  // WhatsApp: el AUDIO no lleva caption (solo id); el ARCHIVO lleva filename.
+  if (tipo === 'document') {
+    cuerpo.filename = (nombre || 'archivo').slice(0, 240);
+    if (caption) cuerpo.caption = caption.slice(0, MAX_COMENTARIO);
+  } else if (tipo !== 'audio') {
+    if (caption) cuerpo.caption = caption.slice(0, MAX_COMENTARIO);
+  }
   const msg: Record<string, unknown> = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to,
-    type: tipo,                    // 'image' | 'video'
+    type: tipo,                    // 'image' | 'video' | 'document' | 'audio'
     [tipo]: cuerpo,
   };
   if (contextId) msg.context = { message_id: contextId };
@@ -268,6 +302,55 @@ async function enviarMediaGraph(
   }
   const data = await resp.json().catch(() => ({})) as { messages?: Array<{ id?: string }> };
   return { ok: true, detalle: '', wamid: data?.messages?.[0]?.id || '' };
+}
+
+/**
+ * REACCIÓN a un mensaje (😍👍🔥…), como en WhatsApp: va en su propio campo
+ * (`reaction.message_id` + `reaction.emoji`), NO usa `context`.
+ * Emoji vacío = quitar la reacción puesta antes.
+ */
+async function enviarReaccionGraph(
+  phoneId: string, token: string, to: string, targetWamid: string, emoji: string,
+): Promise<{ ok: boolean; detalle: string; wamid: string }> {
+  const msg = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'reaction',
+    reaction: { message_id: targetWamid, emoji },
+  };
+  const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(msg),
+  });
+  if (!resp.ok) {
+    const err = await resp.text().catch(() => '');
+    console.error(`[wa-enviar] Graph API reacción error (${resp.status}):`, err.slice(0, 400));
+    return { ok: false, detalle: err.slice(0, 300), wamid: '' };
+  }
+  const data = await resp.json().catch(() => ({})) as { messages?: Array<{ id?: string }> };
+  return { ok: true, detalle: '', wamid: data?.messages?.[0]?.id || '' };
+}
+
+/**
+ * Marca como LEÍDO (✓✓ azul) un mensaje que NOS LLEGÓ, como cuando abres el chat
+ * en WhatsApp. Meta solo lo acepta para mensajes recibidos y por su wamid.
+ */
+async function marcarLeidoGraph(
+  phoneId: string, token: string, wamid: string,
+): Promise<{ ok: boolean; detalle: string }> {
+  const resp = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: wamid }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text().catch(() => '');
+    console.error(`[wa-enviar] Graph API marcar leído error (${resp.status}):`, err.slice(0, 300));
+    return { ok: false, detalle: err.slice(0, 300) };
+  }
+  return { ok: true, detalle: '' };
 }
 
 async function handle(req: Request): Promise<Response> {
@@ -324,6 +407,69 @@ async function handle(req: Request): Promise<Response> {
       return json({ ok: false, error: 'chat_id inválido' }, 400);
     }
 
+    // ── REACCIÓN / MARCAR LEÍDO ──────────────────────────────────────────────
+    // No llevan texto ni archivo, así que se resuelven ANTES de la validación de
+    // contenido y comparten la misma autorización (vl_wa_chat_para_envio).
+    const targetReaccion = /^wamid\.[A-Za-z0-9_\-=+/]{6,200}$/.test(
+      String((body.reaccion && body.reaccion.wamid) || '').trim(),
+    ) ? String(body.reaccion!.wamid).trim() : '';
+    const quiereReaccion = !!(body.reaccion && typeof body.reaccion === 'object');
+    const quiereLeido = body.marcar_leido === true;
+
+    if (quiereReaccion || quiereLeido) {
+      const cfgR = await rpc('vl_wa_chat_para_envio', { p_chat_id: chatId, p_user_id: jwt.sub });
+      if (!cfgR || cfgR.ok !== true) {
+        const motivo = (cfgR && (cfgR.error as string)) || 'No se pudo autorizar el envío';
+        return json({ ok: false, error: motivo }, 403);
+      }
+      const phoneIdR = String(cfgR.phone_id || '');
+      const tokenR = String(cfgR.token || '');
+      const waIdR = String(cfgR.wa_id || '');
+      const tenantIdR = String(cfgR.tenant_id || '');
+      if (!phoneIdR || !tokenR || !waIdR) {
+        return json({ ok: false, error: 'Conexión de WhatsApp incompleta' }, 500);
+      }
+
+      if (quiereReaccion) {
+        if (!targetReaccion) {
+          return json({ ok: false, error: 'Falta el mensaje a reaccionar' }, 400);
+        }
+        // Emoji vacío = QUITAR la reacción (igual que WhatsApp).
+        const emoji = String(body.reaccion!.emoji || '').trim().slice(0, 16);
+        const env = await enviarReaccionGraph(phoneIdR, tokenR, waIdR, targetReaccion, emoji);
+        if (!env.ok) {
+          return json({ ok: false, error: 'WhatsApp rechazó la reacción', detalle: env.detalle }, 502);
+        }
+        // Se guarda SOLO después de que WhatsApp la aceptó (el historial no miente).
+        const reg = await rpc('vl_wa_reaccion', {
+          p_tenant_id: tenantIdR,
+          p_wa_id: waIdR,
+          p_target_wamid: targetReaccion,
+          p_emoji: emoji,
+          p_evento_wamid: env.wamid || null,
+          p_direction: 'out',
+        });
+        if (!reg || reg.ok !== true) {
+          console.error('[wa-enviar] La reacción se envió pero no se pudo registrar');
+          return json({
+            ok: false,
+            error: 'La reacción se envió, pero no se pudo guardar en el historial',
+          }, 500);
+        }
+        return json({ ok: true, reaccion: { wamid: targetReaccion, emoji } }, 200);
+      }
+
+      // MARCAR LEÍDO: ✓✓ azul al cliente, como al abrir el chat en WhatsApp.
+      // Es "mejor esfuerzo": si Meta no lo acepta, el chat se abre igual.
+      const ult = await rpc('vl_wa_ultimo_entrante', { p_chat_id: chatId });
+      const wamidEntrante = (ult && ult.ok === true && ult.wamid) ? String(ult.wamid) : '';
+      if (!wamidEntrante) {
+        return json({ ok: true, leido: false, motivo: 'No hay mensajes del cliente por marcar' }, 200);
+      }
+      const env = await marcarLeidoGraph(phoneIdR, tokenR, wamidEntrante);
+      return json({ ok: true, leido: env.ok, wamid: wamidEntrante, detalle: env.detalle || '' }, 200);
+    }
+
     const conArchivo = mediaPath !== '';
     if (!conArchivo) {
       if (texto === '') {
@@ -334,7 +480,7 @@ async function handle(req: Request): Promise<Response> {
       }
     } else {
       if (!(mediaTipo in LIMITES)) {
-        return json({ ok: false, error: 'Solo se pueden mandar fotos o videos' }, 400);
+        return json({ ok: false, error: 'Solo se pueden mandar fotos, videos, archivos o audios' }, 400);
       }
       if (texto.length > MAX_COMENTARIO) {
         return json({ ok: false, error: `El comentario supera ${MAX_COMENTARIO} caracteres` }, 400);
@@ -363,12 +509,11 @@ async function handle(req: Request): Promise<Response> {
       }
       const mimes = MIMES[mediaTipo] || [];
       if (mediaMime && mimes.length && !mimes.includes(mediaMime)) {
-        return json({
-          ok: false,
-          error: mediaTipo === 'imagen'
-            ? 'WhatsApp solo acepta fotos JPG o PNG'
-            : 'WhatsApp solo acepta videos MP4',
-        }, 400);
+        const que = mediaTipo === 'imagen' ? 'WhatsApp solo acepta fotos JPG o PNG'
+          : mediaTipo === 'video' ? 'WhatsApp solo acepta videos MP4'
+          : mediaTipo === 'audio' ? 'WhatsApp solo acepta audios MP3, M4A, AAC, AMR u OGG'
+          : 'WhatsApp no acepta ese formato de archivo (PDF, Word, Excel, ZIP o TXT)';
+        return json({ ok: false, error: que }, 400);
       }
 
       const bytes = await bajarArchivo(mediaPath);
@@ -383,14 +528,24 @@ async function handle(req: Request): Promise<Response> {
         }, 413);
       }
 
-      const tipoMeta = mediaTipo === 'video' ? 'video' : 'image';
-      const mimeReal = mediaMime || (tipoMeta === 'video' ? 'video/mp4' : 'image/jpeg');
-      const subida = await subirAMeta(phoneId, token, bytes, mimeReal, tipoMeta);
+      // Tipo con el que Meta conoce cada archivo (no es el nombre del dominio).
+      const tipoMeta = mediaTipo === 'video' ? 'video'
+        : mediaTipo === 'documento' ? 'document'
+        : mediaTipo === 'audio' ? 'audio'
+        : 'image';
+      const mimePorDefecto: Record<string, string> = {
+        image: 'image/jpeg', video: 'video/mp4', document: 'application/pdf', audio: 'audio/mpeg',
+      };
+      const mimeReal = mediaMime || mimePorDefecto[tipoMeta];
+      const nombre = nombreArchivo(mediaPath, mediaTipo);
+      const subida = await subirAMeta(phoneId, token, bytes, mimeReal, tipoMeta, nombre);
       if (!subida.ok) {
         return json({ ok: false, error: 'WhatsApp rechazó el archivo', detalle: subida.detalle }, 502);
       }
 
-      const envio = await enviarMediaGraph(phoneId, token, waId, tipoMeta, subida.mediaId, texto, contexto);
+      const envio = await enviarMediaGraph(
+        phoneId, token, waId, tipoMeta, subida.mediaId, texto, contexto, nombre,
+      );
       if (!envio.ok) {
         return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
       }

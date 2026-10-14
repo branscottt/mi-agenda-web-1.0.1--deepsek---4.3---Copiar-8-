@@ -21,7 +21,7 @@ import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
-    montarAdjunto
+    montarAdjunto, montarReaccion
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -52,6 +52,7 @@ let _timerBadge = null;
 let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;        // "responder citando" del chat abierto
+let _leidoWamid = '';         // último entrante ya marcado como leído (✓✓ azul)
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
@@ -104,10 +105,11 @@ export function initConversacionesDrawer({ onBadge } = {}) {
             <div class="vl-chat-previa" id="vld-previa" hidden></div>
             <div class="vl-cita-previa" id="vld-cita" hidden></div>
             <div class="vld-foot" id="vld-foot" style="display:none;">
-                <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto o video">
+                <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto, video, archivo o audio">
                     <i class="fas fa-paperclip"></i>
                 </button>
-                <input type="file" class="vl-adj-input" id="vld-file" accept="image/*,video/*"
+                <input type="file" class="vl-adj-input" id="vld-file"
+                       accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
                        style="display:none">
                 <input class="vl-control" id="vld-input" maxlength="1000"
                        placeholder="Responde por WhatsApp…" autocomplete="off">
@@ -134,8 +136,13 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         }
         // Apretar la cita lleva al mensaje citado (y lo marca un instante).
         montarSaltoCita({ contenedor: $('vld-body') });
-        // Mandar FOTO/VIDEO con comentario: en celular y tablet el selector
-        // ofrece cámara y galería; en computador, el explorador.
+        // Reaccionar a un mensaje con un emoji (😍👍🔥…), como en WhatsApp.
+        montarReaccion({
+            contenedor: $('vld-body'),
+            onReaccionar: (wamid, emoji) => reaccionarA(wamid, emoji),
+        });
+        // Mandar FOTO/VIDEO/ARCHIVO/AUDIO con comentario: en celular y tablet el
+        // selector ofrece cámara y galería; en computador, el explorador.
         if (!_adjunto) {
             _adjunto = montarAdjunto(document, {
                 btn: '#vld-adj',
@@ -657,6 +664,8 @@ async function abrirChat(chatId) {
     // Cambió de conversación: la cita elegida era del chat anterior (una cita
     // cruzada mandaría el mensaje equivocado).
     if (_responder && _chatId !== chatId) _responder.limpiar();
+    // Otro chat: el "ya marcado como leído" arranca de cero.
+    if (_chatId !== chatId) _leidoWamid = '';
     _chatId = chatId;
     _chatMeta = null;
     const body = $('vld-body');
@@ -664,6 +673,20 @@ async function abrirChat(chatId) {
     // Asegura el aviso del chat antes de pintar el hilo (banner de qué hacer)
     if (_chats.length === 0) await cargarChats({ silencioso: true });
     await cargarHilo(chatId);
+}
+
+/**
+ * Reaccionar a un mensaje del chat abierto con un emoji (emoji '' = quitarla).
+ * Lo manda wa-enviar (WhatsApp + historial) y se repinta el hilo.
+ */
+async function reaccionarA(wamid, emoji) {
+    if (!_chatId || !wamid) return;
+    const r = await vlApi.reaccionar(_chatId, wamid, emoji);
+    if (!r.ok) {
+        mostrarToast(r.error || 'No se pudo reaccionar', 'error');
+        return;
+    }
+    cargarHilo(_chatId, { silencioso: true });
 }
 
 async function cargarHilo(chatId, { silencioso = false } = {}) {
@@ -724,6 +747,18 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     autoScrollAbajo(body, { forzar: !silencioso });
     // Respaldo: baja otra vez apenas el navegador pinte las burbujas (fuentes/imágenes).
     if (!silencioso) requestAnimationFrame(() => autoScrollAbajo($('vld-body'), { forzar: true }));
+
+    // ✓✓ AZUL al cliente: se marca el chat como leído al abrirlo y cada vez que
+    // llega algo nuevo mientras lo tienes abierto (igual que WhatsApp). Se pide
+    // una sola vez por mensaje y sin bloquear el pintado.
+    const ultimoEntrante = [...mensajes].reverse().find(m => m
+        && m.direction === 'in' && m.wa_message_id
+        && String(m.tipo || '').toLowerCase() !== 'reaccion');
+    const wamidEnt = ultimoEntrante ? String(ultimoEntrante.wa_message_id) : '';
+    if (wamidEnt && wamidEnt !== _leidoWamid) {
+        _leidoWamid = wamidEnt;
+        vlApi.marcarLeido(chatId);
+    }
 
     bindAccionesChat(procesoParaModales(_chatProc, _chatMeta.tiktok_user), () => {
         cargarHilo(chatId, { silencioso: true });
@@ -894,7 +929,10 @@ async function enviar() {
     // + API de Meta): antes la nada duraba todo ese rato. Al terminar, el hilo
     // real reemplaza esta burbuja; si falla, se quita y se devuelve el texto.
     const tmpId = 'tmp-' + Date.now();
-    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…' : '📷 Enviando foto…';
+    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…'
+        : tipoAdj === 'documento' ? '📄 Enviando archivo…'
+        : tipoAdj === 'audio' ? '🎤 Enviando audio…'
+        : '📷 Enviando foto…';
     pintarBurbujaPendiente(tmpId, adj
         ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
         : texto);

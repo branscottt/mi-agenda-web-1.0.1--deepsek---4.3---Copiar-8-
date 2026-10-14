@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -33,6 +33,7 @@ let _chatEnviando = false;
 let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;   // "responder citando" del chat del LIVE
+let _leidoWamid = '';    // último entrante ya marcado como leído (✓✓ azul)
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
 let _sugerencias = [];
@@ -115,10 +116,11 @@ function buildDOM() {
                     <div class="vl-chat-previa" id="lv-chat-previa" hidden></div>
                     <div class="vl-cita-previa" id="lv-chat-cita" hidden></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
-                        <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto o video">
+                        <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto, video, archivo o audio">
                             <i class="fas fa-paperclip"></i>
                         </button>
-                        <input type="file" class="vl-adj-input" id="lv-chat-file" accept="image/*,video/*"
+                        <input type="file" class="vl-adj-input" id="lv-chat-file"
+                               accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
                                style="display:none">
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
                                placeholder="Responde por WhatsApp…" autocomplete="off">
@@ -201,6 +203,11 @@ function buildDOM() {
     }
     // Apretar la cita lleva al mensaje citado (y lo marca un instante).
     montarSaltoCita({ contenedor: $('lv-chat-msgs') });
+    // Reaccionar a un mensaje con un emoji (😍👍🔥…), como en WhatsApp.
+    montarReaccion({
+        contenedor: $('lv-chat-msgs'),
+        onReaccionar: (wamid, emoji) => reaccionarA(wamid, emoji),
+    });
     // Adjuntar foto/video: en el celular y la tablet el selector ofrece cámara y
     // galería; en el computador, el explorador. Se valida antes de subir.
     if (!_adjunto) {
@@ -744,6 +751,8 @@ async function cargarChatCliente(c) {
     }
 
     if (_responder && _chatId !== chatId) _responder.limpiar();
+    // Otro chat: el "ya marcado como leído" arranca de cero.
+    if (_chatId !== chatId) _leidoWamid = '';
     _chatId = chatId;
     _chatModo = (res.data && res.data.modo) || 'bot';
     const card = $('lv-chat-card');
@@ -780,8 +789,34 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
 
     msgs.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
 
+    // ✓✓ AZUL al cliente: se marca el chat como leído al abrirlo y cada vez que
+    // llega algo nuevo mientras lo tienes abierto (igual que WhatsApp). Se pide
+    // una sola vez por mensaje y sin bloquear el pintado.
+    const ultimoEntrante = [...mensajes].reverse().find(m => m
+        && m.direction === 'in' && m.wa_message_id
+        && String(m.tipo || '').toLowerCase() !== 'reaccion');
+    const wamidEnt = ultimoEntrante ? String(ultimoEntrante.wa_message_id) : '';
+    if (wamidEnt && wamidEnt !== _leidoWamid) {
+        _leidoWamid = wamidEnt;
+        vlApi.marcarLeido(_chatId);
+    }
+
     autoScrollAbajo(msgs, { forzar: forzarAbajo || !silencioso });
     pintarCabeceraChat();
+}
+
+/**
+ * Reaccionar a un mensaje del chat abierto con un emoji (emoji '' = quitarla).
+ * Lo manda wa-enviar (WhatsApp + historial) y se repinta el hilo.
+ */
+async function reaccionarA(wamid, emoji) {
+    if (!_chatId || !wamid) return;
+    const r = await vlApi.reaccionar(_chatId, wamid, emoji);
+    if (!r.ok) {
+        mostrarToast(r.error || 'No se pudo reaccionar', 'error');
+        return;
+    }
+    cargarHiloChat({ silencioso: true });
 }
 
 /**
@@ -865,7 +900,10 @@ async function enviarChat() {
     // limpia, sin esperar a WhatsApp (el envío real tarda ~1-2 s). Al reconciliar,
     // el hilo real la reemplaza; si falla, se quita y se devuelve el texto.
     const tmpId = 'tmp-' + Date.now();
-    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…' : '📷 Enviando foto…';
+    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…'
+        : tipoAdj === 'documento' ? '📄 Enviando archivo…'
+        : tipoAdj === 'audio' ? '🎤 Enviando audio…'
+        : '📷 Enviando foto…';
     pintarBurbujaPendienteChat(tmpId, adj
         ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
         : texto);

@@ -27,7 +27,10 @@ function getAuthToken() {
 
 // Envío manual de WhatsApp: pasa por la Edge Function (el token del tenant
 // vive server-side y nunca llega al navegador).
-async function enviarMensajeManual(chatId, texto, contexto = '') {
+// Todas las acciones (texto, archivo, reacción, marcar leído) usan el mismo
+// POST a wa-enviar, que es quien autoriza, habla con WhatsApp y guarda el
+// historial: así lo que se ve en el panel es lo que pasó de verdad.
+async function postWaEnviar(cuerpo) {
     try {
         const cfg = getAppConfig();
         const base = (cfg.edgeFunctionsUrl ||
@@ -41,16 +44,40 @@ async function enviarMensajeManual(chatId, texto, contexto = '') {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ chat_id: chatId, texto, contexto_wa_id: contexto || null })
+            body: JSON.stringify(cuerpo)
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data || data.ok !== true) {
             return { ok: false, error: (data && data.error) || `Error HTTP ${resp.status}` };
         }
-        return { ok: true, data: data.mensaje };
+        return { ok: true, data };
     } catch (e) {
         return { ok: false, error: e.message || 'Error inesperado' };
     }
+}
+
+async function enviarMensajeManual(chatId, texto, contexto = '') {
+    const r = await postWaEnviar({ chat_id: chatId, texto, contexto_wa_id: contexto || null });
+    if (!r.ok) return r;
+    return { ok: true, data: r.data.mensaje };
+}
+
+// Reaccionar a un mensaje con un emoji (emoji '' = quitarla), como en WhatsApp.
+async function reaccionarManual(chatId, wamid, emoji) {
+    const r = await postWaEnviar({
+        chat_id: chatId,
+        reaccion: { wamid, emoji: emoji || '' }
+    });
+    if (!r.ok) return r;
+    return { ok: true, data: r.data.reaccion };
+}
+
+// Marcar el chat como LEÍDO: al cliente le quedan los ✓✓ azules, igual que
+// cuando abres el chat en WhatsApp. Es "mejor esfuerzo" (si falla, no pasa nada).
+async function marcarLeidoManual(chatId) {
+    const r = await postWaEnviar({ chat_id: chatId, marcar_leido: true });
+    if (!r.ok) return { ok: false, error: r.error, silencioso: true };
+    return { ok: true, data: { leido: r.data.leido === true, motivo: r.data.motivo || '' } };
 }
 
 // Envío manual de FOTO/VIDEO con comentario. Dos pasos:
@@ -273,6 +300,10 @@ export const vlApi = {
     enviarManual: (chatId, texto, contexto = '') => enviarMensajeManual(chatId, texto, contexto),
     // Foto o video con comentario (desde computador, celular o tablet).
     enviarMediaManual: (chatId, opciones) => enviarMediaManual(chatId, opciones),
+    // Reaccionar a un mensaje (emoji '' = quitar la reacción), igual que WhatsApp.
+    reaccionar: (chatId, wamid, emoji) => reaccionarManual(chatId, wamid, emoji),
+    // ✓✓ azul al cliente al abrir el chat (mejor esfuerzo: no interrumpe nada).
+    marcarLeido: (chatId) => marcarLeidoManual(chatId),
 
 
     // ---- Diagrama de procesos (todos de una, con puntos presionables) ----

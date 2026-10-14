@@ -60,8 +60,15 @@ interface WaMessage {
    * "Responder a…": el mensaje CITADO. Meta manda acá el wamid de ese mensaje
    * (no su texto). Sin esto no se puede saber a QUÉ se refería el cliente
    * cuando escribe "quiero este" sobre una foto.
+   * `forwarded` / `frequently_forwarded`: el cliente REENVIÓ este mensaje (una
+   * foto reenviada suele venir de otra clienta: importa para la venta).
    */
-  context?: { id?: string; from?: string };
+  context?: {
+    id?: string;
+    from?: string;
+    forwarded?: boolean;
+    frequently_forwarded?: boolean;
+  };
   // Tipos que el cerebro NO procesa: se guardan para que se VEAN en el panel.
   reaction?: { emoji?: string; message_id?: string };
   location?: { latitude?: number; longitude?: number; name?: string; address?: string };
@@ -284,6 +291,8 @@ async function guardarMetaWa(
     tipo?: string;
     texto?: string;
     mediaPath?: string;
+    /** 0 = no reenviado, 1 = reenviado, 2 = reenviado muchas veces. */
+    reenviado?: number;
   },
 ): Promise<void> {
   if (!p.wamid && !p.contextId) return;
@@ -305,6 +314,7 @@ async function guardarMetaWa(
         p_tipo: p.tipo || null,
         p_texto: p.texto || null,
         p_media_path: p.mediaPath || null,
+        p_reenviado: p.reenviado || 0,
       }),
     });
     if (!resp.ok) {
@@ -405,6 +415,56 @@ async function registrarEntranteCrudo(
   } catch (e) {
     console.warn('[WA-Webhook] Error guardando el mensaje crudo:', (e as Error).message || String(e));
   }
+}
+
+/**
+ * REACCIÓN (😍👍🔥…): la guarda PEGADA al mensaje reaccionado.
+ * Meta manda `reaction.emoji` + `reaction.message_id` (el wamid del mensaje
+ * reaccionado). Ese id va a context_wa_id y el emoji a body, así el panel puede
+ * pintarlo SOBRE la burbuja de ese mensaje, igual que WhatsApp.
+ * OJO: la reacción NO usa `context` (eso es para "responder citando"); son
+ * campos distintos de Meta y por eso van a RPCs distintas.
+ * Un emoji vacío = el cliente QUITÓ su reacción.
+ */
+async function guardarReaccion(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  waId: string,
+  targetWamid: string,
+  emoji: string,
+  eventoWamid: string,
+): Promise<void> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/vl_wa_reaccion`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_tenant_id: tenantId,
+        p_wa_id: waId,
+        p_target_wamid: targetWamid || null,
+        p_emoji: emoji || '',
+        p_evento_wamid: eventoWamid || null,
+        p_direction: 'in',
+      }),
+    });
+    if (!resp.ok) {
+      console.warn(`[WA-Webhook] No pude guardar la reacción (${resp.status})`);
+    }
+  } catch (e) {
+    console.warn('[WA-Webhook] Error guardando la reacción:', (e as Error).message || String(e));
+  }
+}
+
+/** Reenviado según Meta: 2 = muchas veces, 1 = reenviado, 0 = normal. */
+function gradoReenvio(message: WaMessage): number {
+  if (message.context?.frequently_forwarded) return 2;
+  if (message.context?.forwarded) return 1;
+  return 0;
 }
 
 /** Traduce el type de mensaje de Meta al tipo del dominio (cerebro). */
@@ -744,10 +804,23 @@ async function handle(req: Request): Promise<Response> {
           // responder a tiempo, así que se responde 200 primero (waitUntil).
           const trabajo = async () => {
             try {
-              // Mensajes que el cerebro NO entiende (reacción 👍, ubicación,
-              // contacto, respuesta de botón…): se guardan para que se VEAN en
-              // el panel, pero NO corren el bot ni disparan avisos. Antes caían
-              // como 'texto' vacío y ensuciaban el estado de la conversación.
+              // REACCIÓN: no es un mensaje aparte — se pega al mensaje
+              // reaccionado (reaction.message_id) para que se vea como en
+              // WhatsApp, encima de esa burbuja. Emoji vacío = la quitó.
+              if (tipo === 'reaccion') {
+                await guardarReaccion(
+                  supabaseUrl, serviceRoleKey, cfg.tenant_id, waId,
+                  message.reaction?.message_id || '',
+                  message.reaction?.emoji || '',
+                  message.id || '',
+                );
+                return;
+              }
+
+              // Mensajes que el cerebro NO entiende (ubicación, contacto,
+              // respuesta de botón…): se guardan para que se VEAN en el panel,
+              // pero NO corren el bot ni disparan avisos. Antes caían como
+              // 'texto' vacío y ensuciaban el estado de la conversación.
               if (!TIPOS_CEREBRO.has(tipo)) {
                 await registrarEntranteCrudo(
                   supabaseUrl, serviceRoleKey, cfg.tenant_id, waId,
@@ -792,6 +865,7 @@ async function handle(req: Request): Promise<Response> {
                 tipo,
                 texto: textoFinal,
                 mediaPath: mediaPath || undefined,
+                reenviado: gradoReenvio(message),
               });
 
               const modoHumano = String(brain.modo || '') === 'humano';
