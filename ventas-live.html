@@ -1044,6 +1044,44 @@
             .vl-chat-mini-acciones { width: 100%; }
             .vl-chat-mini-acciones .vl-btn { flex: 1 1 auto; justify-content: center; }
         }
+
+        /* ═══ Ciclo 20261097 — CHAT DESPEJADO (PC / tablet / móvil) ═══════════════
+           Pedido del dueño: todo lo de la conversación ya vive en el menú ⋯, así que
+           la vista del chat no debe mostrar nada de más. Se compacta lo que queda
+           arriba (proceso del pedido) y el aviso de "sin usuario", sin volverlos
+           difíciles de presionar: los botones no bajan de ~34px y los chips siguen legibles. */
+
+        /* 1. La barra de búsqueda NO ocupa espacio: aparece solo al apretar la lupa
+              en el menú ⋯. La clase traía display:flex y pisaba el atributo hidden,
+              así que la barra se veía siempre (misma familia de bug que la "X" del pie). */
+        .vl-busq-barra[hidden] { display: none !important; }
+
+        /* 2. Proceso del pedido: más chico y pegado arriba, pero apretable. */
+        .vld-fijo { padding: 0 14px 6px; margin-bottom: 6px; }
+        .vld-fijo .vl-chat-proceso { padding: 5px 7px; gap: 4px; border-radius: 10px; margin-bottom: 5px; }
+        .vld-fijo .vl-conv-proc { margin-top: 0; gap: 3px; }
+        .vld-fijo .vl-conv-proc .p { font-size: 0.58rem; padding: 1px 6px; }
+        .vld-fijo .vl-cp-titulo,
+        .vld-fijo .vl-cp-estado,
+        .vld-fijo .vl-cp-saldo { font-size: 0.6rem; padding: 1px 7px; }
+        .vld-fijo .vl-chat-acciones { padding: 5px 6px; margin: 4px 0 0; gap: 5px; border-radius: 10px; }
+        .vld-fijo .vl-chat-acciones .vl-btn { padding: 5px 9px; gap: 5px; border-radius: 8px; min-height: 30px; }
+        .vld-fijo .vl-chat-acciones .vl-btn,
+        .vld-fijo .vl-chat-acciones .vl-btn i { font-size: 0.7rem; }
+        @media (max-width: 720px) {
+            /* Acá manda el pedido de chat compacto sobre la regla global de 40px de
+               los botones táctiles: se baja a 34px (sigue cómodo para el dedo). */
+            .vld-fijo { margin: 0 -12px 5px; padding: 0 12px 5px; }
+            .vld-fijo .vl-chat-acciones .vl-btn { min-height: 34px !important; padding: 6px 10px; }
+            .vld-fijo .vl-chat-acciones .vl-btn,
+            .vld-fijo .vl-chat-acciones .vl-btn i { font-size: 0.72rem; }
+        }
+
+        /* 3. Aviso "sin usuario asignado": una línea chica al costado, no una franja
+              que cruce el chat (la opción de fondo está en el menú ⋯ → ¿Quién es?). */
+        .vl-chip-quien { width: auto; max-width: calc(100% - 28px); align-self: flex-start;
+            font-size: 0.72rem; padding: 5px 9px; gap: 6px; margin: 6px 14px 0; }
+        .vl-chip-quien i { font-size: 0.7rem; }
     </style>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
