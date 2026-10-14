@@ -116,7 +116,7 @@ function buildDOM() {
                         <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto o video">
                             <i class="fas fa-paperclip"></i>
                         </button>
-                        <input type="file" class="vl-adj-input" id="lv-chat-file" accept="image/jpeg,image/png,video/mp4"
+                        <input type="file" class="vl-adj-input" id="lv-chat-file" accept="image/*,video/*"
                                style="display:none">
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
                                placeholder="Responde por WhatsApp…" autocomplete="off">

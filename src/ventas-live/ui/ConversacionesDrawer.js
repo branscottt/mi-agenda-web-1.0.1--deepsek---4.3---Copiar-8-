@@ -105,7 +105,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto o video">
                     <i class="fas fa-paperclip"></i>
                 </button>
-                <input type="file" class="vl-adj-input" id="vld-file" accept="image/jpeg,image/png,video/mp4"
+                <input type="file" class="vl-adj-input" id="vld-file" accept="image/*,video/*"
                        style="display:none">
                 <input class="vl-control" id="vld-input" maxlength="1000"
                        placeholder="Responde por WhatsApp…" autocomplete="off">
