@@ -21,7 +21,7 @@ import {
     ESTADO_CHAT, avisoLabel, avisoAccion, avisoDetalle, AVISOS_RESPUESTA,
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
-    montarAdjunto, montarReaccion
+    montarAdjunto, montarReaccion, pintarHilo, olvidarHilo
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -53,6 +53,7 @@ let _adjunto = null;
 let _adjuntoChatId = null;
 let _responder = null;        // "responder citando" del chat abierto
 let _leidoWamid = '';         // último entrante ya marcado como leído (✓✓ azul)
+let _fijoPintado = null;      // bloque de proceso/aviso ya pintado (para no repintar de más)
 let _notifActivas = false;   // avisos del navegador (los activa el usuario)
 let _avisosVistos = null;    // null = primera carga: no notificar lo ya existente
 let _sinLeerPrev = 0;
@@ -108,7 +109,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 <button class="vl-btn vl-adj-btn" id="vld-adj" type="button" title="Mandar foto, video, archivo o audio">
                     <i class="fas fa-paperclip"></i>
                 </button>
-                <input type="file" class="vl-adj-input" id="vld-file"
+                <input type="file" class="vl-adj-input" id="vld-file" multiple
                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
                        style="display:none">
                 <input class="vl-control" id="vld-input" maxlength="1000"
@@ -148,10 +149,15 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 btn: '#vld-adj',
                 input: '#vld-file',
                 previa: '#vld-previa',
-                alCambiar: (archivo, error) => {
+                alCambiar: (items, error) => {
                     if (error) mostrarToast(error, 'error');
+                    const n = Array.isArray(items) ? items.length : 0;
                     const inp = $('vld-input');
-                    if (inp) inp.placeholder = archivo ? 'Escribe un comentario…' : 'Responde por WhatsApp…';
+                    if (inp) {
+                        inp.placeholder = n === 0 ? 'Responde por WhatsApp…'
+                            : n === 1 ? 'Escribe un comentario…'
+                            : `Comentario (va con la primera)…`;
+                    }
                 }
             });
         }
@@ -664,8 +670,9 @@ async function abrirChat(chatId) {
     // Cambió de conversación: la cita elegida era del chat anterior (una cita
     // cruzada mandaría el mensaje equivocado).
     if (_responder && _chatId !== chatId) _responder.limpiar();
-    // Otro chat: el "ya marcado como leído" arranca de cero.
-    if (_chatId !== chatId) _leidoWamid = '';
+    // Otro chat: el "ya marcado como leído" arranca de cero y el bloque fijo se
+    // vuelve a pintar (las burbujas del chat anterior no sirven).
+    if (_chatId !== chatId) { _leidoWamid = ''; _fijoPintado = null; }
     _chatId = chatId;
     _chatMeta = null;
     const body = $('vld-body');
@@ -735,11 +742,21 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     // El bloque de PROCESO (chips + botones) queda ANCLADO arriba (sticky dentro
     // del hilo): así se aprieta "Confirmar pago / Prenda entregada / Liberar"
     // sin tener que subir el chat. Lo último hablado se sigue viendo abajo.
-    body.innerHTML = `<div class="vld-fijo">`
+    const fijoHtml = `<div class="vld-fijo">`
         + procesoChipsHtml(procChat) + accionesChatHtml(_chatProc)
-        + `</div>`
-        + banner
-        + `<div class="vld-hilo" id="vld-hilo">${burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(_chatMeta) })}</div>`;
+        + `</div>` + banner;
+    // FLUIDEZ (como WhatsApp): si el bloque de proceso/aviso no cambió, NO se
+    // rehace el hilo completo — se actualiza de a poco (mensajes nuevos se
+    // agregan, ticks/reacciones se corrigen en el lugar, y si nada cambió no se
+    // toca el DOM). Antes se repintaba TODO cada 5 s y el chat parpadeaba.
+    if ($('vld-hilo') && _fijoPintado === fijoHtml) {
+        const modo = pintarHilo($('vld-hilo'), mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
+        if (modo === 'igual' && silencioso) { autoScrollAbajo(body); return; }
+    } else {
+        body.innerHTML = fijoHtml + `<div class="vld-hilo" id="vld-hilo"></div>`;
+        pintarHilo($('vld-hilo'), mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
+        _fijoPintado = fijoHtml;
+    }
 
     // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
     // no scrollea). Antes se llamaba con #vld-hilo y el panel quedaba mostrando lo
@@ -917,9 +934,10 @@ async function enviar() {
     const input = $('vld-input');
     const btn = $('vld-enviar');
     const texto = input ? input.value.trim() : '';
-    const adj = (_adjunto && _adjunto.tiene()) ? _adjunto.archivo() : null;
-    const tipoAdj = adj ? _adjunto.tipo() : '';
-    if (!texto && !adj) return;
+    // Se pueden mandar VARIAS fotos/archivos de una vez (como WhatsApp).
+    const adjuntos = (_adjunto && _adjunto.tiene()) ? _adjunto.items() : [];
+    const nAdj = adjuntos.length;
+    if (!texto && !nAdj) return;
 
     _enviando = true;
     if (btn) btn.disabled = true;
@@ -929,11 +947,11 @@ async function enviar() {
     // + API de Meta): antes la nada duraba todo ese rato. Al terminar, el hilo
     // real reemplaza esta burbuja; si falla, se quita y se devuelve el texto.
     const tmpId = 'tmp-' + Date.now();
-    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…'
-        : tipoAdj === 'documento' ? '📄 Enviando archivo…'
-        : tipoAdj === 'audio' ? '🎤 Enviando audio…'
-        : '📷 Enviando foto…';
-    pintarBurbujaPendiente(tmpId, adj
+    const etq = (t) => t === 'video' ? '🎬 Enviando video…'
+        : t === 'documento' ? '📄 Enviando archivo…'
+        : t === 'audio' ? '🎤 Enviando audio…' : '📷 Enviando foto…';
+    const etiquetaAdj = nAdj > 1 ? `📷 Enviando ${nAdj} archivos…` : (nAdj ? etq(adjuntos[0].tipo) : '');
+    pintarBurbujaPendiente(tmpId, nAdj
         ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
         : texto);
     if (input) input.value = '';
@@ -947,12 +965,15 @@ async function enviar() {
     // Foto/video con comentario, o mensaje de texto. Si hay una cita elegida
     // ("responder citando"), va su wamid: al cliente le llega el mensaje citado.
     const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
-    const res = adj
+    const res = nAdj
         ? await vlApi.enviarMediaManual(_chatId, {
-            archivo: adj, tipo: tipoAdj, comentario: texto, contexto: citaWamid
+            archivos: adjuntos.map((x) => x.archivo),
+            tipos: adjuntos.map((x) => x.tipo),
+            comentario: texto, contexto: citaWamid,
+            onProgreso: (i, t) => { if (t > 1) actualizarPendiente(tmpId, `Enviando ${i}/${t}…` + (texto ? ' ' + texto : '')); }
         })
         : await vlApi.enviarManual(_chatId, texto, citaWamid);
-    if (adj && res && res.ok && _adjunto) _adjunto.limpiar();
+    if (nAdj && res && res.ok && _adjunto) _adjunto.limpiar();
     if (citaWamid && _responder) _responder.limpiar();
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
@@ -974,7 +995,13 @@ async function enviar() {
         mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error');
         return;
     }
-    if (tomoControl) mostrarToast('Enviado · el bot espera tu turno', 'success');
+    if (res.data && res.data.total > 1 && res.data.error) {
+        mostrarToast(`Se mandaron ${res.data.enviados} de ${res.data.total}: ${res.data.error}`, 'error');
+    } else if (nAdj > 1) {
+        mostrarToast(`${res.data ? res.data.enviados : nAdj} archivos enviados`, 'success');
+    } else if (tomoControl) {
+        mostrarToast('Enviado · el bot espera tu turno', 'success');
+    }
     cargarHilo(_chatId, { silencioso: true });   // sin await: la burbuja ya está
 }
 
@@ -995,6 +1022,12 @@ function pintarBurbujaPendiente(tmpId, texto) {
     }
     const body = $('vld-body');
     if (body) body.scrollTop = body.scrollHeight;
+}
+
+/** Cambia el texto de la burbuja provisoria (avance del envío múltiple). */
+function actualizarPendiente(tmpId, texto) {
+    const el = document.querySelector(`#vld-body [data-pendiente="${tmpId}"] .vl-burbuja-txt`);
+    if (el) el.textContent = texto;
 }
 
 function quitarBurbujaPendiente(tmpId) {

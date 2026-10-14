@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -119,7 +119,7 @@ function buildDOM() {
                         <button class="vl-btn vl-adj-btn" id="lv-chat-adj" type="button" title="Mandar foto, video, archivo o audio">
                             <i class="fas fa-paperclip"></i>
                         </button>
-                        <input type="file" class="vl-adj-input" id="lv-chat-file"
+                        <input type="file" class="vl-adj-input" id="lv-chat-file" multiple
                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
                                style="display:none">
                         <input class="vl-control" id="lv-chat-input" maxlength="1000"
@@ -215,10 +215,15 @@ function buildDOM() {
             btn: '#lv-chat-adj',
             input: '#lv-chat-file',
             previa: '#lv-chat-previa',
-            alCambiar: (archivo, error) => {
+            alCambiar: (items, error) => {
                 if (error) mostrarToast(error, 'error');
+                const n = Array.isArray(items) ? items.length : 0;
                 const inp = $('lv-chat-input');
-                if (inp) inp.placeholder = archivo ? 'Escribe un comentario…' : 'Responde por WhatsApp…';
+                if (inp) {
+                    inp.placeholder = n === 0 ? 'Responde por WhatsApp…'
+                        : n === 1 ? 'Escribe un comentario…'
+                        : `Comentario (va con la primera)…`;
+                }
             }
         });
     }
@@ -787,7 +792,8 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     // @ — así el dueño puede asignarlo aunque el bot no lo haya encontrado.
     await pintarQuienEs($('lv-chat-quien'), _chatId, () => cargarHiloChat({ forzarAbajo: true }));
 
-    msgs.innerHTML = burbujasHtml(mensajes, { nombreCliente: nombreDeCliente(chat) });
+    // Pintado fluido: si nada cambió no se toca el DOM (nada de parpadeo cada 5 s).
+    pintarHilo(msgs, mensajes, { nombreCliente: nombreDeCliente(chat) });
 
     // ✓✓ AZUL al cliente: se marca el chat como leído al abrirlo y cada vez que
     // llega algo nuevo mientras lo tienes abierto (igual que WhatsApp). Se pide
@@ -889,9 +895,10 @@ async function enviarChat() {
     const btn = $('lv-chat-enviar');
     if (!input || !_chatId) return;
     const texto = input.value.trim();
-    const adj = (_adjunto && _adjunto.tiene()) ? _adjunto.archivo() : null;
-    const tipoAdj = adj ? _adjunto.tipo() : '';
-    if (!texto && !adj) return;
+    // Se pueden mandar VARIAS fotos/archivos de una vez (como WhatsApp).
+    const adjuntos = (_adjunto && _adjunto.tiene()) ? _adjunto.items() : [];
+    const nAdj = adjuntos.length;
+    if (!texto && !nAdj) return;
 
     _chatEnviando = true;
     if (btn) btn.disabled = true;
@@ -900,11 +907,11 @@ async function enviarChat() {
     // limpia, sin esperar a WhatsApp (el envío real tarda ~1-2 s). Al reconciliar,
     // el hilo real la reemplaza; si falla, se quita y se devuelve el texto.
     const tmpId = 'tmp-' + Date.now();
-    const etiquetaAdj = tipoAdj === 'video' ? '🎬 Enviando video…'
-        : tipoAdj === 'documento' ? '📄 Enviando archivo…'
-        : tipoAdj === 'audio' ? '🎤 Enviando audio…'
-        : '📷 Enviando foto…';
-    pintarBurbujaPendienteChat(tmpId, adj
+    const etq = (t) => t === 'video' ? '🎬 Enviando video…'
+        : t === 'documento' ? '📄 Enviando archivo…'
+        : t === 'audio' ? '🎤 Enviando audio…' : '📷 Enviando foto…';
+    const etiquetaAdj = nAdj > 1 ? `📷 Enviando ${nAdj} archivos…` : (nAdj ? etq(adjuntos[0].tipo) : '');
+    pintarBurbujaPendienteChat(tmpId, nAdj
         ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
         : texto);
     input.value = '';
@@ -920,12 +927,16 @@ async function enviarChat() {
     // ("responder citando"), se manda su wamid para que al cliente le aparezca
     // el mensaje citado, igual que en WhatsApp.
     const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
-    const res = adj
+    const res = nAdj
         ? await vlApi.enviarMediaManual(_chatId, {
-            archivo: adj, tipo: tipoAdj, comentario: texto, contexto: citaWamid
+            archivos: adjuntos.map((x) => x.archivo),
+            tipos: adjuntos.map((x) => x.tipo),
+            comentario: texto, contexto: citaWamid,
+            // Con varias fotos el envío es uno por uno: se muestra el avance.
+            onProgreso: (i, t) => { if (t > 1) actualizarPendienteChat(tmpId, `Enviando ${i}/${t}…` + (texto ? ' ' + texto : '')); }
         })
         : await vlApi.enviarManual(_chatId, texto, citaWamid);
-    if (adj && res && res.ok && _adjunto) _adjunto.limpiar();
+    if (nAdj && res && res.ok && _adjunto) _adjunto.limpiar();
     // La cita ya se usó (o falló): se limpia en ambos casos para no reenviarla.
     if (citaWamid && _responder) _responder.limpiar();
 
@@ -947,7 +958,13 @@ async function enviarChat() {
         mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error');
         return;
     }
-    if (tomoControl) mostrarToast('Enviado · el bot espera tu turno', 'success');
+    if (res.data && res.data.total > 1 && res.data.error) {
+        mostrarToast(`Se mandaron ${res.data.enviados} de ${res.data.total}: ${res.data.error}`, 'error');
+    } else if (nAdj > 1) {
+        mostrarToast(`${res.data ? res.data.enviados : nAdj} archivos enviados`, 'success');
+    } else if (tomoControl) {
+        mostrarToast('Enviado · el bot espera tu turno', 'success');
+    }
     cargarHiloChat({ forzarAbajo: true });   // sin await: la burbuja ya está
 }
 
@@ -967,6 +984,12 @@ function pintarBurbujaPendienteChat(tmpId, texto) {
         if (hora) hora.textContent = 'enviando…';
     }
     msgs.scrollTop = msgs.scrollHeight;
+}
+
+/** Cambia el texto de la burbuja provisoria (avance del envío múltiple). */
+function actualizarPendienteChat(tmpId, texto) {
+    const el = document.querySelector(`#lv-chat-msgs [data-pendiente="${tmpId}"] .vl-burbuja-txt`);
+    if (el) el.textContent = texto;
 }
 
 function quitarBurbujaPendienteChat(tmpId) {

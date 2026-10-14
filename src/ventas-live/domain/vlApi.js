@@ -80,25 +80,42 @@ async function marcarLeidoManual(chatId) {
     return { ok: true, data: { leido: r.data.leido === true, motivo: r.data.motivo || '' } };
 }
 
-// Envío manual de FOTO/VIDEO con comentario. Dos pasos:
+// Envío manual de FOTO/VIDEO/ARCHIVO/AUDIO. Dos pasos por archivo:
 //   1. El archivo se sube al bucket privado 'vl-media' en la carpeta del negocio
 //      ({tenant}/{chat}/{uuid}.ext) — la política de storage lo permite.
 //   2. La Edge Function wa-enviar lo baja con service_role, lo sube a Meta y lo
 //      manda por WhatsApp con el comentario como caption.
+// Se pueden mandar VARIOS de una vez (como WhatsApp): se envían uno por uno, EN
+// ORDEN, cada uno en su propio mensaje de WhatsApp (la API no admite varias fotos
+// en un mismo mensaje). El comentario y la cita van con el PRIMERO.
+// Si un archivo falla, se sigue con los demás y se informa cuántos salieron bien
+// (nunca se pierde lo demás por un archivo malo).
 // Si el envío falla, se borra lo subido (no queda basura en el bucket).
 function extensionDeArchivo(archivo, tipo) {
     const mime = String((archivo && archivo.type) || '').toLowerCase();
     const porMime = {
         'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png',
-        'video/mp4': 'mp4', 'video/3gpp': '3gp'
+        'video/mp4': 'mp4', 'video/3gpp': '3gp',
+        'application/pdf': 'pdf', 'text/plain': 'txt', 'application/zip': 'zip',
+        'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg',
+        'audio/aac': 'aac', 'audio/amr': 'amr', 'audio/x-m4a': 'm4a'
     };
     if (porMime[mime]) return porMime[mime];
     const ext = String((archivo && archivo.name) || '').split('.').pop().toLowerCase();
     if (/^[a-z0-9]{2,5}$/.test(ext)) return ext;
-    return tipo === 'video' ? 'mp4' : 'jpg';
+    return tipo === 'video' ? 'mp4' : tipo === 'documento' ? 'pdf' : tipo === 'audio' ? 'ogg' : 'jpg';
 }
 
-async function enviarMediaManual(chatId, { archivo, tipo, comentario = '', contexto = '' } = {}) {
+async function enviarMediaManual(chatId, opciones = {}) {
+    const {
+        archivo = null, tipo = '', archivos = null, tipos = null,
+        comentario = '', contexto = '', onProgreso = null
+    } = opciones;
+    // Acepta tanto un archivo suelto (llamadas viejas) como una lista.
+    const lista = Array.isArray(archivos) && archivos.length ? archivos.slice() : (archivo ? [archivo] : []);
+    const listaTipos = Array.isArray(tipos) && tipos.length ? tipos.slice() : (tipo ? [tipo] : []);
+    if (!lista.length) return { ok: false, error: 'No hay archivos para mandar' };
+
     try {
         const cfg = getAppConfig();
         const base = (cfg.edgeFunctionsUrl ||
@@ -111,36 +128,63 @@ async function enviarMediaManual(chatId, { archivo, tipo, comentario = '', conte
         const tenantId = (ten && ten.ok && typeof ten.data === 'string') ? ten.data : '';
         if (!tenantId) return { ok: false, error: 'No se pudo identificar tu negocio' };
 
-        const ruta = `${tenantId}/${chatId}/${crypto.randomUUID()}.${extensionDeArchivo(archivo, tipo)}`;
-        const up = await supabase.storage.from('vl-media').upload(ruta, archivo, {
-            contentType: archivo.type || (tipo === 'video' ? 'video/mp4' : 'image/jpeg'),
-            upsert: false
-        });
-        if (up && up.error) {
-            return { ok: false, error: up.error.message || 'No se pudo subir el archivo' };
+        const mensajes = [];
+        let enviados = 0;
+        let primerError = '';
+
+        for (let i = 0; i < lista.length; i++) {
+            const a = lista[i];
+            const t = listaTipos[i] || 'imagen';
+            if (typeof onProgreso === 'function') {
+                try { onProgreso(i + 1, lista.length); } catch (_) { /* aviso es opcional */ }
+            }
+            const ruta = `${tenantId}/${chatId}/${crypto.randomUUID()}.${extensionDeArchivo(a, t)}`;
+            const up = await supabase.storage.from('vl-media').upload(ruta, a, {
+                contentType: a.type || (t === 'video' ? 'video/mp4' : t === 'documento' ? 'application/pdf' : t === 'audio' ? 'audio/mpeg' : 'image/jpeg'),
+                upsert: false
+            });
+            if (up && up.error) {
+                primerError = primerError || (up.error.message || 'No se pudo subir el archivo');
+                continue;
+            }
+
+            const resp = await fetch(`${base}/wa-enviar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    // El comentario y la cita van con el PRIMERO (como al mandar
+                    // varias fotos en WhatsApp: se escribe una vez).
+                    texto: i === 0 ? (comentario || null) : null,
+                    media_path: ruta,
+                    media_tipo: t,
+                    media_mime: a.type || '',
+                    contexto_wa_id: i === 0 ? (contexto || null) : null
+                })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data || data.ok !== true) {
+                try { await supabase.storage.from('vl-media').remove([ruta]); } catch (_) { /* sin permiso: se deja */ }
+                primerError = primerError || (data && data.error) || `Error HTTP ${resp.status}`;
+                continue;
+            }
+            enviados++;
+            if (data.mensaje) mensajes.push(data.mensaje);
         }
 
-        const resp = await fetch(`${base}/wa-enviar`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                chat_id: chatId,
-                texto: comentario || null,
-                media_path: ruta,
-                media_tipo: tipo,
-                media_mime: archivo.type || '',
-                contexto_wa_id: contexto || null
-            })
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok || !data || data.ok !== true) {
-            try { await supabase.storage.from('vl-media').remove([ruta]); } catch (_) { /* sin permiso: se deja */ }
-            return { ok: false, error: (data && data.error) || `Error HTTP ${resp.status}` };
+        if (enviados === 0) {
+            return { ok: false, error: primerError || 'No se pudo mandar ningún archivo', enviados: 0, total: lista.length };
         }
-        return { ok: true, data: data.mensaje };
+        return {
+            ok: true,
+            data: {
+                enviados, total: lista.length, mensajes,
+                error: enviados < lista.length ? (primerError || 'Algunos archivos no se pudieron mandar') : ''
+            }
+        };
     } catch (e) {
         return { ok: false, error: e.message || 'Error inesperado' };
     }

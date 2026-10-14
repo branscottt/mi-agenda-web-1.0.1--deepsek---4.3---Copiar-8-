@@ -595,43 +595,44 @@ export function validarAdjunto(archivo) {
     return { ok: true, tipo, error: '' };
 }
 
-/** Vista previa del archivo elegido: miniatura + nombre + peso + quitar. */
-export function previaAdjuntoHtml({ nombre = '', tipo = 'imagen', url = '', peso = 0 } = {}) {
-    const mini = tipo === 'video'
-        ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
-        : tipo === 'imagen'
-            ? `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`
-            // Un archivo o un audio no tienen miniatura: va el icono, igual que
-            // el clip de WhatsApp.
-            : `<div class="vl-adj-icon" aria-hidden="true"><i class="fas ${
-                tipo === 'audio' ? 'fa-microphone' : 'fa-file-lines'}"></i></div>`;
-    const rotulo = tipo === 'video' ? '🎬 Video'
-        : tipo === 'audio' ? '🎤 Audio'
-        : tipo === 'documento' ? '📄 Archivo'
-        : '📷 Foto';
-    const porDefecto = tipo === 'video' ? 'Video'
-        : tipo === 'audio' ? 'Audio'
-        : tipo === 'documento' ? 'Archivo'
-        : 'Foto';
-    return `<div class="vl-adj-previa" id="vl-adj-previa">
-        ${mini}
-        <div class="vl-adj-datos">
-            <div class="vl-adj-nombre">${escapeHtml(nombre || porDefecto)}</div>
-            <div class="vl-adj-peso">${rotulo} · ${escapeHtml(etiquetaPeso(peso))}</div>
-        </div>
-        <button class="vl-adj-quitar" id="vl-adj-quitar" type="button" title="Quitar el archivo">
-            <i class="fas fa-xmark"></i>
-        </button>
-    </div>`;
+/** Vista previa del adjunto: una tira de miniaturas (varias fotos a la vez). */
+export function previaAdjuntoHtml(items) {
+    const lista = Array.isArray(items) ? items : (items ? [items] : []);
+    if (!lista.length) return '';
+    return `<div class="vl-adj-tira" id="vl-adj-previa">${lista.map((it, i) => {
+        const tipo = it.tipo || 'imagen';
+        const url = it.url || '';
+        const mini = tipo === 'video'
+            ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
+            : tipo === 'imagen'
+                ? `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`
+                : `<div class="vl-adj-icon" aria-hidden="true"><i class="fas ${tipo === 'audio' ? 'fa-microphone' : 'fa-file-lines'}"></i></div>`;
+        const rotulo = tipo === 'video' ? '🎬' : tipo === 'audio' ? '🎤'
+            : tipo === 'documento' ? '📄' : '📷';
+        return `<div class="vl-adj-item" data-item="${escapeHtml(String(it.id != null ? it.id : i))}" title="${escapeHtml(it.nombre || '')}">
+            ${mini}
+            <div class="vl-adj-datos">
+                <div class="vl-adj-nombre">${escapeHtml(it.nombre || 'Archivo')}</div>
+                <div class="vl-adj-peso">${rotulo} ${escapeHtml(etiquetaPeso(it.peso))}</div>
+            </div>
+            <button class="vl-adj-quitar" type="button" data-quitar="${escapeHtml(String(it.id != null ? it.id : i))}"
+                    title="Quitar ${escapeHtml(it.nombre || 'archivo')}"><i class="fas fa-xmark"></i></button>
+        </div>`;
+    }).join('')}</div>`;
 }
+
+/** Cuántos archivos se pueden adjuntar de una vez (como el "enviar varios" de WhatsApp). */
+export const ADJUNTO_MAX = 10;
 
 /**
  * Engancha el adjuntar: el botón abre el selector de archivos (en el celular y
  * la tablet eso da cámara y galería; en el computador, el explorador), valida,
- * muestra la vista previa y deja el archivo listo para mandar.
+ * muestra la vista previa y deja los archivos listos para mandar.
+ * **Se pueden elegir VARIOS de una vez** (y agregar de a poco: cada elección se
+ * SUMA a los que ya estaban, como al adjuntar en WhatsApp).
  * @param {HTMLElement} cont contenedor donde viven el botón/input/previa
- * @param {Object} o {btn, input, previa, alCambiar(archivo|null, error)}
- * @returns {Object} {archivo(), tipo(), tiene(), limpiar()}
+ * @param {Object} o {btn, input, previa, alCambiar(items, error)}
+ * @returns {Object} {items(), archivos(), tipos(), tiene(), cuantos(), limpiar()}
  */
 export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
     const raiz = cont || (typeof document !== 'undefined' ? document : null);
@@ -643,16 +644,8 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
     const b = q(btn);
     const f = q(input);
     const pr = q(previa);
-    let archivo = null;
-    let tipo = '';
-    let urlMini = null;
-
-    const soltarUrl = () => {
-        if (urlMini && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
-            try { URL.revokeObjectURL(urlMini); } catch (_) { /* nada */ }
-        }
-        urlMini = null;
-    };
+    let items = [];        // [{id, archivo, tipo, url}]
+    let seq = 0;
 
     // La miniatura es un lujo: si el navegador no puede crearla, el envío sigue
     // igual (por eso nunca puede cortar el flujo con una excepción).
@@ -665,13 +658,44 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
         return '';
     };
 
+    const soltarUrls = () => {
+        items.forEach((it) => {
+            if (it.url && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+                try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
+            }
+        });
+    };
+
+    const pintar = () => {
+        if (!pr) return;
+        if (!items.length) { pr.innerHTML = ''; pr.hidden = true; return; }
+        pr.innerHTML = previaAdjuntoHtml(items.map((it) => ({
+            id: it.id, nombre: it.archivo.name, tipo: it.tipo, url: it.url, peso: it.archivo.size,
+        })));
+        pr.hidden = false;
+    };
+
+    const avisar = (error) => {
+        if (typeof alCambiar === 'function') alCambiar(items.slice(), error || '');
+    };
+
     const limpiar = () => {
-        soltarUrl();
-        archivo = null;
-        tipo = '';
-        if (pr) { pr.innerHTML = ''; pr.hidden = true; }
+        soltarUrls();
+        items = [];
+        pintar();
         if (f) { try { f.value = ''; } catch (_) { /* nada */ } }
-        if (typeof alCambiar === 'function') alCambiar(null, '');
+        avisar('');
+    };
+
+    const quitar = (id) => {
+        const i = items.findIndex((it) => String(it.id) === String(id));
+        if (i < 0) return;
+        const [fuera] = items.splice(i, 1);
+        if (fuera && fuera.url && typeof URL.revokeObjectURL === 'function') {
+            try { URL.revokeObjectURL(fuera.url); } catch (_) { /* nada */ }
+        }
+        pintar();
+        avisar('');
     };
 
     if (b && f) {
@@ -683,38 +707,45 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
 
     if (f) {
         f.addEventListener('change', () => {
-            const nuevo = (f.files && f.files[0]) || null;
-            if (!nuevo) return;
-            const v = validarAdjunto(nuevo);
-            if (!v.ok) {
-                limpiar();
-                if (typeof alCambiar === 'function') alCambiar(null, v.error);
-                return;
-            }
-            soltarUrl();
-            archivo = nuevo;
-            tipo = v.tipo;
-            urlMini = crearUrlMini(nuevo);
-            if (pr) {
-                pr.innerHTML = previaAdjuntoHtml({
-                    nombre: nuevo.name, tipo, url: urlMini, peso: nuevo.size
-                });
-                pr.hidden = false;
-            }
-            if (typeof alCambiar === 'function') alCambiar(nuevo, '');
+            const elegidos = Array.from(f.files || []);
+            try { f.value = ''; } catch (_) { /* nada */ }   // poder volver a elegir el mismo
+            if (!elegidos.length) return;
+
+            let error = '';
+            elegidos.forEach((archivo) => {
+                if (items.length >= ADJUNTO_MAX) {
+                    error = error || `Máximo ${ADJUNTO_MAX} archivos por vez.`;
+                    return;
+                }
+                const v = validarAdjunto(archivo);
+                if (!v.ok) { error = error || v.error; return; }
+                // Ojo: si ya hay un documento, se puede seguir sumando (WhatsApp
+                // deja mezclar, aunque cada archivo se manda en su propio mensaje).
+                items.push({ id: 'adj' + (++seq), archivo, tipo: v.tipo, url: crearUrlMini(archivo) });
+            });
+            pintar();
+            avisar(error);
         });
     }
 
     if (pr) {
         pr.addEventListener('click', (e) => {
-            const x = e.target && e.target.closest ? e.target.closest('.vl-adj-quitar') : null;
+            const x = e.target && e.target.closest ? e.target.closest('[data-quitar]') : null;
             if (!x) return;
             e.preventDefault();
-            limpiar();
+            e.stopPropagation();
+            quitar(x.dataset.quitar);
         });
     }
 
-    return { archivo: () => archivo, tipo: () => tipo, tiene: () => !!archivo, limpiar };
+    return {
+        items: () => items.slice(),
+        archivos: () => items.map((it) => it.archivo),
+        tipos: () => items.map((it) => it.tipo),
+        cuantos: () => items.length,
+        tiene: () => items.length > 0,
+        limpiar,
+    };
 }
 
 /**
@@ -890,6 +921,119 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
                 </div>
             </div>`;
         }).join('');
+}
+
+// ── Pintado FLUIDO del hilo (como WhatsApp: sin parpadeo en cada refresco) ────
+// El chat se refresca cada pocos segundos. Repintar TODO con innerHTML hacía que
+// las fotos volvieran a cargar y que el hilo "saltara" (y que se cerrara el panel
+// de emojis o se perdiera lo que estabas leyendo). Ahora:
+//   · si no cambió nada  → no se toca el DOM;
+//   · si sólo llegaron mensajes nuevos → se AGREGAN al final;
+//   · si sólo cambió un tick o una reacción → se actualiza ESA burbuja;
+//   · si cambió algo en el medio (o es la primera vez) → se repinta, pero se
+//     respeta el lugar donde estabas leyendo si no estabas abajo.
+const _hiloMemo = new WeakMap();   // contenedor → { firma, ids }
+
+/** Cómo deben verse los extras (ticks + reacciones) de cada mensaje, por wamid. */
+function extrasDeseados(lista) {
+    const reac = {};
+    lista.forEach((m) => {
+        if (String(m.tipo || '').toLowerCase() !== 'reaccion') return;
+        const destino = m.context_wa_id;
+        if (!destino) return;
+        const emoji = String(m.body || '').trim();
+        if (!emoji) return;
+        reac[destino] = reac[destino] || {};
+        reac[destino][m.direction === 'out' ? 'out' : 'in'] = emoji;
+    });
+    const porWamid = {};
+    lista.forEach((m) => {
+        const w = String(m.wa_message_id || '');
+        if (!w) return;
+        porWamid[w] = { tick: ticksHtml(m), reac: reaccionesHtml(reac[w]) };
+    });
+    return porWamid;
+}
+
+/** Marca en el DOM lo que YA está pintado (para no "actualizar" lo que no cambió). */
+function sembrarExtras(cont, lista) {
+    const deseados = extrasDeseados(lista);
+    cont.querySelectorAll('.vl-fila-msg[data-wamid]').forEach((fila) => {
+        const d = deseados[fila.dataset.wamid || ''];
+        fila.dataset.tick = d ? d.tick : '';
+        fila.dataset.reac = d ? d.reac : '';
+    });
+}
+
+/** Aplica sólo las diferencias (ticks/reacciones). true si tocó el DOM. */
+function aplicarExtras(cont, lista) {
+    const deseados = extrasDeseados(lista);
+    let cambio = false;
+    cont.querySelectorAll('.vl-fila-msg[data-wamid]').forEach((fila) => {
+        const burbuja = fila.querySelector('.vl-burbuja');
+        if (!burbuja) return;
+        const d = deseados[fila.dataset.wamid || ''] || { tick: '', reac: '' };
+        if ((fila.dataset.tick || '') !== d.tick) {
+            fila.dataset.tick = d.tick;
+            burbuja.querySelectorAll('.vl-tick').forEach((n) => n.remove());
+            const hora = burbuja.querySelector('.vl-burbuja-hora');
+            if (d.tick && hora) hora.insertAdjacentHTML('beforeend', d.tick);
+            cambio = true;
+        }
+        if ((fila.dataset.reac || '') !== d.reac) {
+            fila.dataset.reac = d.reac;
+            burbuja.querySelectorAll('.vl-reaccion').forEach((n) => n.remove());
+            if (d.reac) burbuja.insertAdjacentHTML('beforeend', d.reac);
+            cambio = true;
+        }
+    });
+    return cambio;
+}
+
+/**
+ * Pinta el hilo del chat de la forma más económica posible.
+ * @returns 'nada' | 'igual' | 'extras' | 'nuevo' | 'total'
+ */
+export function pintarHilo(cont, mensajes, { nombreCliente = 'Cliente' } = {}) {
+    if (!cont) return 'nada';
+    const lista = (mensajes || []).filter(Boolean);
+    const ids = lista.map((m) => String(m.id));
+    const firma = ids.join('|');
+    const memo = _hiloMemo.get(cont);
+
+    if (memo && memo.firma === firma) {
+        return aplicarExtras(cont, lista) ? 'extras' : 'igual';
+    }
+
+    // Sólo se agregaron al final: se agrega, no se repinta.
+    if (memo && ids.length >= memo.ids.length && memo.firma === ids.slice(0, memo.ids.length).join('|')) {
+        // Las burbujas "enviando…" son provisorias: si el mensaje real ya llegó,
+        // se van (si no, quedarían duplicadas al no repintar todo).
+        if (ids.length > memo.ids.length) {
+            cont.querySelectorAll('[data-pendiente]').forEach((n) => n.remove());
+        }
+        const nuevos = lista.slice(memo.ids.length);
+        const html = burbujasHtml(nuevos, { nombreCliente });
+        if (html) cont.insertAdjacentHTML('beforeend', html);
+        _hiloMemo.set(cont, { firma, ids });
+        sembrarExtras(cont, lista);
+        aplicarExtras(cont, lista);
+        return 'nuevo';
+    }
+
+    // Cambió algo en el medio (o primera pintada): se repinta sin perder el lugar.
+    const abajo = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 80;
+    const previo = cont.scrollTop;
+    cont.innerHTML = burbujasHtml(lista, { nombreCliente });
+    if (!abajo) cont.scrollTop = previo;
+    _hiloMemo.set(cont, { firma, ids });
+    sembrarExtras(cont, lista);
+    return 'total';
+}
+
+/** Olvida lo pintado (al vaciar o cambiar de contenedor). */
+export function olvidarHilo(cont) {
+    if (cont) _hiloMemo.delete(cont);
 }
 
 /**
