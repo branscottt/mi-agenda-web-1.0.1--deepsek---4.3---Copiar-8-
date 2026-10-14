@@ -28,6 +28,8 @@ import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
     accionesChatHtml, bindAccionesChat, procesoParaModales
 } from './accionesProceso.js';
+// Modal del proyecto para "＋ Prenda" (cierre explícito, nunca pierde datos).
+import { abrirModal, cerrarModal } from './vlModales.js';
 
 // Refresco: el dueño reportó que "tarda en verse cuando llegó el mensaje".
 // 5 s con el chat abierto, 8 s el contador de la lista; además Realtime avisa
@@ -99,18 +101,21 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                     <i class="fas fa-arrow-left"></i>
                 </button>
                 <div class="vld-titulo" id="vld-titulo">Conversaciones</div>
-                <button class="vl-btn" id="vld-modo" type="button" style="display:none;"></button>
                 <button class="vld-icon" id="vld-ocultos" type="button" title="Ver chats ocultos" style="display:none;">
                     <i class="fas fa-eye"></i>
                 </button>
                 <button class="vld-icon" id="vld-archivados" type="button" title="Ver chats archivados" style="display:none;">
                     <i class="fas fa-box-archive"></i>
                 </button>
-                <button class="vl-btn" id="vld-ocultar" type="button" style="display:none;"></button>
+                <!-- Estos tres botones ya NO se ven: su acción vive en el menú ⋯.
+                     Se dejan en el DOM (ocultos) porque el código de la lista y de
+                     "volver" los referencia; así no se rompe nada. -->
                 <button class="vld-icon" id="vld-buscar-btn" type="button" title="Buscar en la conversación" style="display:none;">
                     <i class="fas fa-magnifying-glass"></i>
                 </button>
-                <button class="vld-icon" id="vld-menu-btn" type="button" title="Más acciones" style="display:none;">
+                <button class="vl-btn" id="vld-modo" type="button" style="display:none;"></button>
+                <button class="vl-btn" id="vld-ocultar" type="button" style="display:none;"></button>
+                <button class="vld-icon" id="vld-menu-btn" type="button" title="Opciones de esta conversación" style="display:none;">
                     <i class="fas fa-ellipsis-vertical"></i>
                 </button>
                 <button class="vld-icon" id="vld-cerrar" type="button" title="Cerrar">
@@ -120,9 +125,22 @@ export function initConversacionesDrawer({ onBadge } = {}) {
             <div class="vld-sub" id="vld-sub">Quién te escribió por WhatsApp</div>
             <div id="vld-quien"></div>
             <div class="vl-chat-menu" id="vld-menu" hidden>
+                <button type="button" class="vl-menu-item" id="vld-menu-quien"><i class="fas fa-user-tag"></i> <span>¿Quién es? (asignar usuario)</span></button>
+                <button type="button" class="vl-menu-item" id="vld-menu-prenda"><i class="fas fa-plus"></i> <span>Agregar prenda al pedido</span></button>
+                <button type="button" class="vl-menu-item" id="vld-menu-buscar"><i class="fas fa-magnifying-glass"></i> <span>Buscar en la conversación</span></button>
+                <button type="button" class="vl-menu-item" id="vld-menu-modo"><i class="fas fa-user"></i> <span id="vld-menu-modo-t">Tomar el control</span></button>
+                <button type="button" class="vl-menu-item" id="vld-menu-ocultar"><i class="fas fa-eye-slash"></i> <span id="vld-menu-ocultar-t">Ocultar de la lista</span></button>
+                <div class="vl-menu-sep"></div>
                 <button type="button" class="vl-menu-item" data-pref="fijado"><i class="fas fa-thumbtack"></i> <span id="vld-menu-fijado-t">Fijar</span></button>
                 <button type="button" class="vl-menu-item" data-pref="silenciado"><i class="fas fa-bell-slash"></i> <span id="vld-menu-silenciado-t">Silenciar</span></button>
                 <button type="button" class="vl-menu-item" data-pref="archivado"><i class="fas fa-box-archive"></i> <span id="vld-menu-archivado-t">Archivar</span></button>
+            </div>
+            <div class="vld-hoja" id="vld-hoja" hidden>
+                <div class="vld-hoja-cabeza">
+                    <span id="vld-hoja-titulo">¿Quién es?</span>
+                    <button class="vld-icon" id="vld-hoja-x" type="button" title="Cerrar"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="vld-hoja-cuerpo" id="vld-hoja-cuerpo"></div>
             </div>
             <div class="vl-busq-barra" id="vld-busq" hidden>
                 <i class="fas fa-magnifying-glass"></i>
@@ -162,14 +180,22 @@ export function initConversacionesDrawer({ onBadge } = {}) {
 
         $('vld-cerrar').addEventListener('click', cerrarConversaciones);
         $('vld-volver').addEventListener('click', volverALista);
-        $('vld-modo').addEventListener('click', cambiarModo);
         $('vld-ocultos').addEventListener('click', toggleOcultos);
         $('vld-archivados').addEventListener('click', toggleArchivados);
-        $('vld-ocultar').addEventListener('click', ocultarChatActual);
         $('vld-enviar').addEventListener('click', enviar);
 
+        // ── Menú ⋯ (arriba a la derecha): lo de esta conversación en un solo lugar
+        // para que el chat se vea limpio (pedido del dueño 2026-10-14). Antes el
+        // header tenía 3 botones más ("Tomar el control", "Ocultar", la lupa) y el
+        // bloque "¿Quién es?" ocupaba el tope del hilo.
+        $('vld-menu-quien').addEventListener('click', abrirHojaQuien);
+        $('vld-menu-prenda').addEventListener('click', () => { $('vld-menu').hidden = true; abrirPrendaModal(null); });
+        $('vld-menu-buscar').addEventListener('click', () => { $('vld-menu').hidden = true; abrirBusqueda(true); });
+        $('vld-menu-modo').addEventListener('click', () => { $('vld-menu').hidden = true; cambiarModo(); });
+        $('vld-menu-ocultar').addEventListener('click', () => { $('vld-menu').hidden = true; ocultarChatActual(); });
+        $('vld-hoja-x').addEventListener('click', cerrarHojaQuien);
+
         // Buscar dentro de la conversación + selector de emojis.
-        $('vld-buscar-btn').addEventListener('click', () => abrirBusqueda($('vld-busq').hidden));
         $('vld-busq-inp').addEventListener('input', (e) => buscarEnChat(e.target.value));
         $('vld-busq-inp').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); irABusqueda(1); }
@@ -910,13 +936,20 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         cargarChats({ silencioso: true });
     });
 
-    // "¿Quién es?": SIEMPRE arriba del hilo (no se pierde al bajar el chat).
-    // Muestra los usuarios que compraron (primero los sin vincular) y deja
-    // buscar a cualquiera por su @: así se asigna aunque el bot no lo hallara.
-    await pintarQuienEs($('vld-quien'), chatId, () => {
+    // "¿Quién es?" ya NO ocupa el tope del hilo: vive en el menú ⋯ y se abre como
+    // una hoja que tapa el cajón. Arriba solo queda UN aviso de una sola línea
+    // cuando la conversación todavía no está asignada a ningún cliente, así el
+    // chat se ve limpio pero la opción no se pierde.
+    const recargar = () => {
         cargarHilo(chatId, { silencioso: true });
         cargarChats({ silencioso: true });
-    });
+    };
+    pintarChipQuien();
+    if (hojaQuienAbierta()) {
+        await pintarQuienEs($('vld-hoja-cuerpo'), chatId, () => { cerrarHojaQuien(); recargar(); });
+    }
+    // "＋ Prenda" en las fotos del chat: cargar la prenda al pedido sin salir de acá.
+    marcarFilasConPrenda();
 
     pintarModoChat();
     if (!silencioso) cargarChats({ silencioso: true });
@@ -971,7 +1004,6 @@ function pintarModoChat() {
     const titulo = $('vld-titulo');
     const sub = $('vld-sub');
     const volver = $('vld-volver');
-    const modoBtn = $('vld-modo');
     const foot = $('vld-foot');
     const humano = _chatMeta && _chatMeta.modo === 'humano';
 
@@ -984,35 +1016,16 @@ function pintarModoChat() {
         partes.push(humano ? 'Atiendes tú (bot en pausa)' : 'Responde el bot');
         sub.textContent = partes.join(' · ');
     }
-    if (modoBtn) {
-        modoBtn.style.display = 'inline-flex';
-        modoBtn.className = humano ? 'vl-btn success' : 'vl-btn';
-        modoBtn.innerHTML = humano
-            ? '<i class="fas fa-robot"></i> Devolver al bot'
-            : '<i class="fas fa-user"></i> Tomar el control';
-        modoBtn.dataset.modo = humano ? 'humano' : 'bot';
-    }
-
-    // La lupa y el menú ⋮ solo tienen sentido con una conversación abierta.
-    const busBtn = $('vld-buscar-btn');
-    if (busBtn) busBtn.style.display = 'inline-flex';
+    // El modo (tomar el control / devolver al bot), la lupa y "ocultar de la lista"
+    // viven ahora en el menú ⋯ (arriba a la derecha). El título, el subtítulo que
+    // dice quién responde y el pie quedan igual.
     const menuBtn = $('vld-menu-btn');
     if (menuBtn) menuBtn.style.display = 'inline-flex';
     refrescarMenuChat();
 
-    // Ocultar / mostrar ESTE chat (los no-venta no aparecen en la lista)
+    // El ojo de "chats ocultos" lo maneja la lista, no la conversación.
     const ojoLista = $('vld-ocultos');
-    const ocuBtn = $('vld-ocultar');
     if (ojoLista) ojoLista.style.display = 'none';
-    if (ocuBtn) {
-        const c = _chats.find(x => String(x.id) === String(_chatId));
-        const estaOculto = !!(c && c.oculto);
-        ocuBtn.style.display = 'inline-flex';
-        ocuBtn.className = 'vl-btn';
-        ocuBtn.innerHTML = estaOculto
-            ? '<i class="fas fa-eye"></i> Mostrar'
-            : '<i class="fas fa-eye-slash"></i> Ocultar';
-    }
     if (foot) foot.style.display = 'flex';
 }
 
@@ -1055,6 +1068,170 @@ function refrescarMenuChat() {
     poner('vld-menu-fijado-t', c.fijado ? 'Dejar de fijar' : 'Fijar arriba');
     poner('vld-menu-silenciado-t', c.silenciado ? 'Activar avisos' : 'Silenciar');
     poner('vld-menu-archivado-t', c.archivado ? 'Desarchivar' : 'Archivar');
+    // Modo y visibilidad: la etiqueta dice QUÉ VA A PASAR si la aprietas (nunca
+    // hay que adivinar en qué estado está).
+    const humano = !!(_chatMeta && _chatMeta.modo === 'humano');
+    poner('vld-menu-modo-t', humano ? 'Devolver el mando al bot' : 'Tomar el control (pausar el bot)');
+    poner('vld-menu-ocultar-t', c.oculto ? 'Mostrar en la lista' : 'Ocultar de la lista');
+}
+
+// ── "¿Quién es?" dentro del menú ⋯ (hoja) + aviso de una línea ────────────────
+// Antes el bloque completo (elegir usuario + buscador) vivía anclado arriba del
+// hilo y saturaba la vista. Ahora: la hoja se abre desde el menú ⋯ y arriba solo
+// queda una línea cuando la conversación NO está asignada a ningún cliente.
+function pintarChipQuien() {
+    const host = $('vld-quien');
+    if (!host) return;
+    const asignado = !!(_chatMeta && _chatMeta.cliente_id);
+    if (asignado) {
+        if (host.dataset.chip) { host.innerHTML = ''; delete host.dataset.chip; }
+        return;
+    }
+    if (host.dataset.chip === 'sin-asignar') return;   // ya está pintado
+    host.dataset.chip = 'sin-asignar';
+    host.innerHTML = `<button type="button" class="vl-chip-quien" id="vld-chip-quien">
+            <i class="fas fa-user-tag"></i> Sin usuario asignado — aprieta acá
+        </button>`;
+    const b = $('vld-chip-quien');
+    if (b) b.addEventListener('click', abrirHojaQuien);
+}
+
+function hojaQuienAbierta() {
+    const h = $('vld-hoja');
+    return !!h && !h.hidden;
+}
+
+async function abrirHojaQuien() {
+    const hoja = $('vld-hoja');
+    if (!hoja || !_chatId) return;
+    const menu = $('vld-menu');
+    if (menu) menu.hidden = true;
+    hoja.hidden = false;
+    // Si todavía no está vinculado, la hoja arranca con el buscador a la vista.
+    await pintarQuienEs($('vld-hoja-cuerpo'), _chatId, () => {
+        cerrarHojaQuien();
+        cargarHilo(_chatId, { silencioso: true });
+        cargarChats({ silencioso: true });
+    });
+}
+
+function cerrarHojaQuien() {
+    const h = $('vld-hoja');
+    if (h) h.hidden = true;
+}
+
+// ── "＋ Prenda": cargar al pedido la prenda que el cliente confirmó ────────────
+// Se aprieta SOBRE la foto (no se cargan todas las fotos sugeridas: solo la que
+// el cliente eligió). El precio se precarga si la leyenda lo dice ("Este peluche
+// en 5mil", "Cinturón a 6mil", "4mil", "a 10") y siempre se puede corregir.
+function marcarFilasConPrenda() {
+    const cont = $('vld-hilo');
+    if (!cont) return;
+    cont.querySelectorAll('.vl-fila-msg[data-tipo="imagen"]').forEach((fila) => {
+        if (fila.dataset.prendaChip === '1') return;
+        const burbuja = fila.querySelector('.vl-burbuja');
+        if (!burbuja) return;
+        fila.dataset.prendaChip = '1';
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'vl-prenda-chip';
+        b.title = 'Cargar esta prenda al pedido del chat';
+        b.innerHTML = '<i class="fas fa-plus"></i><span class="vl-prenda-txt">Prenda</span>';
+        b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); abrirPrendaModal(fila); });
+        // El distintivo va SOBRE LA FOTO (esquina inferior derecha del medio), nunca
+        // encima de la leyenda escrita. Si la fila no tiene medio, se cuelga de la
+        // burbuja pero por encima de la hora.
+        const medio = fila.querySelector('.vl-burbuja-medio');
+        if (medio) {
+            medio.appendChild(b);
+        } else {
+            b.style.bottom = '30px';
+            burbuja.appendChild(b);
+        }
+    });
+}
+
+/** Precio que se puede leer de una leyenda del chat (convención chilena: "10" = 10 mil). */
+function parsePrecioLeyenda(texto) {
+    const t = String(texto || '').toLowerCase();
+    if (!t.trim()) return null;
+    let m = t.match(/\$\s*([\d.]{3,9})/);
+    if (m) {
+        const v = Number(m[1].replace(/\./g, ''));
+        if (v >= 1000 && v <= 9999999) return { valor: v, fuente: m[0].trim() };
+    }
+    m = t.match(/(\d{1,3})\s*(mil|k)\b/);
+    if (m) return { valor: Number(m[1]) * 1000, fuente: m[0].trim() };
+    m = t.match(/\b(?:a|en|est[ae]|vale|por|son)\s+(\d{1,3})\b/);
+    if (m) return { valor: Number(m[1]) * 1000, fuente: m[0].trim() };
+    m = t.match(/\b(\d{4,7})\b/);
+    if (m) return { valor: Number(m[1]), fuente: m[0] };
+    return null;
+}
+
+function abrirPrendaModal(fila) {
+    const nick = (_chatMeta && _chatMeta.tiktok_user) || '';
+    if (!nick) {
+        mostrarToast('Primero asigna el usuario del chat (menú ⋯ → ¿Quién es?)', 'warning');
+        return;
+    }
+    // Si se apretó desde el menú (sin foto), se toma la última foto del hilo.
+    let f = fila;
+    if (!f) {
+        const filas = document.querySelectorAll('#vld-hilo .vl-fila-msg[data-tipo="imagen"]');
+        f = filas.length ? filas[filas.length - 1] : null;
+    }
+    const leyenda = f ? String(f.dataset.body || '') : '';
+    const p = parsePrecioLeyenda(leyenda);
+    abrirModal({
+        titulo: '🛍️ Agregar prenda — @' + escapeHtml(nick),
+        sub: 'Se suma al pedido abierto de esta conversación (el bot ya sabrá decirle el total).',
+        html: `
+            <div class="vl-form-row">
+                <label for="vpr-precio">Precio</label>
+                <input class="vl-control vl-monto-grande" id="vpr-precio" inputmode="numeric" value="${p ? p.valor : ''}">
+                <div style="font-size:0.75rem;color:#adb5bd;margin-top:5px;">
+                    ${p ? 'Leído de la leyenda: “' + escapeHtml(p.fuente) + '” (corrígelo si no es así)'
+                        : 'No pude leer un precio en la leyenda: escríbelo tú.'}
+                </div>
+            </div>
+            <div class="vl-form-row">
+                <label for="vpr-desc">Descripción (opcional)</label>
+                <input class="vl-control" id="vpr-desc" maxlength="120" value="${escapeHtml(leyenda.slice(0, 120))}">
+            </div>
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vpr-cancelar" type="button">Cancelar</button>
+                <button class="vl-btn primary" id="vpr-ok" type="button"><i class="fas fa-plus"></i> Agregar al pedido</button>
+            </div>`,
+        onMount: (modal, { marcarSucio }) => {
+            const inpPrecio = modal.querySelector('#vpr-precio');
+            const inpDesc = modal.querySelector('#vpr-desc');
+            [inpPrecio, inpDesc].forEach((i) => { if (i) i.addEventListener('input', marcarSucio); });
+            modal.querySelector('#vpr-cancelar').addEventListener('click', () => cerrarModal(true));
+            modal.querySelector('#vpr-ok').addEventListener('click', async () => {
+                const val = Number(String(inpPrecio.value || '').replace(/[^\d]/g, ''));
+                if (!val || val <= 0) {
+                    mostrarToast('Escribe el precio (solo números)', 'warning');
+                    inpPrecio.focus();
+                    return;
+                }
+                const btn = modal.querySelector('#vpr-ok');
+                btn.disabled = true;
+                const r = await vlApi.agregarItem(nick, val, String(inpDesc.value || '').trim(), false);
+                btn.disabled = false;
+                if (!r || !r.ok) {
+                    mostrarToast((r && r.error) || 'No se pudo agregar la prenda', 'error');
+                    return;
+                }
+                const d = (r && r.data) || {};
+                const saldo = (d.saldo_pendiente != null) ? formatearDinero(d.saldo_pendiente) : '';
+                cerrarModal(true);
+                mostrarToast('Prenda agregada a @' + nick + (saldo ? ' · saldo del pedido: ' + saldo : ''), 'success');
+                cargarHilo(_chatId, { silencioso: true });
+                cargarChats({ silencioso: true });
+            });
+        }
+    });
 }
 
 // ── Nota de voz ─────────────────────────────────────────────────────────────

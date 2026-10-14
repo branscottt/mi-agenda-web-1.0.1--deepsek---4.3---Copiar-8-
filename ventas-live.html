@@ -646,19 +646,60 @@
         .vl-adj-btn.grabando { background: rgba(230,60,60,0.22); border-color: rgba(230,60,60,0.55); color: #ffb3b3;
             font-size: 0.76rem; font-variant-numeric: tabular-nums; }
 
-        /* ===== Fijar / silenciar / archivar (menú ⋮ del chat) ===== */
-        .vl-chat-menu { position: absolute; top: 54px; right: 12px; z-index: 60; display: flex; flex-direction: column;
-            min-width: 190px; padding: 6px; background: rgba(20,20,30,0.98); border: 1px solid rgba(255,255,255,0.14);
+        /* ===== Menú ⋯ del chat (arriba a la derecha) =====================
+           Acá vive TODO lo de la conversación (¿Quién es?, + prenda, buscar,
+           modo, ocultar y fijar/silenciar/archivar) para que el chat no se vea
+           saturado de botones (pedido del dueño 2026-10-14). */
+        .vl-chat-menu { position: absolute; top: 52px; right: 12px; z-index: 60; display: flex; flex-direction: column;
+            min-width: 232px; max-height: min(72vh, 440px); overflow-y: auto; padding: 6px;
+            background: rgba(20,20,30,0.98); border: 1px solid rgba(255,255,255,0.14);
             border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .vl-chat-menu[hidden] { display: none; }
+        .vl-menu-sep { height: 1px; margin: 5px 6px; background: rgba(255,255,255,0.10); }
+        /* Aviso de UNA línea cuando la conversación no está asignada a un cliente:
+           antes acá iba el bloque completo de "¿Quién es?" y tapaba el chat. */
+        .vl-chip-quien { display: flex; align-items: center; gap: 8px; width: calc(100% - 28px);
+            margin: 8px 14px 0; padding: 8px 11px; text-align: left; white-space: normal; line-height: 1.3;
+            background: rgba(255,193,7,0.10); border: 1px solid rgba(255,193,7,0.38);
+            border-radius: 10px; color: #ffe066; font-size: 0.8rem; font-family: inherit; cursor: pointer; }
+        .vl-chip-quien:hover { background: rgba(255,193,7,0.16); }
+        /* El pie: los botones ocultos con [hidden] deben quedarse ocultos aunque la
+           clase .vl-adj-btn traiga display propio (se veía una "X" de cancelar
+           grabación suelta en el pie, que no correspondía). */
+        .vld-foot [hidden] { display: none !important; }
+        /* Hoja "¿Quién es?" (pantalla completa dentro del cajón, se abre del menú) */
+        .vld-hoja { position: absolute; inset: 0; z-index: 70; background: #12101c;
+            display: flex; flex-direction: column; }
+        .vld-hoja[hidden] { display: none; }
+        .vld-hoja-cabeza { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #1c1530; flex-shrink: 0; }
+        .vld-hoja-cabeza span { flex: 1; min-width: 0; font-weight: 800; color: #e9edef; font-size: 0.92rem; }
+        .vld-hoja-cuerpo { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 18px; }
+        /* Distintivo "＋ Prenda" en las FOTOS: en PC aparece al pasar el mouse por la
+           foto (no ensucia la vista); en pantallas táctiles queda como un "＋" chico
+           en la esquina, porque ahí no existe el hover. */
+        .vl-burbuja { position: relative; }
+        .vl-prenda-chip { position: absolute; right: 7px; bottom: 27px; z-index: 4;
+            display: inline-flex; align-items: center; gap: 5px;
+            background: rgba(20,20,30,0.88); border: 1px solid rgba(199,125,255,0.55);
+            color: #f0e9fb; font-family: inherit; font-size: 0.7rem; font-weight: 700;
+            padding: 4px 9px; border-radius: 999px; cursor: pointer;
+            opacity: 0; transition: opacity .15s ease; }
+        .vl-fila-msg[data-tipo="imagen"]:hover .vl-prenda-chip { opacity: 1; }
+        .vl-prenda-chip:hover { background: rgba(157,78,221,0.42); }
+        .vl-prenda-chip:focus-visible { opacity: 1; }
+        @media (hover: none) {
+            .vl-prenda-chip { opacity: 1; padding: 3px 8px; }
+            .vl-prenda-chip .vl-prenda-txt { display: none; }   /* solo el "＋" */
+        }
         .vl-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 11px;
             background: transparent; border: 0; border-radius: 9px; color: #e9ecef; font-size: 0.88rem; cursor: pointer; }
         .vl-menu-item:hover { background: rgba(255,255,255,0.08); }
         .vl-menu-item i { width: 16px; color: #adb5bd; }
         .vl-conv-marca { margin-right: 5px; font-size: 0.78rem; }
         .vl-conv-item.fijada { border-left: 2px solid rgba(199,125,255,0.65); }
-        /* Medios que manda el cliente (foto/audio/video/archivo) */
-        .vl-burbuja-medio { margin-bottom: 5px; }
+        /* Medios que manda el cliente (foto/audio/video/archivo). position:relative
+           para que el distintivo "＋ Prenda" se ancle a la FOTO (no a la leyenda). */
+        .vl-burbuja-medio { position: relative; margin-bottom: 5px; }
         .vl-burbuja-img { display: block; max-width: 100%; max-height: 260px; width: auto; height: auto; border-radius: 9px; cursor: zoom-in; background: rgba(0,0,0,0.25); }
         .vl-burbuja-video { display: block; max-width: 100%; max-height: 260px; border-radius: 9px; }
         .vl-burbuja-audio { display: block; width: 220px; max-width: 100%; margin-top: 2px; }
@@ -1056,7 +1097,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/app.js?v=154"></script>
+    <script type="module" src="dist/app.js?v=155"></script>
     <script defer src="dist/legacy.js?v=75"></script>
 </body>
 </html>
