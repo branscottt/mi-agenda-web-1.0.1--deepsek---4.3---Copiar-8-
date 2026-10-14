@@ -44,7 +44,11 @@ let _abierto = false;
 let _chatId = null;
 let _chatMeta = null;
 let _chats = [];
-let _enviando = false;
+// COLA DE ENVÍO (como WhatsApp: puedes seguir escribiendo mientras sale el
+// anterior). Antes había un solo envío a la vez: mientras estaba en vuelo (~2 s)
+// el botón quedaba bloqueado y un Enter se IGNORABA en silencio.
+let _enviosPendientes = [];
+let _drenandoEnvios = false;
 let _onBadge = null;
 let _timerAbierto = null;
 let _timerBadge = null;
@@ -224,7 +228,7 @@ export function abrirConversaciones() {
     if (_timerAbierto) clearInterval(_timerAbierto);
     _timerAbierto = setInterval(() => {
         if (!_abierto) return;
-        if (_enviando) return;
+        if (_drenandoEnvios) return;
         if (_chatId) cargarHilo(_chatId, { silencioso: true });
         else cargarChats({ silencioso: true });
     }, REFRESCO_ABIERTO_MS);
@@ -291,7 +295,7 @@ function iniciarRealtime() {
             .channel('vl-wa-live')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'vl_wa_mensajes' }, (payload) => {
                 const row = (payload && payload.new) || {};
-                if (_abierto && _chatId && row.chat_id === _chatId && !_enviando) {
+                if (_abierto && _chatId && row.chat_id === _chatId && !_drenandoEnvios) {
                     cargarHilo(_chatId, { silencioso: true });
                 }
                 cargarChats({ silencioso: true });
@@ -908,7 +912,8 @@ function volverALista() {
     if (_responder) _responder.limpiar();
     _chatId = null;
     _chatMeta = null;
-    _enviando = false;
+    // La cola de envíos NO se toca: los mensajes ya encolados terminan de salir
+    // para SU conversación (cada envío guarda su chatId).
     _adjuntoChatId = null;
     if (_adjunto) _adjunto.limpiar();
 
@@ -929,24 +934,21 @@ function volverALista() {
 }
 
 // ── Enviar / modo ───────────────────────────────────────────────────
-async function enviar() {
-    if (_enviando || !_chatId) return;
+// ENVIAR: encola y devuelve el control AL INSTANTE (la burbuja ya está). El
+// envío real lo hace drenarEnvios(), uno por uno y en orden, sin bloquear el
+// campo ni el botón: igual que WhatsApp.
+function enviar() {
+    if (!_chatId) return;
     const input = $('vld-input');
-    const btn = $('vld-enviar');
     const texto = input ? input.value.trim() : '';
     // Se pueden mandar VARIAS fotos/archivos de una vez (como WhatsApp).
     const adjuntos = (_adjunto && _adjunto.tiene()) ? _adjunto.items() : [];
+    if (!texto && !adjuntos.length) return;
+
+    // La cita y los adjuntos se toman AHORA (después el panel los limpia).
+    const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
+    const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     const nAdj = adjuntos.length;
-    if (!texto && !nAdj) return;
-
-    _enviando = true;
-    if (btn) btn.disabled = true;
-
-    // FEEDBACK INSTANTÁNEO: el mensaje se PINTA ya (como "enviando…") y el campo
-    // se limpia, sin esperar a WhatsApp. El envío real tarda ~1-2 s (Edge Function
-    // + API de Meta): antes la nada duraba todo ese rato. Al terminar, el hilo
-    // real reemplaza esta burbuja; si falla, se quita y se devuelve el texto.
-    const tmpId = 'tmp-' + Date.now();
     const etq = (t) => t === 'video' ? '🎬 Enviando video…'
         : t === 'documento' ? '📄 Enviando archivo…'
         : t === 'audio' ? '🎤 Enviando audio…' : '📷 Enviando foto…';
@@ -955,43 +957,72 @@ async function enviar() {
         ? (texto ? etiquetaAdj + ' ' + texto : etiquetaAdj)
         : texto);
     if (input) input.value = '';
+    if (nAdj && _adjunto) _adjunto.limpiar();
+    if (citaWamid && _responder) _responder.limpiar();
+
+    _enviosPendientes.push({ tmpId, chatId: _chatId, texto, adjuntos, citaWamid });
+    drenarEnvios();
+}
+
+/** Manda los pendientes uno por uno, en orden, sin bloquear la pantalla. */
+async function drenarEnvios() {
+    if (_drenandoEnvios) return;
+    _drenandoEnvios = true;
+    try {
+        while (_enviosPendientes.length) await mandarUno(_enviosPendientes.shift());
+    } finally {
+        _drenandoEnvios = false;
+    }
+}
+
+/** Un envío concreto (texto, o archivos con comentario opcional). */
+async function mandarUno(it) {
+    const chatId = it.chatId;
+    const nAdj = it.adjuntos.length;
+    const texto = it.texto;
 
     let tomoControl = false;
-    if (_chatMeta && _chatMeta.modo === 'bot') {
-        const r = await vlApi.chatModo(_chatId, 'humano');
-        if (r.ok) { _chatMeta.modo = 'humano'; tomoControl = true; pintarModoChat(); }
-    }
+    const pModo = (_chatMeta && _chatMeta.modo === 'bot') ? vlApi.chatModo(chatId, 'humano') : null;
 
-    // Foto/video con comentario, o mensaje de texto. Si hay una cita elegida
-    // ("responder citando"), va su wamid: al cliente le llega el mensaje citado.
-    const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
+    // Foto/video con comentario, o mensaje de texto. La cita viaja como wamid:
+    // al cliente le llega el mensaje citado, como en WhatsApp.
     const res = nAdj
-        ? await vlApi.enviarMediaManual(_chatId, {
-            archivos: adjuntos.map((x) => x.archivo),
-            tipos: adjuntos.map((x) => x.tipo),
-            comentario: texto, contexto: citaWamid,
-            onProgreso: (i, t) => { if (t > 1) actualizarPendiente(tmpId, `Enviando ${i}/${t}…` + (texto ? ' ' + texto : '')); }
+        ? await vlApi.enviarMediaManual(chatId, {
+            archivos: it.adjuntos.map((x) => x.archivo),
+            tipos: it.adjuntos.map((x) => x.tipo),
+            comentario: texto, contexto: it.citaWamid,
+            onProgreso: (i, t) => { if (t > 1) actualizarPendiente(it.tmpId, `Enviando ${i}/${t}…` + (texto ? ' ' + texto : '')); }
         })
-        : await vlApi.enviarManual(_chatId, texto, citaWamid);
-    if (nAdj && res && res.ok && _adjunto) _adjunto.limpiar();
-    if (citaWamid && _responder) _responder.limpiar();
+        : await vlApi.enviarManual(chatId, texto, it.citaWamid);
+
+    // El cambio de modo se lanzó junto con el envío (no antes): a esta altura
+    // ya terminó, así que confirmarlo no cuesta espera.
+    if (pModo) {
+        const rm = await pModo.catch(() => ({ ok: false }));
+        if (rm && rm.ok) {
+            tomoControl = true;
+            if (chatId === _chatId && _chatMeta) { _chatMeta.modo = 'humano'; pintarModoChat(); }
+        }
+    }
 
     // El modo vuelve a 'bot' pero el CEREBRO cede el turno al dueño: mientras el
     // último mensaje saliente sea tuyo y tenga menos de 15 min, el bot no contesta
-    // (retoma solo cuando dejas de escribir). NO se espera esta llamada: la
-    // burbuja ya está y el botón debe re-habilitarse altiro (se confirma aparte).
+    // (retoma solo cuando dejas de escribir). NO se espera esta llamada.
     if (tomoControl) {
-        vlApi.chatModo(_chatId, 'bot').then((rb) => {
-            if (rb && rb.ok) { _chatMeta.modo = 'bot'; pintarModoChat(); }
+        vlApi.chatModo(chatId, 'bot').then((rb) => {
+            if (rb && rb.ok && chatId === _chatId && _chatMeta) { _chatMeta.modo = 'bot'; pintarModoChat(); }
         });
     }
 
-    _enviando = false;
-    if (btn) btn.disabled = false;
-
     if (!res.ok) {
-        quitarBurbujaPendiente(tmpId);
-        if (input && !input.value) input.value = texto;   // no se pierde lo escrito
+        // Sin rojo ni parpadeo: ESA burbuja queda con un ⚠ salmón y el motivo en
+        // el tooltip. No se devuelve el texto al campo: con la cola, el campo
+        // puede tener ya otro mensaje escrito.
+        marcarPendienteFallido(it.tmpId, res.error || 'No se pudo enviar');
+        // El texto no se pierde: si no había archivos y el campo quedó libre,
+        // vuelve ahí para reintentar de un toque.
+        const campo = $('vld-input');
+        if (!nAdj && campo && !campo.value) campo.value = texto;
         mostrarToast(res.error || 'No se pudo enviar el mensaje', 'error');
         return;
     }
@@ -1002,7 +1033,7 @@ async function enviar() {
     } else if (tomoControl) {
         mostrarToast('Enviado · el bot espera tu turno', 'success');
     }
-    cargarHilo(_chatId, { silencioso: true });   // sin await: la burbuja ya está
+    if (chatId === _chatId) cargarHilo(chatId, { silencioso: true });   // sin await: la burbuja ya está
 }
 
 // Burbuja del mensaje recién enviado, ANTES de que WhatsApp confirme (optimista).
@@ -1030,9 +1061,21 @@ function actualizarPendiente(tmpId, texto) {
     if (el) el.textContent = texto;
 }
 
-function quitarBurbujaPendiente(tmpId) {
+/**
+ * Marca una burbuja pendiente como NO enviada. Sin rojo fuerte ni parpadeo: un
+ * ⚠ salmón y el motivo completo en el tooltip (para que se entienda qué pasó).
+ */
+function marcarPendienteFallido(tmpId, motivo) {
     const el = document.querySelector(`#vld-hilo [data-pendiente="${tmpId}"]`);
-    if (el) el.remove();
+    if (!el) return;
+    el.style.opacity = '1';
+    el.classList.add('vl-fallida');
+    el.title = 'No se pudo enviar: ' + motivo;
+    // Deja de ser "pendiente": así un repintado del hilo no la borra como si
+    // fuera un envío todavía en curso.
+    delete el.dataset.pendiente;
+    const hora = el.querySelector('.vl-burbuja-hora');
+    if (hora) hora.innerHTML = '<span class="vl-fallo-marca"><i class="fas fa-exclamation-triangle"></i> no enviado</span>';
 }
 
 async function cambiarModo() {

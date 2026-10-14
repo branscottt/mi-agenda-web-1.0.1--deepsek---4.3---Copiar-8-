@@ -212,6 +212,21 @@ async function guardarWamid(p: {
   }
 }
 
+/**
+ * Corre una promesa SIN que el navegador espere por ella. Es para tareas de
+ * "mejor esfuerzo" que no deben retrasar la respuesta al panel (el mensaje ya
+ * se envió y ya quedó registrado). EdgeRuntime.waitUntil mantiene viva la
+ * función hasta que la tarea termine; si no está disponible, se deja correr
+ * suelta (su propio catch evita un rechazo sin manejar).
+ */
+function enSegundoPlano(p: Promise<unknown>): void {
+  const tarea = Promise.resolve(p).catch((e: unknown) => {
+    console.warn('[wa-enviar] Tarea en segundo plano falló:', (e as Error)?.message || String(e));
+  });
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (x: Promise<unknown>) => void } }).EdgeRuntime;
+  if (rt && typeof rt.waitUntil === 'function') rt.waitUntil(tarea);
+}
+
 /** Baja el archivo del bucket privado con service_role (nunca lo ve el navegador). */
 async function bajarArchivo(ruta: string): Promise<Uint8Array | null> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -550,26 +565,34 @@ async function handle(req: Request): Promise<Response> {
         return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
       }
 
+      // El wamid va en la MISMA inserción: antes había que pegarlo después con
+      // otra RPC (~300 ms de espera extra para el navegador, medido en vivo).
       const reg = await rpc('vl_wa_registrar_saliente_media', {
         p_chat_id: chatId,
         p_texto: texto,
         p_tipo: mediaTipo,
         p_media_path: mediaPath,
+        p_wamid: envio.wamid || null,
+        p_contexto_wa_id: contexto || null,
       });
       if (!reg || reg.ok !== true) {
         console.error('[wa-enviar] El archivo se envió pero no se pudo registrar en el historial');
         return json({ ok: false, error: 'Se envió, pero no se pudo guardar en el historial' }, 500);
       }
 
-      // Wamid del archivo enviado: permite resolver después si el cliente lo cita.
-      await guardarWamid({
-        tenantId,
-        chatId,
-        wamid: envio.wamid,
-        tipo: mediaTipo,
-        mediaPath,
-        contextId: contexto,
-      });
+      // Red de seguridad: si la RPC no devolvió el wamid guardado (versión vieja
+      // de la función), se intenta el guardado clásico SIN hacer esperar al
+      // navegador (el envío ya está hecho y registrado).
+      if (envio.wamid && !reg.wa_message_id) {
+        enSegundoPlano(guardarWamid({
+          tenantId,
+          chatId,
+          wamid: envio.wamid,
+          tipo: mediaTipo,
+          mediaPath,
+          contextId: contexto,
+        }));
+      }
 
       return json({
         ok: true,
@@ -589,13 +612,27 @@ async function handle(req: Request): Promise<Response> {
       return json({ ok: false, error: 'WhatsApp rechazó el envío', detalle: envio.detalle }, 502);
     }
 
-    const reg = await rpc('vl_wa_registrar_saliente', { p_chat_id: chatId, p_texto: texto });
+    // El wamid (y la cita) van en la MISMA inserción: antes había que pegarlos
+    // después con otra RPC, que el navegador esperaba (~300 ms extra, medido).
+    const reg = await rpc('vl_wa_registrar_saliente', {
+      p_chat_id: chatId,
+      p_texto: texto,
+      p_wamid: envio.wamid || null,
+      p_contexto_wa_id: contexto || null,
+    });
     if (!reg || reg.ok !== true) {
       console.error('[wa-enviar] El mensaje se envió pero no se pudo registrar en el historial');
       return json({ ok: false, error: 'El mensaje se envió pero no se pudo guardar en el historial' }, 500);
     }
 
-    await guardarWamid({ tenantId, chatId, wamid: envio.wamid, tipo: 'texto', texto, contextId: contexto });
+    // Red de seguridad: si la RPC no devolvió el wamid guardado (versión vieja
+    // de la función), se intenta el guardado clásico SIN hacer esperar al
+    // navegador (el mensaje ya se envió y quedó registrado).
+    if (envio.wamid && !reg.wa_message_id) {
+      enSegundoPlano(guardarWamid({
+        tenantId, chatId, wamid: envio.wamid, tipo: 'texto', texto, contextId: contexto,
+      }));
+    }
 
     return json({
       ok: true,
