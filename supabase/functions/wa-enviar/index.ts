@@ -4,7 +4,11 @@
 // REACCIÓN a un mensaje y MARCAR COMO LEÍDO — desde computador, celular o tablet.
 //
 // Uso: POST /functions/v1/wa-enviar
-// Body texto:   { chat_id: uuid, texto: string, contexto_wa_id?: string }
+// Body texto:   { chat_id: uuid, texto: string, contexto_wa_id?: string,
+//                 origen?: 'humano' | 'bot' }
+//               origen 'bot' = lo escribió el bot (seguir la venta tras asignar
+//               el usuario a mano): queda como burbuja del bot y el bot no cede
+//               el turno. Sin origen = 'humano'.
 // Body archivo: { chat_id, texto?: string (comentario), media_path, media_tipo,
 //                 media_mime, contexto_wa_id?: string }
 //               media_tipo: 'imagen' | 'video' | 'documento' | 'audio'
@@ -88,6 +92,13 @@ interface EnviarRequest {
   reaccion?: { wamid?: string; emoji?: string };
   /** Marcar el chat como leído (✓✓ azul al cliente, como al abrir WhatsApp). */
   marcar_leido?: boolean;
+  /**
+   * Quién firma el mensaje: 'humano' (por defecto, lo escribió una persona desde
+   * el panel) o 'bot' (lo escribió el bot: al asignar el usuario a mano el bot
+   * sigue la venta y manda el total + los datos de pago). Va al campo `origen`
+   * del historial y hace que el bot NO ceda el turno 15 min.
+   */
+  origen?: string;
 }
 
 /** Decodifica el payload del JWT (la firma ya la verificó la plataforma). */
@@ -480,6 +491,12 @@ async function handle(req: Request): Promise<Response> {
       ? (body.contexto_wa_id || '').trim()
       : '';
 
+    // Quién firma el mensaje. El panel manda 'bot' SOLO cuando lo escribió el
+    // bot (al asignar el usuario a mano el bot sigue la venta y manda el total
+    // + los datos de pago): así queda como burbuja del bot en el historial y el
+    // bot NO cede el turno 15 min. Cualquier otra cosa = 'humano' (por defecto).
+    const origen = String(body.origen || '').trim().toLowerCase() === 'bot' ? 'bot' : 'humano';
+
     if (!UUID_RE.test(chatId)) {
       return json({ ok: false, error: 'chat_id inválido' }, 400);
     }
@@ -685,6 +702,7 @@ async function handle(req: Request): Promise<Response> {
       p_texto: texto,
       p_wamid: envio.wamid || null,
       p_contexto_wa_id: contexto || null,
+      p_origen: origen,
     });
     if (!reg || reg.ok !== true) {
       console.error('[wa-enviar] El mensaje se envió pero no se pudo registrar en el historial');

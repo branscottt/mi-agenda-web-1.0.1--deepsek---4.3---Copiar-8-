@@ -56,8 +56,14 @@ async function postWaEnviar(cuerpo) {
     }
 }
 
-async function enviarMensajeManual(chatId, texto, contexto = '') {
-    const r = await postWaEnviar({ chat_id: chatId, texto, contexto_wa_id: contexto || null });
+// `origen` = '' (por defecto) lo escribió una persona desde el panel; 'bot'
+// cuando el mensaje lo redactó el bot (seguir la venta tras asignar el usuario
+// a mano): queda como burbuja del bot y el bot no cede el turno 15 min.
+async function enviarMensajeManual(chatId, texto, contexto = '', origen = '') {
+    const r = await postWaEnviar({
+        chat_id: chatId, texto, contexto_wa_id: contexto || null,
+        origen: origen || null
+    });
     if (!r.ok) return r;
     return { ok: true, data: r.data.mensaje };
 }
@@ -334,6 +340,11 @@ export const vlApi = {
     vincularChatCliente: (chatId, clienteId) => callRpc('vl_wa_vincular_chat', {
         p_chat_id: chatId, p_cliente_id: clienteId
     }),
+    // El bot SIGUE LA VENTA después de asignar el usuario a mano: devuelve el
+    // mensaje que mandaría (total + datos de pago), igual que cuando reconoce al
+    // cliente solo. Si el bot está en pausa (atiendes tú), no hay pedido abierto
+    // o no queda nada por pagar, devuelve { enviar:false } (no escribe nada).
+    botTrasVincular: (chatId) => callRpc('vl_wa_bot_tras_vincular', { p_chat_id: chatId }),
     chatProceso: (chatId) => callRpc('vl_wa_chat_proceso', { p_chat_id: chatId }),
     chatOcultar: (chatId, oculto = true) => callRpc('vl_wa_chat_ocultar', { p_chat_id: chatId, p_oculto: oculto }),
     // Fijar / silenciar / archivar una conversación (como WhatsApp).
@@ -343,7 +354,9 @@ export const vlApi = {
     guardarPushSub: (endpoint, p256dh, auth) =>
         callRpc('vl_push_guardar', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }),
     borrarPushSub: (endpoint) => callRpc('vl_push_borrar', { p_endpoint: endpoint }),
-    enviarManual: (chatId, texto, contexto = '') => enviarMensajeManual(chatId, texto, contexto),
+    // `origen` = 'bot' cuando lo redactó el bot (burbuja del bot, sin ceder turno).
+    enviarManual: (chatId, texto, contexto = '', origen = '') =>
+        enviarMensajeManual(chatId, texto, contexto, origen),
     // Foto o video con comentario (desde computador, celular o tablet).
     enviarMediaManual: (chatId, opciones) => enviarMediaManual(chatId, opciones),
     // Reaccionar a un mensaje (emoji '' = quitar la reacción), igual que WhatsApp.

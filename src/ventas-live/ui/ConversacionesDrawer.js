@@ -1038,6 +1038,25 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
 }
 
 /**
+ * Después de asignar el usuario del chat A MANO, el bot SIGUE LA VENTA: le manda
+ * al cliente el total que lleva y los datos para transferir, con la misma frase
+ * que usa cuando reconoce al cliente solo (el texto lo arma el servidor, acá
+ * solo se envía). No escribe nada si el bot está en pausa (atiendes tú), si el
+ * cliente no tiene pedido abierto o si ya no le queda nada por pagar. El mensaje
+ * queda como burbuja del BOT, así que el bot no se queda mudo los 15 min
+ * siguientes (si el cliente responde "quiero envío", el bot sigue).
+ */
+async function seguirVentaConBot(chatId) {
+    try {
+        const b = await vlApi.botTrasVincular(chatId);
+        if (!b || !b.ok || !b.data || b.data.enviar !== true || !b.data.mensaje) return;
+        const e = await vlApi.enviarManual(chatId, b.data.mensaje, '', 'bot');
+        if (e && e.ok) mostrarToast('El bot le mandó su total y los datos de pago 💜', 'success');
+        else mostrarToast('Asignado, pero no pude mandar el mensaje del bot: ' + ((e && e.error) || ''), 'warning');
+    } catch (_) { /* la vinculación ya quedó: no romper por este extra */ }
+}
+
+/**
  * Pinta el bloque "¿Quién es?" (asignar el usuario del chat a mano) y lo deja
  * enganchado: buscar + apretar el correcto.
  */
@@ -1071,12 +1090,14 @@ async function pintarQuienEs(host, chatId, onVinculado) {
         },
         onElegir: async (clienteId, nick) => {
             if (!window.confirm('¿Asignar esta conversación de WhatsApp a ' + nick + '?\n\n'
-                + 'Se guarda su número en la ficha, así el bot lo reconoce solo la próxima vez.')) return;
+                + 'Se guarda su número en la ficha y, si tiene algo pendiente por pagar, '
+                + 'el bot le sigue la venta: le manda su total y los datos de pago.')) return;
             const r = await vlApi.vincularChatCliente(chatId, clienteId);
             if (!r || !r.ok) { mostrarToast((r && r.error) || 'No se pudo asignar', 'error'); return; }
             const d = r.data || {};
             mostrarToast('Asignado a ' + nick + (d.guardó_whatsapp ? ' · guardé su número' : ''), 'success');
             if (d.otro_chat_abierto) mostrarToast('Ojo: ese usuario ya tenía otra conversación abierta', 'warning');
+            await seguirVentaConBot(chatId);
             if (typeof onVinculado === 'function') onVinculado();
         }
     });
