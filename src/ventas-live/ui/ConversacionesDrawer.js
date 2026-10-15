@@ -325,11 +325,18 @@ export async function abrirChatDeUsuario(tiktokUser) {
 
 // Abre el cajón en una conversación por su ID. Lo usa el aviso PUSH: al tocar la
 // notificación se abre ESA conversación (como en WhatsApp), no la lista.
+// Rendimiento (reporte: "es muy lento al entrar directo al chat"): se muestra el
+// spinner AL TIRO y la lista de conversaciones se pide EN PARALELO (no se espera
+// para pintar el chat). Antes era: lista (1 viaje) → hilo → proceso (2 viajes más)
+// en serie.
 export async function abrirChatPorId(chatId) {
     if (!chatId) return false;
     abrirConversaciones();
-    await cargarChats({ silencioso: true });
-    await abrirChat(chatId);
+    const body = $('vld-body');
+    if (body) body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Abriendo la conversación…</div>';
+    const lista = cargarChats({ silencioso: true });   // en paralelo: pinta banner/lista
+    await abrirChat(chatId, { sinChats: true });
+    lista.catch(() => { /* la lista se refresca sola en el próximo ciclo */ });
     return true;
 }
 
@@ -363,14 +370,15 @@ function montarDeepLink() {
 
     const m = String(location.hash || '').match(/chat=([0-9a-fA-F-]{36})/);
     if (m) {
-        // El cajón se construye al cargar la vista LIVE: se reintenta hasta que exista.
+        // El cajón se construye al cargar la vista LIVE: se reintenta hasta que
+        // exista (120 ms: llegar a la conversación rápido, sin quedarse esperando).
         let intentos = 0;
         const t = setInterval(() => {
-            if (_built || ++intentos > 20) {
+            if (_built || ++intentos > 60) {
                 clearInterval(t);
                 abrir(m[1]);
             }
-        }, 250);
+        }, 120);
     }
 }
 
@@ -711,9 +719,15 @@ function notificar(chat, esAviso) {
 }
 
 // ── Lista de conversaciones ─────────────────────────────────────────
+// Anti-duplicado: cuando el panel entra por la notificación hace cargarChats en
+// paralelo y el arranque de la vista ya había pedido la lista; dos viajes iguales
+// seguidos solo hacen lento el chat. Se ignora una carga repetida muy seguida.
+let _ultimaCargaChats = 0;
 async function cargarChats({ silencioso = false } = {}) {
     const body = $('vld-body');
     if (!body) return;
+    if (silencioso && Date.now() - _ultimaCargaChats < 1500) return;   // ya se pidió recién
+    _ultimaCargaChats = Date.now();
     if (!silencioso && !_chatId) body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>';
 
     const res = await vlApi.chatsListar();
@@ -876,7 +890,7 @@ function procesoChipsHtml(proc) {
 }
 
 // ── Conversación abierta ────────────────────────────────────────────
-async function abrirChat(chatId) {
+async function abrirChat(chatId, { sinChats = false } = {}) {
     // Cambió de conversación: la cita elegida era del chat anterior (una cita
     // cruzada mandaría el mensaje equivocado).
     if (_responder && _chatId !== chatId) _responder.limpiar();
@@ -887,8 +901,10 @@ async function abrirChat(chatId) {
     _chatMeta = null;
     const body = $('vld-body');
     if (body) body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>';
-    // Asegura el aviso del chat antes de pintar el hilo (banner de qué hacer)
-    if (_chats.length === 0) await cargarChats({ silencioso: true });
+    // Asegura el aviso del chat antes de pintar el hilo (banner de qué hacer).
+    // `sinChats` lo usa el deep link de la notificación: la lista ya se está
+    // cargando en paralelo, no hay que esperarla para mostrar el chat.
+    if (!sinChats && _chats.length === 0) await cargarChats({ silencioso: true });
     await cargarHilo(chatId);
 }
 
@@ -926,7 +942,10 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const mensajes = (res.data && Array.isArray(res.data.mensajes)) ? res.data.mensajes : [];
     if (!_chatMeta) { volverALista(); return; }
 
-    // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media').
+    // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media') y, EN
+    // PARALELO, pedir el proceso del chat: antes eran dos viajes al servidor uno
+    // detrás del otro, así que abrir un chat costaba un viaje de más.
+    const pProc = vlApi.chatProceso(chatId).catch(() => null);
     await firmarMedias(mensajes, getSupabase());
 
     const av = avisoDelChat(chatId);
@@ -941,7 +960,7 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     // entrega DESDE ACÁ (el listado de chats no lo trae). Los botones reusan los
     // modales de siempre, así se hace lo mismo desde el chat o desde el diagrama.
     try {
-        const pr = await vlApi.chatProceso(chatId);
+        const pr = await pProc;
         _chatProc = (pr && pr.ok && pr.data) ? (pr.data.proceso || null) : null;
         if (pr && pr.ok && pr.data && pr.data.tiktok_user && !_chatMeta.tiktok_user) {
             _chatMeta.tiktok_user = pr.data.tiktok_user;
