@@ -168,6 +168,7 @@ async function avisarPush(
   tenantId: string,
   titulo: string,
   cuerpo: string,
+  tag: string = 'vl-aviso',
 ): Promise<void> {
   try {
     await fetch(`${supabaseUrl}/functions/v1/wa-push`, {
@@ -176,7 +177,7 @@ async function avisarPush(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${serviceRoleKey}`,
       },
-      body: JSON.stringify({ tenant_id: tenantId, titulo, cuerpo }),
+      body: JSON.stringify({ tenant_id: tenantId, titulo, cuerpo, tag }),
     });
   } catch (e) {
     console.error('[WA-Webhook] push falló:', (e as Error).message || String(e));
@@ -208,6 +209,35 @@ async function rpcAvisoSinRespuesta(
   } catch (e) {
     console.error('[WA-Webhook] No pude crear el aviso "sin respuesta":', (e as Error).message || String(e));
   }
+}
+
+/**
+ * Manda los PUSH que decidió el cerebro, con formato tipo WhatsApp (nombre +
+ * último mensaje). El cerebro entrega dos sobres ya filtrados:
+ *   · push_cliente = { titulo, cuerpo } del mensaje del CLIENTE (se avisa aunque
+ *     el bot responda o esté en pausa).
+ *   · push_bot     = { titulo, cuerpo } de la respuesta del BOT.
+ * El cerebro NO entrega nada si la conversación está silenciada o si el dueño
+ * tiene ese chat abierto (presencia). Mejor esfuerzo: si falla, el bot sigue igual.
+ */
+async function pushDeCerebro(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  brain: Record<string, unknown>,
+): Promise<void> {
+  const chatId = typeof brain.chat_id === 'string' ? brain.chat_id : '';
+  const tagDe = (tipo: string) => (chatId ? `vl-${chatId}-${tipo}` : 'vl-aviso');
+  const uno = async (sobre: unknown, tag: string) => {
+    if (!sobre || typeof sobre !== 'object') return;
+    const s = sobre as { titulo?: unknown; cuerpo?: unknown };
+    const titulo = typeof s.titulo === 'string' ? s.titulo : '';
+    const cuerpo = typeof s.cuerpo === 'string' ? s.cuerpo : '';
+    if (!titulo) return;
+    await avisarPush(supabaseUrl, serviceRoleKey, tenantId, titulo, cuerpo || 'Tienes algo que revisar.', tag);
+  };
+  await uno(brain.push_cliente, tagDe('cli'));
+  await uno(brain.push_bot, tagDe('bot'));
 }
 
 /** Llama al cerebro del bot y devuelve su respuesta JSON. */
@@ -896,17 +926,9 @@ async function handle(req: Request): Promise<Response> {
                 await rpcAvisoSinRespuesta(supabaseUrl, serviceRoleKey, cfg.tenant_id, waId, textoFinal);
               }
 
-              // PUSH al dueño: hay algo que revisar y NO está atendiendo a mano.
-              // Llega con la web cerrada; si falla, no afecta al bot.
-              if (!respondio && !modoHumano) {
-                const nick = typeof brain.cliente_tiktok === 'string' && brain.cliente_tiktok
-                  ? ' (@' + brain.cliente_tiktok + ')' : '';
-                await avisarPush(
-                  supabaseUrl, serviceRoleKey, cfg.tenant_id,
-                  '💬 Ventas Live',
-                  'Te escribieron y el bot necesita que respondas tú' + nick + '.',
-                );
-              }
+              // PUSH tipo WhatsApp: el cerebro decide qué avisar (mensaje del
+              // cliente y/o respuesta del bot) y ya filtró presencia y silencio.
+              await pushDeCerebro(supabaseUrl, serviceRoleKey, cfg.tenant_id, brain);
             } catch (e) {
               console.error('[WA-Webhook] Error procesando el mensaje:', (e as Error).message || String(e));
             }

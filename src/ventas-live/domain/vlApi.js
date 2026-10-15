@@ -350,6 +350,10 @@ export const vlApi = {
     reaccionar: (chatId, wamid, emoji) => reaccionarManual(chatId, wamid, emoji),
     // ✓✓ azul al cliente al abrir el chat (mejor esfuerzo: no interrumpe nada).
     marcarLeido: (chatId) => marcarLeidoManual(chatId),
+    // Presencia: "estoy mirando este chat". Mientras el chat está abierto con la
+    // pestaña a la vista, el bot NO manda push de esa conversación (igual que
+    // WhatsApp). Si la pestaña queda oculta, se deja de refrescar solo.
+    chatPresente: (chatId) => callRpc('vl_wa_chat_presente', { p_chat_id: chatId }),
 
 
     // ---- Diagrama de procesos (todos de una, con puntos presionables) ----

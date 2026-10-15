@@ -2,7 +2,7 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v140';
+const CACHE_NAME = 'agendapro-v141';
 // Solo assets estáticos con hash/versión fija se precachean.
 // Los HTML NO se precachean: cada deploy cambia headers (CSP) y estructura,
 // y un HTML viejo en caché rompe la navegación y la política de seguridad.
@@ -140,7 +140,10 @@ self.addEventListener('push', (event) => {
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-96.png',
         data: { url: data.url || '/ventas-live.html' },
-        tag: 'vl-aviso',
+        // tag por conversación + tipo: el mensaje del cliente y la respuesta del
+        // bot son DOS avisos distintos (no se pisan entre sí), pero cada uno se
+        // actualiza en su lugar si llega otro del mismo tipo.
+        tag: data.tag || 'vl-aviso',
         renotify: true,
         vibrate: [120, 60, 120]
     };

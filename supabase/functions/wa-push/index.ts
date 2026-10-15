@@ -72,6 +72,9 @@ async function handle(req: Request): Promise<Response> {
   const titulo = String(body.titulo || 'Ventas Live');
   const cuerpo = String(body.cuerpo || 'Tienes algo que revisar.');
   const url = String(body.url || '/ventas-live.html');
+  // tag: agrupa/reemplaza avisos del mismo tipo en la conversación (evita que el
+  // mensaje del cliente desaparezca debajo de la respuesta del bot).
+  const tag = String(body.tag || 'vl-aviso');
   if (!tenantId) return json({ ok: false, error: 'tenant_id requerido' }, 400);
 
   const resp = await fetch(
@@ -85,7 +88,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-  const payload = JSON.stringify({ title: titulo, body: cuerpo, url });
+  const payload = JSON.stringify({ title: titulo, body: cuerpo, url, tag });
 
   let enviados = 0;
   let borrados = 0;

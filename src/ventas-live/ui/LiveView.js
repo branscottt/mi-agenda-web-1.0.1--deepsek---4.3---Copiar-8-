@@ -377,6 +377,9 @@ function iniciarPollChat() {
         if (document.hidden) return;
         if (!_chatId || _drenandoEnvios) return;
         cargarHiloChat({ silencioso: true });
+        // Presencia: con el chat abierto y la pestaña a la vista, el bot no manda
+        // push de ESTE chat (como WhatsApp).
+        vlApi.chatPresente(_chatId);
     }, 5000);
 }
 

@@ -343,7 +343,13 @@ export function abrirConversaciones() {
     _timerAbierto = setInterval(() => {
         if (!_abierto) return;
         if (_drenandoEnvios) return;
-        if (_chatId) cargarHilo(_chatId, { silencioso: true });
+        if (_chatId) {
+            cargarHilo(_chatId, { silencioso: true });
+            // Presencia: el chat está abierto y la pestaña a la vista -> el bot NO
+            // manda push de ESTE chat (como WhatsApp). Si la pestaña queda oculta,
+            // deja de refrescarse y los avisos vuelven solos.
+            if (!document.hidden) vlApi.chatPresente(_chatId);
+        }
         else cargarChats({ silencioso: true });
     }, REFRESCO_ABIERTO_MS);
 }
@@ -390,7 +396,10 @@ function iniciarContadorBadge() {
     if (!_visibilidad) {
         _visibilidad = () => {
             if (document.hidden) return;
-            if (_abierto && _chatId) cargarHilo(_chatId, { silencioso: true });
+            if (_abierto && _chatId) {
+                cargarHilo(_chatId, { silencioso: true });
+                vlApi.chatPresente(_chatId);   // volvió a la pestaña: sigue mirándolo
+            }
             else cargarChats({ silencioso: true });
         };
         document.addEventListener('visibilitychange', _visibilidad);
@@ -411,6 +420,7 @@ function iniciarRealtime() {
                 const row = (payload && payload.new) || {};
                 if (_abierto && _chatId && row.chat_id === _chatId && !_drenandoEnvios) {
                     cargarHilo(_chatId, { silencioso: true });
+                    if (!document.hidden) vlApi.chatPresente(_chatId);
                 }
                 cargarChats({ silencioso: true });
             })
