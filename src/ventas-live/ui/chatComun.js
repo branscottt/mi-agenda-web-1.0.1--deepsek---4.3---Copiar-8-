@@ -113,6 +113,25 @@ export const AVISO_INFO = {
     fecha_coordinacion: {
         label: 'Fecha por coordinar',
         accion: 'El cliente propuso un día (o una hora) para la entrega. Confírmale tú si te queda bien —o propón otra— y ajusta la fecha en Entregas.'
+    },
+    // ciclo 20261098 (pauta): el cliente PREGUNTA algo que el bot no sabe.
+    pregunta: {
+        label: 'Pregunta del cliente',
+        accion: 'El cliente preguntó algo que el bot no sabe (productos, stock, formas de envío…). Contéstale tú: tienes la información.'
+    },
+    // ciclo 20261097: pago ya confirmado y el cliente habla de la entrega.
+    entrega_consulta: {
+        label: 'Consulta de la entrega',
+        accion: 'El pago ya está confirmado: acuerda con el cliente dónde y cuándo entregar.'
+    },
+    foto_post_pago: {
+        label: 'Foto después del pago',
+        accion: 'El cliente mandó una foto después de pagar: mírala en el chat (puede ser de la entrega o algo que quiere comprar).'
+    },
+    // ciclo 20261098: llegó un audio/foto SIN texto para interpretar.
+    media: {
+        label: 'Audio o foto para revisar',
+        accion: 'Llegó un audio (sin poder transcribirlo) o una foto: míralo en el chat y contéstale tú.'
     }
 };
 
@@ -142,7 +161,9 @@ export function avisoDetalle(tipo, detalle) {
 export const AVISOS_RESPUESTA = [
     'no_entendido', 'usuario_no_encontrado', 'usuario_no_confirmado', 'sin_cliente',
     'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda', 'usuario_sugerido',
-    'no_puede_pagar', 'fecha_coordinacion'
+    'no_puede_pagar', 'fecha_coordinacion',
+    // ciclo 20261097/98: también los resuelve una persona.
+    'pregunta', 'entrega_consulta', 'foto_post_pago', 'media'
 ];
 
 // Quién tiene que mover este chat (se ve en la lista, sin abrirlo):

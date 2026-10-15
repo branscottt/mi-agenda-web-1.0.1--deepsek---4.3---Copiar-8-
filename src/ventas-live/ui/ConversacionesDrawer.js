@@ -72,6 +72,7 @@ let _canalRt = null;         // canal Realtime (mensajes al instante)
 let _visibilidad = null;     // listener de "volviste a la pestaña"
 let _audioCtx = null;        // WebAudio para el pitido de alarma
 let _chatProc = null;        // proceso abierto del chat que se está viendo
+let _deepLinkMsg = null;     // listener del aviso del service worker (abrir chat)
 
 function $(id) { return document.getElementById(id); }
 
@@ -291,6 +292,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
 
     iniciarContadorBadge();
     iniciarRealtime();
+    montarDeepLink();   // la notificación push abre la conversación exacta
 
     // Móvil/tablet: al abrir/cerrar el teclado cambia el alto VISIBLE. Se
     // recalcula el cajón para que el cuadro de escribir quede siempre a la vista.
@@ -319,6 +321,57 @@ export async function abrirChatDeUsuario(tiktokUser) {
     if (!chat) return false;
     await abrirChat(chat.id);
     return true;
+}
+
+// Abre el cajón en una conversación por su ID. Lo usa el aviso PUSH: al tocar la
+// notificación se abre ESA conversación (como en WhatsApp), no la lista.
+export async function abrirChatPorId(chatId) {
+    if (!chatId) return false;
+    abrirConversaciones();
+    await cargarChats({ silencioso: true });
+    await abrirChat(chatId);
+    return true;
+}
+
+/**
+ * Deep link del aviso push. Dos caminos:
+ *   (a) la pestaña YA estaba abierta → el service worker manda un postMessage
+ *       ({ vlAbrirChat }) al tocar la notificación;
+ *   (b) se abrió una pestaña nueva → la URL trae #chat=<uuid>.
+ * El hash (no query) no toca la ruta, así que no pelea con el guard de rutas.
+ */
+function montarDeepLink() {
+    const abrir = (id) => {
+        if (!id) return;
+        abrirChatPorId(id).finally(() => {
+            try {
+                if (String(location.hash || '').indexOf('chat=') >= 0) {
+                    history.replaceState(null, '', location.pathname + location.search);
+                }
+            } catch (e) { /* ignore */ }
+        });
+    };
+
+    if (!_deepLinkMsg) {
+        _deepLinkMsg = (ev) => {
+            const d = ev && ev.data;
+            if (d && d.vlAbrirChat) abrir(d.vlAbrirChat);
+        };
+        try { if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', _deepLinkMsg); } catch (e) { /* ignore */ }
+        window.addEventListener('message', _deepLinkMsg);
+    }
+
+    const m = String(location.hash || '').match(/chat=([0-9a-fA-F-]{36})/);
+    if (m) {
+        // El cajón se construye al cargar la vista LIVE: se reintenta hasta que exista.
+        let intentos = 0;
+        const t = setInterval(() => {
+            if (_built || ++intentos > 20) {
+                clearInterval(t);
+                abrir(m[1]);
+            }
+        }, 250);
+    }
 }
 
 function btrimLower(v) { return String(v == null ? '' : v).trim().toLowerCase(); }

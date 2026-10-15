@@ -75,6 +75,9 @@ async function handle(req: Request): Promise<Response> {
   // tag: agrupa/reemplaza avisos del mismo tipo en la conversación (evita que el
   // mensaje del cliente desaparezca debajo de la respuesta del bot).
   const tag = String(body.tag || 'vl-aviso');
+  // chatId: al tocar la notificación, el panel abre ESA conversación.
+  const chatMatch = String(url).match(/chat=([0-9a-fA-F-]{36})/);
+  const chatId = String(body.chatId || (chatMatch ? chatMatch[1] : ''));
   if (!tenantId) return json({ ok: false, error: 'tenant_id requerido' }, 400);
 
   const resp = await fetch(
@@ -88,7 +91,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-  const payload = JSON.stringify({ title: titulo, body: cuerpo, url, tag });
+  const payload = JSON.stringify({ title: titulo, body: cuerpo, url, tag, chatId });
 
   let enviados = 0;
   let borrados = 0;

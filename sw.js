@@ -2,7 +2,7 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v141';
+const CACHE_NAME = 'agendapro-v142';
 // Solo assets estáticos con hash/versión fija se precachean.
 // Los HTML NO se precachean: cada deploy cambia headers (CSP) y estructura,
 // y un HTML viejo en caché rompe la navegación y la política de seguridad.
@@ -139,7 +139,7 @@ self.addEventListener('push', (event) => {
         body: data.body || 'Tienes algo que revisar.',
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-96.png',
-        data: { url: data.url || '/ventas-live.html' },
+        data: { url: data.url || '/ventas-live.html', chatId: data.chatId || '' },
         // tag por conversación + tipo: el mensaje del cliente y la respuesta del
         // bot son DOS avisos distintos (no se pisan entre sí), pero cada uno se
         // actualiza en su lugar si llega otro del mismo tipo.
@@ -150,15 +150,23 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(data.title || 'Ventas Live', opciones));
 });
 
-// Al tocar la notificación: enfocar la pestaña de Ventas Live o abrirla.
+// Al tocar la notificación: enfocar la pestaña de Ventas Live (y pedirle que abra
+// ESA conversación) o abrirla. El chatId viaja en el payload para que el panel
+// abra la conversación exacta en vez de la lista.
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const destino = (event.notification.data && event.notification.data.url) || '/ventas-live.html';
+    const d = event.notification.data || {};
+    const destino = d.url || '/ventas-live.html';
+    const chatId = d.chatId || (String(destino).match(/chat=([0-9a-f-]{36})/) || [])[1] || '';
     event.waitUntil((async () => {
         const lista = await clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const c of lista) {
             if (c.url.includes('/ventas-live.html')) {
-                try { await c.focus(); return; } catch (_) { /* sigue */ }
+                try {
+                    await c.focus();
+                    if (chatId) c.postMessage({ vlAbrirChat: chatId });
+                    return;
+                } catch (_) { /* sigue */ }
             }
         }
         if (clients.openWindow) await clients.openWindow(destino);

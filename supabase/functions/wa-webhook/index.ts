@@ -169,6 +169,7 @@ async function avisarPush(
   titulo: string,
   cuerpo: string,
   tag: string = 'vl-aviso',
+  url: string = '/ventas-live.html',
 ): Promise<void> {
   try {
     await fetch(`${supabaseUrl}/functions/v1/wa-push`, {
@@ -177,7 +178,7 @@ async function avisarPush(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${serviceRoleKey}`,
       },
-      body: JSON.stringify({ tenant_id: tenantId, titulo, cuerpo, tag }),
+      body: JSON.stringify({ tenant_id: tenantId, titulo, cuerpo, tag, url }),
     });
   } catch (e) {
     console.error('[WA-Webhook] push falló:', (e as Error).message || String(e));
@@ -228,13 +229,16 @@ async function pushDeCerebro(
 ): Promise<void> {
   const chatId = typeof brain.chat_id === 'string' ? brain.chat_id : '';
   const tagDe = (tipo: string) => (chatId ? `vl-${chatId}-${tipo}` : 'vl-aviso');
+  // Al tocar la notificación se abre ESA conversación (hash #chat=<id>; el hash no
+  // toca la ruta, así que no pelea con el guard de rutas de la app).
+  const url = chatId ? `/ventas-live.html#chat=${chatId}` : '/ventas-live.html';
   const uno = async (sobre: unknown, tag: string) => {
     if (!sobre || typeof sobre !== 'object') return;
     const s = sobre as { titulo?: unknown; cuerpo?: unknown };
     const titulo = typeof s.titulo === 'string' ? s.titulo : '';
     const cuerpo = typeof s.cuerpo === 'string' ? s.cuerpo : '';
     if (!titulo) return;
-    await avisarPush(supabaseUrl, serviceRoleKey, tenantId, titulo, cuerpo || 'Tienes algo que revisar.', tag);
+    await avisarPush(supabaseUrl, serviceRoleKey, tenantId, titulo, cuerpo || 'Tienes algo que revisar.', tag, url);
   };
   await uno(brain.push_cliente, tagDe('cli'));
   await uno(brain.push_bot, tagDe('bot'));
