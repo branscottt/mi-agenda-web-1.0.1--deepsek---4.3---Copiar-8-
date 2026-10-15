@@ -179,8 +179,12 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.vl_wa_registrar_saliente(uuid, text, text, text, text) FROM anon, public;
-GRANT EXECUTE ON FUNCTION public.vl_wa_registrar_saliente(uuid, text, text, text, text) TO authenticated, service_role;
+-- Solo service_role: la llama la Edge Function wa-enviar con service_role (que ya
+-- autorizó al usuario). NO se le da a `authenticated`: la función no valida el
+-- dueño del chat (confía en el llamador), así que un usuario logueado podría
+-- escribir en la conversación de otro negocio si la pudiera llamar directo.
+REVOKE ALL ON FUNCTION public.vl_wa_registrar_saliente(uuid, text, text, text, text) FROM anon, authenticated, public;
+GRANT EXECUTE ON FUNCTION public.vl_wa_registrar_saliente(uuid, text, text, text, text) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
 
