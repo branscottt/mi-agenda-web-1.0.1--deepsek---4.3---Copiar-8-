@@ -96,6 +96,14 @@ if (realKey.length >= 100 && !realKey.includes('...')) {
 console.log('📂 Copying assets to dist/...');
 fs.copyFileSync('style.css', 'dist/style.css');
 
+// 3-bis. Copiar vl.css (estilos del panel Ventas Live, extraídos del <style>
+// inline de ventas-live.html). Va cacheado `immutable`: si se edita, HAY QUE
+// subir el token ?v en ventas-live.html y en sw.js (STATIC_ASSETS).
+if (fs.existsSync('vl.css')) {
+    fs.copyFileSync('vl.css', 'dist/vl.css');
+    console.log('   ✅ dist/vl.css copied');
+}
+
 // 3b. Copiar logo a dist/ (imagen del login)
 if (fs.existsSync('logo.png')) {
     fs.copyFileSync('logo.png', 'dist/logo.png');
