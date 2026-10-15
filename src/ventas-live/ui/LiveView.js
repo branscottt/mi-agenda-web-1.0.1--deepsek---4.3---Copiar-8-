@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
 import {
@@ -377,9 +377,10 @@ function iniciarPollChat() {
         if (document.hidden) return;
         if (!_chatId || _drenandoEnvios) return;
         cargarHiloChat({ silencioso: true });
-        // Presencia: con el chat abierto y la pestaña a la vista, el bot no manda
-        // push de ESTE chat (como WhatsApp).
-        vlApi.chatPresente(_chatId);
+        // Presencia: con el chat abierto Y la ventana a la vista con foco, el bot no
+        // manda push de ESTE chat (como WhatsApp). Si la ventana queda detrás de
+        // otra app, deja de marcarse y los avisos vuelven solos.
+        if (chatALaVista()) vlApi.chatPresente(_chatId);
     }, 5000);
 }
 

@@ -22,7 +22,7 @@ import {
     fmtHora, burbujasHtml, nombreDeCliente, autoScrollAbajo,
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
     montarAdjunto, montarReaccion, pintarHilo, olvidarHilo,
-    barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora
+    barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -406,10 +406,11 @@ export function abrirConversaciones() {
         if (_drenandoEnvios) return;
         if (_chatId) {
             cargarHilo(_chatId, { silencioso: true });
-            // Presencia: el chat está abierto y la pestaña a la vista -> el bot NO
-            // manda push de ESTE chat (como WhatsApp). Si la pestaña queda oculta,
-            // deja de refrescarse y los avisos vuelven solos.
-            if (!document.hidden) vlApi.chatPresente(_chatId);
+            // Presencia: el chat está abierto y el dueño lo está MIRANDO (pestaña a
+            // la vista + ventana con foco) -> el bot NO manda push de ESTE chat
+            // (como WhatsApp). Si la ventana queda detrás de otra app, deja de
+            // refrescarse y los avisos vuelven solos.
+            if (chatALaVista()) vlApi.chatPresente(_chatId);
         }
         else cargarChats({ silencioso: true });
     }, REFRESCO_ABIERTO_MS);
@@ -459,7 +460,7 @@ function iniciarContadorBadge() {
             if (document.hidden) return;
             if (_abierto && _chatId) {
                 cargarHilo(_chatId, { silencioso: true });
-                vlApi.chatPresente(_chatId);   // volvió a la pestaña: sigue mirándolo
+                if (chatALaVista()) vlApi.chatPresente(_chatId);   // sigue mirándolo
             }
             else cargarChats({ silencioso: true });
         };
@@ -481,7 +482,7 @@ function iniciarRealtime() {
                 const row = (payload && payload.new) || {};
                 if (_abierto && _chatId && row.chat_id === _chatId && !_drenandoEnvios) {
                     cargarHilo(_chatId, { silencioso: true });
-                    if (!document.hidden) vlApi.chatPresente(_chatId);
+                    if (chatALaVista()) vlApi.chatPresente(_chatId);
                 }
                 cargarChats({ silencioso: true });
             })

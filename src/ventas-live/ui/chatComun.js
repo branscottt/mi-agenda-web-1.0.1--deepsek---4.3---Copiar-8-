@@ -5,6 +5,23 @@
 
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
 
+/**
+ * ¿El dueño está MIRANDO este chat AHORA? Solo entonces el bot NO manda push de
+ * esa conversación (igual que WhatsApp: si estás en el chat, no te avisa).
+ *
+ * Tiene que estar la pestaña A LA VISTA **y** la ventana con foco: con la ventana
+ * tapada por otra app (o en otra pantalla, o minimizada sin reportar `hidden`)
+ * `visibilityState` sigue siendo 'visible', así que antes el chat contaba como
+ * "visto" y NO llegaba el aviso aunque el dueño no estuviera mirando (reporte del
+ * dueño, 15/10: "debería notificar si no estoy directamente viendo los mensajes").
+ */
+export function chatALaVista() {
+    if (typeof document === 'undefined') return false;
+    if (document.hidden) return false;
+    // hasFocus no existe en navegadores muy viejos: ahí se cae al criterio de visibilidad.
+    return typeof document.hasFocus !== 'function' || document.hasFocus();
+}
+
 export const ESTADO_CHAT = {
     nuevo: 'Nuevo',
     esperando_tiktok: 'Esperando @TikTok',
