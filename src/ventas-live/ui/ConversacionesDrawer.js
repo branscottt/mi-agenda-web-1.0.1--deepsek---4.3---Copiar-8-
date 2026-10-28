@@ -48,6 +48,8 @@ let _built = false;
 let _abierto = false;
 let _chatId = null;
 let _scrollLista = 0;        // dónde estaba la lista (al volver del chat se respeta)
+let _volviendoDeChat = false; // true solo en el render que sigue a "volver"
+let _firmaLista = '';        // huella de lo pintado: si nada cambió, NO se repinta
 let _chatMeta = null;
 let _chats = [];
 // COLA DE ENVÍO (como WhatsApp: puedes seguir escribiendo mientras sale el
@@ -849,6 +851,8 @@ function renderLista() {
 
     const lista = chatsVisibles();
     if (lista.length === 0) {
+        _firmaLista = '';
+        _volviendoDeChat = false;
         body.innerHTML = `<div class="vl-empty">
             <i class="far fa-comments"></i><br>
             Todavía no hay conversaciones.<br>
@@ -856,6 +860,18 @@ function renderLista() {
         </div>`;
         return;
     }
+
+    // HUELLA de lo que se va a pintar. Si es la misma que ya está en pantalla, no
+    // se toca el DOM: así el refresco automático no mueve el scroll ni parpadea.
+    const firma = lista.map(c => [
+        c.id, c.sin_leer, c.ultimo_en, c.ultimo_mensaje, c.aviso_tipo, c.estado, c.modo,
+        c.fijado ? 1 : 0, c.silenciado ? 1 : 0, c.archivado ? 1 : 0, c.oculto ? 1 : 0,
+        c.pago_por_confirmar ? 1 : 0, c.entrega_pendiente ? 1 : 0, c.pago_en_ultimo_live ? 1 : 0
+    ].join('~')).join('|');
+    if (firma === _firmaLista && !_volviendoDeChat) return;
+
+    const previo = body.scrollTop;
+    const destino = _volviendoDeChat ? (_scrollLista || 0) : previo;
 
     body.innerHTML = lista.map(c => {
         const nombre = c.nombre_real || (c.tiktok_user ? '@' + c.tiktok_user : c.wa_id);
@@ -905,7 +921,11 @@ function renderLista() {
     body.classList.remove('vld-volviendo');
     void body.offsetWidth;                 // reinicia la animación
     body.classList.add('vld-volviendo');
-    try { body.scrollTop = _scrollLista || 0; } catch (e) { /* noop */ }
+    // Si venías del chat: al punto donde estabas en la lista. Si estás leyendo la
+    // lista: EXACTAMENTE donde estás (antes se iba al principio cada 5 s).
+    try { body.scrollTop = destino; } catch (e) { /* noop */ }
+    _firmaLista = firma;
+    _volviendoDeChat = false;
 
     body.querySelectorAll('.vl-conv-item').forEach(b => {
         b.addEventListener('click', () => abrirChat(b.dataset.chat));
@@ -1549,6 +1569,7 @@ function volverALista() {
     if (modoBtn) modoBtn.style.display = 'none';
     if (foot) foot.style.display = 'none';
     if (input) input.value = '';
+    _volviendoDeChat = true;      // el próximo render debe volver al punto guardado
     renderLista();
     // Consume la entrada del chat (y la de búsqueda/hoja si quedaban arriba):
     // al volver a la lista, "atrás" cierra el cajón.
