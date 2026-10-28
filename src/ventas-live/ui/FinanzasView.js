@@ -154,7 +154,9 @@ function pintarPorLive(d) {
 
     const fila = (nombre, fecha, prendas, ventas, cobrado, invertido, gastos, ganancia, extra = '') => `
         <tr${extra}>
-            <td>${nombre}${fecha ? `<div class="vl-nota">${escapeHtml(fecha)}</div>` : ''}</td>
+            <td>${nombre}${fecha ? `<div class="vl-nota">${escapeHtml(fecha)}</div>` : ''}
+                <div class="vl-nota vf-solo-movil">cobrado ${formatearDinero(cobrado)} · inv ${formatearDinero(invertido)}${Number(gastos) ? ' · gastos ' + formatearDinero(gastos) : ''}</div>
+            </td>
             <td>${prendas}</td>
             <td>${formatearDinero(ventas)}</td>
             <td>${formatearDinero(cobrado)}</td>

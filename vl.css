@@ -1158,3 +1158,27 @@
         @media (max-width: 520px) {
             .vf-form-grid { grid-template-columns: 1fr !important; }
         }
+
+        /* Finanzas por LIVE en el teléfono: que la GANANCIA entre en pantalla
+           (se ocultan prendas y gastos, que se ven en PC; el resto se desliza). */
+        @media (max-width: 720px) {
+            .vf-tabla-live { min-width: 0 !important; }
+            .vf-tabla-live th, .vf-tabla-live td { padding: 8px 5px; font-size: 0.74rem; white-space: nowrap; }
+            .vf-tabla-live th:nth-child(2), .vf-tabla-live td:nth-child(2),
+            .vf-tabla-live th:nth-child(6), .vf-tabla-live td:nth-child(6) { display: none; }
+            .vf-tabla-live td:first-child, .vf-tabla-live th:first-child { white-space: normal; min-width: 96px; }
+        }
+
+        /* En el teléfono la tabla muestra LIVE · Ventas · Ganancia (lo demás va
+           en la línea chica bajo el nombre del LIVE: cobrado · inversión). */
+        .vf-solo-movil { display: none; }
+        @media (max-width: 720px) {
+            .vf-tabla-live { min-width: 0 !important; }
+            .vf-tabla-live th, .vf-tabla-live td { padding: 7px 4px; font-size: 0.76rem; white-space: nowrap; }
+            .vf-tabla-live th:nth-child(2), .vf-tabla-live td:nth-child(2),
+            .vf-tabla-live th:nth-child(4), .vf-tabla-live td:nth-child(4),
+            .vf-tabla-live th:nth-child(5), .vf-tabla-live td:nth-child(5),
+            .vf-tabla-live th:nth-child(6), .vf-tabla-live td:nth-child(6) { display: none; }
+            .vf-tabla-live td:first-child, .vf-tabla-live th:first-child { white-space: normal; min-width: 120px; }
+            .vf-solo-movil { display: block; font-size: 0.66rem; line-height: 1.35; }
+        }
