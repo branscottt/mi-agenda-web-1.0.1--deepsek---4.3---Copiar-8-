@@ -1203,3 +1203,34 @@
             #lv-card-venta .vl-input-prefix { font-size: 1.3rem; }
             #lv-card-venta > .vl-submit { font-size: 1.2rem; padding: 20px; }
         }
+
+        /* ===== PC: nombre + precio + botón a la vista, sin scrollear =====
+           Se acorta la tarjeta (título, pista y fila del LIVE más chicos) y los
+           dos campos van en UNA fila, así AGREGAR PRENDA queda siempre visible
+           incluso en pantallas de 720 px de alto. */
+        @media (min-width: 861px) {
+            #lv-card-venta.vl-card {
+                display: grid;
+                grid-template-columns: 1.25fr 1fr;
+                gap: 9px 12px;
+                align-items: end;
+                padding: 16px 20px 14px;
+            }
+            #lv-card-venta > h2 { grid-column: 1 / -1; margin: 0; font-size: 1.08rem; }
+            #lv-card-venta > .sub {
+                grid-column: 1 / -1; margin: 0; font-size: 0.73rem; line-height: 1.3;
+                display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+            }
+            #lv-card-venta > .vl-field { margin: 0; }
+            #lv-card-venta > .vl-field > label { font-size: 0.74rem; margin-bottom: 4px; }
+            #lv-card-venta .vl-input { font-size: 1.15rem; padding: 11px 4px; }
+            #lv-card-venta .vl-input-prefix { font-size: 1.1rem; }
+            #lv-card-venta > .vl-submit { grid-column: 1 / -1; margin: 3px 0 0; padding: 13px; font-size: 1rem; }
+            #lv-card-venta > .vl-session { grid-column: 1 / -1; margin: 4px 0 0; padding: 8px 12px; }
+            #lv-card-venta > .vl-ultima { grid-column: 1 / -1; margin: 2px 0 0; }
+        }
+
+        /* La pista del formulario en PC: hasta 2 líneas (sin "…" a media palabra). */
+        @media (min-width: 861px) {
+            #lv-card-venta > .sub { -webkit-line-clamp: 2; }
+        }

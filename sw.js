@@ -10,7 +10,7 @@ const CACHE_NAME = 'agendapro-v144';
 // versionarse (?v=) en cada cambio o el navegador seguirá con el CSS viejo.
 const STATIC_ASSETS = [
     '/style.css?v=69',
-    '/vl.css?v=5'
+    '/vl.css?v=7'
 ];
 
 // CDN assets que también se cachean (versiones fijas)
