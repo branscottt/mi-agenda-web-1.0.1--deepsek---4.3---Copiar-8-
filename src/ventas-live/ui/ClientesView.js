@@ -164,7 +164,7 @@ function pintarFicha() {
                 </div>
             </div>
             <div class="f-sub" style="font-size:0.88rem;">
-                ${[c.nombre_real, c.whatsapp, [c.ciudad, c.comuna].filter(Boolean).join(', '), c.direccion].filter(Boolean).map(escapeHtml).join(' · ') || 'Sin datos de contacto todavía'}
+                ${[c.nombre_real, c.whatsapp, c.correo, [c.ciudad, c.comuna].filter(Boolean).join(', '), c.direccion].filter(Boolean).map(escapeHtml).join(' · ') || 'Sin datos de contacto todavía'}
             </div>
 
             <div class="vl-grid-contadores">
@@ -319,6 +319,8 @@ function modalEditarPerfil(c, onDone) {
                 <input class="vl-control" id="vf-nombre" value="${escapeHtml(c.nombre_real || '')}"></div>
             <div class="vl-form-row"><label for="vf-whatsapp">WhatsApp</label>
                 <input class="vl-control" id="vf-whatsapp" value="${escapeHtml(c.whatsapp || '')}" placeholder="+56 9 …"></div>
+            <div class="vl-form-row"><label for="vf-correo">Correo</label>
+                <input class="vl-control" id="vf-correo" type="email" value="${escapeHtml(c.correo || '')}" placeholder="para el envío (opcional)"></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                 <div class="vl-form-row"><label for="vf-ciudad">Ciudad</label>
                     <input class="vl-control" id="vf-ciudad" value="${escapeHtml(c.ciudad || '')}"></div>
@@ -362,6 +364,7 @@ function modalEditarPerfil(c, onDone) {
                     p_ciudad: modal.querySelector('#vf-ciudad').value,
                     p_comuna: modal.querySelector('#vf-comuna').value,
                     p_direccion: modal.querySelector('#vf-direccion').value,
+                    p_correo: modal.querySelector('#vf-correo').value,
                     p_entrega_preferida: modal.querySelector('#vf-entrega').value,
                     p_categoria: modal.querySelector('#vf-categoria').value,
                     p_notas: modal.querySelector('#vf-notas').value

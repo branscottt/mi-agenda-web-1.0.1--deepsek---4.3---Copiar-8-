@@ -21,7 +21,7 @@ export function initFinanzas() {
             <div class="vl-card" style="margin-top:16px;">
                 <h2><i class="fas fa-plus-circle"></i> Registrar inversión o gasto</h2>
                 <div class="sub">Inversión = compra de mercadería. Gasto = transporte, materiales, envíos asumidos, etc.</div>
-                <div style="display:grid;grid-template-columns:150px 1fr 170px 160px auto;gap:10px;align-items:end;" class="vf-form-grid">
+                <div style="display:grid;grid-template-columns:130px 1fr 140px 150px 200px auto;gap:10px;align-items:end;" class="vf-form-grid">
                     <div class="vl-form-row" style="margin:0;">
                         <label for="vf2-tipo">Tipo</label>
                         <select class="vl-control" id="vf2-tipo">
@@ -41,12 +41,20 @@ export function initFinanzas() {
                         <label for="vf2-fecha">Fecha</label>
                         <input class="vl-control" id="vf2-fecha" type="date">
                     </div>
+                    <div class="vl-form-row" style="margin:0;">
+                        <label for="vf2-live">¿A qué LIVE?</label>
+                        <select class="vl-control" id="vf2-live">
+                            <option value="">Sin LIVE (general)</option>
+                        </select>
+                    </div>
                     <button class="vl-btn primary" id="vf2-agregar" type="button" style="margin-bottom:2px;"><i class="fas fa-plus"></i> Agregar</button>
                 </div>
                 <div style="font-size:0.72rem;color:var(--muted,#adb5bd);margin-top:8px;">
-                    Formato del monto flexible: escribe 15000 o 15.000.
+                    Formato del monto flexible: escribe 15000 o 15.000. Si eliges un LIVE,
+                    esa inversión/gasto se descuenta solo de ESE live (así ves si dejó plata).
                 </div>
             </div>
+            <div id="vf-por-live"></div>
             <div id="vf-lista"></div>`;
         _built = true;
         const hoy = new Date().toISOString().slice(0, 10);
@@ -65,6 +73,8 @@ async function refrescarFinanzas() {
         return;
     }
     pintarResumen(res.data);
+    pintarSelectorLives(res.data.lives_disponibles || []);
+    pintarPorLive(res.data);
     pintarLista(res.data.ultimos_gastos || []);
 }
 
@@ -112,6 +122,94 @@ function pintarResumen(d) {
         </div>`;
 }
 
+// ── Ganancias por LIVE (Ciclo 2) ─────────────────────────────
+// Cada fila es un LIVE: prendas vendidas, cobrado (suma de abonos de sus
+// prendas), inversión y gastos asignados a ese LIVE, y la ganancia real.
+// "Sin LIVE" agrupa lo que no tiene LIVE asignado, para que el total cuadre.
+function pintarSelectorLives(lives) {
+    const sel = $('vf2-live');
+    if (!sel) return;
+    const actual = sel.value;
+    sel.innerHTML = '<option value="">Sin LIVE (general)</option>' + (lives || []).map(l =>
+        `<option value="${l.live_id}">${escapeHtml(l.etiqueta)}${l.abierto ? ' · abierto' : ' · ' + escapeHtml(l.fecha || '')}</option>`
+    ).join('');
+    if (actual) sel.value = actual;
+}
+
+function pintarPorLive(d) {
+    const el = $('vf-por-live');
+    if (!el) return;
+    const lives = d.lives || [];
+    const sl = d.sin_live || {};
+    const slVentas = Number(sl.ventas || 0);
+    const slCobrado = Number(sl.cobrado || 0);
+    const slInv = Number(sl.invertido || 0);
+    const slGas = Number(sl.gastos || 0);
+    const haySinLive = Number(sl.prendas || 0) > 0 || slInv > 0 || slGas > 0;
+
+    if (!lives.length && !haySinLive) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const fila = (nombre, fecha, prendas, ventas, cobrado, invertido, gastos, ganancia, extra = '') => `
+        <tr${extra}>
+            <td>${nombre}${fecha ? `<div class="vl-nota">${escapeHtml(fecha)}</div>` : ''}</td>
+            <td>${prendas}</td>
+            <td>${formatearDinero(ventas)}</td>
+            <td>${formatearDinero(cobrado)}</td>
+            <td>${formatearDinero(invertido)}</td>
+            <td>${formatearDinero(gastos)}</td>
+            <td style="font-weight:800;color:${Number(ganancia) >= 0 ? '#8ce99a' : '#ff9f9f'};">${formatearDinero(ganancia)}</td>
+        </tr>`;
+
+    const filas = lives.map(l => fila(
+        escapeHtml(l.etiqueta) + (l.abierto ? ' <span style="color:#c77dff;font-size:.7rem;">● abierto</span>' : ''),
+        (String(l.etiqueta || '').includes(String(l.fecha || '---')) ? '' : (l.fecha || '')),
+        l.prendas || 0, l.ventas || 0, l.cobrado || 0,
+        l.invertido || 0, l.gastos || 0, l.ganancia || 0
+    )).join('');
+
+    const filaSin = haySinLive
+        ? fila('<span style="opacity:.85;">Sin LIVE (general)</span>', '', sl.prendas || 0, slVentas, slCobrado, slInv, slGas,
+            slCobrado - slInv - slGas, ' style="opacity:.85;"')
+        : '';
+
+    const totVentas = lives.reduce((a, l) => a + Number(l.ventas || 0), 0) + slVentas;
+    const totCobrado = lives.reduce((a, l) => a + Number(l.cobrado || 0), 0) + slCobrado;
+    const totInv = lives.reduce((a, l) => a + Number(l.invertido || 0), 0) + slInv;
+    const totGas = lives.reduce((a, l) => a + Number(l.gastos || 0), 0) + slGas;
+    const totPrendas = lives.reduce((a, l) => a + Number(l.prendas || 0), 0) + Number(sl.prendas || 0);
+
+    el.innerHTML = `
+        <div class="vl-grupo-titulo" style="margin-top:18px;"><span>💜 Ganancias por LIVE</span><span class="cnt">${lives.length}</span></div>
+        <div class="vl-card" style="padding:10px 16px;">
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            <table class="vl-tabla vf-tabla-live" style="min-width:620px;">
+                <thead><tr>
+                    <th>LIVE</th><th>Prendas</th><th>Ventas</th><th>Cobrado</th><th>Inversión</th><th>Gastos</th><th>Ganancia</th>
+                </tr></thead>
+                <tbody>
+                    ${filas}${filaSin}
+                    <tr style="border-top:1px solid rgba(255,255,255,.18);">
+                        <td style="font-weight:800;">TOTAL</td>
+                        <td style="font-weight:800;">${totPrendas}</td>
+                        <td style="font-weight:800;">${formatearDinero(totVentas)}</td>
+                        <td style="font-weight:800;">${formatearDinero(totCobrado)}</td>
+                        <td style="font-weight:800;">${formatearDinero(totInv)}</td>
+                        <td style="font-weight:800;">${formatearDinero(totGas)}</td>
+                        <td style="font-weight:800;color:${(totCobrado - totInv - totGas) >= 0 ? '#8ce99a' : '#ff9f9f'};">${formatearDinero(totCobrado - totInv - totGas)}</td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>
+            <div class="vl-nota" style="margin-top:10px;">
+                Cobrado = abonos de las prendas de ese LIVE. Ganancia = cobrado − inversión − gastos de ese LIVE.
+                Lo que no tiene LIVE asignado queda en "Sin LIVE" para que el total cuadre.
+            </div>
+        </div>`;
+}
+
 function pintarLista(gastos) {
     const lista = $('vf-lista');
     if (!gastos.length) {
@@ -128,7 +226,7 @@ function pintarLista(gastos) {
                         <tr>
                             <td>${escapeHtml(g.fecha || '')}</td>
                             <td>${g.tipo === 'inversion' ? '<span style="color:#ffa94d;">Inversión</span>' : '<span style="color:#ff9f9f;">Gasto</span>'}</td>
-                            <td>${escapeHtml(g.concepto)}</td>
+                            <td>${escapeHtml(g.concepto)}${g.live_etiqueta ? `<div class="vl-nota">LIVE: ${escapeHtml(g.live_etiqueta)}</div>` : ''}</td>
                             <td style="font-weight:700;">${formatearDinero(g.monto)}</td>
                             <td style="text-align:right;">
                                 <button class="vl-btn danger" data-gasto="${g.gasto_id}" data-concepto="${encodeURIComponent(g.concepto)}" type="button" style="padding:5px 10px;"><i class="fas fa-trash"></i></button>
@@ -155,7 +253,8 @@ async function agregarGasto() {
     const fecha = $('vf2-fecha').value || null;
     if (!concepto) { mostrarToast('Escribe el concepto', 'warning'); return; }
     if (!monto) { mostrarToast('Monto inválido', 'warning'); return; }
-    const res = await vlApi.agregarGasto(tipo, concepto, monto, fecha);
+    const liveId = ($('vf2-live') || {}).value || null;
+    const res = await vlApi.agregarGasto(tipo, concepto, monto, fecha, liveId);
     if (!res.ok) { mostrarToast(res.error || 'No se pudo registrar', 'error'); return; }
     mostrarToast((tipo === 'inversion' ? 'Inversión' : 'Gasto') + ' registrado', 'success');
     $('vf2-concepto').value = '';

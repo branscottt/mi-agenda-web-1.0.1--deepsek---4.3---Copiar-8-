@@ -1072,3 +1072,89 @@
             /* En táctil el aviso sigue siendo chico pero con alto de dedo (32px). */
             .vl-chip-quien { min-height: 32px; padding: 6px 10px; }
         }
+
+        /* ===== LIVE en móvil/tablet: formulario SIEMPRE visible =====
+           La tarjeta "Registrar venta" (mismo nodo, movido por JS) queda pegada
+           arriba para cargar nombre y precio sin bajar la página mientras se
+           responde el chat. En escritorio no cambia nada (el slot la devuelve). */
+        .vl-live-fija { display: none; }
+        @media (max-width: 860px) {
+            .vl-live-fija {
+                display: block;
+                position: sticky;
+                top: 0;
+                z-index: 6;
+                background: #0a0a0f;
+                padding: 8px 0 10px;
+                margin: -8px 0 12px;
+                border-bottom: 1px solid rgba(157, 78, 221, 0.22);
+            }
+            #lv-card-venta.vl-card {
+                margin: 0;
+                padding: 10px 12px;
+                border-radius: 16px;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 96px auto;
+                gap: 8px;
+                align-items: center;
+            }
+            #lv-card-venta > h2,
+            #lv-card-venta > .sub { display: none; }
+            #lv-card-venta > .vl-field { margin: 0; }
+            #lv-card-venta > .vl-field > label { display: none; }
+            #lv-card-venta .vl-input-wrap { border-radius: 12px; }
+            #lv-card-venta .vl-input { font-size: 1rem; font-weight: 600; padding: 11px 0; }
+            #lv-card-venta .vl-input-prefix { font-size: 1rem; padding: 0 2px 0 11px; }
+            #lv-card-venta .vl-input-paste { padding: 0 9px; }
+            #lv-card-venta > .vl-submit {
+                width: 46px;
+                min-width: 46px;
+                margin: 0;
+                padding: 12px 0;
+                font-size: 0;
+                border-radius: 12px;
+                box-shadow: 0 6px 18px rgba(157, 78, 221, 0.38);
+            }
+            #lv-card-venta > .vl-submit i { font-size: 1.05rem; }
+            #lv-card-venta > .vl-session {
+                grid-column: 1 / -1;
+                margin: 0;
+                padding: 7px 10px;
+                border-radius: 11px;
+            }
+            #lv-card-venta > .vl-session .live-tag { font-size: 0.78rem; }
+            #lv-card-venta > .vl-session .live-meta { font-size: 0.72rem; }
+            #lv-card-venta > .vl-session .vl-btn-ghost { padding: 5px 10px; font-size: 0.7rem; }
+            #lv-card-venta > .vl-ultima { grid-column: 1 / -1; margin: 0; font-size: 0.78rem; gap: 8px; }
+            #lv-card-venta > .vl-ultima .vl-btn-ghost { padding: 5px 9px; font-size: 0.7rem; }
+        }
+
+        /* El atributo hidden debe ganarle a las reglas de display de estos
+           bloques (si no, quedan cajas vacías visibles con borde). */
+        .vl-parecido[hidden],
+        .vl-sugerencias[hidden],
+        .vl-alert[hidden] { display: none !important; }
+
+        @media (max-width: 860px) {
+            /* La fila del LIVE activo, en UNA línea (tag + total + botón). */
+            #lv-card-venta > .vl-session {
+                flex-wrap: nowrap;
+                gap: 8px;
+                padding: 7px 10px;
+            }
+            #lv-card-venta > .vl-session .live-tag { flex: 0 0 auto; }
+            #lv-card-venta > .vl-session .live-meta {
+                flex: 1 1 auto; min-width: 0;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            #lv-card-venta > .vl-session .vl-btn-ghost { flex: 0 0 auto; white-space: nowrap; }
+        }
+
+        /* ===== Finanzas: formulario y tabla por LIVE en pantallas chicas ===== */
+        @media (max-width: 900px) {
+            .vf-form-grid { grid-template-columns: 1fr 1fr !important; }
+            .vf-form-grid > .vl-form-row:first-child { grid-column: span 1; }
+        }
+        @media (max-width: 520px) {
+            .vf-form-grid { grid-template-columns: 1fr !important; }
+        }

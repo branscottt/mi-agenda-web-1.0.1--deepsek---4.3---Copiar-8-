@@ -288,8 +288,10 @@ export const vlApi = {
     finanzasResumen: () => callRpc('vl_finanzas_resumen'),
 
     // ---- Finanzas / config ----
-    agregarGasto: (tipo, concepto, monto, fecha = null) =>
-        callRpc('vl_agregar_gasto', { p_tipo: tipo, p_concepto: concepto, p_monto: monto, p_fecha: fecha }),
+    // p_live_id = LIVE al que pertenece la inversión/gasto (opcional): es lo que
+    // permite ver la ganancia real de cada LIVE en Finanzas.
+    agregarGasto: (tipo, concepto, monto, fecha = null, liveId = null) =>
+        callRpc('vl_agregar_gasto', { p_tipo: tipo, p_concepto: concepto, p_monto: monto, p_fecha: fecha, p_live_id: liveId }),
     eliminarGasto: (gastoId) => callRpc('vl_eliminar_gasto', { p_gasto_id: gastoId }),
     guardarConfig: (params) => callRpc('vl_guardar_config', params),
 

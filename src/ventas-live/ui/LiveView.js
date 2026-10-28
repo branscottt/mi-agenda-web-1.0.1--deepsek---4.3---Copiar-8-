@@ -52,9 +52,13 @@ function $(id) { return document.getElementById(id); }
 function buildDOM() {
     const cont = $('vl-view-live');
     cont.innerHTML = `
+        <!-- Barra FIJA del formulario (solo móvil/tablet): el JS mueve aquí la
+             tarjeta "Registrar venta" para cargar prendas sin bajar la página. -->
+        <div class="vl-live-fija" id="lv-form-fija"></div>
         <div class="vl-live-grid">
             <div>
-                <div class="vl-card">
+                <div id="lv-form-slot">
+                <div class="vl-card" id="lv-card-venta">
                     <h2><i class="fas fa-bolt"></i> Registrar venta</h2>
                     <div class="sub">Escribe el usuario de TikTok y el precio. ¿TikTok no te deja copiar el nombre? Pega el enlace del perfil (clic derecho o mantener → Pegar) y se limpia solo. Enter = siguiente campo.</div>
                     <div class="vl-field vl-field-rel">
@@ -84,6 +88,7 @@ function buildDOM() {
                     </button>
                     <div class="vl-session" id="lv-session"></div>
                     <div class="vl-ultima" id="lv-ultima" style="display:none;"></div>
+                </div>
                 </div>
             </div>
             <div>
@@ -311,6 +316,32 @@ function buildDOM() {
     });
     $('lv-chat-conv').addEventListener('click', toggleConversaciones);
     $('lv-chat-bell').addEventListener('click', alternarAvisos);
+
+    // Formulario fijo en móvil/tablet (ver colocarFormularioLive).
+    if (!_mqFija && window.matchMedia) {
+        _mqFija = window.matchMedia('(max-width: 860px)');
+        const alCambiar = () => colocarFormularioLive();
+        if (_mqFija.addEventListener) _mqFija.addEventListener('change', alCambiar);
+        else if (_mqFija.addListener) _mqFija.addListener(alCambiar);
+    }
+    colocarFormularioLive();
+}
+
+// ── Formulario fijo en móvil/tablet ─────────────────────────────────
+// En pantallas ≤860px la tarjeta "Registrar venta" se MUEVE (mismo nodo: los
+// inputs y sus listeners siguen intactos) a la barra sticky de arriba del LIVE,
+// así se cargan prendas sin bajar la página mientras se responde el chat.
+// En escritorio vuelve a su columna, idéntica a siempre.
+let _mqFija = null;
+
+function colocarFormularioLive() {
+    const fija = $('lv-form-fija');
+    const slot = $('lv-form-slot');
+    const card = $('lv-card-venta');
+    if (!fija || !slot || !card) return;
+    const movil = window.matchMedia && window.matchMedia('(max-width: 860px)').matches;
+    const destino = movil ? fija : slot;
+    if (card.parentElement !== destino) destino.appendChild(card);
 }
 
 // ── Avisos de escritorio (qué pasó + qué hacer) ─────────────────────

@@ -130,8 +130,8 @@ function filaHTML(f) {
     const info = ESTADO_INFO[f.proceso_estado] || { label: f.proceso_estado || '' };
     const empresa = f.empresa ? (EMPRESA_LABEL[f.empresa] || f.empresa)
         : (COURIER_EMPRESA[f.courier] ? EMPRESA_LABEL[COURIER_EMPRESA[f.courier]] : 'por definir');
-    const direccionCompleta = [c.nombre_real || ('@' + c.tiktok_user), c.whatsapp, c.direccion, c.comuna, c.ciudad]
-        .filter(Boolean).join(', ');
+    // (La dirección sola quedó reemplazada por "Copiar datos", que incluye
+    // nombre, teléfono, correo y dirección en un bloque listo para el courier.)
 
     // Misma información que el diagrama de Procesos: estado + los puntos del
     // pedido (entrega / courier / pago / fecha) + qué hacer ahora.
@@ -160,6 +160,16 @@ function filaHTML(f) {
         ? '<span style="color:#ffc107;" title="Presencial sin fecha y sin pago: decide si liberas la prenda"><i class="fas fa-triangle-exclamation"></i> posible soltar prenda</span>'
         : '';
 
+    // Bloque listo para pegar en el courier / WhatsApp (una línea por dato).
+    const datosEnvioTexto = [
+        (c.nombre_real || ('@' + (c.tiktok_user || ''))),
+        '@' + (c.tiktok_user || ''),
+        c.whatsapp || c.contacto || '',
+        c.correo || '',
+        [c.direccion, c.comuna, c.ciudad].filter(Boolean).join(', '),
+        (f.empresa ? 'Courier: ' + (EMPRESA_LABEL[f.empresa] || f.empresa) : '')
+    ].filter(Boolean).join('\n');
+
     return `
         <div class="vl-fila" data-proceso="${f.proceso_id}">
             <div style="min-width:180px;">
@@ -170,6 +180,8 @@ function filaHTML(f) {
                 <div class="f-sub">
                     ${[c.direccion, c.comuna, c.ciudad].filter(Boolean).map(escapeHtml).join(' · ') || 'sin dirección registrada'}
                 </div>
+                ${c.correo ? `<div class="f-sub"><i class="fas fa-envelope" style="opacity:.6;"></i> ${escapeHtml(c.correo)}</div>` : ''}
+                ${c.datos_envio ? `<div class="f-sub" style="opacity:.75;" title="Lo que escribió el cliente en el chat"><i class="fas fa-comment-dots" style="opacity:.6;"></i> dijo: ${escapeHtml(String(c.datos_envio).slice(0, 120))}${String(c.datos_envio).length > 120 ? '…' : ''}</div>` : ''}
             </div>
             <div class="f-der">
                 <div class="f-datos">
@@ -189,7 +201,7 @@ function filaHTML(f) {
                     <button class="vl-btn" data-acc="chat" type="button"><i class="fas fa-comments"></i> Ver chat</button>
                     <button class="vl-btn" data-copiar="${encodeURIComponent('@' + (c.tiktok_user || '') + (c.nombre_real ? ' ' + c.nombre_real : ''))}" type="button"><i class="fas fa-copy"></i> Nombre</button>
                     <button class="vl-btn" data-copiar="${encodeURIComponent(c.whatsapp || '')}" type="button"><i class="fas fa-copy"></i> Teléfono</button>
-                    <button class="vl-btn" data-copiar="${encodeURIComponent(direccionCompleta)}" type="button"><i class="fas fa-copy"></i> Copiar dirección</button>
+                    <button class="vl-btn" data-copiar="${encodeURIComponent(datosEnvioTexto)}" type="button" title="Nombre, teléfono, correo y dirección para pegar en el courier"><i class="fas fa-clipboard-list"></i> Copiar datos</button>
                     ${f.empresa && EMPRESA_SITIOS[f.empresa]
                         ? `<button class="vl-btn" data-abrir="${EMPRESA_SITIOS[f.empresa]}" type="button"><i class="fas fa-external-link-alt"></i> ${escapeHtml(EMPRESA_LABEL[f.empresa])}</button>`
                         : ''}
