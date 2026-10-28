@@ -47,6 +47,7 @@ const VAPID_PUBLIC_KEY = 'BDPgk-hicFx7kZGvZK2cYvnV8azivt991eLtIJJXG7_MVxYtPMFEtK
 let _built = false;
 let _abierto = false;
 let _chatId = null;
+let _scrollLista = 0;        // dónde estaba la lista (al volver del chat se respeta)
 let _chatMeta = null;
 let _chats = [];
 // COLA DE ENVÍO (como WhatsApp: puedes seguir escribiendo mientras sale el
@@ -899,6 +900,13 @@ function renderLista() {
             </button>`;
     }).join('');
 
+    // Volver del chat entra con un fade corto y en el mismo punto del scroll:
+    // se siente instantáneo en vez de "recargar" la lista.
+    body.classList.remove('vld-volviendo');
+    void body.offsetWidth;                 // reinicia la animación
+    body.classList.add('vld-volviendo');
+    try { body.scrollTop = _scrollLista || 0; } catch (e) { /* noop */ }
+
     body.querySelectorAll('.vl-conv-item').forEach(b => {
         b.addEventListener('click', () => abrirChat(b.dataset.chat));
     });
@@ -946,6 +954,12 @@ function procesoChipsHtml(proc) {
 
 // ── Conversación abierta ────────────────────────────────────────────
 async function abrirChat(chatId, { sinChats = false } = {}) {
+    // Dónde estaba parado en la lista: al volver se muestra en el MISMO punto
+    // (antes saltaba al principio y se sentía como recargar).
+    if (!_chatId) {
+        const bl = $('vld-body');
+        if (bl) _scrollLista = bl.scrollTop;
+    }
     // Cambió de conversación: la cita elegida era del chat anterior (una cita
     // cruzada mandaría el mensaje equivocado).
     if (_responder && _chatId !== chatId) _responder.limpiar();

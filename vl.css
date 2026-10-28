@@ -1242,3 +1242,8 @@
         .vl-conv-item.con-pago { border-color: rgba(255, 193, 7, 0.35); }
         .vl-conv-item.con-pago.con-aviso { border-color: rgba(255, 193, 7, 0.5); }
         .vld-icon.activo { background: rgba(157, 78, 221, 0.25); color: #fff; }
+
+        /* ===== Volver del chat a la lista: entrada suave, sin salto ===== */
+        @keyframes vldVolver { from { opacity: 0.55; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .vld-body.vld-volviendo { animation: vldVolver 0.16s ease-out both; }
+        @media (prefers-reduced-motion: reduce) { .vld-body.vld-volviendo { animation: none; } }
