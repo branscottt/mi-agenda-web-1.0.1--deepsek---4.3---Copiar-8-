@@ -30,6 +30,8 @@ import {
 } from './accionesProceso.js';
 // Modal del proyecto para "＋ Prenda" (cierre explícito, nunca pierde datos).
 import { abrirModal, cerrarModal } from './vlModales.js';
+// Botón "atrás" del celular: cada estado del cajón es una capa del historial.
+import { abrirCapa, consumirCapa } from './vlAtras.js';
 
 // Refresco: el dueño reportó que "tarda en verse cuando llegó el mensaje".
 // 5 s con el chat abierto, 8 s el contador de la lista; además Realtime avisa
@@ -393,6 +395,9 @@ export function abrirConversaciones() {
     if (!_built) return;
     _abierto = true;
     limpiarTituloPendiente();   // al abrir, el aviso del título ya cumplió su función
+    // Capa del historial: con el cajón abierto, "atrás" lo cierra en vez de
+    // salir de Ventas Live.
+    abrirCapa('conv-drawer', () => { cerrarConversaciones(); });
     const el = $('vl-drawer');
     if (el) {
         el.classList.add('abierto');
@@ -442,6 +447,9 @@ export function cerrarConversaciones() {
     const el = $('vl-drawer');
     if (el) { el.classList.remove('abierto'); el.setAttribute('aria-hidden', 'true'); }
     if (_timerAbierto) { clearInterval(_timerAbierto); _timerAbierto = null; }
+    // Consume la entrada del historial del cajón (y la del chat si estaba
+    // abierto): cerrado por la X, el próximo "atrás" sale de la página.
+    consumirCapa('conv-drawer');
 }
 
 function iniciarContadorBadge() {
@@ -895,6 +903,10 @@ async function abrirChat(chatId, { sinChats = false } = {}) {
     // Cambió de conversación: la cita elegida era del chat anterior (una cita
     // cruzada mandaría el mensaje equivocado).
     if (_responder && _chatId !== chatId) _responder.limpiar();
+    // Primera conversación que se abre (veníamos de la lista): capa propia del
+    // historial. Pasar de un chat a otro NO apila otra: "atrás" vuelve a la
+    // lista, como en WhatsApp.
+    if (!_chatId) abrirCapa('conv-chat', () => { volverALista(); });
     // Otro chat: el "ya marcado como leído" arranca de cero y el bloque fijo se
     // vuelve a pintar (las burbujas del chat anterior no sirven).
     if (_chatId !== chatId) { _leidoWamid = ''; _fijoPintado = null; }
@@ -1211,6 +1223,8 @@ async function abrirHojaQuien() {
     const menu = $('vld-menu');
     if (menu) menu.hidden = true;
     hoja.hidden = false;
+    // Capa propia: "atrás" cierra la hoja y deja la conversación a la vista.
+    abrirCapa('conv-quien', () => cerrarHojaQuienVisual());
     // Si todavía no está vinculado, la hoja arranca con el buscador a la vista.
     await pintarQuienEs($('vld-hoja-cuerpo'), _chatId, () => {
         cerrarHojaQuien();
@@ -1219,9 +1233,15 @@ async function abrirHojaQuien() {
     });
 }
 
-function cerrarHojaQuien() {
+// Cierre SOLO visual (sin tocar el historial): lo usa volverALista.
+function cerrarHojaQuienVisual() {
     const h = $('vld-hoja');
     if (h) h.hidden = true;
+}
+
+function cerrarHojaQuien() {
+    cerrarHojaQuienVisual();
+    consumirCapa('conv-quien');
 }
 
 // ── "＋ Prenda": cargar al pedido la prenda que el cliente confirmó ────────────
@@ -1399,14 +1419,26 @@ function irABusqueda(delta) {
 function abrirBusqueda(abrir) {
     const barra = $('vld-busq');
     if (!barra) return;
-    barra.hidden = !abrir;
-    const inp = $('vld-busq-inp');
-    const nEl = $('vld-busq-n');
     if (abrir) {
+        barra.hidden = false;
+        // Capa propia: "atrás" cierra la barra de búsqueda, no la conversación.
+        abrirCapa('conv-buscar', () => cerrarBusquedaVisual());
+        const inp = $('vld-busq-inp');
         if (inp) inp.focus();
         aplicarBusqueda();
         return;
     }
+    cerrarBusquedaVisual();
+    consumirCapa('conv-buscar');
+}
+
+// Cierre SOLO visual (sin tocar el historial): lo usa volverALista, que ya
+// consume de una sola vez todas las capas que quedan por encima del chat.
+function cerrarBusquedaVisual() {
+    const barra = $('vld-busq');
+    if (barra) barra.hidden = true;
+    const inp = $('vld-busq-inp');
+    const nEl = $('vld-busq-n');
     _busq = { texto: '', i: 0, n: 0, chat: _chatId };
     if (inp) inp.value = '';
     if (nEl) nEl.textContent = '0 de 0';
@@ -1414,13 +1446,14 @@ function abrirBusqueda(abrir) {
 }
 
 function volverALista() {
-    abrirBusqueda(false);
+    cerrarBusquedaVisual();
     const lupa = $('vld-buscar-btn');
     if (lupa) lupa.style.display = 'none';
     const menuBtn = $('vld-menu-btn');
     if (menuBtn) menuBtn.style.display = 'none';
     const menu = $('vld-menu');
     if (menu) menu.hidden = true;
+    cerrarHojaQuienVisual();
     if (_responder) _responder.limpiar();
     _chatId = null;
     _chatMeta = null;
@@ -1443,6 +1476,9 @@ function volverALista() {
     if (foot) foot.style.display = 'none';
     if (input) input.value = '';
     renderLista();
+    // Consume la entrada del chat (y la de búsqueda/hoja si quedaban arriba):
+    // al volver a la lista, "atrás" cierra el cajón.
+    consumirCapa('conv-chat');
 }
 
 // ── Enviar / modo ───────────────────────────────────────────────────

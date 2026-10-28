@@ -9,6 +9,7 @@
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { vlApi } from '../domain/vlApi.js';
 import { abrirModal, cerrarModal } from './vlModales.js';
+import { abrirCapa, consumirCapa, hayCapa, reemplazarCapa } from './vlAtras.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
 import { getAppConfig } from '../../shared/infrastructure/config.js';
@@ -166,11 +167,41 @@ function wireNav() {
     if (!nav) return;
     nav.querySelectorAll('.vl-tab').forEach(tab => {
         tab.addEventListener('click', () => {
+            const destino = tab.dataset.view;
             nav.querySelectorAll('.vl-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            activarVista(tab.dataset.view);
+            aplicarCapaDeSeccion(destino);
+            activarVista(destino);
         });
     });
+}
+
+// ── Pestañas y botón "atrás" del celular ────────────────────────────────
+// Estar en Procesos/Clientes/Envíos/Finanzas es una capa del historial:
+// "atrás" devuelve a LIVE (no sale de Ventas Live). Si había una ficha de
+// cliente abierta, se cierra junto con el cambio para no volver a una ficha
+// vieja al regresar a la pestaña Clientes.
+function aplicarCapaDeSeccion(destino) {
+    const habiaFicha = hayCapa('cli-ficha');
+    if (habiaFicha) {
+        import('./ClientesView.js').then(m => {
+            if (typeof m.cerrarFichaVisual === 'function') m.cerrarFichaVisual();
+        }).catch(() => { /* la pestaña se encarga al inicializarse */ });
+    }
+    if (destino === 'live') {
+        if (hayCapa('vl-seccion')) consumirCapa('vl-seccion');
+        else if (habiaFicha) reemplazarCapa('cli-ficha', null, null);
+        return;
+    }
+    if (habiaFicha) reemplazarCapa('cli-ficha', 'vl-seccion', irAVistaLive);
+    else if (!hayCapa('vl-seccion')) abrirCapa('vl-seccion', irAVistaLive);
+}
+
+// Vuelta a LIVE pedida por el botón "atrás" (cierre natural de la capa).
+function irAVistaLive() {
+    const nav = document.getElementById('vl-nav');
+    if (nav) nav.querySelectorAll('.vl-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'live'));
+    activarVista('live');
 }
 
 // Nombre y WhatsApp del espacio (propios de Ventas Live)

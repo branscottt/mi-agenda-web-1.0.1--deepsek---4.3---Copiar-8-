@@ -5,6 +5,7 @@
 
 import { vlApi, CATEGORIA_INFO, ESTADO_INFO } from '../domain/vlApi.js';
 import { abrirModal, cerrarModal } from './vlModales.js';
+import { abrirCapa, consumirCapa } from './vlAtras.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
 import {
@@ -54,13 +55,28 @@ export function abrirFicha(clienteId) {
     _modo = 'ficha';
     _clienteId = clienteId;
     if (!_built) return; // la pestaña se inicializa antes de llamar
+    // Capa del historial: con la ficha abierta, "atrás" vuelve a la lista de
+    // clientes (no se va de Ventas Live).
+    abrirCapa('cli-ficha', () => volverListaVisual());
     $('vc-lista').closest('.vl-card').style.display = 'none';
     $('vc-ficha').style.display = 'block';
     $('vc-ficha').innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando ficha…</div>';
     cargarFicha(clienteId);
 }
 
+/** Cierra la ficha dejando la lista (lo usa el cambio de pestaña). */
+export function cerrarFichaVisual() {
+    if (_modo === 'ficha') volverListaVisual();
+}
+
 function volverLista() {
+    volverListaVisual();
+    // Cierre por la UI (botón Volver / eliminar): consume la entrada del
+    // historial para que el próximo "atrás" no quede mudo.
+    consumirCapa('cli-ficha');
+}
+
+function volverListaVisual() {
     _modo = 'lista';
     _clienteId = null;
     $('vc-ficha').style.display = 'none';
