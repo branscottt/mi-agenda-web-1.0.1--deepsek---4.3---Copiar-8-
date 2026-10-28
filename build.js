@@ -116,6 +116,14 @@ if (fs.existsSync('sw.js')) {
     console.log('   ✅ dist/sw.js copied');
 }
 
+// 4-bis-0. Copiar pwa-install.js (banner "Instalar app" en móvil/tablet)
+// No se bundlea: se carga con <script defer src="/pwa-install.js?v=N">.
+// Si se edita, subir el ?v en los HTML (el SW sirve los .js con Network First).
+if (fs.existsSync('pwa-install.js')) {
+    fs.copyFileSync('pwa-install.js', path.join('dist', 'pwa-install.js'));
+    console.log('   ✅ dist/pwa-install.js copied');
+}
+
 // 4-bis. Copiar iconos (notificaciones push, favicon, apple-touch, PWA)
 if (fs.existsSync('icons')) {
     const iconsOut = path.join('dist', 'icons');
