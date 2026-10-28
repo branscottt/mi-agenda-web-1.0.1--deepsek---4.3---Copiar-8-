@@ -392,6 +392,16 @@ export function initLiveView() {
 // Se llama cada vez que se activa la pestaña LIVE
 export function activarLiveView() {
     if (!_built) return;
+    // En PC, al entrar a LIVE el cursor queda en "Usuario TikTok" para cargar la
+    // prenda de inmediato. No roba el foco si ya estás escribiendo en otro campo.
+    if (window.matchMedia && window.matchMedia('(min-width: 861px)').matches) {
+        setTimeout(() => {
+            const u = $('lv-usuario');
+            const activo = document.activeElement;
+            const escribiendo = activo && activo.matches && activo.matches('input, textarea');
+            if (u && !escribiendo) u.focus();
+        }, 120);
+    }
     refrescarTodo();
     iniciarPollChat();
     refrescarContador();

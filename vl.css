@@ -1182,3 +1182,24 @@
             .vf-tabla-live td:first-child, .vf-tabla-live th:first-child { white-space: normal; min-width: 120px; }
             .vf-solo-movil { display: block; font-size: 0.66rem; line-height: 1.35; }
         }
+
+        /* ===== LIVE en PC: "Registrar venta" es lo principal y queda FIJO =====
+           En escritorio la columna izquierda se pega arriba (sticky) para que el
+           formulario no se pierda al bajar por el chat, y la tarjeta gana peso
+           visual (borde morado, título e inputs más grandes, botón protagonista). */
+        @media (min-width: 861px) {
+            .vl-live-grid > div:first-child {
+                position: sticky;
+                top: 16px;
+                align-self: start;
+            }
+            #lv-card-venta.vl-card {
+                border-color: rgba(157, 78, 221, 0.38);
+                box-shadow: 0 16px 44px rgba(157, 78, 221, 0.16), 0 8px 32px rgba(0, 0, 0, 0.35);
+            }
+            #lv-card-venta h2 { font-size: 1.32rem; letter-spacing: -0.3px; }
+            #lv-card-venta .vl-field label { font-size: 0.84rem; }
+            #lv-card-venta .vl-input { font-size: 1.45rem; padding: 17px 4px; }
+            #lv-card-venta .vl-input-prefix { font-size: 1.3rem; }
+            #lv-card-venta > .vl-submit { font-size: 1.2rem; padding: 20px; }
+        }
