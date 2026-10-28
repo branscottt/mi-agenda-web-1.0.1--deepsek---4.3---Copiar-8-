@@ -1234,3 +1234,11 @@
         @media (min-width: 861px) {
             #lv-card-venta > .sub { -webkit-line-clamp: 2; }
         }
+
+        /* ===== Chats: chips de pago (quién pagó / falta confirmar / falta entregar) ===== */
+        .vl-conv-chip.pago-alerta { background: rgba(255, 193, 7, 0.16); border: 1px solid rgba(255, 193, 7, 0.45); color: #ffd43b; }
+        .vl-conv-chip.pago-listo  { background: rgba(45, 212, 167, 0.14); border: 1px solid rgba(45, 212, 167, 0.45); color: #63e6be; }
+        .vl-conv-chip.pago-live   { background: rgba(157, 78, 221, 0.18); border: 1px solid rgba(157, 78, 221, 0.45); color: #d0bfff; }
+        .vl-conv-item.con-pago { border-color: rgba(255, 193, 7, 0.35); }
+        .vl-conv-item.con-pago.con-aviso { border-color: rgba(255, 193, 7, 0.5); }
+        .vld-icon.activo { background: rgba(157, 78, 221, 0.25); color: #fff; }

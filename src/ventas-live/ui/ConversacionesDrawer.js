@@ -70,6 +70,7 @@ let _avisosVistos = null;    // null = primera carga: no notificar lo ya existen
 let _sinLeerPrev = 0;
 let _verOcultos = false;     // mostrar también los chats ocultos (no-venta)
 let _verArchivados = false;  // mostrar también los chats archivados
+let _verPagos = false;       // ver SOLO los chats con algo de pago pendiente
 let _canalRt = null;         // canal Realtime (mensajes al instante)
 let _visibilidad = null;     // listener de "volviste a la pestaña"
 let _audioCtx = null;        // WebAudio para el pitido de alarma
@@ -109,6 +110,9 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 </button>
                 <button class="vld-icon" id="vld-archivados" type="button" title="Ver chats archivados" style="display:none;">
                     <i class="fas fa-box-archive"></i>
+                </button>
+                <button class="vld-icon" id="vld-pagos" type="button" title="Ver solo los chats con pagos por revisar o entregas pendientes" style="display:none;">
+                    <i class="fas fa-money-bill-wave"></i>
                 </button>
                 <!-- Estos tres botones ya NO se ven: su acción vive en el menú ⋯.
                      Se dejan en el DOM (ocultos) porque el código de la lista y de
@@ -185,6 +189,7 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-volver').addEventListener('click', volverALista);
         $('vld-ocultos').addEventListener('click', toggleOcultos);
         $('vld-archivados').addEventListener('click', toggleArchivados);
+        $('vld-pagos').addEventListener('click', togglePagos);
         $('vld-enviar').addEventListener('click', enviar);
 
         // ── Menú ⋯ (arriba a la derecha): lo de esta conversación en un solo lugar
@@ -762,7 +767,37 @@ async function cargarChats({ silencioso = false } = {}) {
 
 // Chats que se muestran: los ocultos (no-venta) solo si el ojo está activo.
 function chatsVisibles() {
-    return _chats.filter(c => (_verOcultos || !c.oculto) && (_verArchivados || !c.archivado));
+    return _chats.filter(c =>
+        (_verOcultos || !c.oculto) &&
+        (_verArchivados || !c.archivado) &&
+        (!_verPagos || pagoPideAtencion(c))
+    );
+}
+
+// ¿Este chat pide atención por pagos/entregas? (lo usan el filtro y el chip)
+function pagoPideAtencion(c) {
+    return !!(c && (c.pago_por_confirmar || c.entrega_pendiente || c.pago_en_ultimo_live));
+}
+
+// Chip de pago del chat: primero lo urgente (confirmar), luego entregar y por
+// último el dato del último LIVE. Nunca rojo: es informativo.
+function pagoChip(c) {
+    if (!c) return '';
+    const dinero = (v) => formatearDinero(v);
+    if (c.pago_por_confirmar) {
+        const d = Number(c.pago_abonado || 0) > 0
+            ? 'Ya abonó ' + dinero(c.pago_abonado) + ' de ' + dinero(c.pago_total)
+            : 'Dice que pagó / mandó comprobante';
+        return `<span class="vl-conv-chip pago-alerta" title="Revisa tu cuenta y, si está el pago, aprieta Confirmar pago en el chat. ${escapeHtml(d)}">💸 Falta confirmar pago</span>`;
+    }
+    if (c.entrega_pendiente) {
+        const t = c.entrega_tipo === 'presencial' ? 'entrega presencial' : (c.entrega_tipo === 'envio' ? 'envío' : 'entrega');
+        return `<span class="vl-conv-chip pago-listo" title="Ya pagó ${dinero(c.pago_total)}: falta la ${t}">✅ Pagó · falta ${escapeHtml(t)}</span>`;
+    }
+    if (c.pago_en_ultimo_live) {
+        return `<span class="vl-conv-chip pago-live" title="Tiene un pago del ${escapeHtml(c.ultimo_live_etiqueta || 'último LIVE')}">💜 Pagó en el último LIVE</span>`;
+    }
+    return '';
 }
 
 /** Cuántos chats archivados hay (para el botón "Ver archivados"). */
@@ -787,6 +822,17 @@ function renderLista() {
         ojo.style.display = 'inline-flex';
         ojo.classList.toggle('activo', _verOcultos);
         ojo.title = _verOcultos ? 'Ocultar los chats no-venta' : 'Ver chats ocultos';
+    }
+    // Botón "Pagos": aparece si hay chats con algo de dinero pendiente y filtra.
+    const pagosBtn = $('vld-pagos');
+    if (pagosBtn) {
+        const nPagos = _chats.filter(c => (_verOcultos || !c.oculto) && pagoPideAtencion(c)).length;
+        pagosBtn.style.display = nPagos > 0 ? 'inline-flex' : 'none';
+        pagosBtn.classList.toggle('activo', _verPagos);
+        pagosBtn.title = _verPagos ? 'Ver todos los chats' : `Ver solo pagos por revisar / entregas (${nPagos})`;
+        pagosBtn.innerHTML = _verPagos
+            ? '<i class="fas fa-money-bill-wave"></i> <span style="font-size:0.72rem;">todos</span>'
+            : `<i class="fas fa-money-bill-wave"></i> <span style="font-size:0.72rem;">${nPagos}</span>`;
     }
     // Botón "Ver archivados": aparece solo si hay alguno, con cuántos hay.
     const archBtn = $('vld-archivados');
@@ -836,7 +882,7 @@ function renderLista() {
         ].join('');
 
         return `
-            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${c.oculto ? ' oculto' : ''}${c.fijado ? ' fijada' : ''}${tuTurno}" data-chat="${escapeHtml(c.id)}" type="button">
+            <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${pagoPideAtencion(c) ? ' con-pago' : ''}${c.oculto ? ' oculto' : ''}${c.fijado ? ' fijada' : ''}${tuTurno}" data-chat="${escapeHtml(c.id)}" type="button">
                 <div class="vl-conv-top">
                     <span class="vl-conv-nombre">${marcas}${escapeHtml(nombre)}</span>
                     <span class="vl-conv-hora">${escapeHtml(fmtHora(c.ultimo_en))}</span>
@@ -846,7 +892,7 @@ function renderLista() {
                 ${quien}
                 ${procesoChips(c.proceso, escapeHtml)}
                 <div class="vl-conv-foot">
-                    ${aviso}<span class="vl-conv-chip">${escapeHtml(ESTADO_CHAT[c.estado] || c.estado)}</span>
+                    ${pagoChip(c)}${aviso}<span class="vl-conv-chip">${escapeHtml(ESTADO_CHAT[c.estado] || c.estado)}</span>
                     ${c.oculto ? '<span class="vl-conv-chip oculto">🙈 Oculto</span>' : ''}
                     ${modo}${noLeido}
                 </div>
@@ -1166,6 +1212,14 @@ function toggleArchivados() {
     _verArchivados = !_verArchivados;
     renderLista();
     mostrarToast(_verArchivados ? 'Mostrando también los archivados' : 'Archivados ocultos', 'success');
+}
+
+// Ver SOLO los chats que piden atención por dinero: falta confirmar un pago,
+// ya pagó y falta entregarle, o pagó en el último LIVE.
+function togglePagos() {
+    _verPagos = !_verPagos;
+    renderLista();
+    mostrarToast(_verPagos ? 'Mostrando solo los chats con pagos por revisar / entregas' : 'Mostrando todos los chats', 'success');
 }
 
 function toggleOcultos() {
