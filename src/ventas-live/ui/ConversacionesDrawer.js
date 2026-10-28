@@ -1056,10 +1056,16 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         aplicarBusqueda();
         if (modo === 'igual' && silencioso) { autoScrollAbajo(body); return; }
     } else {
+        // PRESERVAR EL LUGAR DE LECTURA: reescribir el contenedor devuelve el scroll
+        // al principio (se sentía como si el chat "volviera solo" cada 5 s). Se
+        // guarda dónde estaba y, si no estaba abajo, se devuelve exactamente ahí.
+        const estabaAbajo = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+        const previo = body.scrollTop;
         body.innerHTML = fijoHtml + `<div class="vld-hilo" id="vld-hilo"></div>`;
         pintarHilo($('vld-hilo'), mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
         aplicarBusqueda();
         _fijoPintado = fijoHtml;
+        if (!estabaAbajo) body.scrollTop = previo;
     }
 
     // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
