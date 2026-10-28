@@ -33,7 +33,7 @@ function parseMonto(raw) {
  *  2) le confirma al cliente por WhatsApp que su pago quedó anotado.
  * Nada de esto es crítico: si falla, no se molesta al usuario con errores.
  */
-async function trasConfirmarPago(proceso) {
+async function trasConfirmarPago(proceso, pago) {
     const clienteId = (proceso && proceso.cliente && proceso.cliente.cliente_id)
         || (proceso && proceso.cliente_id) || null;
 
@@ -53,9 +53,31 @@ async function trasConfirmarPago(proceso) {
         const chat = await vlApi.chatPorCliente(clienteId);
         const chatId = (chat && chat.ok && chat.data) ? chat.data.chat_id : null;
         if (chatId) {
-            await vlApi.enviarManual(chatId, 'pago confirmado ✓ gracias bonit@, ya quedó anotado 💜');
+            const saldo = Number((pago && pago.saldo_restante) || 0);
+            if (saldo > 0) {
+                await vlApi.enviarManual(chatId,
+                    'gracias por tu abono bonit@ 💜 te queda un saldo de ' + formatearDinero(saldo));
+            } else {
+                await vlApi.enviarManual(chatId, await textoPagoConfirmado());
+            }
         }
     } catch (_) { /* si Meta no deja enviar, no se avisa */ }
+}
+
+// Mensaje al cliente cuando su pago queda confirmado. Lo edita el negocio en
+// Configuración → Respuestas del bot (clave 'pago_confirmado'). Si no existe o
+// falla la lectura, se usa el texto de respaldo.
+async function textoPagoConfirmado() {
+    const RESPALDO = 'muchas gracias por tu compra bonit@ 💜';
+    try {
+        const res = await vlApi.respuestasListar();
+        const momentos = (res && res.ok && res.data && res.data.momentos) || [];
+        const m = momentos.find(x => x && x.clave === 'pago_confirmado');
+        const lineas = String((m && m.cuerpo) || '')
+            .split('\n').map(s => s.trim()).filter(Boolean);
+        if (lineas.length) return lineas[Math.floor(Math.random() * lineas.length)];
+    } catch (_) { /* best-effort */ }
+    return RESPALDO;
 }
 
 // ---------- Confirmar pago (completo / parcial / presencial) ----------
@@ -108,13 +130,14 @@ export function modalConfirmarPago(proceso, onDone) {
                 const res = await vlApi.confirmarPago(proceso.proceso_id, monto, metodoEl.value, notaEl.value.trim());
                 btn.disabled = false;
                 if (!res.ok) { mostrarToast(res.error || 'No se pudo confirmar', 'error'); return; }
+                const pago = res.data || {};
                 cerrarModal(true);
                 mostrarToast('Pago de ' + formatearDinero(monto) + ' registrado', 'success');
 
                 // Al quedar pagado y sin saldo, el proceso pasa SOLO a la etapa de
                 // entrega que el cliente ya eligió en el chat (así los botones de
                 // "Marcar entregado" / "Envío creado" quedan a mano sin repetir el paso).
-                await trasConfirmarPago(proceso);
+                await trasConfirmarPago(proceso, pago);
                 onDone();
             }
         }

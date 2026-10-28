@@ -141,6 +141,11 @@ export const AVISO_INFO = {
         label: 'Consulta de la entrega',
         accion: 'El pago ya está confirmado: acuerda con el cliente dónde y cuándo entregar.'
     },
+    // ciclo 20261104: el pedido ya está pagado y sin deuda: el bot calla.
+    post_pago: {
+        label: 'Escribió después de pagar',
+        accion: 'El pedido ya está pagado y no debe nada. El bot no responde a propósito: si es de la entrega, coordínala tú; si es una compra nueva, cárgala en el LIVE.'
+    },
     foto_post_pago: {
         label: 'Foto después del pago',
         accion: 'El cliente mandó una foto después de pagar: mírala en el chat (puede ser de la entrega o algo que quiere comprar).'
@@ -179,8 +184,8 @@ export const AVISOS_RESPUESTA = [
     'no_entendido', 'usuario_no_encontrado', 'usuario_no_confirmado', 'sin_cliente',
     'comprobante', 'pago', 'foto_dudosa', 'sin_pedido', 'soltar_prenda', 'usuario_sugerido',
     'no_puede_pagar', 'fecha_coordinacion',
-    // ciclo 20261097/98: también los resuelve una persona.
-    'pregunta', 'entrega_consulta', 'foto_post_pago', 'media'
+    // ciclo 20261097/98/20261104: también los resuelve una persona.
+    'pregunta', 'entrega_consulta', 'foto_post_pago', 'media', 'post_pago'
 ];
 
 // Quién tiene que mover este chat (se ve en la lista, sin abrirlo):
