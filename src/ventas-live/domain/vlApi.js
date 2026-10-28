@@ -285,6 +285,12 @@ export const vlApi = {
     enviosPendientes: () => callRpc('vl_envios_pendientes'),
     configFaltantes: () => callRpc('vl_config_faltantes'),
     dashboard: () => callRpc('vl_dashboard'),
+    // Lo YA VENDIDO del LIVE abierto: solo prendas pagadas (pagada/entregada),
+    // con su lista. Lo adjudicado sin pagar llega aparte como "sin pagar".
+    liveVendido: () => callRpc('vl_live_vendido'),
+    // Prendas compradas de días anteriores por las que el cliente nunca
+    // escribió: aviso para decidir si se liberan.
+    prendasSinContacto: () => callRpc('vl_prendas_sin_contacto'),
     finanzasResumen: () => callRpc('vl_finanzas_resumen'),
 
     // ---- Finanzas / config ----

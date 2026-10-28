@@ -1136,18 +1136,21 @@
         .vl-alert[hidden] { display: none !important; }
 
         @media (max-width: 860px) {
-            /* La fila del LIVE activo, en UNA línea (tag + total + botón). */
+            /* La fila del LIVE activo: tag + botón arriba y el dato del vendido
+               en su propia línea (antes se cortaba con "…" y no se leía
+               cuántas prendas pagadas llevaba el LIVE). */
             #lv-card-venta > .vl-session {
-                flex-wrap: nowrap;
-                gap: 8px;
+                flex-wrap: wrap;
+                gap: 4px 8px;
                 padding: 7px 10px;
             }
-            #lv-card-venta > .vl-session .live-tag { flex: 0 0 auto; }
+            #lv-card-venta > .vl-session .live-tag { flex: 1 1 auto; min-width: 0; }
             #lv-card-venta > .vl-session .live-meta {
-                flex: 1 1 auto; min-width: 0;
-                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                flex: 1 1 100%; order: 2; min-width: 0;
+                white-space: normal; overflow: visible; text-overflow: clip;
+                line-height: 1.25;
             }
-            #lv-card-venta > .vl-session .vl-btn-ghost { flex: 0 0 auto; white-space: nowrap; }
+            #lv-card-venta > .vl-session .vl-btn-ghost { flex: 0 0 auto; white-space: nowrap; order: 1; }
         }
 
         /* ===== Finanzas: formulario y tabla por LIVE en pantallas chicas ===== */
@@ -1247,3 +1250,56 @@
         @keyframes vldVolver { from { opacity: 0.55; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         .vld-body.vld-volviendo { animation: vldVolver 0.16s ease-out both; }
         @media (prefers-reduced-motion: reduce) { .vld-body.vld-volviendo { animation: none; } }
+
+        /* ===== Vendido en el LIVE (solo prendas pagadas) ===== */
+        .live-meta-2 { color: #8b93a1; font-weight: 600; }
+        .vl-card-vendido { margin-top: 16px; }
+        .vl-vendido-tot {
+            display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+            margin: 10px 0 8px;
+        }
+        .vl-vendido-money { font-size: 1.7rem; font-weight: 900; color: #63e6be; letter-spacing: -0.5px; }
+        .vl-vendido-n { font-size: 0.85rem; font-weight: 700; color: #ced4da; }
+        .vl-vendido-lista { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+        .vl-vendido-fila {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 10px; border-radius: 10px;
+            background: rgba(255, 255, 255, 0.035);
+            border: 1px solid rgba(45, 212, 167, 0.22);
+            font-size: 0.88rem;
+        }
+        .vl-vendido-fila .quien { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e9ecef; font-weight: 700; }
+        .vl-vendido-fila .precio { color: #63e6be; font-weight: 800; white-space: nowrap; }
+        .vl-vendido-chip {
+            font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+            padding: 2px 6px; border-radius: 6px;
+            background: rgba(76, 139, 245, 0.18); border: 1px solid rgba(76, 139, 245, 0.45); color: #8bb8ff;
+        }
+        .vl-vendido-vacio { font-size: 0.85rem; color: #8b93a1; padding: 6px 2px; }
+        .vl-vendido-nota {
+            margin-top: 9px; font-size: 0.78rem; color: #ffd43b;
+            background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 9px; padding: 7px 10px;
+        }
+
+        /* ===== Compraron y no escribieron (aviso para liberar prenda) ===== */
+        .vl-card-liberar { margin-top: 16px; border-color: rgba(255, 193, 7, 0.35); }
+        .vl-liberar-fila {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 10px 12px; border-radius: 11px; margin-top: 9px;
+            background: rgba(255, 193, 7, 0.06);
+            border: 1px solid rgba(255, 193, 7, 0.28);
+        }
+        .vl-liberar-info { flex: 1 1 180px; min-width: 0; }
+        .vl-liberar-info .linea1 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .vl-liberar-info .linea1 b { color: #e9ecef; font-size: 0.92rem; }
+        .vl-liberar-monto { color: #ffd43b; font-weight: 800; font-size: 0.9rem; }
+        .vl-liberar-info .linea2 { font-size: 0.76rem; color: #adb5bd; margin-top: 2px; }
+        .vl-liberar-acc { display: flex; align-items: center; gap: 6px; }
+        .vl-liberar-acc .vl-btn { padding: 7px 10px; font-size: 0.78rem; }
+
+        @media (max-width: 860px) {
+            .vl-vendido-money { font-size: 1.5rem; }
+            .vl-vendido-lista { max-height: 210px; }
+            .vl-liberar-acc { width: 100%; justify-content: flex-end; }
+        }

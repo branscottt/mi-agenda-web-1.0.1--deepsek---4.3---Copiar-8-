@@ -10,7 +10,7 @@ import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
 import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
-import { accionesChatHtml, bindAccionesChat, procesoParaModales } from './accionesProceso.js';
+import { accionesChatHtml, bindAccionesChat, procesoParaModales, modalLiberarItems } from './accionesProceso.js';
 import {
     initConversacionesDrawer, refrescarContador, toggleConversaciones,
     notificacionesEstado, activarNotificaciones, desactivarNotificaciones
@@ -89,6 +89,23 @@ function buildDOM() {
                     <div class="vl-session" id="lv-session"></div>
                     <div class="vl-ultima" id="lv-ultima" style="display:none;"></div>
                 </div>
+                </div>
+                <!-- Lo YA VENDIDO del LIVE abierto: solo prendas pagadas. Las que
+                     se compraron y no se pagaron van aparte, para no inflar el
+                     "vendido" que el dueño usa para saber cómo va el LIVE. -->
+                <div class="vl-card vl-card-vendido" id="lv-card-vendido" hidden>
+                    <h2><i class="fas fa-bag-shopping"></i> Vendido en este LIVE</h2>
+                    <div class="sub">Solo prendas <b>ya pagadas</b>: es lo que llevas vendido de verdad en este LIVE.</div>
+                    <div class="vl-vendido-tot" id="lv-vendido-tot"></div>
+                    <div class="vl-vendido-lista" id="lv-vendido-lista"></div>
+                    <div class="vl-vendido-nota" id="lv-vendido-nota" hidden></div>
+                </div>
+                <!-- Aviso del día siguiente: compraron la prenda y nunca
+                     escribieron. Se decide ahí mismo si se libera. -->
+                <div class="vl-card vl-card-liberar" id="lv-card-liberar" hidden>
+                    <h2><i class="fas fa-hourglass-half"></i> Compraron y no escribieron</h2>
+                    <div class="sub">Prendas de días anteriores sin ningún mensaje del cliente. Revísalas: si no las quiere, libéralas para venderlas de nuevo.</div>
+                    <div id="lv-liberar-lista"></div>
                 </div>
             </div>
             <div>
@@ -426,15 +443,23 @@ function iniciarPollChat() {
 }
 
 async function refrescarTodo() {
-    const res = await vlApi.dashboard();
+    // En paralelo: el panel general, lo vendido en el LIVE abierto (solo pagadas)
+    // y las prendas compradas sin contacto (aviso del día siguiente).
+    const [res, resVend, resLib] = await Promise.all([
+        vlApi.dashboard(),
+        vlApi.liveVendido().catch(() => ({ ok: false })),
+        vlApi.prendasSinContacto().catch(() => ({ ok: false })),
+    ]);
+    pintarVendido(resVend && resVend.ok ? resVend.data : null);
+    pintarSinContacto(resLib && resLib.ok ? resLib.data : null);
     if (!res.ok) {
-        pintarSession(null, 0, 0);
+        pintarSession(null, null);
         return;
     }
     const d = res.data || {};
     const live = (d.live_actual && d.live_actual.live_id) ? d.live_actual : null;
     _live = live ? { id: live.live_id, etiqueta: live.etiqueta } : null;
-    pintarSession(_live, live ? Number(live.ventas || 0) : 0, live ? Number(live.prendas || 0) : 0);
+    pintarSession(_live, resVend && resVend.ok ? resVend.data : null);
     const hoy = d.ventas || {};
     const pagos = d.pagos || {};
     $('lv-hoy-ventas').textContent = formatearDinero(hoy.hoy);
@@ -442,7 +467,13 @@ async function refrescarTodo() {
     $('lv-pendiente-total').textContent = formatearDinero(d.pendiente_total);
 }
 
-function pintarSession(live, ventasLive, prendasLive) {
+/**
+ * Línea del LIVE: lo que se muestra es lo YA VENDIDO (prendas pagadas), no lo
+ * que se anotó. Antes decía "$X · N prenda(s)" contando TODAS las prendas
+ * anotadas —incluidas las que nunca pagaron— y por eso el número del LIVE no
+ * era lo que realmente se había vendido.
+ */
+function pintarSession(live, vend) {
     const el = $('lv-session');
     if (!live) {
         el.innerHTML = `
@@ -453,12 +484,140 @@ function pintarSession(live, ventasLive, prendasLive) {
         if (btn) btn.addEventListener('click', abrirLive);
         return;
     }
+    const nPagadas = Number((vend && vend.n_pagadas) || 0);
+    const totalPagado = Number((vend && vend.total_pagado) || 0);
+    const nSinPagar = Number((vend && vend.n_sin_pagar) || 0);
+    const extra = nSinPagar > 0
+        ? ` <span class="live-meta-2">· ${nSinPagar} sin pagar</span>`
+        : '';
     el.innerHTML = `
         <span class="live-tag"><span class="dot"></span> ${escapeHtml(live.etiqueta)}</span>
-        <span class="live-meta">${formatearDinero(ventasLive)} · ${prendasLive} prenda(s)</span>
+        <span class="live-meta">${formatearDinero(totalPagado)} · ${nPagadas} ${nPagadas === 1 ? 'prenda pagada' : 'prendas pagadas'}${extra}</span>
         <button class="vl-btn-ghost" id="lv-cerrar-live" type="button"><i class="fas fa-stop"></i> Cerrar LIVE</button>`;
     const btn = $('lv-cerrar-live');
     if (btn) btn.addEventListener('click', cerrarLive);
+}
+
+/** Lo vendido de verdad en el LIVE abierto: solo prendas ya pagadas. */
+function pintarVendido(v) {
+    const card = $('lv-card-vendido');
+    if (!card) return;
+    if (!v || !v.ok || !v.live) { card.hidden = true; return; }
+    card.hidden = false;
+
+    const n = Number(v.n_pagadas || 0);
+    const total = Number(v.total_pagado || 0);
+    $('lv-vendido-tot').innerHTML = `
+        <span class="vl-vendido-money">${formatearDinero(total)}</span>
+        <span class="vl-vendido-n">${n} ${n === 1 ? 'prenda pagada' : 'prendas pagadas'}</span>`;
+
+    const items = Array.isArray(v.pagadas) ? v.pagadas : [];
+    $('lv-vendido-lista').innerHTML = items.length
+        ? items.map(it => `
+            <div class="vl-vendido-fila">
+                <span class="quien">@${escapeHtml(it.tiktok_user || 'cliente')}</span>
+                ${it.estado === 'entregada' ? '<span class="vl-vendido-chip">entregada</span>' : ''}
+                <span class="precio">${formatearDinero(it.precio)}</span>
+            </div>`).join('')
+        : '<div class="vl-vendido-vacio">Todavía no hay prendas pagadas en este LIVE.</div>';
+
+    const nSin = Number(v.n_sin_pagar || 0);
+    const nota = $('lv-vendido-nota');
+    nota.hidden = nSin === 0;
+    nota.textContent = nSin > 0
+        ? `+ ${nSin} ${nSin === 1 ? 'prenda sin pagar' : 'prendas sin pagar'} (${formatearDinero(v.total_sin_pagar)}) — no cuentan como vendido.`
+        : '';
+}
+
+/**
+ * Aviso del día siguiente: compraron y nunca escribieron.
+ * Se puede abrir el chat (si lo tiene), escribirle por WhatsApp o liberar la
+ * prenda con el MISMO modal que se usa en el resto del panel.
+ */
+function pintarSinContacto(c) {
+    const card = $('lv-card-liberar');
+    if (!card) return;
+    const items = (c && c.ok && Array.isArray(c.items)) ? c.items : [];
+    if (!items.length) { card.hidden = true; return; }
+    card.hidden = false;
+
+    const cont = $('lv-liberar-lista');
+    cont.innerHTML = items.map((it, i) => {
+        const nick = it.tiktok_user || 'cliente';
+        const dias = Number(it.dias || 0);
+        const cuando = dias === 1 ? 'ayer' : `hace ${dias} días`;
+        const wa = String(it.whatsapp || '').replace(/\D/g, '');
+        return `
+            <div class="vl-liberar-fila" data-i="${i}">
+                <div class="vl-liberar-info">
+                    <div class="linea1">
+                        <b>@${escapeHtml(nick)}</b>
+                        <span class="vl-liberar-monto">${formatearDinero(it.precio)}</span>
+                    </div>
+                    <div class="linea2">
+                        Compró ${escapeHtml(cuando)}${it.live_etiqueta ? ' en ' + escapeHtml(it.live_etiqueta) : ''} · nunca escribió
+                    </div>
+                </div>
+                <div class="vl-liberar-acc">
+                    ${it.chat_id ? `<button class="vl-btn" data-acc="chat" type="button" title="Ver su conversación"><i class="fas fa-comment-dots"></i></button>` : ''}
+                    ${wa ? `<a class="vl-btn" href="https://wa.me/${escapeHtml(wa)}" target="_blank" rel="noopener" title="Escribirle por WhatsApp"><i class="fab fa-whatsapp"></i></a>` : ''}
+                    <button class="vl-btn danger" data-acc="liberar" type="button" title="Liberar la prenda"><i class="fas fa-unlock"></i> Liberar</button>
+                </div>
+            </div>`;
+    }).join('');
+
+    cont.querySelectorAll('.vl-liberar-fila').forEach(fila => {
+        const it = items[Number(fila.dataset.i)];
+        const btnLib = fila.querySelector('[data-acc="liberar"]');
+        if (btnLib) btnLib.addEventListener('click', () => {
+            modalLiberarItems({
+                proceso_id: it.proceso_id,
+                cliente: { cliente_id: it.cliente_id, tiktok_user: it.tiktok_user }
+            }, () => refrescarTodo());
+        });
+        const btnChat = fila.querySelector('[data-acc="chat"]');
+        if (btnChat) btnChat.addEventListener('click', async () => {
+            await cargarChatCliente({ cliente_id: it.cliente_id });
+            const cardChat = $('lv-chat-card');
+            if (cardChat && cardChat.scrollIntoView) cardChat.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    });
+
+    avisarSinContacto(items);
+}
+
+/**
+ * "Al otro día dar aviso": UNA vez por día y por dispositivo, avisa con un
+ * toast y (si el dueño tiene los avisos del navegador activados) con una
+ * notificación, para que se decida si se libera la prenda. Sin esto el caso
+ * quedaba solo como una tarjeta que había que ir a mirar.
+ */
+const AVISO_DIA_KEY = 'vl_aviso_prendas_sin_contacto';
+
+function avisarSinContacto(items) {
+    if (!items || !items.length) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    let ultimo = '';
+    try { ultimo = localStorage.getItem(AVISO_DIA_KEY) || ''; } catch (e) { /* modo privado */ }
+    if (ultimo === hoy) return;
+    try { localStorage.setItem(AVISO_DIA_KEY, hoy); } catch (e) { /* modo privado */ }
+
+    const n = items.length;
+    mostrarToast(`⏳ ${n} ${n === 1 ? 'prenda comprada' : 'prendas compradas'} sin contacto — revisa si liberarla${n === 1 ? '' : 's'}`, 'warning');
+
+    const estado = notificacionesEstado ? notificacionesEstado() : null;
+    if (!estado || !estado.activas) return;
+    try {
+        const detalle = items.slice(0, 3)
+            .map(i => '@' + (i.tiktok_user || 'cliente') + ' · ' + formatearDinero(i.precio))
+            .join('\n');
+        const aviso = new Notification('⏳ Prendas para liberar', {
+            body: detalle + (n > 3 ? `\ny ${n - 3} más` : ''),
+            tag: 'vl-prendas-sin-contacto',
+            renotify: true
+        });
+        aviso.onclick = () => { try { window.focus(); } catch (e) { /* ignore */ } aviso.close(); };
+    } catch (e) { /* el navegador puede bloquear el constructor */ }
 }
 
 async function abrirLive() {
