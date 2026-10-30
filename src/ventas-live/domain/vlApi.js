@@ -264,6 +264,10 @@ export const vlApi = {
         callRpc('vl_confirmar_pago', { p_proceso_id: procesoId, p_monto: monto, p_metodo: metodo, p_nota: nota }),
     decidirEntrega: (procesoId, opcion, fecha = null, tipo = 'envio') =>
         callRpc('vl_decidir_entrega', { p_proceso_id: procesoId, p_opcion: opcion, p_fecha: fecha, p_tipo: tipo }),
+    // Corrección MANUAL del tipo (envío ⇄ presencial) cuando el bot se equivocó.
+    // Sirve en cualquier etapa salvo entregado; sincroniza envío, ficha y proceso.
+    corregirEntrega: (procesoId, tipo) =>
+        callRpc('vl_corregir_entrega', { p_proceso_id: procesoId, p_tipo: tipo }),
     crearEnvio: (procesoId, empresa = '', tracking = '') =>
         callRpc('vl_crear_envio', { p_proceso_id: procesoId, p_empresa: empresa, p_tracking: tracking }),
     // p_pagado = false -> se entrega sin pago confirmado: el pedido queda

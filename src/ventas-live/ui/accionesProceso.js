@@ -255,6 +255,55 @@ export function modalDecisionEntrega(proceso, onDone) {
     });
 }
 
+// ---------- Corregir a mano el tipo de entrega ----------
+// El repaso del chat puede equivocarse (o el cliente cambia de idea y el negocio
+// no quiere esperar). Dos clics: el de la fila y el "Sí, cambiar" de acá.
+// Sincroniza pedido + ficha del cliente + etapa (RPC vl_corregir_entrega).
+export function modalCorregirEntrega(proceso, tipoNuevo, onDone) {
+    const nick = (proceso && proceso.cliente && proceso.cliente.tiktok_user) ? proceso.cliente.tiktok_user : 'cliente';
+    const envio = proceso.envio || {};
+    const tipo = tipoNuevo === 'presencial' ? 'presencial' : 'envio';
+    const ahora = envio.tipo === 'presencial' ? 'entrega presencial' : 'envío';
+    const destino = tipo === 'presencial' ? 'entrega presencial' : 'envío';
+    // El envío ya salió con el courier: primero hay que anularlo allá.
+    const courierEnCurso = !!envio.empresa
+        || !!(envio.tracking && String(envio.tracking).trim())
+        || envio.envio_estado === 'en_proceso'
+        || envio.estado === 'en_proceso';
+    const bloqueado = tipo === 'presencial' && courierEnCurso;
+    abrirModal({
+        titulo: '🔁 Cambiar a ' + destino + ' — @' + escapeHtml(nick),
+        sub: 'Ahora está como ' + ahora + '. Lo cambias a mano porque el bot se equivocó.',
+        html: `
+            <div style="background:rgba(151,117,250,0.12);border:1px solid rgba(151,117,250,0.35);border-radius:12px;padding:12px 14px;color:#d0bfff;font-size:0.88rem;line-height:1.55;">
+                ${bloqueado
+                    ? `El envío ya está con <b>${escapeHtml(envio.empresa || 'el courier')}</b>${envio.tracking ? ' (#' + escapeHtml(envio.tracking) + ')' : ''}.
+                       Anúlalo primero en el courier; recién ahí se puede pasar a entrega presencial.`
+                    : `Se cambia a <b>${destino}</b> en el pedido, en la ficha del cliente y en la etapa del proceso.
+                       El aviso "Cambió la entrega" queda cerrado.`}
+            </div>
+            ${!bloqueado && tipo === 'presencial' ? '<div style="font-size:0.8rem;color:#adb5bd;margin-top:10px;">Si había una fecha de envío, se conserva como día de entrega.</div>' : ''}
+            <div class="vl-modal-actions">
+                <button class="vl-btn" id="vce-cancelar" type="button">Cancelar</button>
+                ${bloqueado ? '' : `<button class="vl-btn primary" id="vce-ok" type="button"><i class="fas fa-right-left"></i> Sí, cambiar a ${destino}</button>`}
+            </div>`,
+        onMount: (modal) => {
+            modal.querySelector('#vce-cancelar').addEventListener('click', () => cerrarModal(true));
+            const ok = modal.querySelector('#vce-ok');
+            if (!ok) return;
+            ok.addEventListener('click', async () => {
+                ok.disabled = true;
+                const res = await vlApi.corregirEntrega(proceso.proceso_id, tipo);
+                ok.disabled = false;
+                if (!res.ok) { mostrarToast(res.error || 'No se pudo cambiar la entrega', 'error'); return; }
+                cerrarModal(true);
+                mostrarToast(res.sin_cambios ? 'Ya estaba así' : ('Entrega cambiada a ' + destino + ' ✔'), 'success');
+                if (typeof onDone === 'function') onDone();
+            });
+        }
+    });
+}
+
 // ---------- Marcar ENVÍO CREADO (spec §22) ----------
 export function modalCrearEnvio(proceso, onDone) {
     const nick = proceso.cliente ? proceso.cliente.tiktok_user : 'cliente';

@@ -13,7 +13,7 @@ import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { escapeHtml, formatearDinero } from '../../shared/infrastructure/formatters.js';
 import {
     modalCrearEnvio, modalMarcarEntregado, modalConfirmarPago,
-    modalPagarItems, modalLiberarItems, modalEliminarCompra
+    modalPagarItems, modalLiberarItems, modalEliminarCompra, modalCorregirEntrega
 } from './accionesProceso.js';
 import { abrirChatDeUsuario } from './ConversacionesDrawer.js';
 
@@ -229,6 +229,16 @@ function accionHTML(f) {
         const porCobrar = f.proceso_estado === 'entregado_por_cobrar';
         html += `<button class="vl-btn success" data-acc="pagar" type="button"><i class="fas fa-hand-holding-dollar"></i> ${porCobrar ? 'Cobrar saldo' : 'Registrar pago'}</button>`;
     }
+    // Cambio MANUAL del tipo: el bot puede equivocarse y el pedido se tiene que
+    // poder arreglar en cualquier etapa (antes los botones "Es con envío / Es
+    // presencial" solo salían cuando faltaba decidir).
+    const tipoActual = (f.tipo === 'presencial' || f.tipo === 'envio') ? f.tipo : '';
+    const yaEntregado = f.proceso_estado === 'completado' || f.proceso_estado === 'entregado_por_cobrar';
+    if (tipoActual && !yaEntregado) {
+        const destino = tipoActual === 'presencial' ? 'envio' : 'presencial';
+        const etiqueta = destino === 'envio' ? 'Cambiar a envío' : 'Cambiar a presencial';
+        html += `<button class="vl-btn" data-acc="corregir" data-tipo="${destino}" type="button" title="Corrige el tipo de entrega si el bot se equivocó"><i class="fas fa-right-left"></i> ${etiqueta}</button>`;
+    }
     if (saldo > 0) {
         html += '<button class="vl-btn success" data-acc="pagar-items" type="button"><i class="fas fa-money-bill-wave"></i> Pagar prendas</button>';
         html += '<button class="vl-btn danger" data-acc="liberar" type="button"><i class="fas fa-unlock"></i> Liberar prenda</button>';
@@ -269,6 +279,7 @@ function bindFila(row, f) {
             if (acc === 'pagar-items') { modalPagarItems(proceso, refrescarEnvios); return; }
             if (acc === 'liberar') { modalLiberarItems(proceso, refrescarEnvios); return; }
             if (acc === 'eliminar') { modalEliminarCompra(proceso, refrescarEnvios); return; }
+            if (acc === 'corregir') { modalCorregirEntrega(proceso, btn.dataset.tipo, refrescarEnvios); return; }
             if (acc === 'decidir') {
                 const tipo = btn.dataset.tipo === 'presencial' ? 'presencial' : 'envio';
                 btn.disabled = true;

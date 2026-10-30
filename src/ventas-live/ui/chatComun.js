@@ -150,6 +150,13 @@ export const AVISO_INFO = {
         label: 'Foto después del pago',
         accion: 'El cliente mandó una foto después de pagar: mírala en el chat (puede ser de la entrega o algo que quiere comprar).'
     },
+    // ciclo 20261109: el cliente cambió de opinión (envío ⇄ presencial) y el
+    // repaso del chat ya corrigió el registro. No hace falta escribirle: es una
+    // tarea del pedido (revisar Entregas), no una respuesta pendiente.
+    entrega_cambio: {
+        label: 'Cambió la entrega',
+        accion: 'El cliente cambió de opinión (antes entrega presencial, ahora envío —o al revés) y quedó actualizado. Revisa Entregas: si quedó mal, usa "Cambiar a envío/presencial" en la fila del pedido.'
+    },
     // ciclo 20261098: llegó un audio/foto SIN texto para interpretar.
     media: {
         label: 'Audio o foto para revisar',
