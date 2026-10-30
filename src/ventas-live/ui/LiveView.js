@@ -13,7 +13,7 @@ import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales, modalLiberarItems } from './accionesProceso.js';
 import {
     initConversacionesDrawer, refrescarContador, toggleConversaciones,
-    notificacionesEstado, activarNotificaciones, desactivarNotificaciones
+    notificacionesEstado, activarNotificaciones, desactivarNotificaciones, probarAviso
 } from './ConversacionesDrawer.js';
 
 let _built = false;
@@ -134,6 +134,9 @@ function buildDOM() {
                             </button>
                             <button class="vl-btn" id="lv-chat-bell" type="button" title="Avísame en el navegador cuando haya algo que revisar">
                                 <i class="fas fa-bell"></i> <span id="lv-chat-bell-t">Avisos</span>
+                            </button>
+                            <button class="vl-btn" id="lv-chat-probar" type="button" style="display:none;" title="Mandar un aviso de prueba a este dispositivo (comprueba que el push llega)">
+                                <i class="fas fa-paper-plane"></i>
                             </button>
                             <button class="vl-btn" id="lv-chat-buscar-btn" type="button" title="Buscar en la conversación">
                                 <i class="fas fa-magnifying-glass"></i>
@@ -333,6 +336,8 @@ function buildDOM() {
     });
     $('lv-chat-conv').addEventListener('click', toggleConversaciones);
     $('lv-chat-bell').addEventListener('click', alternarAvisos);
+    const btnProbar = $('lv-chat-probar');
+    if (btnProbar) btnProbar.addEventListener('click', mandarAvisoDePrueba);
 
     // Formulario fijo en móvil/tablet (ver colocarFormularioLive).
     if (!_mqFija && window.matchMedia) {
@@ -383,11 +388,42 @@ async function alternarAvisos() {
     mostrarToast('Listo: te aviso acá cuando haya algo que revisar', 'success');
 }
 
+// Aviso de prueba: comprueba TODA la cadena (suscripción del dispositivo →
+// Edge Function wa-push → servicio push del navegador) y dice el resultado real.
+async function mandarAvisoDePrueba() {
+    const btn = $('lv-chat-probar');
+    const est = notificacionesEstado();
+    if (!est.activas) {
+        mostrarToast('Primero activa los avisos (campana)', 'warning');
+        return;
+    }
+    if (btn) btn.disabled = true;
+    mostrarToast('Mandando aviso de prueba…', 'info');
+    const r = await probarAviso();
+    if (btn) btn.disabled = false;
+    if (!r.ok) {
+        mostrarToast(r.error || 'No se pudo mandar el aviso', 'error');
+        return;
+    }
+    const d = r.data || {};
+    if (!d.suscripciones) {
+        mostrarToast('Este navegador no quedó suscrito: apaga los avisos, vuelve a activarlos y reintenta', 'warning');
+        return;
+    }
+    if (!d.enviados) {
+        mostrarToast(`El servidor no pudo entregar (0 de ${d.suscripciones}). ${d.detalle || ''}`.trim(), 'error');
+        return;
+    }
+    mostrarToast(`Aviso de prueba enviado a ${d.enviados} dispositivo(s) ✔ Revisa tu teléfono/PC (puede tardar unos segundos si está en reposo)`, 'success');
+}
+
 function pintarAvisos() {
     const btn = $('lv-chat-bell');
     const txt = $('lv-chat-bell-t');
     if (!btn) return;
     const est = notificacionesEstado();
+    const probar = $('lv-chat-probar');
+    if (probar) probar.style.display = est.activas ? '' : 'none';
     btn.classList.toggle('activo', est.activas);
     if (txt) txt.textContent = est.activas ? 'Avisos ON' : 'Avisos';
     btn.title = est.activas

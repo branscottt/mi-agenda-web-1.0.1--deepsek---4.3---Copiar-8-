@@ -589,6 +589,19 @@ export async function activarNotificaciones() {
     return { ok: true };
 }
 
+/**
+ * Manda un aviso de PRUEBA a los dispositivos de este espacio (Web Push).
+ * Re-registra este dispositivo antes, así el test también sirve cuando el
+ * dueño reinstaló la app y la suscripción se perdió.
+ */
+export async function probarAviso() {
+    if (!_notifActivas || typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+        return { ok: false, error: 'Primero activa los avisos' };
+    }
+    await suscribirPush();
+    return vlApi.probarPush();
+}
+
 /** Apaga los avisos de escritorio (el permiso del navegador se mantiene). */
 export function desactivarNotificaciones() {
     _notifActivas = false;

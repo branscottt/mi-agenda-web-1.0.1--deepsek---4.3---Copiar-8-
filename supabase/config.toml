@@ -412,6 +412,15 @@ verify_jwt = false
 [functions.wa-enviar]
 verify_jwt = true
 
+# wa-push: la autenticación se hace ADENTRO de la función (service_role para el
+# webhook, o JWT de un admin del espacio para el "Probar aviso" del panel). Se
+# deja sin verificación de JWT en el gateway para que acepte tanto el formato
+# legacy (JWT) como las claves nuevas `sb_secret_...`: si el gateway rechazara
+# el token, los avisos dejarían de llegar en silencio (el webhook es mejor
+# esfuerzo y no mira la respuesta). Llamarla sin credenciales válidas → 401.
+[functions.wa-push]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

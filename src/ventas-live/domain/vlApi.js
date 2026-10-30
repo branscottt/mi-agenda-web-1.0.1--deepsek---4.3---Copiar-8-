@@ -25,6 +25,31 @@ function getAuthToken() {
     return null;
 }
 
+// Aviso de PRUEBA al propio dispositivo (Web Push). La Edge Function wa-push
+// valida el JWT del admin y resuelve el espacio de Ventas Live en el servidor:
+// la service_role nunca pasa por el navegador.
+async function postEdge(nombre, cuerpo) {
+    try {
+        const cfg = getAppConfig();
+        const base = (cfg.edgeFunctionsUrl ||
+            ((cfg.supabaseUrl || '').replace(/\/+$/, '') + '/functions/v1'));
+        const token = getAuthToken();
+        if (!token) return { ok: false, error: 'Sesión no disponible' };
+        const resp = await fetch(`${base}/${nombre}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(cuerpo)
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data || data.ok !== true) {
+            return { ok: false, error: (data && data.error) || `Error HTTP ${resp.status}`, data };
+        }
+        return { ok: true, data };
+    } catch (e) {
+        return { ok: false, error: e.message || 'Error inesperado' };
+    }
+}
+
 // Envío manual de WhatsApp: pasa por la Edge Function (el token del tenant
 // vive server-side y nunca llega al navegador).
 // Todas las acciones (texto, archivo, reacción, marcar leído) usan el mismo
@@ -366,6 +391,9 @@ export const vlApi = {
     guardarPushSub: (endpoint, p256dh, auth) =>
         callRpc('vl_push_guardar', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }),
     borrarPushSub: (endpoint) => callRpc('vl_push_borrar', { p_endpoint: endpoint }),
+    // Aviso de prueba a los dispositivos de ESTE espacio (valida el JWT del admin
+    // dentro de la Edge Function wa-push).
+    probarPush: () => postEdge('wa-push', { prueba: true }),
     // `origen` = 'bot' cuando lo redactó el bot (burbuja del bot, sin ceder turno).
     enviarManual: (chatId, texto, contexto = '', origen = '') =>
         enviarMensajeManual(chatId, texto, contexto, origen),
