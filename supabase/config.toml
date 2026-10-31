@@ -421,6 +421,12 @@ verify_jwt = true
 [functions.wa-push]
 verify_jwt = false
 
+# wa-signup: alta automática de WhatsApp con "Conectar con Facebook"
+# (Embedded Signup de Meta). Exige JWT; la autorización fina (admin del
+# espacio) la hace la RPC vl_wa_signup_guardar en la base.
+[functions.wa-signup]
+verify_jwt = true
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

@@ -347,6 +347,10 @@ export const vlApi = {
     // ---- Conexión WhatsApp (bot Cloud API) ----
     guardarConfigWa: (params) => callRpc('vl_guardar_config_wa', params),
     waConexionInfo: () => callRpc('vl_wa_conexion_info'),
+    // Alta automática de WhatsApp (Embedded Signup): 'estado' / 'conectar'.
+    // El token de Meta lo canjea la Edge Function; el navegador nunca lo ve.
+    waSignup: (params) => postEdge('wa-signup', params),
+    waSignupInfo: () => callRpc('vl_wa_signup_info'),
 
     // ---- Configurador de respuestas del bot (sin programar) ----
     // El guion base lo ven todos; los overrides son por tenant. Dejar una
