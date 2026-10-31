@@ -21,6 +21,12 @@ let _guardando = false;
 let _debounce = null;
 let _ultima = null; // { itemId, nick, precio }
 let _live = null;   // { id, etiqueta } | null
+// Día (local) del último refresco del panel. Sirve para darse cuenta de que
+// cambió la fecha con la página abierta (un LIVE es de un solo día: si estabas
+// vendiendo a las 23:58, a las 00:01 el panel tiene que pasar a "Sin LIVE
+// activo" y abrir el LIVE del día nuevo con la primera venta).
+let _diaVisto = '';
+let _visDia = null;   // listener de "volví a la pestaña" (comprueba la fecha)
 
 // Chat del cliente mostrado al lado (para cargar el pedido viendo la
 // conversación). _chatClienteId evita recargar si es el mismo cliente.
@@ -440,6 +446,12 @@ export function initLiveView() {
     iniciarPollChat();
     refrescarContador();
     pintarAvisos();
+    // Al volver a la pestaña después de un rato (o al otro día) se comprueba la
+    // fecha: si cambió, el LIVE de ayer ya no es el actual y el panel se repinta.
+    if (!_visDia) {
+        _visDia = () => { if (!document.hidden && cambioDeDia()) refrescarTodo(); };
+        document.addEventListener('visibilitychange', _visDia);
+    }
 }
 
 // Se llama cada vez que se activa la pestaña LIVE
@@ -461,6 +473,18 @@ export function activarLiveView() {
     pintarAvisos();
 }
 
+// Día LOCAL en formato YYYY-MM-DD (no UTC: el dueño vive en Chile y el LIVE
+// termina pasada la medianoche).
+function diaLocal(d = new Date()) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** ¿Cambió la fecha desde el último refresco del panel? */
+function cambioDeDia() {
+    const hoy = diaLocal();
+    return !!_diaVisto && hoy !== _diaVisto;
+}
+
 // Refresca el chat del cliente visible cada 5 s (solo con LIVE a la vista).
 // Antes eran 15 s: el dueño notaba que "tardaba en verse" el mensaje.
 function iniciarPollChat() {
@@ -469,6 +493,10 @@ function iniciarPollChat() {
         const vista = $('vl-view-live');
         if (!vista || !vista.classList.contains('active')) return;
         if (document.hidden) return;
+        // Cambió el día (la página quedó abierta de ayer): el LIVE de ayer ya no
+        // es "el actual". Se vuelve a pedir y el panel pasa solo a "Sin LIVE
+        // activo" / LIVE de hoy, sin cerrar ni volver a apretar LIVE.
+        if (cambioDeDia()) { refrescarTodo(); return; }
         if (!_chatId || _drenandoEnvios) return;
         cargarHiloChat({ silencioso: true });
         // Presencia: con el chat abierto Y la ventana a la vista con foco, el bot no
@@ -479,6 +507,15 @@ function iniciarPollChat() {
 }
 
 async function refrescarTodo() {
+    // EL LIVE DEL DÍA SE PIDE APARTE Y PRIMERO. `vl_live_actual` es la única que
+    // aplica la REGLA DEL DÍA: cierra solo el LIVE que quedó abierto de una fecha
+    // anterior y devuelve el de hoy (o null). El `live_actual` del dashboard NO
+    // la aplica, y por eso al día siguiente el panel seguía mostrando el LIVE de
+    // ayer como activo ("Cerrar LIVE" en vez de "Abrir LIVE") y parecía que había
+    // que cerrarlo a mano. Un LIVE es de un solo día: al leer, ya se corrige.
+    const resLive = await vlApi.liveActual().catch(() => null);
+    _diaVisto = diaLocal();
+
     // En paralelo: el panel general, lo vendido en el LIVE abierto (solo pagadas)
     // y las prendas compradas sin contacto (aviso del día siguiente).
     const [res, resVend, resLib] = await Promise.all([
@@ -493,8 +530,12 @@ async function refrescarTodo() {
         return;
     }
     const d = res.data || {};
-    const live = (d.live_actual && d.live_actual.live_id) ? d.live_actual : null;
-    _live = live ? { id: live.live_id, etiqueta: live.etiqueta } : null;
+    // Fuente de verdad: lo que dijo vl_live_actual (ya rodado). Si esa llamada
+    // falló, se usa el dashboard como respaldo para no dejar el panel vacío.
+    const deRpc = (resLive && resLive.ok && resLive.data) ? (resLive.data.live || null) : null;
+    const deDash = (d.live_actual && d.live_actual.live_id) ? d.live_actual : null;
+    const live = (resLive && resLive.ok) ? deRpc : deDash;
+    _live = live ? { id: live.id || live.live_id, etiqueta: live.etiqueta } : null;
     pintarSession(_live, resVend && resVend.ok ? resVend.data : null);
     const hoy = d.ventas || {};
     const pagos = d.pagos || {};
