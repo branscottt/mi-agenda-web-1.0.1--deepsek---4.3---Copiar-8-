@@ -277,15 +277,23 @@ export function procesoChips(proc, escape) {
 }
 
 /** Hora del mensaje: solo hora si es de hoy, si no fecha + hora. */
+// Formateadores REUSADOS: crear uno por fila (80 conversaciones = 80 objetos
+// Intl) era parte del costo de pintar la lista. Además se compara contra el día
+// de hoy ya calculado, sin volver a pedirlo.
+const _FMT_HORA = new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' });
+const _FMT_FECHA = new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit' });
+
 export function fmtHora(iso) {
     if (!iso) return '';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    const mismoDia = d.toDateString() === new Date().toDateString();
+    const hoy = new Date();
+    const mismoDia = d.getFullYear() === hoy.getFullYear()
+        && d.getMonth() === hoy.getMonth()
+        && d.getDate() === hoy.getDate();
     return mismoDia
-        ? d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
-        : d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) + ' ' +
-          d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+        ? _FMT_HORA.format(d)
+        : _FMT_FECHA.format(d) + ' ' + _FMT_HORA.format(d);
 }
 
 /**

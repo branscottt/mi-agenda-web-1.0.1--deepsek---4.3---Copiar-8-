@@ -26,10 +26,22 @@
 // a cerrar*() y ese cierre consume la entrada con consumirCapa(). Así no
 // quedan entradas huérfanas (atrás "mudo" o que salta dos pasos).
 // Es el mismo patrón que ya usa ClientBoard para el tablero del cliente.
+//
+// ⚠️ CARRERA DEL HISTORIAL (bug real, verificado 2026-10-30)
+// history.go(-n) es ASÍNCRONO. Antes, si cerrabas el cajón con la X y lo
+// volvías a abrir en el acto, el go(-n) pendiente aterrizaba DESPUÉS de las
+// entradas nuevas y cerraba lo que el dueño acababa de abrir ("se cierra
+// solo"). Ahora las travesías propias se serializan: mientras hay un go() en
+// vuelo, los pushState se encolan y, al aterrizar, el historial se re-sincroniza
+// con la pila real (replaceState + pushes encolados). El atrás del usuario
+// nunca se traga.
 
 const capas = [];          // [{ id, cerrar }] — la última es la de más arriba
 let _instalado = false;
 let _enPop = false;        // estamos cerrando por un popstate (no re-consumir)
+let _goEnVuelo = 0;        // travesías propias (history.go) que aún no aterrizan
+let _pushEnEspera = [];    // profundidades a empujar cuando aterrice la travesía
+let _timerGo = null;
 
 // Sello de ESTA carga de la página. El navegador conserva el `history.state`
 // al recargar (o al volver a la misma URL), así que una entrada vieja podría
@@ -45,7 +57,25 @@ function instalar() {
 
 function profundidad() { return capas.length; }
 
+function pushEstado(n) {
+    try { history.pushState({ vlCapa: n, vlSesion: SESION }, ''); } catch (_) { /* historial no disponible */ }
+}
+
+function replaceEstado(n) {
+    try {
+        if (n > 0) history.replaceState({ vlCapa: n, vlSesion: SESION }, '');
+        else history.replaceState(null, '');
+    } catch (_) { /* historial no disponible */ }
+}
+
 function alAtras(e) {
+    // Travesía pedida por NOSOTROS (consumirCapa): no cierra nada, solo deja el
+    // historial coherente con la pila real y empuja lo que quedó en cola.
+    if (_goEnVuelo > 0) {
+        _goEnVuelo--;
+        if (_goEnVuelo === 0) sincronizarHistorico();
+        return;
+    }
     if (!capas.length) return;                 // nada nuestro: navegación normal
     const st = e.state;
     const esNuestra = !!st && st.vlSesion === SESION && typeof st.vlCapa === 'number';
@@ -75,8 +105,22 @@ function alAtras(e) {
     }
 }
 
+/**
+ * Deja el historial igual a la pila: la entrada donde aterrizó la travesía
+ * representa el fondo, y encima se empujan las capas que se abrieron mientras
+ * el go() estaba en vuelo (antes se perdían o cerraban de más).
+ */
+function sincronizarHistorico() {
+    const pend = _pushEnEspera.splice(0);
+    replaceEstado(Math.max(0, capas.length - pend.length));
+    pend.forEach((n) => pushEstado(n));
+}
+
 function empujar(n) {
-    try { history.pushState({ vlCapa: n, vlSesion: SESION }, ''); } catch (_) { /* historial no disponible */ }
+    // Con un go() en vuelo, empujar ahora dejaría la entrada en el lugar
+    // equivocado: se guarda y se empuja al aterrizar.
+    if (_goEnVuelo > 0) { _pushEnEspera.push(n); return; }
+    pushEstado(n);
 }
 
 /**
@@ -111,7 +155,19 @@ export function consumirCapa(id) {
     if (i < 0) return false;
     const n = capas.length - i;                // esta capa + las de arriba
     capas.length = i;
-    try { history.go(-n); } catch (_) { /* historial no disponible */ }
+    _goEnVuelo++;
+    try {
+        history.go(-n);
+    } catch (_) {
+        _goEnVuelo = Math.max(0, _goEnVuelo - 1);
+        return false;
+    }
+    // Red de seguridad: si el popstate no llega (navegador raro), el historial
+    // se re-sincroniza igual en vez de quedar bloqueado para siempre.
+    if (_timerGo) clearTimeout(_timerGo);
+    _timerGo = setTimeout(() => {
+        if (_goEnVuelo > 0) { _goEnVuelo = 0; sincronizarHistorico(); }
+    }, 900);
     return true;
 }
 
@@ -140,8 +196,15 @@ export function reemplazarCapa(idViejo, id, cerrar) {
     if (i < 0) return false;
     capas.length = i;                     // fuera la vieja y las de encima
     if (id) capas.push({ id, cerrar });
-    try {
-        history.replaceState(id ? { vlCapa: capas.length, vlSesion: SESION } : null, '');
-    } catch (_) { /* sin historial */ }
+    if (_goEnVuelo > 0) {
+        // Hay una travesía en vuelo: la entrada se corrige al aterrizar.
+        _pushEnEspera.length = 0;
+        _pushEnEspera.push(capas.length);
+        return true;
+    }
+    replaceEstado(id ? capas.length : 0);
     return true;
 }
+
+/** Solo para pruebas: ¿hay una travesía de historial en vuelo? */
+export function goEnVuelo() { return _goEnVuelo; }

@@ -49,7 +49,12 @@ let _abierto = false;
 let _chatId = null;
 let _scrollLista = 0;        // dónde estaba la lista (al volver del chat se respeta)
 let _volviendoDeChat = false; // true solo en el render que sigue a "volver"
-let _firmaLista = '';        // huella de lo pintado: si nada cambió, NO se repinta
+// LISTA INCREMENTAL: HTML de cada fila ya pintada, en el mismo orden.
+// Al volver del chat normalmente cambian 2 o 3 filas; antes se rehacía la lista
+// completa (80 tarjetas = ~130 ms de JS + recálculo de layout en el celular).
+let _filasPintadas = [];
+let _claveLista = '';        // ids en orden de lo pintado (detecta altas/bajas)
+let _cacheChat = null;       // último hilo pintado: reabrirlo es instantáneo
 let _chatMeta = null;
 let _chats = [];
 // COLA DE ENVÍO (como WhatsApp: puedes seguir escribiendo mientras sale el
@@ -81,6 +86,25 @@ let _chatProc = null;        // proceso abierto del chat que se está viendo
 let _deepLinkMsg = null;     // listener del aviso del service worker (abrir chat)
 
 function $(id) { return document.getElementById(id); }
+// Paneles estables: la lista y la conversación (cada uno con su propio scroll).
+function paneLista() { return $('vld-lista'); }
+function paneChat() { return $('vld-chat'); }
+
+/** Muestra la lista (y oculta la conversación) sin destruir nada. */
+function mostrarLista() {
+    const l = paneLista();
+    const c = paneChat();
+    if (l) { l.classList.remove('oculto'); l.setAttribute('aria-hidden', 'false'); }
+    if (c) { c.classList.add('oculto'); c.setAttribute('aria-hidden', 'true'); }
+}
+
+/** Muestra la conversación (y oculta la lista) sin destruir nada. */
+function mostrarChat() {
+    const l = paneLista();
+    const c = paneChat();
+    if (l) { l.classList.add('oculto'); l.setAttribute('aria-hidden', 'true'); }
+    if (c) { c.classList.remove('oculto'); c.setAttribute('aria-hidden', 'false'); }
+}
 
 /**
  * Construye el cajón y arranca el contador de no leídos.
@@ -160,7 +184,15 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 <button class="vl-busq-salto" id="vld-busq-next" type="button" title="Siguiente"><i class="fas fa-chevron-down"></i></button>
                 <button class="vl-busq-salto" id="vld-busq-x" type="button" title="Cerrar la búsqueda"><i class="fas fa-xmark"></i></button>
             </div>
-            <div class="vld-body" id="vld-body"></div>
+            <div class="vld-body" id="vld-body">
+                <!-- DOS PANELES QUE VIVEN SIEMPRE: la lista y la conversación.
+                     Antes se destruía uno para pintar el otro, así que volver del
+                     chat obligaba a rehacer las 80 tarjetas (se sentía como
+                     recargar). Ahora solo se muestra/oculta: volver es instantáneo
+                     y el scroll de cada uno se conserva intacto. -->
+                <div class="vld-pane" id="vld-lista"></div>
+                <div class="vld-pane oculto" id="vld-chat" aria-hidden="true"></div>
+            </div>
             <div class="vl-chat-previa" id="vld-previa" hidden></div>
             <div class="vl-cita-previa" id="vld-cita" hidden></div>
             <div class="vld-foot" id="vld-foot" style="display:none;">
@@ -232,6 +264,12 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         document.querySelectorAll('#vld-menu .vl-menu-item').forEach((b) => {
             b.addEventListener('click', async () => {
                 const campo = b.dataset.pref;
+                // Los ítems de ACCIÓN (¿Quién es?, ＋ Prenda, Buscar, Modo,
+                // Ocultar) no tienen data-pref: antes esta misma función corría
+                // también para ellos y llamaba a chatPreferencia(campo=undefined)
+                // → el RPC respondía "Preferencia no soportada" y saltaba un
+                // toast rojo cada vez que se abría cualquiera de esas opciones.
+                if (!campo) return;
                 const c = _chats.find((x) => String(x.id) === String(_chatId));
                 const nuevo = !(c && c[campo]);
                 const r = await vlApi.chatPreferencia(_chatId, campo, nuevo);
@@ -297,6 +335,18 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         // recalcula el alto DESPUÉS de la animación para que no quede tapado.
         $('vld-input').addEventListener('focus', () => setTimeout(ajustarAltoDrawer, 320));
 
+        // Clic en una conversación: delegado UNA sola vez en el panel de la
+        // lista (antes se enganchaba un listener por fila en cada repintado).
+        const lista = paneLista();
+        if (lista && !lista.__delegado) {
+            lista.__delegado = true;
+            lista.addEventListener('click', (e) => {
+                const it = e.target && e.target.closest ? e.target.closest('.vl-conv-item') : null;
+                if (!it || !it.dataset.chat) return;
+                abrirChat(it.dataset.chat);
+            });
+        }
+
         _built = true;
     }
 
@@ -306,10 +356,12 @@ export function initConversacionesDrawer({ onBadge } = {}) {
 
     // Móvil/tablet: al abrir/cerrar el teclado cambia el alto VISIBLE. Se
     // recalcula el cajón para que el cuadro de escribir quede siempre a la vista.
+    // (Agrupado por frame: el evento 'scroll' del teclado dispara decenas de
+    // veces por segundo y cada medición fuerza layout.)
     if (window.visualViewport) {
-        const onVv = () => { if (_abierto) ajustarAltoDrawer(); };
+        const onVv = () => { if (_abierto) pedirAjusteAlto(); };
         window.visualViewport.addEventListener('resize', onVv);
-        window.visualViewport.addEventListener('scroll', onVv);
+        window.visualViewport.addEventListener('scroll', onVv, { passive: true });
     }
 }
 
@@ -342,8 +394,8 @@ export async function abrirChatDeUsuario(tiktokUser) {
 export async function abrirChatPorId(chatId) {
     if (!chatId) return false;
     abrirConversaciones();
-    const body = $('vld-body');
-    if (body) body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Abriendo la conversación…</div>';
+    // El aviso de "abriendo…" lo pone abrirChat (y lo salta si ya tenemos el
+    // hilo en memoria). Antes se escribía acá y parpadeaba un spinner de más.
     const lista = cargarChats({ silencioso: true });   // en paralelo: pinta banner/lista
     await abrirChat(chatId, { sinChats: true });
     lista.catch(() => { /* la lista se refresca sola en el próximo ciclo */ });
@@ -435,6 +487,14 @@ export function abrirConversaciones() {
 // que SÍ descuenta el teclado, el cajón se achica y el composer queda a la vista.
 // Panel flotante: deja el mismo margen que la CSS (14px web/tablet, 10px móvil)
 // y arranca debajo de la barra superior para no tapar "Mis proyectos".
+// Recalcula el alto como máximo UNA vez por frame (el teclado del celular emite
+// 'scroll' decenas de veces por segundo y cada medición fuerza layout).
+let _altoRaf = 0;
+function pedirAjusteAlto() {
+    if (_altoRaf) return;
+    _altoRaf = requestAnimationFrame(() => { _altoRaf = 0; ajustarAltoDrawer(); });
+}
+
 function ajustarAltoDrawer() {
     const el = $('vl-drawer');
     if (!el || !_abierto) return;
@@ -754,7 +814,7 @@ function notificar(chat, esAviso) {
 // seguidos solo hacen lento el chat. Se ignora una carga repetida muy seguida.
 let _ultimaCargaChats = 0;
 async function cargarChats({ silencioso = false } = {}) {
-    const body = $('vld-body');
+    const body = paneLista();
     if (!body) return;
     if (silencioso && Date.now() - _ultimaCargaChats < 1500) return;   // ya se pidió recién
     _ultimaCargaChats = Date.now();
@@ -828,7 +888,7 @@ function procDelChat(chatId) {
 }
 
 function renderLista() {
-    const body = $('vld-body');
+    const body = paneLista();
     if (!body) return;
 
     // Botón del ojo (ver/no ver chats ocultos) — solo en la lista
@@ -864,7 +924,8 @@ function renderLista() {
 
     const lista = chatsVisibles();
     if (lista.length === 0) {
-        _firmaLista = '';
+        _filasPintadas = [];
+        _claveLista = '';
         _volviendoDeChat = false;
         body.innerHTML = `<div class="vl-empty">
             <i class="far fa-comments"></i><br>
@@ -874,44 +935,75 @@ function renderLista() {
         return;
     }
 
-    // HUELLA de lo que se va a pintar. Si es la misma que ya está en pantalla, no
-    // se toca el DOM: así el refresco automático no mueve el scroll ni parpadea.
-    const firma = lista.map(c => [
-        c.id, c.sin_leer, c.ultimo_en, c.ultimo_mensaje, c.aviso_tipo, c.estado, c.modo,
-        c.fijado ? 1 : 0, c.silenciado ? 1 : 0, c.archivado ? 1 : 0, c.oculto ? 1 : 0,
-        c.pago_por_confirmar ? 1 : 0, c.entrega_pendiente ? 1 : 0, c.pago_en_ultimo_live ? 1 : 0
-    ].join('~')).join('|');
-    if (firma === _firmaLista && !_volviendoDeChat) return;
+    // PINTADO INCREMENTAL. Se arma el HTML de cada fila y se compara con el que
+    // ya está en pantalla: solo se reemplaza la tarjeta que cambió de verdad. Al
+    // volver del chat suelen cambiar 2 o 3 (las que recibieron mensajes); antes
+    // se rehacían TODAS (~130 ms de JS + recálculo de layout en el celular, que
+    // es justo lo que se sentía como "lag al retroceder").
+    const filas = lista.map(filaChatHtml);
+    const clave = lista.map((c) => String(c.id)).join('|');
+    const rehacer = clave !== _claveLista || body.children.length !== filas.length;
 
-    const previo = body.scrollTop;
-    const destino = _volviendoDeChat ? (_scrollLista || 0) : previo;
+    if (!rehacer) {
+        for (let i = 0; i < filas.length; i++) {
+            if (filas[i] === _filasPintadas[i]) continue;
+            const nodo = body.children[i];
+            if (!nodo) continue;
+            nodo.insertAdjacentHTML('afterend', filas[i]);
+            nodo.remove();
+        }
+        _filasPintadas = filas;
+        _volviendoDeChat = false;
+        return;
+    }
 
-    body.innerHTML = lista.map(c => {
-        const nombre = c.nombre_real || (c.tiktok_user ? '@' + c.tiktok_user : c.wa_id);
-        const sub = c.tiktok_user ? '@' + c.tiktok_user : c.wa_id;
-        const nuevo = Number(c.sin_leer) > 0;
-        const modo = c.modo === 'humano'
-            ? '<span class="vl-conv-chip humano">👤 Tú</span>'
-            : '<span class="vl-conv-chip bot">🤖 Bot</span>';
-        const noLeido = nuevo ? `<span class="vl-conv-noleido">${Number(c.sin_leer)}</span>` : '';
-        // Aviso que dejó el bot: qué hay que revisar en este chat
-        const aviso = c.aviso_tipo
-            ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + avisoDetalle(c.aviso_tipo, c.aviso_detalle) + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
-            : '';
-        // Quién tiene que mover este chat: se ve sin abrirlo. Cuando nos toca a
-        // nosotros, el chip late suave (nunca rojo: es informativo).
-        const qc = quienContesta(c);
-        const quien = `<div class="vl-conv-quien ${qc.tipo}" title="${escapeHtml(qc.detalle || '')}">${escapeHtml(qc.label)}</div>`;
-        const tuTurno = qc.tipo === 'humano' ? ' tu-turno' : '';
+    // Se rehace la lista entera (cambió el conjunto o el orden): solo acá se
+    // pierde el scroll, así que se devuelve al mismo punto. Al volver del chat,
+    // al que tenía la lista; leyendo la lista, exactamente donde estaba.
+    const destino = _volviendoDeChat ? (_scrollLista || 0) : body.scrollTop;
 
-        // Fijada / silenciada / archivada: se ve de un vistazo en la lista.
-        const marcas = [
-            c.fijado ? '<span class="vl-conv-marca" title="Fijada: queda arriba">📌</span>' : '',
-            c.silenciado ? '<span class="vl-conv-marca" title="Silenciada: no suena ni avisa">🔇</span>' : '',
-            c.archivado ? '<span class="vl-conv-marca" title="Archivada">📦</span>' : '',
-        ].join('');
+    body.innerHTML = filas.join('');
+    _filasPintadas = filas;
+    _claveLista = clave;
 
-        return `
+    // Volver del chat entra con un fade corto: se siente instantáneo en vez de
+    // "recargar" la lista.
+    if (_volviendoDeChat) {
+        body.classList.remove('vld-volviendo');
+        void body.offsetWidth;                 // reinicia la animación
+        body.classList.add('vld-volviendo');
+    }
+    try { body.scrollTop = destino; } catch (e) { /* noop */ }
+    _volviendoDeChat = false;
+}
+
+/** HTML de UNA conversación de la lista. */
+function filaChatHtml(c) {
+    const nombre = c.nombre_real || (c.tiktok_user ? '@' + c.tiktok_user : c.wa_id);
+    const sub = c.tiktok_user ? '@' + c.tiktok_user : c.wa_id;
+    const nuevo = Number(c.sin_leer) > 0;
+    const modo = c.modo === 'humano'
+        ? '<span class="vl-conv-chip humano">👤 Tú</span>'
+        : '<span class="vl-conv-chip bot">🤖 Bot</span>';
+    const noLeido = nuevo ? `<span class="vl-conv-noleido">${Number(c.sin_leer)}</span>` : '';
+    // Aviso que dejó el bot: qué hay que revisar en este chat
+    const aviso = c.aviso_tipo
+        ? `<span class="vl-conv-chip aviso" title="${escapeHtml(avisoLabel(c.aviso_tipo) + ' — ' + avisoDetalle(c.aviso_tipo, c.aviso_detalle) + (avisoAccion(c.aviso_tipo) ? ' | Qué hacer: ' + avisoAccion(c.aviso_tipo) : ''))}">⚠️ ${escapeHtml(avisoLabel(c.aviso_tipo))}</span>`
+        : '';
+    // Quién tiene que mover este chat: se ve sin abrirlo. Cuando nos toca a
+    // nosotros, el chip late suave (nunca rojo: es informativo).
+    const qc = quienContesta(c);
+    const quien = `<div class="vl-conv-quien ${qc.tipo}" title="${escapeHtml(qc.detalle || '')}">${escapeHtml(qc.label)}</div>`;
+    const tuTurno = qc.tipo === 'humano' ? ' tu-turno' : '';
+
+    // Fijada / silenciada / archivada: se ve de un vistazo en la lista.
+    const marcas = [
+        c.fijado ? '<span class="vl-conv-marca" title="Fijada: queda arriba">📌</span>' : '',
+        c.silenciado ? '<span class="vl-conv-marca" title="Silenciada: no suena ni avisa">🔇</span>' : '',
+        c.archivado ? '<span class="vl-conv-marca" title="Archivada">📦</span>' : '',
+    ].join('');
+
+    return `
             <button class="vl-conv-item${nuevo ? ' activo' : ''}${c.aviso_tipo ? ' con-aviso' : ''}${pagoPideAtencion(c) ? ' con-pago' : ''}${c.oculto ? ' oculto' : ''}${c.fijado ? ' fijada' : ''}${tuTurno}" data-chat="${escapeHtml(c.id)}" type="button">
                 <div class="vl-conv-top">
                     <span class="vl-conv-nombre">${marcas}${escapeHtml(nombre)}</span>
@@ -927,22 +1019,6 @@ function renderLista() {
                     ${modo}${noLeido}
                 </div>
             </button>`;
-    }).join('');
-
-    // Volver del chat entra con un fade corto y en el mismo punto del scroll:
-    // se siente instantáneo en vez de "recargar" la lista.
-    body.classList.remove('vld-volviendo');
-    void body.offsetWidth;                 // reinicia la animación
-    body.classList.add('vld-volviendo');
-    // Si venías del chat: al punto donde estabas en la lista. Si estás leyendo la
-    // lista: EXACTAMENTE donde estás (antes se iba al principio cada 5 s).
-    try { body.scrollTop = destino; } catch (e) { /* noop */ }
-    _firmaLista = firma;
-    _volviendoDeChat = false;
-
-    body.querySelectorAll('.vl-conv-item').forEach(b => {
-        b.addEventListener('click', () => abrirChat(b.dataset.chat));
-    });
 }
 
 // ── Etiquetas del PROCESO dentro del chat ───────────────────────────
@@ -990,7 +1066,7 @@ async function abrirChat(chatId, { sinChats = false } = {}) {
     // Dónde estaba parado en la lista: al volver se muestra en el MISMO punto
     // (antes saltaba al principio y se sentía como recargar).
     if (!_chatId) {
-        const bl = $('vld-body');
+        const bl = paneLista();
         if (bl) _scrollLista = bl.scrollTop;
     }
     // Cambió de conversación: la cita elegida era del chat anterior (una cita
@@ -1005,13 +1081,51 @@ async function abrirChat(chatId, { sinChats = false } = {}) {
     if (_chatId !== chatId) { _leidoWamid = ''; _fijoPintado = null; }
     _chatId = chatId;
     _chatMeta = null;
-    const body = $('vld-body');
-    if (body) body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>';
+
+    // LO QUE YA TENEMOS PINTADO SE MUESTRA AL INSTANTE. Antes cada entrada al
+    // chat borraba el panel, mostraba "Cargando…" y esperaba la red (en el
+    // celular, medio segundo mirando un spinner). Ahora se pinta el último hilo
+    // conocido y se refresca en silencio detrás: entrar y salir se siente como
+    // WhatsApp. (3 min de validez: más viejo, se pide de cero.)
+    const cache = (_cacheChat && String(_cacheChat.chatId) === String(chatId)
+        && Date.now() - _cacheChat.ts < 180000) ? _cacheChat : null;
+
+    const body = paneChat();
+    mostrarChat();
+    if (cache) {
+        _chatMeta = cache.meta;
+        _chatProc = cache.proc;
+        pintarChatEnPanel({ meta: cache.meta, mensajes: cache.mensajes, fijoHtml: cache.fijoHtml, abajo: true });
+        pintarModoChat();
+        pintarChipQuien();
+        marcarFilasConPrenda();
+        bindAccionesChat(procesoParaModales(_chatProc, (_chatMeta && _chatMeta.tiktok_user) || ''), () => {
+            cargarHilo(chatId, { silencioso: true });
+            cargarChats({ silencioso: true });
+        });
+    } else if (body) {
+        body.innerHTML = '<div class="vl-empty"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>';
+    }
     // Asegura el aviso del chat antes de pintar el hilo (banner de qué hacer).
     // `sinChats` lo usa el deep link de la notificación: la lista ya se está
     // cargando en paralelo, no hay que esperarla para mostrar el chat.
     if (!sinChats && _chats.length === 0) await cargarChats({ silencioso: true });
-    await cargarHilo(chatId);
+    await cargarHilo(chatId, { silencioso: !!cache });
+}
+
+/**
+ * Pinta el panel de la conversación completo (bloque fijo + hilo) desde datos
+ * que ya tenemos. `abajo` = dejar la vista en el último mensaje.
+ */
+function pintarChatEnPanel({ meta, mensajes, fijoHtml, abajo = false }) {
+    const body = paneChat();
+    if (!body) return;
+    const previo = body.scrollTop;
+    body.innerHTML = fijoHtml + '<div class="vld-hilo" id="vld-hilo"></div>';
+    pintarHilo($('vld-hilo'), mensajes || [], { nombreCliente: nombreDeCliente(meta) });
+    aplicarBusqueda();
+    _fijoPintado = fijoHtml;
+    body.scrollTop = abajo ? body.scrollHeight : previo;
 }
 
 /**
@@ -1029,7 +1143,7 @@ async function reaccionarA(wamid, emoji) {
 }
 
 async function cargarHilo(chatId, { silencioso = false } = {}) {
-    const body = $('vld-body');
+    const body = paneChat();
     if (!body) return;
 
     // Se cambió de conversación: el archivo que quedó elegido era de la otra.
@@ -1080,6 +1194,10 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     const fijoHtml = `<div class="vld-fijo">`
         + procesoChipsHtml(procChat) + accionesChatHtml(_chatProc)
         + `</div>` + banner;
+    // Se guarda lo que se está pintando: si el dueño vuelve a entrar a ESTA
+    // conversación, se muestra al instante (sin spinner ni espera) y se refresca
+    // en silencio detrás.
+    _cacheChat = { chatId, meta: _chatMeta, mensajes, proc: _chatProc, fijoHtml, ts: Date.now() };
     // FLUIDEZ (como WhatsApp): si el bloque de proceso/aviso no cambió, NO se
     // rehace el hilo completo — se actualiza de a poco (mensajes nuevos se
     // agregan, ticks/reacciones se corrigen en el lugar, y si nada cambió no se
@@ -1093,20 +1211,15 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
         // al principio (se sentía como si el chat "volviera solo" cada 5 s). Se
         // guarda dónde estaba y, si no estaba abajo, se devuelve exactamente ahí.
         const estabaAbajo = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
-        const previo = body.scrollTop;
-        body.innerHTML = fijoHtml + `<div class="vld-hilo" id="vld-hilo"></div>`;
-        pintarHilo($('vld-hilo'), mensajes, { nombreCliente: nombreDeCliente(_chatMeta) });
-        aplicarBusqueda();
-        _fijoPintado = fijoHtml;
-        if (!estabaAbajo) body.scrollTop = previo;
+        pintarChatEnPanel({ meta: _chatMeta, mensajes, fijoHtml, abajo: estabaAbajo });
     }
 
-    // El scroll REAL del chat es el contenedor .vld-body (el .vld-hilo de adentro
-    // no scrollea). Antes se llamaba con #vld-hilo y el panel quedaba mostrando lo
-    // PRIMERO conversado; ahora baja a lo ÚLTIMO, como en WhatsApp.
+    // El scroll REAL del chat es el panel #vld-chat (el .vld-hilo de adentro
+    // no scrollea). Antes se llamaba con #vld-hilo y el panel quedaba mostrando
+    // lo PRIMERO conversado; ahora baja a lo ÚLTIMO, como en WhatsApp.
     autoScrollAbajo(body, { forzar: !silencioso });
     // Respaldo: baja otra vez apenas el navegador pinte las burbujas (fuentes/imágenes).
-    if (!silencioso) requestAnimationFrame(() => autoScrollAbajo($('vld-body'), { forzar: true }));
+    if (!silencioso) requestAnimationFrame(() => autoScrollAbajo(paneChat(), { forzar: true }));
 
     // ✓✓ AZUL al cliente: se marca el chat como leído al abrirlo y cada vez que
     // llega algo nuevo mientras lo tienes abierto (igual que WhatsApp). Se pide
@@ -1582,7 +1695,12 @@ function volverALista() {
     if (modoBtn) modoBtn.style.display = 'none';
     if (foot) foot.style.display = 'none';
     if (input) input.value = '';
-    _volviendoDeChat = true;      // el próximo render debe volver al punto guardado
+
+    // LA LISTA YA ESTÁ PINTADA: solo se muestra. Antes se destruía al abrir la
+    // conversación y volver obligaba a reconstruir todas las tarjetas (eso era
+    // el "lag al retroceder"). `renderLista` ahora solo toca lo que cambió.
+    _volviendoDeChat = true;
+    mostrarLista();
     renderLista();
     // Consume la entrada del chat (y la de búsqueda/hoja si quedaban arriba):
     // al volver a la lista, "atrás" cierra el cajón.
@@ -1707,7 +1825,7 @@ function pintarBurbujaPendiente(tmpId, texto) {
         const hora = nueva.querySelector('.vl-burbuja-hora');
         if (hora) hora.textContent = 'enviando…';
     }
-    const body = $('vld-body');
+    const body = paneChat();
     if (body) body.scrollTop = body.scrollHeight;
 }
 

@@ -360,17 +360,30 @@
             border-radius: 9px; padding: 4px 9px; margin-top: 7px;
         }
         .vl-conv-quien.humano {
+            position: relative;
             background: rgba(255,193,7,0.14); border: 1px solid rgba(255,193,7,0.5); color: #ffe066;
-            animation: vlLate 2.6s ease-in-out infinite;
+        }
+        /* El pulso vive en un pseudo-elemento y anima SOLO opacity: el navegador
+           lo compone en la GPU. Antes animaba box-shadow sobre cada fila
+           "contesta tú" y con 40-80 conversaciones eso repintaba la lista 60
+           veces por segundo para siempre (se sentía pesada/trabada y gastaba
+           batería). El brillo ámbar suave es el mismo. */
+        .vl-conv-quien.humano::after {
+            content: ''; position: absolute; inset: -1px; border-radius: 9px;
+            box-shadow: 0 0 10px 3px rgba(255,193,7,0.42);
+            opacity: 0; animation: vlLateOp 2.6s ease-in-out infinite;
+            pointer-events: none;
         }
         .vl-conv-quien.tarea { background: rgba(120,180,255,0.12); border: 1px solid rgba(120,180,255,0.4); color: #a5d8ff; }
         .vl-conv-quien.espera { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); color: #ced4da; }
         .vl-conv-quien.bot { background: rgba(0,184,148,0.10); border: 1px solid rgba(0,184,148,0.32); color: #7ff5d8; }
-        @keyframes vlLate {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.26); }
-            50%      { box-shadow: 0 0 10px 3px rgba(255,193,7,0.42); }
+        @keyframes vlLateOp {
+            0%, 100% { opacity: 0.06; }
+            50%      { opacity: 0.85; }
         }
-        @media (prefers-reduced-motion: reduce) { .vl-conv-quien.humano { animation: none; } }
+        @media (prefers-reduced-motion: reduce) {
+            .vl-conv-quien.humano::after { animation: none; opacity: 0.4; }
+        }
         .vl-conv-item.tu-turno { border-left: 3px solid rgba(255,193,7,0.6); }
 
         /* Puntos del proceso en la LISTA de chats (contexto sin abrir el chat) */
@@ -933,7 +946,16 @@
         }
         .vld-icon:hover { background: rgba(255,255,255,0.08); color: #f8f9fa; }
         .vld-sub { padding: 9px 16px; color: #a89bb8; font-size: 0.78rem; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
-        .vld-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 18px; }
+        /* Dos paneles estables dentro del cuerpo: la LISTA y la CONVERSACIÓN.
+           Están SIEMPRE montados y superpuestos; se alternan con visibility (no
+           con display:none) para que al volver del chat NO haya que recalcular
+           el layout de las 80 tarjetas: cambiar de panel cuesta solo pintar. */
+        .vld-body { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+        .vld-pane {
+            position: absolute; inset: 0; overflow-y: auto; padding: 14px 14px 18px;
+            overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+        }
+        .vld-pane.oculto { visibility: hidden; pointer-events: none; }
         .vld-hilo { display: flex; flex-direction: column; gap: 10px; }
         /* Bloque de PROCESO anclado arriba del hilo: los botones ("Confirmar pago",
            "Prenda entregada", "Liberar"…) quedan SIEMPRE a la vista sin subir el
@@ -981,14 +1003,18 @@
         .vl-conv-item.con-aviso { border-left: 3px solid rgba(255,193,7,0.55); }
         /* Badge "algo por revisar": ámbar con brillo suave (nunca rojo ni parpadeo) */
         .vl-conv-badge.aviso {
+            position: relative;
             background: #ffc107; color: #10171f;
-            animation: vlBrilloSuave 2.6s ease-in-out infinite;
         }
-        @keyframes vlBrilloSuave {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.30); }
-            50%      { box-shadow: 0 0 9px 3px rgba(255,193,7,0.45); }
+        /* Mismo criterio que el chip "contesta tú": el brillo se anima por
+           opacity en un pseudo-elemento (GPU), no con box-shadow (repintado). */
+        .vl-conv-badge.aviso::after {
+            content: ''; position: absolute; inset: -1px; border-radius: 999px;
+            box-shadow: 0 0 9px 3px rgba(255,193,7,0.45);
+            opacity: 0; animation: vlLateOp 2.6s ease-in-out infinite;
+            pointer-events: none;
         }
-        @media (prefers-reduced-motion: reduce) { .vl-conv-badge.aviso { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .vl-conv-badge.aviso::after { animation: none; opacity: 0.3; } }
         /* Banner del aviso dentro del chat: qué pasó + qué hacer */
         .vl-aviso-banner {
             background: rgba(255,193,7,0.10); border: 1px solid rgba(255,193,7,0.38);
@@ -1020,7 +1046,7 @@
             .vl-actions .btn-top { padding: 9px 13px; font-size: 0.8rem; }
             .vl-chat-mini-scroll { max-height: 52vh; }
             .vl-workspace-head { padding: 16px; }
-            .vld-body { padding: 12px 12px 16px; }
+            .vld-pane { padding: 12px 12px 16px; }
             .vld-fijo { margin: 0 -12px 9px; padding: 0 12px 9px; }
             .vl-modal { padding: 18px; }
         }
@@ -1248,8 +1274,8 @@
 
         /* ===== Volver del chat a la lista: entrada suave, sin salto ===== */
         @keyframes vldVolver { from { opacity: 0.55; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-        .vld-body.vld-volviendo { animation: vldVolver 0.16s ease-out both; }
-        @media (prefers-reduced-motion: reduce) { .vld-body.vld-volviendo { animation: none; } }
+        .vld-pane.vld-volviendo { animation: vldVolver 0.16s ease-out both; }
+        @media (prefers-reduced-motion: reduce) { .vld-pane.vld-volviendo { animation: none; } }
 
         /* ===== Vendido en el LIVE (solo prendas pagadas) ===== */
         .live-meta-2 { color: #8b93a1; font-weight: 600; }
