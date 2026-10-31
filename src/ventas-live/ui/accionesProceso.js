@@ -58,7 +58,21 @@ async function trasConfirmarPago(proceso, pago) {
                 await vlApi.enviarManual(chatId,
                     'gracias por tu abono bonit@ 💜 te queda un saldo de ' + formatearDinero(saldo));
             } else {
-                await vlApi.enviarManual(chatId, await textoPagoConfirmado());
+                // ciclo 20261112: la pregunta de entrega sale JUNTO al "gracias"
+                // (pedido del dueño). La decide la BD con el estado REAL: si ya
+                // eligió presencial no pregunta nada; si es envío pide solo los
+                // datos que faltan. Se manda como 'bot' para que el bot siga a
+                // cargo del turno (si quedaba como humano, el bot no pedía los
+                // datos que el cliente mandara después).
+                let pregunta = '';
+                try {
+                    const r = await vlApi.postPagoPedir(clienteId);
+                    if (r && r.ok && r.data && r.data.texto) pregunta = String(r.data.texto);
+                } catch (_) { /* no crítico */ }
+                const base = await textoPagoConfirmado();
+                await vlApi.enviarManual(chatId,
+                    pregunta ? (base + '\n\n' + pregunta) : base,
+                    '', 'bot');
             }
         }
     } catch (_) { /* si Meta no deja enviar, no se avisa */ }

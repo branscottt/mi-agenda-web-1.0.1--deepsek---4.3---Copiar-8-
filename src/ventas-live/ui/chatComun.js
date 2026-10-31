@@ -157,6 +157,15 @@ export const AVISO_INFO = {
         label: 'Cambió la entrega',
         accion: 'El cliente cambió de opinión (antes entrega presencial, ahora envío —o al revés) y quedó actualizado. Revisa Entregas: si quedó mal, usa "Cambiar a envío/presencial" en la fila del pedido.'
     },
+    // ciclo 20261112: post-pago el bot pide SOLO los datos que faltan del envío.
+    datos_entrega: {
+        label: 'Faltan datos de envío',
+        accion: 'El bot le pidió por WhatsApp los datos que faltan (nombre, número, correo, dirección). Lo que mande queda solo en la ficha del cliente y en Entregas; si no contesta, pídeselos tú.'
+    },
+    envio_datos_listos: {
+        label: 'Datos de envío completos',
+        accion: 'Ya tenemos nombre, número, correo y dirección: el bot queda en silencio. Crea el envío en Entregas (botón "Copiar datos").'
+    },
     // ciclo 20261098: llegó un audio/foto SIN texto para interpretar.
     media: {
         label: 'Audio o foto para revisar',

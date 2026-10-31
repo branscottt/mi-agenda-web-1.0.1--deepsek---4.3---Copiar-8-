@@ -300,6 +300,11 @@ export const vlApi = {
     marcarEntregado: (procesoId, pagado = true) =>
         callRpc('vl_marcar_entregado', { p_proceso_id: procesoId, p_pagado: pagado }),
     promoverEntrega: (clienteId) => callRpc('vl_wa_promover_entrega', { p_cliente_id: clienteId }),
+    // ciclo 20261112: al confirmar el pago, la BD decide qué se le manda al
+    // cliente (¿envío o presencial en Pudahuel? / los datos que faltan / nada).
+    // Devuelve { ok, texto, tipo, faltan, chat_id } y deja el chat marcado para
+    // que el cerebro no vuelva a preguntar lo mismo.
+    postPagoPedir: (clienteId) => callRpc('vl_wa_post_pago_pedir', { p_cliente_id: clienteId }),
     liberarItems: (procesoId, itemIds, nota = '') =>
         callRpc('vl_liberar_items', { p_proceso_id: procesoId, p_item_ids: itemIds, p_nota: nota }),
     // Pagar prendas puntuales (una o todas): registra el pago y lo imputa a ESAS
