@@ -122,6 +122,21 @@ async function marcarLeidoManual(chatId) {
 // Si un archivo falla, se sigue con los demás y se informa cuántos salieron bien
 // (nunca se pierde lo demás por un archivo malo).
 // Si el envío falla, se borra lo subido (no queda basura en el bucket).
+/** Nombre que le llega al cliente ("VID_producto-parte-1-de-2.mp4"), sin
+ *  acentos ni caracteres raros. Antes el archivo se llamaba con un uuid y el
+ *  cliente veía "3f2a91c4-....mp4". */
+function nombreParaWhatsApp(nombre, ext) {
+    const base = String(nombre || '').replace(/\.[A-Za-z0-9]{2,5}$/, '');
+    const limpio = base
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // sin tildes
+        .replace(/[^A-Za-z0-9._ -]+/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-{2,}/g, '-')
+        .replace(/^[-.]+|[-.]+$/g, '')
+        .slice(0, 60);
+    return `${limpio || 'archivo'}.${ext}`;
+}
+
 function extensionDeArchivo(archivo, tipo) {
     const mime = String((archivo && archivo.type) || '').toLowerCase();
     const porMime = {
@@ -176,7 +191,10 @@ async function enviarMediaManual(chatId, opciones = {}) {
             if (typeof onProgreso === 'function') {
                 try { onProgreso(i + 1, lista.length); } catch (_) { /* aviso es opcional */ }
             }
-            const ruta = `${tenantId}/${chatId}/${crypto.randomUUID()}.${extensionDeArchivo(a, t)}`;
+            // {tenant}/{chat}/{uuid}/{nombre-legible}: la carpeta conserva la
+            // unicidad y el nombre de archivo es el que ve el cliente.
+            const ext = extensionDeArchivo(a, t);
+            const ruta = `${tenantId}/${chatId}/${crypto.randomUUID()}/${nombreParaWhatsApp(a.name, ext)}`;
             const up = await supabase.storage.from('vl-media').upload(ruta, a, {
                 contentType: a.type || (t === 'video' ? 'video/mp4' : t === 'documento' ? 'application/pdf' : t === 'audio' ? 'audio/mpeg' : 'image/jpeg'),
                 upsert: false

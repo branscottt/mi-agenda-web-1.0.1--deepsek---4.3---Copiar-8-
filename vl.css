@@ -863,6 +863,15 @@
         .vl-adj-item .vl-adj-datos { flex: none; width: 100%; min-width: 0; text-align: center; }
         .vl-adj-item .vl-adj-nombre { font-size: 0.66rem; }
         .vl-adj-item .vl-adj-peso { font-size: 0.62rem; margin-top: 1px; }
+        /* Tijera para recortar un video (espejo de la ✕, arriba a la izquierda). */
+        .vl-adj-recortar {
+            position: absolute; top: -7px; left: -7px;
+            padding: 0; width: 20px; height: 20px; border-radius: 50%;
+            background: #2a2140; border: 1px solid rgba(255,255,255,0.22);
+            color: #d8c6f5; font-size: 0.6rem; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .vl-adj-recortar:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
         .vl-adj-item .vl-adj-quitar {
             position: absolute; top: -7px; right: -7px;
             padding: 0; width: 20px; height: 20px; border-radius: 50%;
@@ -905,6 +914,47 @@
         }
         .vl-adj-quitar:hover { color: #fff; border-color: rgba(255,255,255,0.35); }
         .vld-foot .vl-adj-btn { flex-shrink: 0; padding: 10px 12px; min-height: 44px; }
+
+        /* ── Modal "Recortar video" ─────────────────────────────────────────── */
+        .vlrc-video {
+            width: 100%; max-height: 38vh; display: block;
+            background: #000; border-radius: 12px; margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .vlrc-marcas { display: flex; flex-direction: column; gap: 10px; }
+        .vlrc-linea { display: flex; align-items: center; gap: 10px; }
+        .vlrc-eti { flex: 0 0 52px; font-size: 0.8rem; color: #cbb8e6; font-weight: 600; }
+        .vlrc-range {
+            flex: 1 1 auto; min-width: 0; height: 28px;
+            -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+        }
+        .vlrc-range::-webkit-slider-runnable-track {
+            height: 6px; border-radius: 99px;
+            background: linear-gradient(90deg, #9d4edd, #c77dff);
+        }
+        .vlrc-range::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 24px; height: 24px; margin-top: -9px; border-radius: 50%;
+            background: #fff; border: 3px solid #9d4edd;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+        }
+        .vlrc-range::-moz-range-track { height: 6px; border-radius: 99px; background: linear-gradient(90deg, #9d4edd, #c77dff); }
+        .vlrc-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #9d4edd; }
+        .vlrc-val {
+            flex: 0 0 46px; text-align: right; font-size: 0.82rem;
+            color: #e9edef; font-variant-numeric: tabular-nums;
+        }
+        .vlrc-info {
+            margin-top: 12px; font-size: 0.84rem; color: #a5d8ff;
+            background: rgba(120,180,255,0.08); border: 1px solid rgba(120,180,255,0.28);
+            border-radius: 10px; padding: 9px 12px; line-height: 1.35;
+        }
+        .vlrc-nota { margin-top: 10px; font-size: 0.74rem; color: #a99bc4; line-height: 1.4; }
+        @media (max-width: 420px) {
+            .vlrc-eti { flex-basis: 44px; font-size: 0.76rem; }
+            .vlrc-val { flex-basis: 40px; font-size: 0.76rem; }
+            .vlrc-video { max-height: 32vh; }
+        }
         .vl-transcripcion-label { font-size: 0.68rem; letter-spacing: 0.03em; text-transform: uppercase; opacity: 0.7; margin: 6px 0 2px; }
 
         @media (max-width: 860px) {

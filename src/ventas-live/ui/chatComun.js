@@ -686,11 +686,16 @@ export function previaAdjuntoHtml(items) {
         const rotulo = tipo === 'video' ? '🎬' : tipo === 'audio' ? '🎤'
             : tipo === 'documento' ? '📄' : '📷';
         const titulo = preparando ? 'Preparando…' : it.nombre || 'Archivo';
-        const peso = preparando ? 'Optimizando…' : etiquetaPeso(it.peso);
+        const peso = preparando ? (it.progreso || 'Optimizando…') : etiquetaPeso(it.peso);
         const nota = (!preparando && it.nota)
             ? `<div class="vl-adj-sub">${escapeHtml(it.nota)}</div>` : '';
         // Si es una parte de un video troceado, el título del chip es "Parte 1/2"
         // (el nombre del archivo ya no dice nada útil: es todo el mismo video).
+        // Tijera: sólo para un video entero (no para trozos de un video ya partido).
+        const idItem = String(it.id != null ? it.id : i);
+        const recortar = (!preparando && it.esVideo)
+            ? `<button class="vl-adj-recortar" type="button" data-recortar="${escapeHtml(idItem)}"
+                       title="Recortar este video"><i class="fas fa-scissors"></i></button>` : '';
         const tituloChip = it.rotulo
             ? `<b class="vl-adj-rotulo">${escapeHtml(it.rotulo)}</b>`
             : escapeHtml(it.nombre || 'Archivo');
@@ -701,7 +706,8 @@ export function previaAdjuntoHtml(items) {
                 <div class="vl-adj-peso">${rotulo} ${escapeHtml(peso)}</div>
                 ${nota}
             </div>
-            <button class="vl-adj-quitar" type="button" data-quitar="${escapeHtml(String(it.id != null ? it.id : i))}"
+            ${recortar}
+            <button class="vl-adj-quitar" type="button" data-quitar="${escapeHtml(idItem)}"
                     title="Quitar ${escapeHtml(it.nombre || 'archivo')}"><i class="fas fa-xmark"></i></button>
         </div>`;
     }).join('')}</div>`;
@@ -765,7 +771,8 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
         pr.innerHTML = previaAdjuntoHtml(items.map((it) => ({
             id: it.id, nombre: it.archivo.name, tipo: it.tipo, url: it.url,
             peso: it.archivo.size, preparando: it.preparando, nota: it.nota,
-            rotulo: it.rotulo,
+            rotulo: it.rotulo, progreso: it.progreso || '',
+            esVideo: /^video\//.test(String((it.archivo && it.archivo.type) || '')),
         })));
         pr.hidden = false;
     };
@@ -812,6 +819,73 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
         });
     }
 
+    /** Saca un adjunto de la tira (y suelta la miniatura). */
+    const sacar = (it) => {
+        const pos = items.indexOf(it);
+        if (pos < 0) return;
+        items.splice(pos, 1);
+        if (it.url && typeof URL.revokeObjectURL === 'function') {
+            try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
+        }
+    };
+
+    /**
+     * Prepara UN adjunto con mediaPrep y lo reemplaza por lo que devuelva: una
+     * entrada normal, o varias si el video se partió en trozos.
+     * @returns {Promise<{error:string, info:string, partes:number}>}
+     */
+    const prepararItem = async (it) => {
+        const salida = { error: '', info: '', partes: 0 };
+        try {
+            const prep = await prepararArchivo(it.archivo, it.tipo, {
+                // El troceo avisa (i, total); con total=0 todavía está leyendo.
+                onProgreso: (i, t) => {
+                    it.progreso = t ? `Partiendo en trozos… ${i}/${t}` : 'Leyendo el video…';
+                    pintar();
+                },
+            });
+            if (!items.includes(it)) return salida;      // lo quitaron mientras tanto
+            if (prep.aviso) {
+                // Ese archivo no se puede mandar: se saca y se dice el motivo (no
+                // queda un adjunto "fantasma" en la tira).
+                sacar(it);
+                salida.error = prep.aviso;
+                return salida;
+            }
+            const lista = prep.items || [];
+            const grupoId = lista.length > 1 ? 'g' + (++seq) : '';
+            const salidas = lista.map((o) => ({
+                id: 'adj' + (++seq),
+                archivo: o.archivo,
+                tipo: o.tipo,
+                nota: o.nota || '',
+                rotulo: o.rotulo || '',
+                url: crearUrlMini(o.archivo),
+                preparando: false,
+                // Si el video se partió: estas partes son un solo adjunto que se
+                // puede recortar (la tijera abre el video ORIGINAL completo).
+                grupo: grupoId,
+                origenArchivo: grupoId ? it.archivo : null,
+            }));
+            if (!salidas.length) { it.preparando = false; return salida; }
+            const pos = items.indexOf(it);
+            if (pos < 0) return salida;
+            items.splice(pos, 1, ...salidas);
+            if (it.url && typeof URL.revokeObjectURL === 'function') {
+                try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
+            }
+            salida.partes = salidas.filter((o) => o.rotulo).length;
+            // Si el adjunto trae una nota propia (ej. "Recortado · 0:04–0:12"),
+            // manda esa: es más útil que "Va como archivo…".
+            if (salidas.length === 1 && it.notaManual) salidas[0].nota = it.notaManual;
+            if (salidas[0].nota) salida.info = salidas[0].nota;
+        } catch (_) {
+            // Nunca se queda colgado: lo que no se pudo preparar se manda igual.
+            it.preparando = false;
+        }
+        return salida;
+    };
+
     if (f) {
         f.addEventListener('change', () => {
             const elegidos = Array.from(f.files || []);
@@ -826,7 +900,7 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
                     return;
                 }
                 // Sólo se revisa el FORMATO: el peso ya no descarta nada (se reduce
-                // la foto o el video grande va como archivo, en mediaPrep.js).
+                // la foto, el video grande va como archivo o se parte en trozos).
                 const v = validarAdjunto(archivo);
                 if (!v.ok) { error = error || v.error; return; }
                 // Ojo: si ya hay un documento, se puede seguir sumando (WhatsApp
@@ -840,7 +914,7 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
             const cola = aceptados.map(({ archivo, tipo }) => {
                 const it = {
                     id: 'adj' + (++seq), archivo, tipo, url: crearUrlMini(archivo),
-                    preparando: true, nota: '',
+                    preparando: true, nota: '', progreso: '',
                 };
                 items.push(it);
                 return it;
@@ -850,48 +924,16 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
 
             enCurso++;
             (async () => {
+                let errorPrep = '';
                 let info = '';
                 let partesNuevas = 0;
                 try {
                     for (let i = 0; i < cola.length; i++) {
-                        const it = cola[i];
-                        const prep = await prepararArchivo(it.archivo, it.tipo);
-                        if (!items.includes(it)) continue;   // lo quitaron mientras se preparaba
-                        if (prep.aviso) {
-                            // Ese archivo no se puede mandar: se saca de la tira y se
-                            // dice el motivo (no queda un adjunto "fantasma").
-                            const pos = items.indexOf(it);
-                            if (pos >= 0) items.splice(pos, 1);
-                            if (it.url && typeof URL.revokeObjectURL === 'function') {
-                                try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
-                            }
-                            error = error || prep.aviso;
-                            continue;
-                        }
-                        // prep.items trae UNA entrada normalmente y VARIAS si el
-                        // video se partió: la primera reemplaza al adjunto elegido
-                        // y las demás se suman justo detrás, en orden.
-                        const salidas = (prep.items || []).map((o) => ({
-                            id: 'adj' + (++seq),
-                            archivo: o.archivo,
-                            tipo: o.tipo,
-                            nota: o.nota || '',
-                            rotulo: o.rotulo || '',
-                            url: crearUrlMini(o.archivo),
-                            preparando: false,
-                        }));
-                        if (!salidas.length) { it.preparando = false; continue; }
-                        const pos = items.indexOf(it);
-                        if (pos < 0) continue;
-                        items.splice(pos, 1, ...salidas);
-                        if (it.url && typeof URL.revokeObjectURL === 'function') {
-                            try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
-                        }
-                        partesNuevas += salidas.filter((o) => o.rotulo).length;
-                        if (salidas[0].nota) info = info || salidas[0].nota;
+                        const r = await prepararItem(cola[i]);
+                        errorPrep = errorPrep || r.error;
+                        info = info || r.info;
+                        partesNuevas += r.partes;
                     }
-                } catch (_) {
-                    // Nunca se queda colgado: lo que no se pudo preparar se manda igual.
                 } finally {
                     cola.forEach((it) => { if (items.includes(it)) it.preparando = false; });
                     enCurso--;
@@ -900,20 +942,86 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
                     if (partesNuevas > 1) {
                         info = `El video se manda en ${partesNuevas} partes, con la calidad original.`;
                     }
-                    avisar(error, info);
+                    avisar(errorPrep, info);
                     avisarQueTermino();
                 }
             })();
         });
     }
 
+    /** Recortar un video ya elegido: el tramo elegido reemplaza al adjunto
+     *  (si estaba partido en trozos, reemplaza TODOS: es el mismo video). */
+    const recortarAdjunto = async (it) => {
+        const { abrirRecorte } = await import('./RecorteModal.js');
+        const original = it.origenArchivo || it.archivo;
+        const grupo = it.grupo || '';
+        const afectados = grupo ? items.filter((x) => x.grupo === grupo) : [it];
+        const primero = afectados[0];
+        abrirRecorte({
+            archivo: original,
+            onListo: async (tramo) => {
+                if (!tramo) return;
+                // Un solo adjunto otra vez mientras se recalcula.
+                afectados.slice(1).forEach((x) => sacar(x));
+                primero.origenArchivo = null;
+                primero.grupo = '';
+                primero.rotulo = '';
+                primero.preparando = true;
+                primero.progreso = 'Recortando…';
+                pintar();
+                enCurso++;
+                let listo = null;
+                try {
+                    const mod = await import('./videoSplit.js');
+                    const res = await mod.recortarVideo(original, { desde: tramo.desde, hasta: tramo.hasta });
+                    if (!res.ok) {
+                        primero.preparando = false;
+                        primero.progreso = '';
+                        pintar();
+                        avisar(res.error || 'No se pudo recortar el video');
+                        return;
+                    }
+                    // El tramo reemplaza al archivo: se vuelve a preparar por si
+                    // igual queda grande (entonces se parte solo).
+                    primero.archivo = res.archivo;
+                    primero.tipo = 'video';
+                    primero.url = crearUrlMini(res.archivo);
+                    primero.nota = primero.notaManual = `Recortado · ${mod.duracionCorta(res.inicio)}–${mod.duracionCorta(res.fin)}`;
+                    primero.preparando = true;
+                    primero.progreso = '';
+                    pintar();
+                    listo = await prepararItem(primero);
+                    pintar();
+                } finally {
+                    enCurso--;
+                    avisarQueTermino();
+                }
+                if (listo) {
+                    avisar(listo.error, listo.partes > 1
+                        ? `El tramo recortado se manda en ${listo.partes} partes, con la calidad original.`
+                        : (listo.info || primero.nota));
+                }
+            }
+        });
+    };
+
     if (pr) {
         pr.addEventListener('click', (e) => {
-            const x = e.target && e.target.closest ? e.target.closest('[data-quitar]') : null;
-            if (!x) return;
-            e.preventDefault();
-            e.stopPropagation();
-            quitar(x.dataset.quitar);
+            const t = e.target;
+            const quitarBtn = t && t.closest ? t.closest('[data-quitar]') : null;
+            if (quitarBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                quitar(quitarBtn.dataset.quitar);
+                return;
+            }
+            const recBtn = t && t.closest ? t.closest('[data-recortar]') : null;
+            if (recBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const it = items.find((x) => String(x.id) === String(recBtn.dataset.recortar));
+                if (it && !it.preparando) recortarAdjunto(it);
+            }
         });
     }
 

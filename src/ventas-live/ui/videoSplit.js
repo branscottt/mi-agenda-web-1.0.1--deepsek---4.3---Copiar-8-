@@ -187,19 +187,19 @@ function construirTrozo(file, info, pistas, fuente) {
  * @param {Object} o {objetivo, onProgreso}
  * @returns {Promise<{ok:boolean, partes?:Array<{archivo:File, inicio:number, fin:number, peso:number}>, error?:string}>}
  */
-export async function partirVideo(archivo, { objetivo = TROZO_OBJETIVO, onProgreso } = {}) {
-    if (!archivo) return { ok: false, error: 'No hay video para partir' };
+/** Lee y parsea el video una sola vez (lo comparten partir y recortar). */
+async function abrirVideo(archivo, avisar) {
+    if (!archivo) return { ok: false, error: 'No hay video' };
     if (archivo.size > TAMANO_MAX_PARTIR) {
         return {
             ok: false,
-            error: `El video pesa ${(archivo.size / MB).toFixed(0)} MB. Para partirlo hay que abrirlo en el teléfono `
-                + 'y eso necesita memoria: graba en 1080p o recórtalo antes.'
+            error: `El video pesa ${(archivo.size / MB).toFixed(0)} MB. Para procesarlo hay que abrirlo en el `
+                + 'teléfono y eso necesita memoria: grábalo en 1080p o recórtalo en partes más cortas.'
         };
     }
-    const avisar = (n, t) => { if (typeof onProgreso === 'function') { try { onProgreso(n, t); } catch (_) { /* opcional */ } } };
-
     let bytes;
     try {
+        if (typeof avisar === 'function') avisar(0, 0);   // "leyendo…"
         bytes = new Uint8Array(await archivo.arrayBuffer());
     } catch (_) {
         return { ok: false, error: 'No se pudo leer el video en este dispositivo' };
@@ -219,7 +219,7 @@ export async function partirVideo(archivo, { objetivo = TROZO_OBJETIVO, onProgre
         return { ok: false, error: 'Este video no se pudo leer (' + ((e && e.message) || 'formato raro') + ')' };
     }
     if (errorParseo || !info || !info.videoTracks || !info.videoTracks.length) {
-        return { ok: false, error: 'Este video no se pudo partir (formato no compatible)' };
+        return { ok: false, error: 'Este video no se pudo leer (formato no compatible con el navegador)' };
     }
 
     const vT = info.videoTracks[0];
@@ -227,8 +227,40 @@ export async function partirVideo(archivo, { objetivo = TROZO_OBJETIVO, onProgre
     const vTrack = file.getTrackById(vT.id);
     const aTrack = aT ? file.getTrackById(aT.id) : null;
     if (!vTrack || !vTrack.samples || !vTrack.samples.length) {
-        return { ok: false, error: 'Este video no se pudo partir (sin fotogramas)' };
+        return { ok: false, error: 'Este video no tiene fotogramas que se puedan leer' };
     }
+    return { ok: true, bytes, file, info, vT, aT, vTrack, aTrack };
+}
+
+/** Arma las pistas de un tramo [i0, i1) de video, con el audio que le corresponde. */
+function pistasDelTramo({ vT, aT, vTrack, aTrack }, i0, i1, durTotal) {
+    const seg = vT.timescale;
+    const totalMuestras = vTrack.samples.length;
+    const vSamples = vTrack.samples.slice(i0, i1);
+    const t0 = vSamples[0].cts / seg;
+    const t1 = (i1 < totalMuestras) ? vTrack.samples[i1].cts / seg : durTotal;
+
+    const aSamples = aTrack
+        ? aTrack.samples.filter((sm) => {
+            const ini = sm.cts / aT.timescale;
+            const fin = (sm.cts + sm.duration) / aT.timescale;
+            // incluye el frame que toca el corte: mejor 20 ms repetidos que un hueco
+            return fin > t0 + 1e-6 && ini < t1 - 1e-6;
+        })
+        : [];
+
+    const pistas = [{ id: vT.id, samples: vSamples }];
+    if (aTrack && aSamples.length) pistas.push({ id: aT.id, samples: aSamples });
+    return { pistas, t0, t1 };
+}
+
+export async function partirVideo(archivo, { objetivo = TROZO_OBJETIVO, onProgreso } = {}) {
+    const avisar = (n, t) => { if (typeof onProgreso === 'function') { try { onProgreso(n, t); } catch (_) { /* opcional */ } } };
+    const abierto = await abrirVideo(archivo, avisar);
+    if (!abierto.ok) return abierto;
+    const { bytes, file, info, vT, aT, vTrack, aTrack } = abierto;
+    if (!archivo) return { ok: false, error: 'No hay video para partir' };
+    const durTotal = (vT.duration || 0) / vT.timescale;
 
     // Cortes en keyframes, acumulando bytes hasta el objetivo.
     const totalMuestras = vTrack.samples.length;
@@ -276,30 +308,12 @@ export async function partirVideo(archivo, { objetivo = TROZO_OBJETIVO, onProgre
         return { ok: false, error: 'Este video no se puede partir (tiene los keyframes muy separados)' };
     }
 
-    const seg = vT.timescale;
-    const durTotal = (vT.duration || 0) / seg;
     const total = cortes.length - 1;
     const partes = [];
     for (let k = 0; k < total; k++) {
         avisar(k + 1, total);
-        const i0 = cortes[k];
-        const i1 = cortes[k + 1];
-        const vSamples = vTrack.samples.slice(i0, i1);
-        const t0 = vSamples[0].cts / seg;
-        const t1 = (i1 < totalMuestras) ? vTrack.samples[i1].cts / seg : durTotal;
-
-        const aSamples = aTrack
-            ? aTrack.samples.filter((sm) => {
-                const ini = sm.cts / aT.timescale;
-                const fin = (sm.cts + sm.duration) / aT.timescale;
-                // incluye el frame que toca el corte: mejor 20 ms repetidos que un hueco
-                return fin > t0 + 1e-6 && ini < t1 - 1e-6;
-            })
-            : [];
-
-        const pistas = [{ id: vT.id, samples: vSamples }];
-        if (aTrack && aSamples.length) pistas.push({ id: aT.id, samples: aSamples });
-
+        const { pistas, t0, t1 } = pistasDelTramo(
+            { vT, aT, vTrack, aTrack }, cortes[k], cortes[k + 1], durTotal);
         let trozo;
         try {
             trozo = construirTrozo(file, info, pistas, bytes);
@@ -318,6 +332,60 @@ export async function partirVideo(archivo, { objetivo = TROZO_OBJETIVO, onProgre
     }
     avisar(total, total);
     return { ok: true, partes };
+}
+
+/**
+ * Recorta un video entre dos tiempos, SIN recomprimir (misma calidad).
+ * El corte de ENTRADA cae en el keyframe anterior más cercano (es lo que permite
+ * no re-codificar); el de SALIDA es exacto. Devuelve también el tramo REAL.
+ * @param {File} archivo
+ * @param {Object} o {desde, hasta} en segundos
+ * @returns {Promise<{ok:boolean, archivo?:File, inicio?:number, fin?:number, peso?:number, error?:string}>}
+ */
+export async function recortarVideo(archivo, { desde = 0, hasta = Infinity, onProgreso } = {}) {
+    const avisar = (n, t) => { if (typeof onProgreso === 'function') { try { onProgreso(n, t); } catch (_) { /* opcional */ } } };
+    const abierto = await abrirVideo(archivo, avisar);
+    if (!abierto.ok) return abierto;
+    const { bytes, file, info, vT, aT, vTrack, aTrack } = abierto;
+
+    const seg = vT.timescale;
+    const totalMuestras = vTrack.samples.length;
+    const durTotal = (vT.duration || 0) / seg;
+    const t0Pedido = Math.max(0, Number(desde) || 0);
+    const t1Pedido = Math.min(durTotal || Number(hasta) || 0, Number(hasta) || Infinity);
+
+    // Entrada: último keyframe que empieza en/antes del punto pedido.
+    let i0 = 0;
+    for (let k = 0; k < totalMuestras; k++) {
+        const t = vTrack.samples[k].cts / seg;
+        if (t > t0Pedido + 1e-6) break;
+        if (vTrack.samples[k].is_sync) i0 = k;
+    }
+    // Salida: última muestra que empieza antes del punto pedido.
+    let i1 = totalMuestras;
+    for (let k = i0; k < totalMuestras; k++) {
+        if (vTrack.samples[k].cts / seg >= t1Pedido - 1e-6) { i1 = k; break; }
+    }
+    if (i1 - i0 < 8) {
+        return { ok: false, error: 'El tramo elegido es demasiado corto (deja al menos 1 segundo)' };
+    }
+
+    avisar(1, 1);
+    const { pistas, t0, t1 } = pistasDelTramo({ vT, aT, vTrack, aTrack }, i0, i1, durTotal);
+    let trozo;
+    try {
+        trozo = construirTrozo(file, info, pistas, bytes);
+    } catch (_) {
+        return { ok: false, error: 'No se pudo recortar el video en este dispositivo' };
+    }
+    const base = String(archivo.name || 'video').replace(/\.[A-Za-z0-9]{2,5}$/, '') || 'video';
+    return {
+        ok: true,
+        archivo: new File([trozo], `${base}-recortado.mp4`, { type: 'video/mp4', lastModified: Date.now() }),
+        inicio: t0,
+        fin: t1,
+        peso: trozo.length,
+    };
 }
 
 /** "1:23" para mostrar en la nota del trozo. */
