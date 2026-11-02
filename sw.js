@@ -2,7 +2,7 @@
 // Estrategia: Cache First para assets estáticos, Network Only para API.
 // Se activa solo en visitas repetidas (no cambia la primera carga).
 
-const CACHE_NAME = 'agendapro-v147';
+const CACHE_NAME = 'agendapro-v148';
 // Solo assets estáticos con hash/versión fija se precachean.
 // Los HTML NO se precachean: cada deploy cambia headers (CSP) y estructura,
 // y un HTML viejo en caché rompe la navegación y la política de seguridad.
@@ -159,6 +159,7 @@ self.addEventListener('notificationclick', (event) => {
     const d = event.notification.data || {};
     const destino = d.url || '/ventas-live.html';
     const chatId = d.chatId || (String(destino).match(/chat=([0-9a-f-]{36})/) || [])[1] || '';
+    const ruta = (String(destino).split('#')[0].split('?')[0]) || '/';
     event.waitUntil((async () => {
         const lista = await clients.matchAll({ type: 'window', includeUncontrolled: true });
         for (const c of lista) {
@@ -169,6 +170,14 @@ self.addEventListener('notificationclick', (event) => {
                     return;
                 } catch (_) { /* sigue */ }
             }
+        }
+        // Cualquier otra página del panel (avisos generales: /admin.html, etc.):
+        // si ya hay una pestaña abierta en ESA ruta, se enfoca en vez de abrir otra.
+        for (const c of lista) {
+            try {
+                const u = new URL(c.url);
+                if (u.pathname === ruta) { await c.focus(); return; }
+            } catch (_) { /* sigue */ }
         }
         if (clients.openWindow) await clients.openWindow(destino);
     })());

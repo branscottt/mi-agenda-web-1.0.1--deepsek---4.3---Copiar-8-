@@ -55,12 +55,63 @@ function rolDeJwt(token: string): string | null {
 }
 
 async function borrarSub(supabaseUrl: string, sr: string, endpoint: string): Promise<void> {
+  const q = `endpoint=eq.${encodeURIComponent(endpoint)}`;
+  for (const tabla of ['vl_push_subs', 'avisos_subs']) {
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/${tabla}?${q}`, {
+        method: 'DELETE',
+        headers: { 'apikey': sr, 'Authorization': `Bearer ${sr}` },
+      });
+    } catch (_) { /* da igual */ }
+  }
+}
+
+/**
+ * Dispositivos del DUEÑO (los dos proyectos). El dueño tiene un espacio de
+ * reservas y uno de Ventas Live con el MISMO correo: si activó los avisos en
+ * cualquiera de los dos, los recibe en ambos. Se unen vl_push_subs (Ventas
+ * Live) y avisos_subs (avisos generales/reservas) sin duplicar endpoint.
+ */
+async function dispositivosDe(
+  supabaseUrl: string,
+  sr: string,
+  tenantId: string,
+): Promise<Array<{ endpoint: string; p256dh: string; auth: string }>> {
+  const out = new Map<string, { endpoint: string; p256dh: string; auth: string }>();
+  const h = { 'apikey': sr, 'Authorization': `Bearer ${sr}` };
+  let ids: string[] = [tenantId];
   try {
-    await fetch(`${supabaseUrl}/rest/v1/vl_push_subs?endpoint=eq.${encodeURIComponent(endpoint)}`, {
-      method: 'DELETE',
-      headers: { 'apikey': sr, 'Authorization': `Bearer ${sr}` },
-    });
-  } catch (_) { /* da igual */ }
+    const t = await fetch(
+      `${supabaseUrl}/rest/v1/tenants?id=eq.${encodeURIComponent(tenantId)}&select=email_contacto`,
+      { headers: h },
+    ).then((r) => r.ok ? r.json() : []).catch(() => []);
+    const email = String((Array.isArray(t) && t[0] && t[0].email_contacto) || '').trim();
+    if (email && email.includes('@')) {
+      const fam = await fetch(
+        `${supabaseUrl}/rest/v1/tenants?email_contacto=eq.${encodeURIComponent(email)}&select=id`,
+        { headers: h },
+      ).then((r) => r.ok ? r.json() : []).catch(() => []);
+      const otros = (Array.isArray(fam) ? fam : []).map((x) => String((x as { id?: string }).id || '')).filter(Boolean);
+      if (otros.length) ids = [...new Set([tenantId, ...otros])];
+    }
+  } catch (_) { /* sigue con el tenant solo */ }
+
+  const filtro = `tenant_id=in.(${ids.map((i) => encodeURIComponent(i)).join(',')})` +
+    `&select=endpoint,p256dh,auth`;
+  for (const tabla of ['vl_push_subs', 'avisos_subs']) {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/${tabla}?${filtro}`, { headers: h });
+      if (!r.ok) continue;
+      const rows = await r.json().catch(() => []);
+      for (const s of (Array.isArray(rows) ? rows : [])) {
+        const row = s as { endpoint?: string; p256dh?: string; auth?: string };
+        if (row.endpoint && row.p256dh && row.auth && !out.has(row.endpoint)) {
+          out.set(row.endpoint, { endpoint: row.endpoint, p256dh: row.p256dh, auth: row.auth });
+        }
+      }
+    } catch (_) { /* sigue con la otra tabla */ }
+  }
+  return [...out.values()];
 }
 
 /** Una fila por llamada: qué pasó de verdad con la entrega. */
@@ -121,7 +172,7 @@ async function handle(req: Request): Promise<Response> {
       headers: {
         'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
       },
     });
   }
@@ -169,19 +220,8 @@ async function handle(req: Request): Promise<Response> {
     return jsonR({ ok: false, error: 'Web Push sin configurar (faltan claves VAPID)' }, 500);
   }
 
-  const resp = await fetch(
-    `${supabaseUrl}/rest/v1/vl_push_subs?tenant_id=eq.${encodeURIComponent(tenantId)}&select=endpoint,p256dh,auth`,
-    { headers: { 'apikey': sr, 'Authorization': `Bearer ${sr}` } },
-  );
-  if (!resp.ok) {
-    await registrar(supabaseUrl, sr, {
-      tenant_id: tenantId, origen, suscripciones: 0, enviados: 0, borrados: 0, errores: 1,
-      detalle: `no pude leer vl_push_subs (HTTP ${resp.status})`,
-    });
-    return jsonR({ ok: false, error: 'no pude leer las suscripciones' }, 500);
-  }
-  const subs = await resp.json() as Array<{ endpoint: string; p256dh: string; auth: string }>;
-  if (!Array.isArray(subs) || subs.length === 0) {
+  const subs = await dispositivosDe(supabaseUrl, sr, tenantId);
+  if (subs.length === 0) {
     await registrar(supabaseUrl, sr, {
       tenant_id: tenantId, origen, suscripciones: 0, enviados: 0, borrados: 0, errores: 0,
       detalle: 'sin dispositivos suscritos',
@@ -190,7 +230,10 @@ async function handle(req: Request): Promise<Response> {
   }
 
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-  const payload = JSON.stringify({ title: titulo, body: cuerpo, url, tag, chatId });
+  // Etiqueta del PROYECTO en el título: el dueño tiene reservas y Ventas Live en
+  // el mismo teléfono y tiene que saber de un vistazo de dónde viene el aviso.
+  const tituloFinal = /Ventas Live/.test(titulo) ? titulo : `💬 Ventas Live · ${titulo}`;
+  const payload = JSON.stringify({ title: tituloFinal, body: cuerpo, url, tag, chatId });
 
   let enviados = 0;
   let borrados = 0;

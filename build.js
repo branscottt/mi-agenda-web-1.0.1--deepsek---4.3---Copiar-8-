@@ -124,6 +124,14 @@ if (fs.existsSync('pwa-install.js')) {
     console.log('   ✅ dist/pwa-install.js copied');
 }
 
+// 4-bis-0b. Copiar avisos-push.js (tarjeta "Avisos al teléfono / PC" de la campana)
+// No se bundlea: se carga con <script defer src="/avisos-push.js?v=N">.
+// Si se edita, subir el ?v en admin.html.
+if (fs.existsSync('avisos-push.js')) {
+    fs.copyFileSync('avisos-push.js', path.join('dist', 'avisos-push.js'));
+    console.log('   ✅ dist/avisos-push.js copied');
+}
+
 // 4-bis. Copiar iconos (notificaciones push, favicon, apple-touch, PWA)
 if (fs.existsSync('icons')) {
     const iconsOut = path.join('dist', 'icons');

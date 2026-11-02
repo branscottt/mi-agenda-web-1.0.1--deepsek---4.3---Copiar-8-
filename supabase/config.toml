@@ -96,7 +96,7 @@ openai_api_key = "env(OPENAI_API_KEY)"
 
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
-[inbucket]
+[local_smtp]
 enabled = true
 # Port to use for the email testing server web interface.
 port = 54324
@@ -419,6 +419,15 @@ verify_jwt = true
 # el token, los avisos dejarían de llegar en silencio (el webhook es mejor
 # esfuerzo y no mira la respuesta). Llamarla sin credenciales válidas → 401.
 [functions.wa-push]
+verify_jwt = false
+
+# avisos-push: avisos GENERALES de la web (reservas y todo el panel). La
+# autenticación se valida adentro: token de sistema (header `x-avisos-token`,
+# lo manda el trigger `trg_notif_avisar_push` vía pg_net), service_role para
+# flujos de servidor, o el JWT de un admin del espacio para "Probar aviso".
+# Sin verificación en el gateway para aceptar el formato legacy y `sb_secret_`.
+# Sin credenciales válidas → 401.
+[functions.avisos-push]
 verify_jwt = false
 
 # wa-signup: alta automática de WhatsApp con "Conectar con Facebook"
