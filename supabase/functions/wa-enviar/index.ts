@@ -64,6 +64,10 @@ const MIMES: Record<string, string[]> = {
     'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Un VIDEO que pasa de 16 MB (o viene en un formato que WhatsApp no reproduce
+    // como video: MOV del iPhone, WEBM…) viaja como ARCHIVO: llega igual y el
+    // cliente lo abre y lo reproduce desde el mismo chat.
+    'video/mp4', 'video/3gpp', 'video/3gpp2', 'video/quicktime', 'video/webm', 'video/x-m4v',
   ],
   audio: ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/x-m4a'],
 };
@@ -603,7 +607,12 @@ async function handle(req: Request): Promise<Response> {
         return json({ ok: false, error: 'El archivo no es de este negocio' }, 403);
       }
       const mimes = MIMES[mediaTipo] || [];
-      if (mediaMime && mimes.length && !mimes.includes(mediaMime)) {
+      // Un `documento` acepta cualquier video o imagen: es la salida para lo que
+      // WhatsApp no manda como video (más de 16 MB o formato MOV/WEBM) ni como
+      // foto (HEIC que el navegador no pudo convertir a JPG).
+      const mimeOk = !mediaMime || !mimes.length || mimes.includes(mediaMime)
+        || (mediaTipo === 'documento' && /^(video|image)\//.test(mediaMime));
+      if (!mimeOk) {
         const que = mediaTipo === 'imagen' ? 'WhatsApp solo acepta fotos JPG o PNG'
           : mediaTipo === 'video' ? 'WhatsApp solo acepta videos MP4'
           : mediaTipo === 'audio' ? 'WhatsApp solo acepta audios MP3, M4A, AAC, AMR u OGG'

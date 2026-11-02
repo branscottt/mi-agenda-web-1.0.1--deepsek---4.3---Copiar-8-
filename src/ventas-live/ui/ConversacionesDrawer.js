@@ -316,8 +316,10 @@ export function initConversacionesDrawer({ onBadge } = {}) {
                 btn: '#vld-adj',
                 input: '#vld-file',
                 previa: '#vld-previa',
-                alCambiar: (items, error) => {
+                alCambiar: (items, error, aviso) => {
+                    // error = no se puede mandar (rojo); aviso = se ajustó solo (neutro).
                     if (error) mostrarToast(error, 'error');
+                    else if (aviso) mostrarToast(aviso, 'info');
                     const n = Array.isArray(items) ? items.length : 0;
                     const inp = $('vld-input');
                     if (inp) {
@@ -1711,9 +1713,14 @@ function volverALista() {
 // ENVIAR: encola y devuelve el control AL INSTANTE (la burbuja ya está). El
 // envío real lo hace drenarEnvios(), uno por uno y en orden, sin bloquear el
 // campo ni el botón: igual que WhatsApp.
-function enviar() {
+async function enviar() {
     if (!_chatId) return;
     const input = $('vld-input');
+    // Si una foto pesada todavía se está optimizando (spinner en la vista
+    // previa), se espera: son décimas de segundo y así no se manda "sin foto".
+    if (_adjunto && !_adjunto.listo()) {
+        try { await _adjunto.cuandoListo(); } catch (_) { /* nada */ }
+    }
     const texto = input ? input.value.trim() : '';
     // Se pueden mandar VARIAS fotos/archivos de una vez (como WhatsApp).
     const adjuntos = (_adjunto && _adjunto.tiene()) ? _adjunto.items() : [];

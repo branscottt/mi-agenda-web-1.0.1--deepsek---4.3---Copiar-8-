@@ -293,8 +293,10 @@ function buildDOM() {
             btn: '#lv-chat-adj',
             input: '#lv-chat-file',
             previa: '#lv-chat-previa',
-            alCambiar: (items, error) => {
+            alCambiar: (items, error, aviso) => {
+                // error = no se puede mandar (rojo); aviso = se ajustó solo (neutro).
                 if (error) mostrarToast(error, 'error');
+                else if (aviso) mostrarToast(aviso, 'info');
                 const n = Array.isArray(items) ? items.length : 0;
                 const inp = $('lv-chat-input');
                 if (inp) {
@@ -1243,9 +1245,14 @@ function pintarCabeceraChat() {
 // ENVIAR: encola el mensaje y devuelve el control AL INSTANTE (la burbuja ya
 // queda en pantalla). El envío real lo hace drenarEnvios(), uno por uno y en
 // orden, sin bloquear el campo ni el botón: igual que WhatsApp.
-function enviarChat() {
+async function enviarChat() {
     const input = $('lv-chat-input');
     if (!input || !_chatId) return;
+    // Si una foto pesada todavía se está optimizando (el spinner de la vista
+    // previa), se espera: son décimas de segundo y así no se manda "sin foto".
+    if (_adjunto && !_adjunto.listo()) {
+        try { await _adjunto.cuandoListo(); } catch (_) { /* nada */ }
+    }
     const texto = input.value.trim();
     // Se pueden mandar VARIAS fotos/archivos de una vez (como WhatsApp).
     const adjuntos = (_adjunto && _adjunto.tiene()) ? _adjunto.items() : [];

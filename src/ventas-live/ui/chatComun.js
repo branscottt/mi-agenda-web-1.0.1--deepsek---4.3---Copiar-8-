@@ -4,6 +4,7 @@
 // las burbujas y las etiquetas de autor son idénticos en ambos lados.
 
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
+import { LIMITES_WA, prepararArchivo } from './mediaPrep.js';
 
 /**
  * ¿El dueño está MIRANDO este chat AHORA? Solo entonces el bot NO manda push de
@@ -569,30 +570,37 @@ export function bindCandidatos(cont, cb) {
 
 // ── Adjuntar FOTO/VIDEO/ARCHIVO/AUDIO al chat (computador, celular o tablet) ──
 // WhatsApp (Cloud API) acepta fotos JPG/PNG (5 MB), videos MP4/3GPP (16 MB),
-// documentos PDF/Word/Excel/PPT/TXT/ZIP (100 MB) y audios MP3/M4A/AAC/AMR/OGG
-// (16 MB). Se valida ANTES de subir para no gastar datos al pepe.
-export const ADJUNTO_LIMITES = {
-    imagen: 5 * 1024 * 1024,
-    video: 16 * 1024 * 1024,
-    documento: 100 * 1024 * 1024,
-    audio: 16 * 1024 * 1024
-};
+// documentos (100 MB) y audios (16 MB).
+// Antes, lo que pasaba de esos topes se RECHAZABA (una foto de 8 MB del celular
+// daba "error por tamaño"). Ahora se PREPARA en el mismo dispositivo (ver
+// mediaPrep.js): la foto se reduce hasta entrar y el video grande se manda como
+// archivo. Nada se descarta sin explicar el motivo.
+export const ADJUNTO_LIMITES = LIMITES_WA;
 export const ADJUNTO_MIMES = {
-    imagen: ['image/jpeg', 'image/jpg', 'image/png'],
-    video: ['video/mp4', 'video/3gpp'],
+    imagen: [
+        'image/jpeg', 'image/jpg', 'image/png',
+        // Se aceptan y se convierten a JPG en el dispositivo (mediaPrep.js):
+        'image/webp', 'image/heic', 'image/heif', 'image/avif', 'image/bmp', 'image/gif'
+    ],
+    video: [
+        'video/mp4', 'video/3gpp', 'video/3gpp2', 'video/quicktime',
+        'video/webm', 'video/x-m4v', 'video/x-matroska', 'video/x-msvideo'
+    ],
     documento: [
         'application/pdf', 'text/plain', 'application/zip', 'text/csv',
         'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        // Un video que no se puede mandar como video viaja como archivo:
+        'video/mp4', 'video/3gpp', 'video/quicktime', 'video/webm'
     ],
     audio: ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/x-m4a', 'audio/wav']
 };
 
 // Extensiones aceptadas por si el navegador NO dice el tipo (pasa en el celular).
 const ADJUNTO_EXT = {
-    imagen: ['jpg', 'jpeg', 'png'],
-    video: ['mp4', '3gp', '3gpp'],
+    imagen: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'bmp', 'gif'],
+    video: ['mp4', '3gp', '3gpp', 'mov', 'webm', 'm4v', 'mkv', 'avi'],
     documento: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv'],
     audio: ['mp3', 'm4a', 'aac', 'amr', 'ogg', 'opus', 'wav']
 };
@@ -629,7 +637,10 @@ export function etiquetaPeso(bytes) {
     return (n / 1048576).toFixed(1) + ' MB';
 }
 
-/** ¿Se puede mandar? {ok, tipo, error} — el error explica qué hacer. */
+/** ¿Se puede mandar? {ok, tipo, error} — el error explica qué hacer.
+ *  Ya NO rechaza por peso: lo que pesa de más se prepara en el mismo dispositivo
+ *  (mediaPrep.js) — la foto se reduce hasta entrar y el video grande se manda
+ *  como archivo. Acá sólo se valida que WhatsApp pueda con ESE formato. */
 export function validarAdjunto(archivo) {
     const tipo = tipoDeArchivo(archivo);
     if (!tipo) {
@@ -646,41 +657,44 @@ export function validarAdjunto(archivo) {
     const extOk = ADJUNTO_EXT[tipo].includes(ext);
     if (!mimeOk && !extOk) {
         const muestra = (ext ? ext.toUpperCase() : (mime.split('/').pop() || '').toUpperCase()) || 'desconocido';
-        const error = tipo === 'imagen' ? `WhatsApp solo acepta fotos JPG o PNG (esta es ${muestra}).`
-            : tipo === 'video' ? `WhatsApp solo acepta videos MP4 (este es ${muestra}).`
+        const error = tipo === 'imagen' ? `WhatsApp no acepta fotos ${muestra} (sí JPG, PNG, WEBP o HEIC).`
+            : tipo === 'video' ? `WhatsApp no acepta videos ${muestra} (sí MP4, MOV, 3GP o WEBM).`
             : tipo === 'audio' ? `WhatsApp solo acepta audios MP3, M4A, AAC, AMR u OGG (este es ${muestra}).`
             : `WhatsApp no acepta archivos ${muestra} (sí PDF, Word, Excel, PPT, TXT o ZIP).`;
         return { ok: false, tipo, error };
     }
-    const limite = ADJUNTO_LIMITES[tipo];
-    if (Number(archivo.size) > limite) {
-        return {
-            ok: false, tipo,
-            error: `Pesa ${etiquetaPeso(archivo.size)} y WhatsApp acepta hasta ${Math.round(limite / 1048576)} MB.`
-        };
-    }
     return { ok: true, tipo, error: '' };
 }
 
-/** Vista previa del adjunto: una tira de miniaturas (varias fotos a la vez). */
+/** Vista previa del adjunto: una tira de miniaturas (varias fotos a la vez).
+ *  Mientras se prepara una foto pesada se ve el spinner (item.preparando) y, si
+ *  hubo que reducirla o mandarla como archivo, se dice en chiquito (item.nota). */
 export function previaAdjuntoHtml(items) {
     const lista = Array.isArray(items) ? items : (items ? [items] : []);
     if (!lista.length) return '';
     return `<div class="vl-adj-tira" id="vl-adj-previa">${lista.map((it, i) => {
         const tipo = it.tipo || 'imagen';
         const url = it.url || '';
-        const mini = tipo === 'video'
-            ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
-            : tipo === 'imagen'
-                ? `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`
-                : `<div class="vl-adj-icon" aria-hidden="true"><i class="fas ${tipo === 'audio' ? 'fa-microphone' : 'fa-file-lines'}"></i></div>`;
+        const preparando = it.preparando === true;
+        const mini = preparando
+            ? '<div class="vl-adj-icon vl-adj-icon-prep" aria-hidden="true"><i class="fas fa-circle-notch fa-spin"></i></div>'
+            : tipo === 'video'
+                ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
+                : tipo === 'imagen'
+                    ? `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`
+                    : `<div class="vl-adj-icon" aria-hidden="true"><i class="fas ${tipo === 'audio' ? 'fa-microphone' : 'fa-file-lines'}"></i></div>`;
         const rotulo = tipo === 'video' ? '🎬' : tipo === 'audio' ? '🎤'
             : tipo === 'documento' ? '📄' : '📷';
-        return `<div class="vl-adj-item" data-item="${escapeHtml(String(it.id != null ? it.id : i))}" title="${escapeHtml(it.nombre || '')}">
+        const titulo = preparando ? 'Preparando…' : it.nombre || 'Archivo';
+        const peso = preparando ? 'Optimizando…' : etiquetaPeso(it.peso);
+        const nota = (!preparando && it.nota)
+            ? `<div class="vl-adj-sub">${escapeHtml(it.nota)}</div>` : '';
+        return `<div class="vl-adj-item${preparando ? ' vl-adj-item-prep' : ''}" data-item="${escapeHtml(String(it.id != null ? it.id : i))}" title="${escapeHtml(titulo + (it.nota ? ' · ' + it.nota : ''))}">
             ${mini}
             <div class="vl-adj-datos">
                 <div class="vl-adj-nombre">${escapeHtml(it.nombre || 'Archivo')}</div>
-                <div class="vl-adj-peso">${rotulo} ${escapeHtml(etiquetaPeso(it.peso))}</div>
+                <div class="vl-adj-peso">${rotulo} ${escapeHtml(peso)}</div>
+                ${nota}
             </div>
             <button class="vl-adj-quitar" type="button" data-quitar="${escapeHtml(String(it.id != null ? it.id : i))}"
                     title="Quitar ${escapeHtml(it.nombre || 'archivo')}"><i class="fas fa-xmark"></i></button>
@@ -693,13 +707,15 @@ export const ADJUNTO_MAX = 10;
 
 /**
  * Engancha el adjuntar: el botón abre el selector de archivos (en el celular y
- * la tablet eso da cámara y galería; en el computador, el explorador), valida,
- * muestra la vista previa y deja los archivos listos para mandar.
+ * la tablet eso da cámara y galería; en el computador, el explorador), valida el
+ * formato, PREPARA lo que haga falta (foto pesada → reducida; video grande →
+ * archivo) y deja todo listo para mandar.
  * **Se pueden elegir VARIOS de una vez** (y agregar de a poco: cada elección se
  * SUMA a los que ya estaban, como al adjuntar en WhatsApp).
  * @param {HTMLElement} cont contenedor donde viven el botón/input/previa
- * @param {Object} o {btn, input, previa, alCambiar(items, error)}
- * @returns {Object} {items(), archivos(), tipos(), tiene(), cuantos(), limpiar()}
+ * @param {Object} o {btn, input, previa, alCambiar(items, error, aviso)}
+ * @returns {Object} {items(), archivos(), tipos(), tiene(), cuantos(), listo(),
+ *                    cuandoListo(), limpiar()}
  */
 export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
     const raiz = cont || (typeof document !== 'undefined' ? document : null);
@@ -711,8 +727,10 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
     const b = q(btn);
     const f = q(input);
     const pr = q(previa);
-    let items = [];        // [{id, archivo, tipo, url}]
+    let items = [];        // [{id, archivo, tipo, url, preparando, nota}]
     let seq = 0;
+    let enCurso = 0;       // archivos que se están optimizando AHORA
+    let espera = [];       // a quién avisar cuando terminen (enviar() espera acá)
 
     // La miniatura es un lujo: si el navegador no puede crearla, el envío sigue
     // igual (por eso nunca puede cortar el flujo con una excepción).
@@ -733,17 +751,33 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
         });
     };
 
+    /** Los que ya se pueden mandar (los que siguen optimizándose no cuentan). */
+    const listos = () => items.filter((it) => !it.preparando);
+
     const pintar = () => {
         if (!pr) return;
         if (!items.length) { pr.innerHTML = ''; pr.hidden = true; return; }
         pr.innerHTML = previaAdjuntoHtml(items.map((it) => ({
-            id: it.id, nombre: it.archivo.name, tipo: it.tipo, url: it.url, peso: it.archivo.size,
+            id: it.id, nombre: it.archivo.name, tipo: it.tipo, url: it.url,
+            peso: it.archivo.size, preparando: it.preparando, nota: it.nota,
         })));
         pr.hidden = false;
     };
 
-    const avisar = (error) => {
-        if (typeof alCambiar === 'function') alCambiar(items.slice(), error || '');
+    const avisar = (error, aviso) => {
+        if (typeof alCambiar === 'function') alCambiar(listos().slice(), error || '', aviso || '');
+    };
+
+    /** Resuelve cuando no queda nada optimizándose (lo usa el botón enviar). */
+    const cuandoListo = () => {
+        if (enCurso === 0) return Promise.resolve();
+        return new Promise((res) => espera.push(res));
+    };
+    const avisarQueTermino = () => {
+        if (enCurso !== 0) return;
+        const pendientes = espera;
+        espera = [];
+        pendientes.forEach((fn) => { try { fn(); } catch (_) { /* nada */ } });
     };
 
     const limpiar = () => {
@@ -779,19 +813,70 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
             if (!elegidos.length) return;
 
             let error = '';
+            const aceptados = [];
             elegidos.forEach((archivo) => {
-                if (items.length >= ADJUNTO_MAX) {
+                if (items.length + aceptados.length >= ADJUNTO_MAX) {
                     error = error || `Máximo ${ADJUNTO_MAX} archivos por vez.`;
                     return;
                 }
+                // Sólo se revisa el FORMATO: el peso ya no descarta nada (se reduce
+                // la foto o el video grande va como archivo, en mediaPrep.js).
                 const v = validarAdjunto(archivo);
                 if (!v.ok) { error = error || v.error; return; }
                 // Ojo: si ya hay un documento, se puede seguir sumando (WhatsApp
                 // deja mezclar, aunque cada archivo se manda en su propio mensaje).
-                items.push({ id: 'adj' + (++seq), archivo, tipo: v.tipo, url: crearUrlMini(archivo) });
+                aceptados.push({ archivo, tipo: v.tipo });
+            });
+            if (!aceptados.length) { avisar(error); return; }
+
+            // Se pintan YA con el spinner "Optimizando…" y se preparan DE A UNO:
+            // reducir 10 fotos de 8 MB a la vez puede dejar sin memoria al celular.
+            const cola = aceptados.map(({ archivo, tipo }) => {
+                const it = {
+                    id: 'adj' + (++seq), archivo, tipo, url: crearUrlMini(archivo),
+                    preparando: true, nota: '',
+                };
+                items.push(it);
+                return it;
             });
             pintar();
             avisar(error);
+
+            enCurso++;
+            (async () => {
+                let info = '';
+                try {
+                    for (let i = 0; i < cola.length; i++) {
+                        const it = cola[i];
+                        const prep = await prepararArchivo(it.archivo, it.tipo);
+                        if (!items.includes(it)) continue;   // lo quitaron mientras se preparaba
+                        if (prep.aviso) {
+                            // Ese archivo no se puede mandar: se saca de la tira y se
+                            // dice el motivo (no queda un adjunto "fantasma").
+                            const pos = items.indexOf(it);
+                            if (pos >= 0) items.splice(pos, 1);
+                            if (it.url && typeof URL.revokeObjectURL === 'function') {
+                                try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
+                            }
+                            error = error || prep.aviso;
+                            continue;
+                        }
+                        it.archivo = prep.archivo;
+                        it.tipo = prep.tipo;
+                        it.nota = prep.nota || '';
+                        it.preparando = false;
+                        if (it.nota) info = info || it.nota;
+                    }
+                } catch (_) {
+                    // Nunca se queda colgado: lo que no se pudo preparar se manda igual.
+                } finally {
+                    cola.forEach((it) => { if (items.includes(it)) it.preparando = false; });
+                    enCurso--;
+                    pintar();
+                    avisar(error, info);
+                    avisarQueTermino();
+                }
+            })();
         });
     }
 
@@ -806,11 +891,13 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
     }
 
     return {
-        items: () => items.slice(),
-        archivos: () => items.map((it) => it.archivo),
-        tipos: () => items.map((it) => it.tipo),
-        cuantos: () => items.length,
-        tiene: () => items.length > 0,
+        items: () => listos(),
+        archivos: () => listos().map((it) => it.archivo),
+        tipos: () => listos().map((it) => it.tipo),
+        cuantos: () => listos().length,
+        tiene: () => listos().length > 0,
+        listo: () => enCurso === 0,
+        cuandoListo,
         limpiar,
     };
 }

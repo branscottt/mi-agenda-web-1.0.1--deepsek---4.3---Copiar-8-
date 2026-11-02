@@ -880,6 +880,24 @@
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .vl-adj-peso { font-size: 0.72rem; color: #cbb8e6; margin-top: 2px; }
+        /* Nota chiquita bajo el peso: "Optimizada 8.4 MB → 1.5 MB" o "Va como
+           archivo…". Es información, no error: gris suave, nunca rojo. */
+        .vl-adj-sub {
+            font-size: 0.66rem; line-height: 1.25; color: #a99bc4; margin-top: 3px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .vl-adj-item .vl-adj-sub { font-size: 0.58rem; }
+        /* En PC/tablet sobra ancho: el chip se estira y la nota se lee entera. */
+        @media (min-width: 861px) {
+            .vl-adj-item { width: 138px; }
+            .vl-adj-item .vl-adj-nombre { font-size: 0.72rem; }
+            .vl-adj-item .vl-adj-sub { font-size: 0.66rem; }
+        }
+        /* Mientras una foto pesada se reduce en el dispositivo. */
+        .vl-adj-icon-prep { background: rgba(157,78,221,0.18); }
+        .vl-adj-icon-prep i { color: #c77dff; font-size: 1.05rem; }
+        .vl-adj-item-prep { opacity: 0.9; }
         .vl-adj-quitar {
             flex-shrink: 0; background: transparent; border: 1px solid rgba(255,255,255,0.14);
             color: #adb5bd; border-radius: 8px; padding: 6px 9px; cursor: pointer; font-family: inherit;
