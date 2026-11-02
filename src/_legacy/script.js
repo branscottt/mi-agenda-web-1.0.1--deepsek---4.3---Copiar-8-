@@ -6509,7 +6509,16 @@ function configurarModalTenant() {
                         const esPlanPago = data.plan === 'pro' || data.plan === 'premium_anual';
                         const activaEraPago = activeSub && (activeSub.plan === 'pro' || activeSub.plan === 'premium_anual');
                         if (!esPlanPago || (activaEraPago && activeSub.plan !== data.plan)) {
-                            await cancelarCobroAutomaticoMP(id);
+                            const cancelRes = await cancelarCobroAutomaticoMP(id);
+                            // Si MP no confirma la cancelación NO se cambia el plan:
+                            // la base también lo bloquearía (invariante P0002) y el
+                            // usuario debe enterarse, no ver un "actualizado" falso.
+                            if (cancelRes && cancelRes.ok === false) {
+                                throw new Error('no se pudo cancelar el cobro automático en Mercado Pago');
+                            }
+                            if (cancelRes && Array.isArray(cancelRes.activos_restantes) && cancelRes.activos_restantes.length > 0) {
+                                throw new Error('Mercado Pago no confirmó la cancelación del cobro automático');
+                            }
                         }
 
                         if (activeSub && activeSub.plan !== data.plan) {
@@ -6546,8 +6555,11 @@ function configurarModalTenant() {
                             console.log('[Guardar Tenant] Nueva subscripción creada:', data.plan);
                         }
                     } catch (subError) {
-                        console.warn('[Guardar Tenant] Error sincronizando subscripción:', subError);
-                        // No bloqueamos el flujo principal por un error de suscripción
+                        console.error('[Guardar Tenant] Error cambiando el plan:', subError);
+                        mostrarToast('El plan NO se cambió: ' + (subError.message || 'error al sincronizar la suscripción'), 'error');
+                        // No cerrar el modal ni decir "actualizado": el plan quedó
+                        // como estaba (la base también impide dejarlo inconsistente).
+                        return;
                     }
                 }
                 
