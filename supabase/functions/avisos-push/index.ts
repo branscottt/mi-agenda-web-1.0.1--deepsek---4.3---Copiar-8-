@@ -95,6 +95,48 @@ async function negocioDe(supabaseUrl: string, sr: string, tenantId: string): Pro
 }
 
 /**
+ * Destinatarios de los avisos de PLATAFORMA (cuenta nueva): los correos de
+ * `avisos_destinos` y los espacios (tenants) de esos correos, para llegar a sus
+ * dispositivos por push. Los superadmins no tienen tenant propio: si no tienen
+ * espacios, solo les queda el correo.
+ */
+async function tenantsPlataforma(
+  supabaseUrl: string,
+  sr: string,
+): Promise<{ emails: string[]; tenants: string[] }> {
+  const emails: string[] = [];
+  try {
+    const r = await fetch(
+      `${supabaseUrl}/rest/v1/avisos_destinos?activo=is.true&select=email`,
+      { headers: sbHeaders(sr) },
+    );
+    if (r.ok) {
+      const rows = await r.json().catch(() => []);
+      for (const x of (Array.isArray(rows) ? rows : [])) {
+        const e = String((x as { email?: string }).email || '').trim().toLowerCase();
+        if (e.includes('@')) emails.push(e);
+      }
+    }
+  } catch (_) { /* sin lista: no hay push ni correo */ }
+
+  const tenants: string[] = [];
+  if (emails.length > 0) {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/tenants?select=id,email_contacto`, { headers: sbHeaders(sr) });
+      if (r.ok) {
+        const rows = await r.json().catch(() => []);
+        for (const t of (Array.isArray(rows) ? rows : [])) {
+          const e = String((t as { email_contacto?: string }).email_contacto || '').trim().toLowerCase();
+          const id = String((t as { id?: string }).id || '');
+          if (id && e && emails.includes(e)) tenants.push(id);
+        }
+      }
+    } catch (_) { /* sigue sin tenants */ }
+  }
+  return { emails, tenants };
+}
+
+/**
  * TODOS los dispositivos del DUEÑO, no solo los del espacio que avisa.
  * Un mismo correo de cuenta tiene un espacio por proyecto (reservas y Ventas
  * Live): si el dueño activó los avisos en UNO, tiene que recibirlos en LOS DOS.
@@ -322,18 +364,21 @@ async function handle(req: Request): Promise<Response> {
   const esServidor = !!(token && (token === sr || rolDeJwt(token) === 'service_role'));
   const esSistema = !!(TOKEN_SISTEMA && tokenSistema && tokenSistema === TOKEN_SISTEMA);
 
-  // tenant + origen según quién llama
+  // tenant + origen + destino según quién llama
   let tenantId = '';
   let origen = 'notificacion';
-  let base = supabaseUrl;
+  let destino = '';
+  const base = supabaseUrl;
   if (esSistema) {
     tenantId = String(body.tenant_id || '');
     origen = String(body.origen || 'notificacion');
-    if (!tenantId) return jsonR({ ok: false, error: 'tenant_id requerido' }, 400);
+    destino = String(body.destino || '');
+    if (!tenantId && destino !== 'plataforma') return jsonR({ ok: false, error: 'tenant_id requerido' }, 400);
   } else if (esServidor) {
     tenantId = String(body.tenant_id || '');
     origen = String(body.origen || 'servidor');
-    if (!tenantId) return jsonR({ ok: false, error: 'tenant_id requerido' }, 400);
+    destino = String(body.destino || '');
+    if (!tenantId && destino !== 'plataforma') return jsonR({ ok: false, error: 'tenant_id requerido' }, 400);
   } else {
     const ctx = token ? await contextoDeUsuario(supabaseUrl, sr, token) : null;
     if (!ctx || !ctx.tenant_id) return jsonR({ ok: false, error: 'No autorizado' }, 401);
@@ -364,14 +409,31 @@ async function handle(req: Request): Promise<Response> {
   // cuerpo arranca con el tipo de aviso ("Nueva reserva: ...").
   const proyecto = String(body.proyecto || 'reservas');
   const etiquetaProyecto = proyecto === 'ventas_live' ? '💬 Ventas Live' : '📅 Reservas';
-  const negocio = esPrueba ? '' : await negocioDe(base, sr, tenantId);
-  const tituloFinal = esPrueba
+  const esPlataforma = destino === 'plataforma';
+  const negocio = (esPrueba || esPlataforma) ? '' : await negocioDe(base, sr, tenantId);
+  const tituloFinal = (esPrueba || esPlataforma)
     ? titulo
     : (negocio ? `${etiquetaProyecto} · ${negocio}` : `${etiquetaProyecto} · ${titulo}`);
-  const cuerpoFinal = (!esPrueba && negocio && !cuerpo.startsWith(titulo)) ? `${titulo} · ${cuerpo}` : cuerpo;
+  const cuerpoFinal = (!esPrueba && !esPlataforma && negocio && !cuerpo.startsWith(titulo)) ? `${titulo} · ${cuerpo}` : cuerpo;
 
-  // ── Dispositivos del dueño (LOS DOS proyectos) ───────────────────────────
-  const listaSubs = await dispositivosDe(base, sr, tenantId);
+  // ── Dispositivos destino ─────────────────────────────────────────────────
+  // · normal: los del dueño (los dos proyectos, ver dispositivosDe)
+  // · plataforma (cuenta nueva): los de los espacios de los correos de
+  //   avisos_destinos (superadmins / dueño), uniendo sin duplicar endpoint.
+  let listaSubs: Array<{ endpoint: string; p256dh: string; auth: string }> = [];
+  let emailsPlataforma: string[] = [];
+  if (esPlataforma) {
+    const dest = await tenantsPlataforma(base, sr);
+    emailsPlataforma = dest.emails;
+    const vistos = new Set<string>();
+    for (const tid of dest.tenants) {
+      for (const d of await dispositivosDe(base, sr, tid)) {
+        if (!vistos.has(d.endpoint)) { vistos.add(d.endpoint); listaSubs.push(d); }
+      }
+    }
+  } else {
+    listaSubs = await dispositivosDe(base, sr, tenantId);
+  }
 
   let enviados = 0;
   let borrados = 0;
@@ -410,11 +472,13 @@ async function handle(req: Request): Promise<Response> {
   let emailDestino = '';
   let emailEstado = 'no_aplica';
   if (quiereEmail && enviados === 0 && !esPrueba) {
-    const yaAvisado = tipo !== 'nueva_reserva' && await hacePocoQueAvisamos(base, sr, tenantId);
+    const yaAvisado = (!esPlataforma && tenantId && tipo !== 'nueva_reserva')
+      ? await hacePocoQueAvisamos(base, sr, tenantId)
+      : false;
     if (yaAvisado) {
       emailEstado = 'omitido_reciente';
     } else {
-      const to = await destinatarios(base, sr, tenantId);
+      const to = esPlataforma ? emailsPlataforma : await destinatarios(base, sr, tenantId);
       emailDestino = to.join(', ');
       const r = await enviarCorreo(to, tituloFinal, cuerpoFinal, url);
       emailEstado = r.estado;
@@ -437,7 +501,7 @@ async function handle(req: Request): Promise<Response> {
   }
 
   await registrar(base, sr, {
-    tenant_id: tenantId, origen, tipo, notificacion_id: notificacionId || null, titulo: tituloFinal,
+    tenant_id: tenantId || null, origen, tipo, notificacion_id: notificacionId || null, titulo: tituloFinal,
     suscripciones: listaSubs.length, enviados, borrados, errores: fallos.length,
     email: emailDestino || null, email_estado: emailEstado,
     detalle: fallos.join(' | ').slice(0, 800),
