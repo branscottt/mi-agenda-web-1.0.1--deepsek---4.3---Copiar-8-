@@ -5,6 +5,7 @@
 
 import { escapeHtml } from '../../shared/infrastructure/formatters.js';
 import { LIMITES_WA, prepararArchivo } from './mediaPrep.js';
+import { abrirModal, cerrarModal } from './vlModales.js';
 
 /**
  * ¿El dueño está MIRANDO este chat AHORA? Solo entonces el bot NO manda push de
@@ -1183,6 +1184,171 @@ function falloLineaDe(m) {
     return lineaFalloHtml(explicarFalloWa(m.error_wa), { id: m.id });
 }
 
+// ── SIN ACUSE: el mensaje salió pero WhatsApp nunca confirmó nada ──────────────
+// Meta acepta el envío (✓ "enviado") y después manda 'delivered' / 'read' /
+// 'failed'. Si a las 2 h sigue solo en "enviado", es que NO hubo ningún acuse:
+// puede haber llegado, pero también puede no haber llegado y no enterarnos.
+export const SIN_ACUSE_MS = 2 * 60 * 60 * 1000;
+
+/** ¿Este mensaje salió y quedó sin ningún acuse después de 2 h? */
+function sinAcuse(m, ahora = Date.now()) {
+    if (String(m.direction || '') !== 'out') return false;
+    if (String(m.estado_wa || '').toLowerCase() !== 'enviado') return false;
+    const t = Date.parse(m.creado_en);
+    return Number.isFinite(t) && (ahora - t) > SIN_ACUSE_MS;
+}
+
+/** Horas (redondeadas) que lleva sin acuse. */
+function horasSinAcuse(m, ahora = Date.now()) {
+    const t = Date.parse(m.creado_en);
+    if (!Number.isFinite(t)) return 2;
+    return Math.max(2, Math.round((ahora - t) / (60 * 60 * 1000)));
+}
+
+/**
+ * Aviso chiquito debajo de la burbuja cuando el ÚLTIMO mensaje nuestro lleva más
+ * de 2 h sin ningún acuse de WhatsApp (ni entregado ni leído ni fallido). No es
+ * una alarma: es la única forma de enterarse de un envío que quedó en el limbo.
+ */
+function sinAcuseLineaDe(m, esUltimo) {
+    if (!esUltimo || !sinAcuse(m)) return '';
+    const h = horasSinAcuse(m);
+    return `<div class="vl-sin-acuse"><i class="fas fa-clock"></i>`
+        + `<span>Sin acuse de WhatsApp hace ${h} h: puede no haber llegado.</span>`
+        + `<button class="vl-fallo-reenviar" type="button" data-reenviar="${escapeHtml(String(m.id))}">`
+        + `<i class="fas fa-rotate-right"></i> Reenviar</button></div>`;
+}
+
+// ── REENVÍO AUTOMÁTICO cuando el cliente vuelve a escribir ───────────────────
+/**
+ * Mensajes que conviene reenviar SOLOS cuando se abre la ventana de 24 h (el
+ * cliente acaba de escribir). Reglas, para no mandar cosas raras:
+ *   · fallaron por la ventana de 24 h (no por número inválido ni archivo);
+ *   · el cliente escribió DESPUÉS del fallo (o sea, la ventana se reabrió);
+ *   · el fallo es de las últimas 24 h (nada de revivir un "holis" de la semana
+ *     pasada);
+ *   · todavía no se reenvió: no hay un saliente posterior con el mismo texto/tipo
+ *     que sí se haya entregado.
+ */
+export function porReenviarAuto(mensajes, ahora = Date.now()) {
+    const lista = (mensajes || []).filter(Boolean);
+    const ultimoEntrante = lista
+        .filter(m => m.direction === 'in' && String(m.tipo || '').toLowerCase() !== 'reaccion')
+        .map(m => Date.parse(m.creado_en))
+        .filter(Number.isFinite)
+        .sort((a, b) => b - a)[0] || 0;
+    if (!ultimoEntrante) return [];
+    const sanos = lista.filter(m => m.direction === 'out'
+        && ['enviado', 'entregado', 'leido'].includes(String(m.estado_wa || '').toLowerCase()));
+    return lista.filter((m) => {
+        if (m.direction !== 'out') return false;
+        if (String(m.estado_wa || '').toLowerCase() !== 'fallido') return false;
+        const err = String(m.error_wa || '');
+        if (!(err.includes('131047') || /re-?engagement/i.test(err) || /more than 24 hours/i.test(err))) return false;
+        const t = Date.parse(m.creado_en);
+        if (!Number.isFinite(t)) return false;
+        if (t > ultimoEntrante) return false;                    // falló DESPUÉS: no aplica
+        if (ahora - t > VENTANA_WA_MS) return false;             // muy viejo para revivirlo solo
+        const tipo = String(m.tipo || 'texto').toLowerCase();
+        const cuerpo = String(m.body || '');
+        const yaSalio = sanos.some(s => Date.parse(s.creado_en) > t
+            && String(s.tipo || 'texto').toLowerCase() === tipo
+            && String(s.body || '') === cuerpo);
+        return !yaSalio;
+    }).slice(-3);   // como mucho 3, en orden
+}
+
+// ── COPIAR / REENVIAR A OTRA CONVERSACIÓN (como WhatsApp) ────────────────────
+/** Copia texto al portapapeles (con respaldo para navegadores sin permiso). */
+export async function copiarAlPortapapeles(texto) {
+    const t = String(texto || '');
+    if (!t) return false;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(t);
+            return true;
+        }
+    } catch (_) { /* sigue el respaldo */ }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+    } catch (_) { return false; }
+}
+
+/** Botones de copiar / reenviar de una burbuja (cualquier mensaje, recibido o enviado). */
+function accionesMsgHtml(m) {
+    const tieneTexto = !!(String(m.body || '').trim());
+    const puedeReenviar = tieneTexto || !!m.media_path;
+    return (tieneTexto
+        ? `<button class="vl-msg-accion" type="button" data-copiar="${escapeHtml(String(m.id))}"`
+            + ` title="Copiar el texto" aria-label="Copiar el texto"><i class="fas fa-copy"></i></button>`
+        : '')
+        + (puedeReenviar
+            ? `<button class="vl-msg-accion" type="button" data-forward="${escapeHtml(String(m.id))}"`
+                + ` title="Reenviar a otra conversación" aria-label="Reenviar a otra conversación">`
+                + `<i class="fas fa-share"></i></button>`
+            : '');
+}
+
+/**
+ * Picker "Reenviar a…": lista las conversaciones para mandar el mismo
+ * texto/archivo a otro chat (igual que el reenvío de WhatsApp).
+ * @param {{mensaje:Object, chats:Array, chatActualId?:string, alElegir:(chatId:string, chat:Object)=>void}} o
+ */
+export function abrirReenvioA({ mensaje, chats, chatActualId = '', alElegir } = {}) {
+    const lista = (chats || []).filter(c => c && String(c.id) !== String(chatActualId));
+    const cuerpo = (m) => {
+        const t = String(m.body || '').replace(/\s+/g, ' ').trim();
+        if (t) return t.slice(0, 70);
+        const tipo = String(m.tipo || '').toLowerCase();
+        return tipo === 'imagen' ? '📷 Foto' : tipo === 'video' ? '🎬 Video'
+            : tipo === 'audio' ? '🎤 Audio' : tipo === 'documento' ? '📄 Archivo' : 'Mensaje';
+    };
+    const filas = lista.map((c) => {
+        const nombre = nombreDeCliente(c);
+        const sub = String(c.ultimo_mensaje || '').slice(0, 60);
+        return `<button class="vl-fwd-item" type="button" data-fwd="${escapeHtml(String(c.id))}">`
+            + `<span class="vl-fwd-nombre">${escapeHtml(nombre)}</span>`
+            + (sub ? `<span class="vl-fwd-sub">${escapeHtml(sub)}</span>` : '')
+            + `</button>`;
+    }).join('');
+    abrirModal({
+        titulo: 'Reenviar a…',
+        sub: `Se manda el mismo mensaje: <b>${escapeHtml(cuerpo(mensaje || {}))}</b>`,
+        ancho: '460px',
+        html: `<input class="vl-control" id="vl-fwd-buscar" placeholder="Buscar conversación…" autocomplete="off" style="margin:6px 0 10px;">`
+            + `<div class="vl-fwd-lista" id="vl-fwd-lista">${filas || '<div class="vl-empty">No hay otras conversaciones.</div>'}</div>`,
+        onMount: (modal) => {
+            const inp = modal.querySelector('#vl-fwd-buscar');
+            const cont = modal.querySelector('#vl-fwd-lista');
+            if (inp && cont) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.trim().toLowerCase();
+                    cont.querySelectorAll('.vl-fwd-item').forEach((b) => {
+                        const txt = b.textContent.toLowerCase();
+                        b.style.display = !q || txt.includes(q) ? '' : 'none';
+                    });
+                });
+            }
+            cont.addEventListener('click', (e) => {
+                const b = e.target.closest ? e.target.closest('.vl-fwd-item') : null;
+                if (!b) return;
+                const chat = lista.find(c => String(c.id) === String(b.dataset.fwd)) || null;
+                cerrarModal(true);
+                if (typeof alElegir === 'function') alElegir(b.dataset.fwd, chat);
+            });
+        }
+    });
+}
+
 /** Ticks de entrega de un mensaje NUESTRO (✓ enviado, ✓✓ entregado, ✓✓ azul leído). */
 function ticksHtml(m) {
     if (String(m.direction || '') !== 'out') return '';
@@ -1274,7 +1440,8 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
     return lista
         // Una reacción no es un mensaje: no lleva burbuja propia.
         .filter(m => String(m.tipo || '').toLowerCase() !== 'reaccion')
-        .map(m => {
+        .map((m, i) => {
+            const esUltimo = i === lista.length - 1;
             const saliente = m.direction === 'out';
             const cuerpo = escapeHtml(m.body || '').replace(/\n/g, '<br>');
             const media = mediaHtml(m);
@@ -1306,10 +1473,11 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
                     ${media ? `<div class="vl-burbuja-medio">${media}</div>` : ''}
                     ${rotuloTranscripcion}
                     ${cuerpo ? `<div class="vl-burbuja-txt">${cuerpo}</div>` : ''}
-                    <div class="vl-burbuja-hora">${responderBtnHtml(m)}${reaccionBtnHtml(m)}${escapeHtml(fmtHora(m.creado_en))}${ticksHtml(m)}</div>
+                    <div class="vl-burbuja-hora">${responderBtnHtml(m)}${reaccionBtnHtml(m)}${accionesMsgHtml(m)}${escapeHtml(fmtHora(m.creado_en))}${ticksHtml(m)}</div>
                     ${reaccionesHtml(reacciones[m.wa_message_id])}
                 </div>
                 ${falloLineaDe(m)}
+                ${sinAcuseLineaDe(m, esUltimo)}
             </div>`;
         }).join('');
 }
@@ -1338,10 +1506,15 @@ function extrasDeseados(lista) {
         reac[destino][m.direction === 'out' ? 'out' : 'in'] = emoji;
     });
     const porWamid = {};
-    lista.forEach((m) => {
+    lista.forEach((m, i) => {
         const w = String(m.wa_message_id || '');
         if (!w) return;
-        porWamid[w] = { tick: ticksHtml(m), reac: reaccionesHtml(reac[w]), fallo: falloLineaDe(m) };
+        porWamid[w] = {
+            tick: ticksHtml(m),
+            reac: reaccionesHtml(reac[w]),
+            fallo: falloLineaDe(m),
+            acuse: sinAcuseLineaDe(m, i === lista.length - 1)
+        };
     });
     return porWamid;
 }
@@ -1354,6 +1527,7 @@ function sembrarExtras(cont, lista) {
         fila.dataset.tick = d ? d.tick : '';
         fila.dataset.reac = d ? d.reac : '';
         fila.dataset.fallo = (d && d.fallo) ? d.fallo : '';
+        fila.dataset.acuse = (d && d.acuse) ? d.acuse : '';
     });
 }
 
@@ -1385,6 +1559,15 @@ function aplicarExtras(cont, lista) {
             fila.dataset.fallo = falloDeseado;
             fila.querySelectorAll('.vl-fallo-linea').forEach((n) => n.remove());
             if (falloDeseado) fila.insertAdjacentHTML('beforeend', falloDeseado);
+            cambio = true;
+        }
+        // Igual con "sin acuse": si el último mensaje nunca recibe acuse, después
+        // de 2 h aparece el aviso (y desaparece solo cuando WhatsApp responde).
+        const acuseDeseado = d.acuse || '';
+        if ((fila.dataset.acuse || '') !== acuseDeseado) {
+            fila.dataset.acuse = acuseDeseado;
+            fila.querySelectorAll('.vl-sin-acuse').forEach((n) => n.remove());
+            if (acuseDeseado) fila.insertAdjacentHTML('beforeend', acuseDeseado);
             cambio = true;
         }
     });

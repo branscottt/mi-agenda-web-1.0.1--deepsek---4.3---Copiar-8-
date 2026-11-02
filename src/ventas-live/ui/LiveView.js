@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista, estadoVentanaWa, avisoVentanaHtml, lineaFalloHtml, explicarFalloWa, confirmarFueraDeVentana } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista, estadoVentanaWa, avisoVentanaHtml, lineaFalloHtml, explicarFalloWa, confirmarFueraDeVentana, porReenviarAuto, copiarAlPortapapeles, abrirReenvioA } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales, modalLiberarItems } from './accionesProceso.js';
 import {
@@ -52,6 +52,8 @@ let _leidoWamid = '';    // último entrante ya marcado como leído (✓✓ azul
 let _mensajesChat = [];
 let _ventanaChat = null;
 let _chatMeta = null;    // ficha de la conversación abierta (nombre, modo…)
+// Chats ya probados con el reenvío automático en esta sesión (no repetir cada 5 s).
+const _autoReenviado = new Set();
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
 let _sugerencias = [];
@@ -287,12 +289,16 @@ function buildDOM() {
     }
     // Apretar la cita lleva al mensaje citado (y lo marca un instante).
     montarSaltoCita({ contenedor: $('lv-chat-msgs') });
-    // "Reenviar" de un mensaje que WhatsApp NO entregó (línea de fallo del hilo).
+    // "Reenviar" de un mensaje que WhatsApp NO entregó + copiar + reenviar a otro chat.
     $('lv-chat-msgs').addEventListener('click', (e) => {
-        const btn = e.target && e.target.closest ? e.target.closest('.vl-fallo-reenviar') : null;
-        if (!btn) return;
-        e.preventDefault();
-        reenviarDelHiloChat(btn.dataset.reenviar);
+        const t = e.target;
+        if (!t || !t.closest) return;
+        const reenviar = t.closest('.vl-fallo-reenviar');
+        if (reenviar) { e.preventDefault(); reenviarDelHiloChat(reenviar.dataset.reenviar); return; }
+        const copiar = t.closest('[data-copiar]');
+        if (copiar) { e.preventDefault(); copiarMensajeChat(copiar.dataset.copiar); return; }
+        const fwd = t.closest('[data-forward]');
+        if (fwd) { e.preventDefault(); reenviarAOtroChatLive(fwd.dataset.forward); }
     });
     // Reaccionar a un mensaje con un emoji (😍👍🔥…), como en WhatsApp.
     montarReaccion({
@@ -1165,6 +1171,9 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
 
     autoScrollAbajo(msgs, { forzar: forzarAbajo || !silencioso });
     pintarCabeceraChat();
+
+    // Reenvío automático de lo que quedó sin entregar (si el cliente ya escribió).
+    setTimeout(() => autoReenviarPendientesChat(_chatId, mensajes), 900);
 }
 
 /**
@@ -1448,6 +1457,60 @@ async function reenviarDelHiloChat(id) {
     }
     mostrarToast('Reenviado 💜', 'success');
     cargarHiloChat({ forzarAbajo: true });
+}
+
+/** Copiar el texto de un mensaje del chat del LIVE (recibido o enviado). */
+async function copiarMensajeChat(id) {
+    const m = (_mensajesChat || []).find(x => String(x.id) === String(id));
+    if (!m) return;
+    const ok = await copiarAlPortapapeles(m.body || '');
+    mostrarToast(ok ? 'Copiado' : 'No se pudo copiar el texto', ok ? 'success' : 'error');
+}
+
+/** Reenviar el mensaje a OTRA conversación (pide la lista de chats al abrir). */
+async function reenviarAOtroChatLive(id) {
+    const m = (_mensajesChat || []).find(x => String(x.id) === String(id));
+    if (!m) return;
+    const res = await vlApi.chatsListar().catch(() => null);
+    const chats = (res && res.ok && res.data && Array.isArray(res.data.chats)) ? res.data.chats : [];
+    abrirReenvioA({
+        mensaje: m,
+        chats,
+        chatActualId: _chatId,
+        alElegir: async (destinoId, chat) => {
+            mostrarToast('Reenviando a ' + nombreDeCliente(chat) + '…', 'info');
+            const r = await vlApi.reenviar(destinoId, m);
+            if (r && r.ok) mostrarToast('Reenviado a ' + nombreDeCliente(chat) + ' 💜', 'success');
+            else mostrarToast((r && r.error) || 'No se pudo reenviar a ese chat', 'error');
+        }
+    });
+}
+
+/**
+ * Reenvío automático al reabrirse la ventana de 24 h (el cliente volvió a
+ * escribir): manda solo lo que había quedado sin entregar por la ventana.
+ * Una vez por chat y sesión; las reglas viven en `porReenviarAuto`.
+ */
+async function autoReenviarPendientesChat(chatId, mensajes) {
+    if (!chatId || !_ventanaChat || !_ventanaChat.abierta) return;
+    if (_autoReenviado.has(chatId)) return;
+    let pendientes = [];
+    try { pendientes = porReenviarAuto(mensajes); } catch (_) { return; }
+    if (!pendientes.length) return;
+    _autoReenviado.add(chatId);
+    let ok = 0;
+    for (const m of pendientes) {
+        const r = await vlApi.reenviar(chatId, m).catch(() => null);
+        if (r && r.ok) ok++;
+    }
+    if (ok) {
+        mostrarToast(ok === 1
+            ? 'Le reenvié el mensaje que no le había llegado 💜'
+            : `Le reenvié ${ok} mensajes que no le habían llegado 💜`, 'success');
+        cargarHiloChat({ forzarAbajo: true });
+    } else {
+        mostrarToast('No pude reenviar automáticamente lo que quedó pendiente: revisá el chat.', 'warning');
+    }
 }
 
 // ── Nota de voz ─────────────────────────────────────────────────────────────

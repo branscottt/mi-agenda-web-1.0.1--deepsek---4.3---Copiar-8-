@@ -23,7 +23,8 @@ import {
     quienContesta, procesoChips, firmarMedias, quienEsHtml, bindQuienEs, montarResponder, montarSaltoCita,
     montarAdjunto, montarReaccion, pintarHilo, olvidarHilo,
     barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista,
-    estadoVentanaWa, avisoVentanaHtml, lineaFalloHtml, explicarFalloWa, confirmarFueraDeVentana
+    estadoVentanaWa, avisoVentanaHtml, lineaFalloHtml, explicarFalloWa, confirmarFueraDeVentana,
+    porReenviarAuto, copiarAlPortapapeles, abrirReenvioA
 } from './chatComun.js';
 import {
     PUNTO_LABEL, PUNTO_VALOR_LABEL,
@@ -74,6 +75,9 @@ let _leidoWamid = '';         // último entrante ya marcado como leído (✓✓
 // Ventana de 24 h de WhatsApp del chat abierto (estado REAL, no supuesto):
 // se recalcula con cada carga del hilo y se usa para avisar ANTES de enviar.
 let _ventanaChat = null;
+// Chats a los que ya se les intentó el reenvío automático en esta sesión (para no
+// repetirlo cada 5 s si el envío vuelve a fallar).
+const _autoReenviado = new Set();
 // Buscador de la conversación (la lupa de WhatsApp).
 let _busq = { texto: '', i: 0, n: 0, chat: null };
 let _fijoPintado = null;      // bloque de proceso/aviso ya pintado (para no repintar de más)
@@ -230,13 +234,17 @@ export function initConversacionesDrawer({ onBadge } = {}) {
         $('vld-archivados').addEventListener('click', toggleArchivados);
         $('vld-pagos').addEventListener('click', togglePagos);
         $('vld-enviar').addEventListener('click', enviar);
-        // "Reenviar" de un mensaje que WhatsApp NO entregó (línea de fallo del hilo):
-        // se reusa el mismo texto/archivo que ya está guardado, sin volver a subirlo.
+        // Acciones de cada burbuja: Reenviar (mensaje no entregado o sin acuse),
+        // Copiar y "Reenviar a otra conversación" (como el menú de WhatsApp).
         $('vld-chat').addEventListener('click', (e) => {
-            const btn = e.target && e.target.closest ? e.target.closest('.vl-fallo-reenviar') : null;
-            if (!btn) return;
-            e.preventDefault();
-            reenviarDelHilo(btn.dataset.reenviar);
+            const t = e.target;
+            if (!t || !t.closest) return;
+            const reenviar = t.closest('.vl-fallo-reenviar');
+            if (reenviar) { e.preventDefault(); reenviarDelHilo(reenviar.dataset.reenviar); return; }
+            const copiar = t.closest('[data-copiar]');
+            if (copiar) { e.preventDefault(); copiarMensajeDelHilo(copiar.dataset.copiar); return; }
+            const fwd = t.closest('[data-forward]');
+            if (fwd) { e.preventDefault(); reenviarAOtroChat(fwd.dataset.forward); }
         });
 
         // ── Menú ⋯ (arriba a la derecha): lo de esta conversación en un solo lugar
@@ -1251,6 +1259,10 @@ async function cargarHilo(chatId, { silencioso = false } = {}) {
     // Respaldo: baja otra vez apenas el navegador pinte las burbujas (fuentes/imágenes).
     if (!silencioso) requestAnimationFrame(() => autoScrollAbajo(paneChat(), { forzar: true }));
 
+    // Reenvío automático de lo que había quedado sin entregar: si el cliente ya
+    // volvió a escribir (ventana abierta) se manda solo, sin que nadie se acuerde.
+    setTimeout(() => autoReenviarPendientes(chatId, mensajes), 900);
+
     // ✓✓ AZUL al cliente: se marca el chat como leído al abrirlo y cada vez que
     // llega algo nuevo mientras lo tienes abierto (igual que WhatsApp). Se pide
     // una sola vez por mensaje y sin bloquear el pintado.
@@ -1761,6 +1773,66 @@ async function reenviarDelHilo(id) {
     }
     mostrarToast('Reenviado 💜', 'success');
     cargarHilo(_chatId, { silencioso: true });
+}
+
+/** Mensaje del hilo abierto por id (lo que está pintado). */
+function mensajeDelHilo(id) {
+    const lista = (_cacheChat && Array.isArray(_cacheChat.mensajes)) ? _cacheChat.mensajes : [];
+    return lista.find(x => String(x.id) === String(id)) || null;
+}
+
+/** Copiar el texto de un mensaje (recibido o enviado), como en WhatsApp. */
+async function copiarMensajeDelHilo(id) {
+    const m = mensajeDelHilo(id);
+    if (!m) return;
+    const ok = await copiarAlPortapapeles(m.body || '');
+    mostrarToast(ok ? 'Copiado' : 'No se pudo copiar el texto', ok ? 'success' : 'error');
+}
+
+/** Reenviar el mensaje a OTRA conversación (picker con búsqueda). */
+function reenviarAOtroChat(id) {
+    const m = mensajeDelHilo(id);
+    if (!m) return;
+    abrirReenvioA({
+        mensaje: m,
+        chats: _chats,
+        chatActualId: _chatId,
+        alElegir: async (destinoId, chat) => {
+            mostrarToast('Reenviando a ' + nombreDeCliente(chat) + '…', 'info');
+            const r = await vlApi.reenviar(destinoId, m);
+            if (r && r.ok) mostrarToast('Reenviado a ' + nombreDeCliente(chat) + ' 💜', 'success');
+            else mostrarToast((r && r.error) || 'No se pudo reenviar a ese chat', 'error');
+        }
+    });
+}
+
+/**
+ * REENVÍO AUTOMÁTICO: cuando el cliente vuelve a escribir (se reabre la ventana
+ * de 24 h), se mandan solos los mensajes que habían quedado sin entregar por la
+ * ventana. Antes había que acordarse de abrir el chat y apretar Reenviar.
+ * Reglas en `porReenviarAuto` (solo fallos de 24 h, de las últimas 24 h, sin
+ * reenvío previo). Se hace una vez por chat y sesión.
+ */
+async function autoReenviarPendientes(chatId, mensajes) {
+    if (!chatId || !_ventanaChat || !_ventanaChat.abierta) return;
+    if (_autoReenviado.has(chatId)) return;
+    let pendientes = [];
+    try { pendientes = porReenviarAuto(mensajes); } catch (_) { return; }
+    if (!pendientes.length) return;
+    _autoReenviado.add(chatId);
+    let ok = 0;
+    for (const m of pendientes) {
+        const r = await vlApi.reenviar(chatId, m).catch(() => null);
+        if (r && r.ok) ok++;
+    }
+    if (ok) {
+        mostrarToast(ok === 1
+            ? 'Le reenvié el mensaje que no le había llegado 💜'
+            : `Le reenvié ${ok} mensajes que no le habían llegado 💜`, 'success');
+        cargarHilo(chatId, { silencioso: true });
+    } else {
+        mostrarToast('No pude reenviar automáticamente lo que quedó pendiente: revisá el chat.', 'warning');
+    }
 }
 
 async function enviar() {

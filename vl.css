@@ -659,6 +659,32 @@
         }
         .vl-conv-item.con-no-entregado { border-color: rgba(255,138,101,0.45); }
 
+        /* Botones "copiar" y "reenviar a otra conversación" de cada burbuja
+           (mismo tamaño/discreción que responder y reaccionar). */
+        .vl-msg-accion { width: 20px; height: 20px; padding: 0; border: none; border-radius: 5px; background: transparent; color: inherit; opacity: 0.4; cursor: pointer; font-size: 0.7rem; display: inline-flex; align-items: center; justify-content: center; transition: opacity .12s, background .12s; }
+        .vl-fila-msg:hover .vl-msg-accion { opacity: 0.85; }
+        .vl-msg-accion:hover, .vl-msg-accion:focus-visible { background: rgba(255,255,255,0.16); opacity: 1; }
+        @media (max-width: 720px) { .vl-msg-accion { width: 26px; height: 26px; opacity: 0.6; } }
+
+        /* "Sin acuse": el mensaje salió pero WhatsApp no confirmó nada en 2 h.
+           Ámbar (no rojo): es un aviso para revisar, no una alarma. */
+        .vl-sin-acuse {
+            display: flex; align-items: flex-start; gap: 7px; flex-wrap: wrap;
+            margin-top: 5px; max-width: 100%; box-sizing: border-box;
+            background: rgba(255,193,7,0.10); border: 1px solid rgba(255,193,7,0.35);
+            border-radius: 9px; padding: 7px 9px;
+            color: #ffe9a8; font-size: 0.76rem; line-height: 1.35; text-align: left;
+        }
+        .vl-sin-acuse > i { margin-top: 2px; color: #ffe066; }
+        .vl-sin-acuse > span { flex: 1 1 140px; min-width: 0; }
+
+        /* Picker "Reenviar a…" (lista de conversaciones) */
+        .vl-fwd-lista { max-height: 46vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+        .vl-fwd-item { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: #e9edef; cursor: pointer; font-family: inherit; }
+        .vl-fwd-item:hover, .vl-fwd-item:focus-visible { background: rgba(157,78,221,0.22); border-color: rgba(157,78,221,0.5); }
+        .vl-fwd-nombre { font-weight: 700; font-size: 0.9rem; }
+        .vl-fwd-sub { font-size: 0.78rem; color: #a89bb8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
         /* ===== Buscar dentro de la conversación (la lupa de WhatsApp) ===== */
         .vl-busq-barra { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 2px 0 6px;
             background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; }
