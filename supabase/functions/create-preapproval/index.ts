@@ -112,7 +112,7 @@ async function handle(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método no permitido' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 
@@ -183,6 +183,7 @@ async function handle(req: Request): Promise<Response> {
     // URLs de retorno — baseUrl desde fuentes confiables (env o ALLOWED_ORIGINS),
     // NUNCA del Origin de la request (anti-phishing post-pago).
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://dfcfimipkfhitlsyixqu.supabase.co';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const baseUrl = (Deno.env.get('AGENDA_BASE_URL') || allowedOrigins[0] || supabaseUrl).replace(/\/$/, '');
 
     // Crear preapproval (suscripción recurrente) en Mercado Pago
@@ -232,6 +233,39 @@ async function handle(req: Request): Promise<Response> {
     }
 
     console.log('Preapproval creado:', mpData.id);
+
+    // Registrar la suscripción en mp_preapprovals ANTES de que exista ningún
+    // pago. Así el superadmin puede cancelarla aunque el IPN nunca llegue
+    // (caso umbralis: MP cobró meses sin una sola fila en la DB). Si el
+    // registro falla NO se rompe el checkout, solo queda el warning.
+    if (serviceRoleKey) {
+      try {
+        const trackResp = await fetch(`${supabaseUrl}/rest/v1/rpc/mp_preapproval_registrar`, {
+          method: 'POST',
+          headers: {
+            'apikey': serviceRoleKey,
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            p_tenant_id: tenant_id,
+            p_preapproval_id: mpData.id,
+            p_plan: plan,
+            p_monto: amount,
+            p_frequency: planInfo.frequency,
+            p_frequency_type: planInfo.frequency_type,
+            p_payer_email: email,
+            p_status: mpData.status || 'pending',
+            p_allow_activation: true,
+          }),
+        });
+        if (!trackResp.ok) {
+          console.warn(`[create-preapproval] No se pudo registrar en mp_preapprovals (${trackResp.status}):`, (await trackResp.text().catch(() => '')).slice(0, 200));
+        }
+      } catch (e) {
+        console.warn('[create-preapproval] Error registrando mp_preapprovals:', e);
+      }
+    }
 
     return new Response(JSON.stringify({
       preapproval_id: mpData.id,

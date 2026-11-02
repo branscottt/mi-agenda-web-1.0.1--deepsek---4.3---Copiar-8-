@@ -61,6 +61,260 @@ function parseExternalRef(externalRef: string): { tenantId: string | null; plan:
   }
 }
 
+// ============================================================
+// Registro durable de preapprovals (mp_preapprovals)
+// ============================================================
+// Esta tabla es la fuente de verdad de "qué suscripciones recurrentes existen
+// y si pueden activar plan". allow_activation=false = el superadmin o el
+// inquilino decidieron no cobrar más: ningún IPN rezagado puede reactivarlo.
+interface TrackingPreapproval {
+  id: string;
+  tenant_id: string;
+  plan: string | null;
+  allow_activation: boolean;
+  status: string;
+}
+
+async function getTracking(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  preapprovalId: string
+): Promise<TrackingPreapproval | null> {
+  try {
+    const resp = await fetch(
+      `${supabaseUrl}/rest/v1/mp_preapprovals?mp_preapproval_id=eq.${encodeURIComponent(preapprovalId)}&select=id,tenant_id,plan,allow_activation,status&limit=1`,
+      {
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    );
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    return rows?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function upsertTracking(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  row: Record<string, unknown>
+): Promise<void> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/mp_preapproval_registrar`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_tenant_id: row.tenant_id,
+        p_preapproval_id: row.mp_preapproval_id,
+        p_plan: row.plan ?? null,
+        p_monto: row.monto ?? null,
+        p_frequency: row.frequency ?? null,
+        p_frequency_type: row.frequency_type ?? null,
+        p_payer_email: row.payer_email ?? null,
+        p_status: row.status ?? 'pending',
+        p_allow_activation: row.allow_activation !== false,
+        p_cancel_source: row.cancel_source ?? null,
+        p_cancelled_at: row.cancelled_at ?? null,
+        p_last_error: row.last_error ?? null,
+      }),
+    });
+    if (!resp.ok) {
+      console.warn(`[MP-Webhook] No se pudo registrar mp_preapproval (${resp.status}):`, (await resp.text().catch(() => '')).slice(0, 200));
+    }
+  } catch (e) {
+    console.warn('[MP-Webhook] Error registrando mp_preapproval:', e);
+  }
+}
+
+/** ¿El tenant existe todavía? (un tenant borrado deja preapprovals huérfanos) */
+async function tenantExiste(supabaseUrl: string, serviceRoleKey: string, tenantId: string): Promise<boolean> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/rest/v1/tenants?id=eq.${tenantId}&select=id&limit=1`, {
+      headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+    });
+    if (!resp.ok) return false;
+    const rows = await resp.json();
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Fallback: tenant actual que usa el email del pagador. */
+async function buscarTenantPorEmail(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  email: string | null
+): Promise<string | null> {
+  if (!email) return null;
+  try {
+    const resp = await fetch(
+      `${supabaseUrl}/rest/v1/tenants?email_contacto=eq.${encodeURIComponent(email)}&select=id&order=fecha_registro.desc&limit=1`,
+      { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+    );
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    return rows?.[0]?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fallback: tenant vinculado a un preapproval con ese email de pagador. */
+async function buscarTenantPorPreapprovalEmail(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  email: string | null
+): Promise<string | null> {
+  if (!email) return null;
+  try {
+    const resp = await fetch(
+      `${supabaseUrl}/rest/v1/mp_preapprovals?payer_email=eq.${encodeURIComponent(email)}&select=tenant_id&order=created_at.desc&limit=10`,
+      { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+    );
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    for (const r of rows) {
+      if (r?.tenant_id && await tenantExiste(supabaseUrl, serviceRoleKey, r.tenant_id)) {
+        return r.tenant_id;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resuelve el tenant REAL de una notificación. Si el tenant del
+ * external_reference ya no existe (fue eliminado sin cancelar su
+ * preapproval — caso umbralis), usa el registro durable y luego el email.
+ */
+async function resolverTenantVivo(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  candidatos: Array<string | null | undefined>,
+  email: string | null
+): Promise<string | null> {
+  for (const c of candidatos) {
+    if (c && await tenantExiste(supabaseUrl, serviceRoleKey, c)) return c;
+  }
+  // 1º el tenant que REGISTRÓ un preapproval con ese email de pagador
+  // (evita elegir un tenant duplicado con el mismo email de contacto).
+  const porPreapproval = await buscarTenantPorPreapprovalEmail(supabaseUrl, serviceRoleKey, email);
+  if (porPreapproval) {
+    console.warn(`[MP-Webhook] Tenant original ya no existe — usando ${porPreapproval} (dueño del preapproval)`);
+    return porPreapproval;
+  }
+  // 2º cualquier tenant con ese email de contacto
+  const porEmail = await buscarTenantPorEmail(supabaseUrl, serviceRoleKey, email);
+  if (porEmail) {
+    console.warn(`[MP-Webhook] Tenant original ya no existe — usando ${porEmail} (mismo email del pagador)`);
+  }
+  return porEmail;
+}
+
+/**
+ * Detecta un cobro que viene de una suscripción DESACTIVADA aunque el payment
+ * no traiga preapproval_id (MP no siempre lo incluye en las cuotas).
+ *
+ * Condiciones (todas):
+ *   - el tenant tiene un preapproval con allow_activation=false del mismo
+ *     plan y monto que el cobro;
+ *   - NO tiene ningún preapproval habilitado (pending/authorized) — si lo
+ *     tuviera, sería una compra nueva legítima;
+ *   - NO tiene una suscripción de pago activa (si la tuviera, es una
+ *     renovación normal).
+ */
+async function detectarCobroDeSuscripcionDesactivada(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  tenantId: string,
+  plan: string | null,
+  monto: number
+): Promise<{ bloqueado: boolean; preapprovalId: string | null }> {
+  const h = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` };
+  try {
+    const [descResp, actResp, subResp] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/mp_preapprovals?tenant_id=eq.${tenantId}&allow_activation=eq.false&select=mp_preapproval_id,plan,monto,status&order=created_at.desc`, { headers: h }),
+      fetch(`${supabaseUrl}/rest/v1/mp_preapprovals?tenant_id=eq.${tenantId}&allow_activation=eq.true&status=in.(pending,authorized)&select=id&limit=1`, { headers: h }),
+      fetch(`${supabaseUrl}/rest/v1/subscriptions?tenant_id=eq.${tenantId}&status=eq.active&plan=in.(pro,premium_anual)&select=id&limit=1`, { headers: h }),
+    ]);
+    const desactivadas = descResp.ok ? await descResp.json() : [];
+    const habilitadas = actResp.ok ? await actResp.json() : [];
+    const pagoActivo = subResp.ok ? await subResp.json() : [];
+
+    if (pagoActivo.length > 0 || habilitadas.length > 0) {
+      return { bloqueado: false, preapprovalId: null };
+    }
+
+    const match = (desactivadas as Array<{ mp_preapproval_id: string; plan: string | null; monto: number | null }>)
+      .find((r) => Number(r.monto) === Number(monto) && (!r.plan || !plan || r.plan === plan));
+    if (match) return { bloqueado: true, preapprovalId: match.mp_preapproval_id };
+    return { bloqueado: false, preapprovalId: null };
+  } catch {
+    return { bloqueado: false, preapprovalId: null };
+  }
+}
+
+/** Cancela una suscripción recurrente en MP. Idempotente. */
+async function cancelarPreapprovalEnMp(accessToken: string, preapprovalId: string): Promise<boolean> {
+  try {
+    const resp = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+    if (resp.ok) {
+      console.log(`[MP-Webhook] Preapproval ${preapprovalId} cancelado en MP`);
+      return true;
+    }
+    const txt = (await resp.text().catch(() => '')).slice(0, 200);
+    console.error(`[MP-Webhook] No se pudo cancelar preapproval ${preapprovalId} (${resp.status}):`, txt);
+    return false;
+  } catch (e) {
+    console.error(`[MP-Webhook] Excepción cancelando preapproval ${preapprovalId}:`, e);
+    return false;
+  }
+}
+
+/** Reembolso TOTAL de un cobro. Devuelve el id del refund si funcionó. */
+async function reembolsarPayment(
+  accessToken: string,
+  paymentId: string,
+  motivo: string
+): Promise<{ ok: boolean; refundId?: string; error?: string; monto?: number }> {
+  try {
+    const resp = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}/refunds`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Idempotency-Key': `${paymentId}-${motivo}`,
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) {
+      console.log(`[MP-Webhook] Payment ${paymentId} reembolsado (refund ${data?.id}) — motivo: ${motivo}`);
+      return { ok: true, refundId: data?.id ? String(data.id) : undefined, monto: data?.amount };
+    }
+    const errMsg = JSON.stringify(data).slice(0, 250);
+    console.error(`[MP-Webhook] Error reembolsando payment ${paymentId} (${resp.status}):`, errMsg);
+    return { ok: false, error: `${resp.status}: ${errMsg}` };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 /**
  * Procesa una notificación de SUSCRIPCIÓN RECURRENTE (topic preapproval).
  * MP envía esto cuando una suscripción recurrente cambia de estado:
@@ -87,16 +341,56 @@ async function procesarPreapproval(
 
   const pa = await mpResp.json();
   const paStatus = pa.status;
-  const { tenantId, plan } = parseExternalRef(pa.external_reference || '');
+  const ref = parseExternalRef(pa.external_reference || '');
+  // Registro durable: permite resolver tenant/plan aunque el preapproval sea
+  // viejo y no exista ninguna fila en mercadopago_payments.
+  const tracking = await getTracking(supabaseUrl, serviceRoleKey, preapprovalId);
+  let tenantId = ref.tenantId || tracking?.tenant_id || null;
+  const plan = ref.plan || tracking?.plan || null;
 
-  console.log(`[MP-Webhook] Preapproval ${preapprovalId}: status=${paStatus}, tenant=${tenantId}, plan=${plan}`);
+  // Un tenant eliminado deja su preapproval cobrando: resolver al tenant vivo
+  // (registro durable o email del pagador) antes de tocar nada.
+  tenantId = await resolverTenantVivo(supabaseUrl, serviceRoleKey, [tenantId, tracking?.tenant_id], ref.email || pa.payer_email || null);
+
+  console.log(`[MP-Webhook] Preapproval ${preapprovalId}: status=${paStatus}, tenant=${tenantId}, plan=${plan}, allow_activation=${tracking?.allow_activation ?? 'sin-registro'}`);
 
   if (!tenantId) {
-    console.warn('[MP-Webhook] Preapproval sin external_reference válida — ignorando');
+    console.warn('[MP-Webhook] Preapproval sin tenant válido — ignorando');
     return true;
   }
 
+  // Sincronizar el estado real en mp_preapprovals. Una suscripción cancelada
+  // o terminada NUNCA vuelve a permitir activación (last decision wins).
+  const allowActivation = (paStatus === 'cancelled' || paStatus === 'finished')
+    ? false
+    : (tracking ? tracking.allow_activation : true);
+  await upsertTracking(supabaseUrl, serviceRoleKey, {
+    tenant_id: tenantId,
+    mp_preapproval_id: preapprovalId,
+    plan,
+    monto: pa.auto_recurring?.transaction_amount ?? null,
+    frequency: pa.auto_recurring?.frequency ?? null,
+    frequency_type: pa.auto_recurring?.frequency_type ?? null,
+    payer_email: pa.payer_email || null,
+    status: paStatus,
+    allow_activation: allowActivation,
+    ...((paStatus === 'cancelled' || paStatus === 'finished')
+      ? {
+        cancelled_at: new Date().toISOString(),
+        cancel_source: tracking && tracking.allow_activation === false ? undefined : 'webhook',
+      }
+      : {}),
+  });
+
   if (paStatus === 'authorized' && plan) {
+    // Defensa: si el cobro automático fue desactivado (superadmin pasó la
+    // cuenta a freemium, o el inquilino canceló), un 'authorized' rezagado de
+    // MP NO debe reactivar el plan. Se vuelve a cancelar por si MP la reactivó.
+    if (tracking && tracking.allow_activation === false) {
+      console.log(`[MP-Webhook] Preapproval ${preapprovalId} con allow_activation=false — NO se activa; re-cancelando en MP`);
+      await cancelarPreapprovalEnMp(accessToken, preapprovalId);
+      return true;
+    }
     // Suscripción activada: primera cuota cobrada → activar/renovar
     const amount = Number(pa.auto_recurring?.transaction_amount || 0);
     if (!montoValidoParaPlan(plan, amount)) {
@@ -325,6 +619,7 @@ async function handle(req: Request): Promise<Response> {
     // superadmin o el inquilino cancelaron la suscripción a propósito. Evita
     // que un IPN rezagado pise esa decisión.
     let preapprovalStatus: string | null = null;
+    let trackingPago: TrackingPreapproval | null = null;
 
     if (payment.preapproval_id) {
       try {
@@ -338,11 +633,39 @@ async function handle(req: Request): Promise<Response> {
           if (!tenantId) tenantId = ref.tenantId;
           if (!plan) plan = ref.plan;
           if (!email) email = ref.email;
-          console.log(`[MP-Webhook] Payment recurrente ${paymentId} → preapproval ${payment.preapproval_id}: status=${preapprovalStatus}, tenant=${tenantId}, plan=${plan}`);
+
+          // Registro durable: resuelve tenant/plan incluso si el preapproval
+          // es viejo y no hay fila en mercadopago_payments (caso umbralis).
+          trackingPago = await getTracking(supabaseUrl, serviceRoleKey, payment.preapproval_id);
+          if (trackingPago) {
+            if (!tenantId) tenantId = trackingPago.tenant_id;
+            if (!plan) plan = trackingPago.plan;
+          }
+          console.log(`[MP-Webhook] Payment recurrente ${paymentId} → preapproval ${payment.preapproval_id}: status=${preapprovalStatus}, tenant=${tenantId}, plan=${plan}, allow_activation=${trackingPago?.allow_activation ?? 'sin-registro'}`);
         }
       } catch (e) {
         console.warn(`[MP-Webhook] Error consultando preapproval ${payment.preapproval_id}:`, e);
       }
+
+      // Si el tenant del external_reference fue eliminado (preapproval huérfano
+      // que MP sigue cobrando), resolver al tenant vivo por registro/email.
+      tenantId = await resolverTenantVivo(
+        supabaseUrl,
+        serviceRoleKey,
+        [tenantId, trackingPago?.tenant_id],
+        payment.payer?.email || email
+      );
+    }
+
+    // Resolver SIEMPRE el tenant vivo: hay cuotas de suscripción que NO traen
+    // preapproval_id y su external_reference puede apuntar a un tenant borrado.
+    if (tenantId && supabaseUrl && serviceRoleKey) {
+      tenantId = await resolverTenantVivo(
+        supabaseUrl,
+        serviceRoleKey,
+        [tenantId, trackingPago?.tenant_id],
+        payment.payer?.email || email
+      );
     }
 
     // Actualizar mercadopago_payments
@@ -360,6 +683,19 @@ async function handle(req: Request): Promise<Response> {
       const existing = await findResp.json();
 
       const ourStatus = STATUS_MAP[mpStatus] || 'pending';
+      // Decisión comercial firme: esta suscripción fue desactivada por el
+      // superadmin (plan gratuito) o cancelada por el inquilino. Un cobro
+      // rezagado de MP NO debe reactivar el plan.
+      let bloqueadoPorAdmin = trackingPago?.allow_activation === false;
+      let preapprovalDesactivadoId: string | null = null;
+      if (!bloqueadoPorAdmin && ourStatus === 'approved' && tenantId && plan) {
+        // Cuotas sin preapproval_id: detectar por tenant + plan + monto.
+        const det = await detectarCobroDeSuscripcionDesactivada(
+          supabaseUrl, serviceRoleKey, tenantId, plan, Number(payment.transaction_amount || 0)
+        );
+        bloqueadoPorAdmin = det.bloqueado;
+        preapprovalDesactivadoId = det.preapprovalId;
+      }
       // Idempotencia: si este payment ya fue procesado como aprobado, no reactivar
       const yaProcesado = existing && existing.length > 0 &&
         (!!existing[0].paid_at || !!existing[0].subscription_id);
@@ -376,9 +712,11 @@ async function handle(req: Request): Promise<Response> {
         updateData.paid_at = new Date().toISOString();
       }
 
+      let dbSaveOk = true;
+      let dbSaveError = '';
       if (existing && existing.length > 0) {
         // Actualizar registro existente
-        await fetch(
+        const patchResp = await fetch(
           `${supabaseUrl}/rest/v1/mercadopago_payments?id=eq.${existing[0].id}`,
           {
             method: 'PATCH',
@@ -391,6 +729,8 @@ async function handle(req: Request): Promise<Response> {
             body: JSON.stringify(updateData),
           }
         );
+        dbSaveOk = patchResp.ok;
+        if (!patchResp.ok) dbSaveError = `${patchResp.status}: ${(await patchResp.text().catch(() => '')).slice(0, 200)}`;
       } else {
         // Crear nuevo registro
         const insertData: Record<string, unknown> = {
@@ -406,7 +746,7 @@ async function handle(req: Request): Promise<Response> {
           notified_at: new Date().toISOString(),
           ...(ourStatus === 'approved' ? { paid_at: new Date().toISOString() } : {}),
         };
-        await fetch(
+        const insertResp = await fetch(
           `${supabaseUrl}/rest/v1/mercadopago_payments`,
           {
             method: 'POST',
@@ -419,11 +759,26 @@ async function handle(req: Request): Promise<Response> {
             body: JSON.stringify(insertData),
           }
         );
+        dbSaveOk = insertResp.ok;
+        if (!insertResp.ok) dbSaveError = `${insertResp.status}: ${(await insertResp.text().catch(() => '')).slice(0, 200)}`;
+      }
+
+      if (!dbSaveOk) {
+        // Antes esto se ignoraba → MP recibía 200 y el pago se perdía para
+        // siempre (sin fila, sin activación). Si había tenant/plan, devolvemos
+        // error para que MP reintente.
+        console.error(`[MP-Webhook] No se pudo guardar el payment ${paymentId}:`, dbSaveError);
+        if (tenantId && plan) {
+          return new Response(JSON.stringify({ error: 'No se pudo registrar el pago', detail: dbSaveError }), {
+            status: 502,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       // Si el pago fue aprobado y tenemos tenant_id y plan, activar suscripción
       // (solo si NO fue procesado antes — idempotencia ante reintentos de MP)
-      if (ourStatus === 'approved' && tenantId && plan && !yaProcesado && preapprovalStatus !== 'cancelled') {
+      if (ourStatus === 'approved' && tenantId && plan && !yaProcesado && preapprovalStatus !== 'cancelled' && !bloqueadoPorAdmin) {
         const paidAmount = Number(payment.transaction_amount || 0);
 
         // Anti-fraude: validar que el monto pagado corresponda al plan
@@ -544,6 +899,47 @@ async function handle(req: Request): Promise<Response> {
               console.error('[MP-Webhook] Error aplicando cupón (refund):', e);
             }
           }
+        }
+      } else if (ourStatus === 'approved' && bloqueadoPorAdmin) {
+        // COBRO INDEBIDO: llegó una cuota de una suscripción que el superadmin
+        // había desactivado (p. ej. cuenta pasada a freemium y MP siguió
+        // cobrando). Se respeta la última decisión: NO se activa, se cancela
+        // la suscripción en MP y se reembolsa el cobro completo.
+        console.warn(`[MP-Webhook] COBRO DE SUSCRIPCIÓN DESACTIVADA — tenant ${tenantId}, preapproval ${payment.preapproval_id}, payment ${paymentId}. Se cancela y se reembolsa.`);
+
+        const paId = payment.preapproval_id || preapprovalDesactivadoId;
+        if (paId) {
+          await cancelarPreapprovalEnMp(accessToken, paId);
+          await upsertTracking(supabaseUrl, serviceRoleKey, {
+            tenant_id: tenantId,
+            mp_preapproval_id: paId,
+            plan,
+            status: 'cancelled',
+            allow_activation: false,
+            cancel_source: 'webhook',
+            cancelled_at: new Date().toISOString(),
+          });
+        }
+
+        const refund = await reembolsarPayment(accessToken, paymentId, 'cobro-plan-gratuito');
+        if (refund.ok) {
+          // Reflejar la realidad: el cobro quedó devuelto.
+          await fetch(
+            `${supabaseUrl}/rest/v1/mercadopago_payments?mp_payment_id=eq.${paymentId}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'apikey': serviceRoleKey,
+                'Authorization': `Bearer ${serviceRoleKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({
+                mp_status: 'refunded',
+                updated_at: new Date().toISOString(),
+              }),
+            }
+          );
         }
       } else if (ourStatus === 'approved' && preapprovalStatus === 'cancelled') {
         console.log(`[MP-Webhook] Payment ${paymentId} de un preapproval CANCELADO — suscripción NO reactivada (decisión del superadmin/inquilino respetada)`);

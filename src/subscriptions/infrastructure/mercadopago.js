@@ -142,7 +142,7 @@ export async function createMercadoPagoPreapproval({ plan, tenantId, email, nomb
  * @param {string} [params.targetTenantId] - (solo super_admin) cancelar la de otro tenant
  * @returns {Promise<{ok: boolean, mp_cancelled: boolean, preapproval_id: string|null}>}
  */
-export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId, soloMp }) {
+export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId, soloMp, motivo }) {
     if (!tenantId && !targetTenantId) {
         throw new Error('tenantId es requerido');
     }
@@ -162,6 +162,7 @@ export async function cancelarSuscripcionMercadoPago({ tenantId, targetTenantId,
     // soloMp=true → cancela SOLO en MP (no desactiva la suscripción en DB).
     // Lo usa el superadmin al cambiar a un plan gratuito.
     if (soloMp === true) body.solo_mp = true;
+    if (motivo) body.motivo = motivo;
 
     const response = await fetch(`${getEdgeFunctionUrl()}/cancelar-suscripcion`, {
         method: 'POST',

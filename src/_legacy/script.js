@@ -6313,16 +6313,24 @@ async function cancelarCobroAutomaticoMP(tenantId) {
         return { ok: false, motivo: 'mp-no-disponible' };
     }
     try {
-        const res = await mp.cancelSuscripcion({ tenantId, soloMp: true });
+        const res = await mp.cancelSuscripcion({ tenantId, soloMp: true, motivo: 'superadmin' });
         if (res && res.ok) {
             if (res.mp_cancelled) {
-                console.log(`[cancelarCobroAutomaticoMP] preapproval ${res.preapproval_id} cancelado para tenant ${tenantId}`);
+                console.log(`[cancelarCobroAutomaticoMP] preapproval(s) cancelado(s) para tenant ${tenantId}:`, res.preapproval_ids);
+            } else if (res.preapproval_ids && res.preapproval_ids.length) {
+                console.warn('[cancelarCobroAutomaticoMP] preapprovals encontrados pero NO cancelados:', res);
+                mostrarToast('Se encontró un cobro automático activo en Mercado Pago pero NO se pudo cancelar. Cancélalo desde el panel de MP.', 'warning');
             } else {
-                console.log(`[cancelarCobroAutomaticoMP] tenant ${tenantId} sin preapproval activo`);
+                console.log(`[cancelarCobroAutomaticoMP] tenant ${tenantId} sin preapproval (verificado en MP)`);
+            }
+            if (res.errores && res.errores.length) {
+                console.warn('[cancelarCobroAutomaticoMP] errores:', res.errores);
+                mostrarToast('Aviso: no se pudo verificar por completo el cobro automático en Mercado Pago. Revisa la cuenta en MP.', 'warning');
             }
             return res;
         }
         console.warn('[cancelarCobroAutomaticoMP] respuesta no OK:', res);
+        mostrarToast('No se pudo confirmar la cancelación del cobro automático en Mercado Pago.', 'warning');
         return { ok: false, motivo: 'respuesta-no-ok', res };
     } catch (e) {
         console.error('[cancelarCobroAutomaticoMP] Error:', e);
