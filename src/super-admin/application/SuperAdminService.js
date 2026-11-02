@@ -55,8 +55,9 @@ export async function getSystemStats() {
 }
 
 export async function actualizarPlanTenant(tenantId, nuevoPlan) {
-    await updateTenant(tenantId, { plan: nuevoPlan });
-
+    // El plan vive en subscriptions; tenants.plan lo sincroniza un trigger de
+    // la base (sync_tenant_plan_from_subscription). Escribir ambos lados desde
+    // el cliente permitía que quedaran desincronizados si uno fallaba.
     const existing = await getAllSubscriptions({ tenant_id: tenantId, status: 'active' });
 
     if (existing?.length) {

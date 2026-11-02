@@ -6453,12 +6453,17 @@ function configurarModalTenant() {
             let result;
             try {
                 if (id) {
+                    // El PLAN no se escribe aquí: lo gobierna la suscripción
+                    // activa y un trigger de la base sincroniza tenants.plan
+                    // (así nunca quedan desincronizados si algo falla a mitad).
+                    const dataTenant = { ...data };
+                    delete dataTenant.plan;
                     if (window.__tenantsApi?.update) {
-                        result = await window.__tenantsApi.update(id, data);
+                        result = await window.__tenantsApi.update(id, dataTenant);
                     } else {
                         const { error } = await supabaseClient
                             .from('tenants')
-                            .update(data)
+                            .update(dataTenant)
                             .eq('id', id);
                         result = error ? { error } : { data: true };
                     }
@@ -6611,7 +6616,14 @@ async function editarTenant(id) {
 async function eliminarTenant(id) {
     if (!id) return;
     if (!confirm('¿Eliminar este tenant? Se perderán todos sus servicios, citas y suscripciones. Esta acción no se puede deshacer.')) return;
-    
+
+    // Nunca borrar dejando un cobro automático armado en Mercado Pago.
+    const cancelRes = await cancelarCobroAutomaticoMP(id);
+    if (!cancelRes?.ok || (Array.isArray(cancelRes?.activos_restantes) && cancelRes.activos_restantes.length > 0)) {
+        mostrarToast('No se eliminó: no se pudo cancelar el cobro automático en Mercado Pago.', 'error');
+        return;
+    }
+
     let error = null;
     try {
         if (window.__tenantsApi?.delete) {
@@ -6787,7 +6799,11 @@ async function superAdminEliminarInactivo(tenantId) {
 
         // Detener el cobro automático en Mercado Pago ANTES de borrar: eliminar
         // el tenant no debe dejar la tarjeta cobrando la suscripción.
-        await cancelarCobroAutomaticoMP(tenantId);
+        const cancelRes = await cancelarCobroAutomaticoMP(tenantId);
+        if (!cancelRes?.ok || (Array.isArray(cancelRes?.activos_restantes) && cancelRes.activos_restantes.length > 0)) {
+            mostrarToast('No se eliminó el negocio: no se pudo cancelar el cobro automático en Mercado Pago. Cancélalo en MP y vuelve a intentar.', 'error');
+            return;
+        }
 
     } catch (e) {
         console.error('[superAdminEliminarInactivo] Error verificando tenant:', e);

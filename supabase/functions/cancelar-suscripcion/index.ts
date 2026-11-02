@@ -45,6 +45,8 @@ interface CancelRequest {
   reembolsar?: boolean;
   /** IDs de pago exactos a reembolsar (super_admin). Evita reembolsos por aproximación. */
   pagos_a_reembolsar?: string[];
+  /** Preapprovals exactos a cancelar (super_admin). Para limpiar huérfanos puntuales. */
+  preapprovals_a_cancelar?: string[];
   motivo?: string;
 }
 
@@ -322,36 +324,52 @@ async function handle(req: Request): Promise<Response> {
       tenantEmail = tRows?.[0]?.email_contacto || null;
     }
 
-    // 1) Registro durable
-    const trackResp = await fetch(
-      `${supabaseUrl}/rest/v1/mp_preapprovals?tenant_id=eq.${tenantId}&select=mp_preapproval_id,status,allow_activation&order=created_at.desc`,
-      { headers: sb }
-    );
-    if (trackResp.ok) {
-      for (const r of (await trackResp.json())) agregar(r.mp_preapproval_id, 'mp_preapprovals');
+    // Lista EXPLÍCITA de preapprovals (super_admin). Sirve para limpiar
+    // huérfanos puntuales sin arrastrar los de otros tenants con igual email.
+    const preapprovalsExplicitos = Array.isArray(body.preapprovals_a_cancelar)
+      ? body.preapprovals_a_cancelar.filter((x) => typeof x === 'string' && /^[A-Za-z0-9]+$/.test(x)).slice(0, 20)
+      : [];
+    if (preapprovalsExplicitos.length && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: 'Solo super_admin puede cancelar preapprovals explícitos' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    if (preapprovalsExplicitos.length) {
+      for (const id of preapprovalsExplicitos) agregar(id, 'explicito');
     } else {
-      errores.push(`No se pudo leer mp_preapprovals (${trackResp.status})`);
-    }
+      // 1) Registro durable
+      const trackResp = await fetch(
+        `${supabaseUrl}/rest/v1/mp_preapprovals?tenant_id=eq.${tenantId}&select=mp_preapproval_id,status,allow_activation&order=created_at.desc`,
+        { headers: sb }
+      );
+      if (trackResp.ok) {
+        for (const r of (await trackResp.json())) agregar(r.mp_preapproval_id, 'mp_preapprovals');
+      } else {
+        errores.push(`No se pudo leer mp_preapprovals (${trackResp.status})`);
+      }
 
-    // 2) Legacy: mercadopago_payments
-    const legacyResp = await fetch(
-      `${supabaseUrl}/rest/v1/mercadopago_payments?tenant_id=eq.${tenantId}&mp_preapproval_id=not.is.null&select=mp_preapproval_id&order=created_at.desc&limit=20`,
-      { headers: sb }
-    );
-    if (legacyResp.ok) {
-      for (const r of (await legacyResp.json())) agregar(r.mp_preapproval_id, 'mercadopago_payments');
-    }
+      // 2) Legacy: mercadopago_payments
+      const legacyResp = await fetch(
+        `${supabaseUrl}/rest/v1/mercadopago_payments?tenant_id=eq.${tenantId}&mp_preapproval_id=not.is.null&select=mp_preapproval_id&order=created_at.desc&limit=20`,
+        { headers: sb }
+      );
+      if (legacyResp.ok) {
+        for (const r of (await legacyResp.json())) agregar(r.mp_preapproval_id, 'mercadopago_payments');
+      }
 
-    // 3) API MP por email del pagador
-    const porEmail = await buscarEnMpPorEmail(accessToken, tenantEmail);
-    if (porEmail.error) errores.push(porEmail.error);
-    for (const id of porEmail.ids) agregar(id, 'mp_search_email');
+      // 3) API MP por email del pagador
+      const porEmail = await buscarEnMpPorEmail(accessToken, tenantEmail);
+      if (porEmail.error) errores.push(porEmail.error);
+      for (const id of porEmail.ids) agregar(id, 'mp_search_email');
 
-    // 4) API MP por tenant (fallback)
-    if (encontrados.size === 0) {
-      const porTenant = await buscarEnMpPorTenant(accessToken, tenantId, tenantEmail);
-      if (porTenant.error) errores.push(porTenant.error);
-      for (const id of porTenant.ids) agregar(id, 'mp_search_tenant');
+      // 4) API MP por tenant (fallback)
+      if (encontrados.size === 0) {
+        const porTenant = await buscarEnMpPorTenant(accessToken, tenantId, tenantEmail);
+        if (porTenant.error) errores.push(porTenant.error);
+        for (const id of porTenant.ids) agregar(id, 'mp_search_tenant');
+      }
     }
 
     console.log(`[cancelar-suscripcion] tenant=${tenantId} encontrados=${encontrados.size} fuentes=${[...encontradosPor].join(',')} dry_run=${dryRun}`);
@@ -380,6 +398,14 @@ async function handle(req: Request): Promise<Response> {
         cand.ref_tenant = refPa.tenant_id || null;
         cand.plan = refPa.plan || null;
       } catch { /* external_reference no-JSON */ }
+
+      // Tenant para el registro: el del external_reference si sigue existiendo;
+      // si es huérfano (tenant borrado) se usa el tenant desde el que se llama.
+      let tenantRegistro = tenantId;
+      if (cand.ref_tenant && cand.ref_tenant !== tenantId) {
+        const exResp = await fetch(`${supabaseUrl}/rest/v1/tenants?id=eq.${cand.ref_tenant}&select=id`, { headers: sb });
+        if (exResp.ok && (await exResp.json()).length > 0) tenantRegistro = cand.ref_tenant;
+      }
       const cobraActivo = ['pending', 'authorized', 'paused'].includes(pa.status);
 
       if (cobraActivo && !dryRun) {
@@ -417,7 +443,7 @@ async function handle(req: Request): Promise<Response> {
             method: 'POST',
             headers: sb,
             body: JSON.stringify({
-              p_tenant_id: tenantId,
+              p_tenant_id: tenantRegistro,
               p_preapproval_id: cand.id,
               p_plan: (() => { try { return JSON.parse(pa.external_reference || '{}').plan || null; } catch { return null; } })(),
               p_monto: pa.auto_recurring?.transaction_amount ?? null,
