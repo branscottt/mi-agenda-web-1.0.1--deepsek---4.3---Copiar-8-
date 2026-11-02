@@ -1308,6 +1308,7 @@ async function mandarUno(it) {
         ? await vlApi.enviarMediaManual(chatId, {
             archivos: it.adjuntos.map((x) => x.archivo),
             tipos: it.adjuntos.map((x) => x.tipo),
+            rotulos: it.adjuntos.map((x) => x.rotulo || ''),
             comentario: texto, contexto: it.citaWamid,
             // Con varias fotos el envío es uno por uno: se muestra el avance.
             onProgreso: (i, t) => { if (t > 1) actualizarPendienteChat(it.tmpId, `Enviando ${i}/${t}…` + (texto ? ' ' + texto : '')); }

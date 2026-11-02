@@ -139,7 +139,7 @@ function extensionDeArchivo(archivo, tipo) {
 
 async function enviarMediaManual(chatId, opciones = {}) {
     const {
-        archivo = null, tipo = '', archivos = null, tipos = null,
+        archivo = null, tipo = '', archivos = null, tipos = null, rotulos = null,
         comentario = '', contexto = '', onProgreso = null
     } = opciones;
     // Acepta tanto un archivo suelto (llamadas viejas) como una lista.
@@ -162,6 +162,13 @@ async function enviarMediaManual(chatId, opciones = {}) {
         const mensajes = [];
         let enviados = 0;
         let primerError = '';
+        const listaRotulos = Array.isArray(rotulos) ? rotulos : [];
+        const rotuloDe = (i) => {
+            let cap = i === 0 ? (comentario || '') : '';
+            const rot = String(listaRotulos[i] || '').trim();
+            if (rot) cap = cap ? `${cap} · ${rot}` : rot;
+            return cap;
+        };
 
         for (let i = 0; i < lista.length; i++) {
             const a = lista[i];
@@ -189,7 +196,9 @@ async function enviarMediaManual(chatId, opciones = {}) {
                     chat_id: chatId,
                     // El comentario y la cita van con el PRIMERO (como al mandar
                     // varias fotos en WhatsApp: se escribe una vez).
-                    texto: i === 0 ? (comentario || null) : null,
+                    // El comentario va con el PRIMERO; el rótulo de la parte
+                    // ("Parte 2/3") hace que el cliente sepa cuál es cuál.
+                    texto: rotuloDe(i) || null,
                     media_path: ruta,
                     media_tipo: t,
                     media_mime: a.type || '',

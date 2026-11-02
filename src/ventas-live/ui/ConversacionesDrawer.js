@@ -1771,6 +1771,7 @@ async function mandarUno(it) {
         ? await vlApi.enviarMediaManual(chatId, {
             archivos: it.adjuntos.map((x) => x.archivo),
             tipos: it.adjuntos.map((x) => x.tipo),
+            rotulos: it.adjuntos.map((x) => x.rotulo || ''),
             comentario: texto, contexto: it.citaWamid,
             onProgreso: (i, t) => { if (t > 1) actualizarPendiente(it.tmpId, `Enviando ${i}/${t}…` + (texto ? ' ' + texto : '')); }
         })

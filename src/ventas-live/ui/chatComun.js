@@ -678,7 +678,7 @@ export function previaAdjuntoHtml(items) {
         const preparando = it.preparando === true;
         const mini = preparando
             ? '<div class="vl-adj-icon vl-adj-icon-prep" aria-hidden="true"><i class="fas fa-circle-notch fa-spin"></i></div>'
-            : tipo === 'video'
+            : (tipo === 'video' && !it.rotulo)
                 ? `<video class="vl-adj-mini" src="${escapeHtml(url)}" muted playsinline preload="metadata"></video>`
                 : tipo === 'imagen'
                     ? `<img class="vl-adj-mini" src="${escapeHtml(url)}" alt="">`
@@ -689,10 +689,15 @@ export function previaAdjuntoHtml(items) {
         const peso = preparando ? 'Optimizando…' : etiquetaPeso(it.peso);
         const nota = (!preparando && it.nota)
             ? `<div class="vl-adj-sub">${escapeHtml(it.nota)}</div>` : '';
+        // Si es una parte de un video troceado, el título del chip es "Parte 1/2"
+        // (el nombre del archivo ya no dice nada útil: es todo el mismo video).
+        const tituloChip = it.rotulo
+            ? `<b class="vl-adj-rotulo">${escapeHtml(it.rotulo)}</b>`
+            : escapeHtml(it.nombre || 'Archivo');
         return `<div class="vl-adj-item${preparando ? ' vl-adj-item-prep' : ''}" data-item="${escapeHtml(String(it.id != null ? it.id : i))}" title="${escapeHtml(titulo + (it.nota ? ' · ' + it.nota : ''))}">
             ${mini}
             <div class="vl-adj-datos">
-                <div class="vl-adj-nombre">${escapeHtml(it.nombre || 'Archivo')}</div>
+                <div class="vl-adj-nombre">${tituloChip}</div>
                 <div class="vl-adj-peso">${rotulo} ${escapeHtml(peso)}</div>
                 ${nota}
             </div>
@@ -760,6 +765,7 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
         pr.innerHTML = previaAdjuntoHtml(items.map((it) => ({
             id: it.id, nombre: it.archivo.name, tipo: it.tipo, url: it.url,
             peso: it.archivo.size, preparando: it.preparando, nota: it.nota,
+            rotulo: it.rotulo,
         })));
         pr.hidden = false;
     };
@@ -845,6 +851,7 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
             enCurso++;
             (async () => {
                 let info = '';
+                let partesNuevas = 0;
                 try {
                     for (let i = 0; i < cola.length; i++) {
                         const it = cola[i];
@@ -861,11 +868,27 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
                             error = error || prep.aviso;
                             continue;
                         }
-                        it.archivo = prep.archivo;
-                        it.tipo = prep.tipo;
-                        it.nota = prep.nota || '';
-                        it.preparando = false;
-                        if (it.nota) info = info || it.nota;
+                        // prep.items trae UNA entrada normalmente y VARIAS si el
+                        // video se partió: la primera reemplaza al adjunto elegido
+                        // y las demás se suman justo detrás, en orden.
+                        const salidas = (prep.items || []).map((o) => ({
+                            id: 'adj' + (++seq),
+                            archivo: o.archivo,
+                            tipo: o.tipo,
+                            nota: o.nota || '',
+                            rotulo: o.rotulo || '',
+                            url: crearUrlMini(o.archivo),
+                            preparando: false,
+                        }));
+                        if (!salidas.length) { it.preparando = false; continue; }
+                        const pos = items.indexOf(it);
+                        if (pos < 0) continue;
+                        items.splice(pos, 1, ...salidas);
+                        if (it.url && typeof URL.revokeObjectURL === 'function') {
+                            try { URL.revokeObjectURL(it.url); } catch (_) { /* nada */ }
+                        }
+                        partesNuevas += salidas.filter((o) => o.rotulo).length;
+                        if (salidas[0].nota) info = info || salidas[0].nota;
                     }
                 } catch (_) {
                     // Nunca se queda colgado: lo que no se pudo preparar se manda igual.
@@ -873,6 +896,10 @@ export function montarAdjunto(cont, { btn, input, previa, alCambiar } = {}) {
                     cola.forEach((it) => { if (items.includes(it)) it.preparando = false; });
                     enCurso--;
                     pintar();
+                    // Si un video se partió, se dice una sola vez y bien claro.
+                    if (partesNuevas > 1) {
+                        info = `El video se manda en ${partesNuevas} partes, con la calidad original.`;
+                    }
                     avisar(error, info);
                     avisarQueTermino();
                 }

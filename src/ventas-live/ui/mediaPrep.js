@@ -186,14 +186,20 @@ export async function reducirFoto(archivo, { ladoMax = FOTO_LADO_MAX, objetivo =
 
 /**
  * Deja un archivo listo para mandar a WhatsApp, sin importar cómo venga.
- * NO rechaza por tamaño: reduce la foto o cambia el video a "archivo".
+ * NO rechaza por tamaño: reduce la foto, cambia el video a "archivo" o lo PARTE
+ * en trozos (calidad original) cuando pasa de los 100 MB de WhatsApp.
  * @param {File} archivo
  * @param {string} tipo 'imagen' | 'video' | 'documento' | 'audio'
- * @returns {Promise<{archivo: File, tipo: string, nota: string, aviso: string}>}
+ * @param {Object} o {onProgreso}
+ * @returns {Promise<{items: Array<{archivo:File, tipo:string, nota:string, rotulo:string}>, aviso: string}>}
  */
-export async function prepararArchivo(archivo, tipo) {
-    const r = { archivo, tipo, nota: '', aviso: '' };
-    if (!archivo) return { ...r, aviso: 'No se eligió ningún archivo.' };
+export async function prepararArchivo(archivo, tipo, { onProgreso } = {}) {
+    const uno = (extra = {}) => ({
+        items: [{ archivo, tipo, nota: '', rotulo: '', ...extra }],
+        aviso: ''
+    });
+    const falla = (aviso) => ({ items: [], aviso });
+    if (!archivo) return falla('No se eligió ningún archivo.');
     const mime = String(archivo.type || '').toLowerCase();
     const ext = extensionDe(archivo.name);
     const pesa = Number(archivo.size) || 0;
@@ -204,53 +210,66 @@ export async function prepararArchivo(archivo, tipo) {
         // Ya viene liviana y en un formato que WhatsApp acepta: no se toca (así no
         // se pierde nada de calidad al recomprimir dos veces).
         if (yaEsJpgOPng && pesa && pesa <= Math.round(1.9 * MB) && ext !== 'heic') {
-            return r;
+            return uno();
         }
         const reducida = await reducirFoto(archivo);
         if (reducida) {
-            return {
+            return uno({
                 archivo: reducida, tipo: 'imagen',
-                nota: `Optimizada: ${peso(pesa)} → ${peso(reducida.size)}`,
-                aviso: ''
-            };
+                nota: `Optimizada: ${peso(pesa)} → ${peso(reducida.size)}`
+            });
         }
         // No se pudo reducir (formato que este navegador no sabe leer: HEIC del
         // iPhone en Chrome, AVIF viejo…).
-        if (yaEsJpgOPng && pesa <= LIMITES_WA.imagen) return r;   // igual entra: se manda tal cual
+        if (yaEsJpgOPng && pesa <= LIMITES_WA.imagen) return uno();   // igual entra
         if (pesa <= LIMITES_WA.documento) {
             // Mejor que llegue como ARCHIVO a que reviente con "formato no válido":
             // WhatsApp sólo acepta JPG/PNG como foto.
-            return {
-                archivo, tipo: 'documento',
+            return uno({
+                tipo: 'documento',
                 nota: `Va como archivo ${(ext || mime.split('/').pop() || '').toUpperCase()}: `
-                    + 'este navegador no la pudo convertir a JPG. Se abre igual desde el chat.',
-                aviso: ''
-            };
+                    + 'este navegador no la pudo convertir a JPG. Se abre igual desde el chat.'
+            });
         }
-        return {
-            ...r,
-            aviso: `No se pudo reducir esta foto (${peso(pesa)}) y WhatsApp acepta hasta 5 MB. `
-                + 'Prueba sacándola otra vez desde la cámara.'
-        };
+        return falla(`No se pudo reducir esta foto (${peso(pesa)}) y WhatsApp acepta hasta 5 MB. `
+            + 'Prueba sacándola otra vez desde la cámara.');
     }
 
     // ── VIDEO ───────────────────────────────────────────────────────────────
     if (tipo === 'video') {
         const comoVideo = esVideoDeWhatsApp(archivo);
-        if (comoVideo && pesa <= LIMITES_WA.video) return r;   // caso normal: burbuja de video
-        if (pesa > LIMITES_WA.documento) {
-            return {
-                ...r,
-                aviso: `El video pesa ${peso(pesa)} y WhatsApp acepta hasta 100 MB por archivo. `
-                    + 'Recórtalo o mándalo en dos partes.'
-            };
+        if (comoVideo && pesa <= LIMITES_WA.video) return uno();   // caso normal: burbuja de video
+        if (pesa <= LIMITES_WA.documento) {
+            return uno({
+                archivo: conExtension(archivo, comoVideo ? 'mp4' : (ext || 'mp4')),
+                tipo: 'documento',
+                nota: comoVideo
+                    ? `Va como archivo (${peso(pesa)}): WhatsApp no acepta videos de más de 16 MB como video. Se reproduce igual desde el chat.`
+                    : `Va como archivo (${peso(pesa)}): formato ${(ext || mime || 'desconocido').toUpperCase()} no se manda como video, pero llega igual.`
+            });
         }
+        // Más de 100 MB: se PARTE en trozos copiando los fotogramas (sin
+        // recomprimir) y se mandan en orden. El cliente los ve todos.
+        let mod = null;
+        try {
+            mod = await import('./videoSplit.js');
+        } catch (_) {
+            return falla('No se pudo cargar el partidor de video en este dispositivo. '
+                + 'Revisa la conexión e intenta de nuevo (o manda el video más corto).');
+        }
+        const res = await mod.partirVideo(archivo, { onProgreso });
+        if (!res.ok || !res.partes || !res.partes.length) {
+            return falla(res.error || 'No se pudo partir el video para mandarlo');
+        }
+        const n = res.partes.length;
         return {
-            archivo: conExtension(archivo, comoVideo ? 'mp4' : (ext || 'mp4')),
-            tipo: 'documento',
-            nota: comoVideo
-                ? `Va como archivo (${peso(pesa)}): WhatsApp no acepta videos de más de 16 MB como video. Se reproduce igual desde el chat.`
-                : `Va como archivo (${peso(pesa)}): formato ${(ext || mime || 'desconocido').toUpperCase()} no se manda como video, pero llega igual.`,
+            items: res.partes.map((p, k) => ({
+                archivo: p.archivo,
+                tipo: 'documento',
+                // El rótulo "Parte k/n" y el peso ya se ven en el chip: acá sólo el tramo.
+                nota: `${mod.duracionCorta(p.inicio)}–${mod.duracionCorta(p.fin)}`,
+                rotulo: `Parte ${k + 1}/${n}`,
+            })),
             aviso: ''
         };
     }
@@ -258,11 +277,8 @@ export async function prepararArchivo(archivo, tipo) {
     // ── ARCHIVO / AUDIO ─────────────────────────────────────────────────────
     const limite = LIMITES_WA[tipo] || LIMITES_WA.documento;
     if (pesa > limite) {
-        return {
-            ...r,
-            aviso: `Pesa ${peso(pesa)} y WhatsApp acepta hasta ${Math.round(limite / MB)} MB. `
-                + 'Divídelo o comprímalo antes de mandarlo.'
-        };
+        return falla(`Pesa ${peso(pesa)} y WhatsApp acepta hasta ${Math.round(limite / MB)} MB. `
+            + 'Divídelo o comprímalo antes de mandarlo.');
     }
-    return r;
+    return uno();
 }

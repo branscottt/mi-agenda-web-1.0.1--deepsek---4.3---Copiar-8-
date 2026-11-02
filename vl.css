@@ -888,6 +888,7 @@
             overflow: hidden;
         }
         .vl-adj-item .vl-adj-sub { font-size: 0.58rem; }
+        .vl-adj-rotulo { color: #e9d5ff; font-weight: 700; }
         /* En PC/tablet sobra ancho: el chip se estira y la nota se lee entera. */
         @media (min-width: 861px) {
             .vl-adj-item { width: 138px; }
