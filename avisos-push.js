@@ -155,17 +155,28 @@
         });
     }
 
-    /** Apaga los avisos en este dispositivo. */
+    /** Apaga los avisos de ESTA cuenta en este dispositivo.
+     *  Si el equipo también está registrado en OTRA cuenta, la suscripción del
+     *  navegador se mantiene (si no, se apagarían los avisos de la otra). */
     function desactivar() {
         return suscripcionActual().then(function (sub) {
             if (!sub) return { ok: true, dispositivos: 0 };
             var endpoint = sub.endpoint;
             return rpc('avisos_borrar_sub', { p_endpoint: endpoint }).then(function () {
-                return sub.unsubscribe().catch(function () { /* noop */ });
+                // ¿Queda alguna otra cuenta usando este equipo?
+                return rpc('avisos_estado', { p_endpoint: endpoint }).then(function (r) {
+                    var otros = (r && r.otros) || 0;
+                    if (otros === 0) return sub.unsubscribe().catch(function () { /* noop */ });
+                    return true;
+                });
             }).then(function () {
                 try { localStorage.setItem(LS_OFF, '1'); } catch (e) { /* noop */ }
-                return rpc('avisos_estado').then(function (r) {
-                    return { ok: true, dispositivos: (r && r.dispositivos) || 0 };
+                return rpc('avisos_estado', { p_endpoint: endpoint }).then(function (r) {
+                    return {
+                        ok: true,
+                        dispositivos: (r && r.dispositivos) || 0,
+                        otros: (r && r.otros) || 0
+                    };
                 });
             });
         });
@@ -230,6 +241,11 @@
         document.head.appendChild(css);
     }
 
+    /** ¿Este equipo recibe los avisos de ESTA cuenta? */
+    function esActivo() {
+        return _estado.permiso === 'granted' && !!_estado.este;
+    }
+
     function pintar() {
         var estadoEl = document.getElementById('avisos-push-estado');
         var btn = document.getElementById('avisos-push-toggle');
@@ -237,27 +253,33 @@
         var nota = document.getElementById('avisos-push-nota');
         if (!btn) return;
 
-        var activo = !!_estado.suscrito && _estado.permiso === 'granted';
+        var activo = esActivo();
+        var permisoOk = _estado.permiso === 'granted';
+        var sumaOtra = !activo && permisoOk && (_estado.otros || 0) > 0;
 
         if (chip) {
             chip.className = 'avisos-push-chip' + (activo ? ' on' : '');
             var lbl = chip.querySelector('.avisos-push-lbl');
-            if (lbl) lbl.textContent = activo ? 'Avisos activos' : 'Activar avisos';
+            if (lbl) lbl.textContent = activo ? 'Avisos activos' : (sumaOtra ? 'Sumar esta cuenta' : 'Activar avisos');
             chip.title = activo
-                ? 'Avisos activados en este dispositivo (reservas y Ventas Live)'
-                : 'Recibir reservas y Ventas Live en este dispositivo';
+                ? 'Avisos activados para esta cuenta en este equipo'
+                : (sumaOtra
+                    ? 'Este equipo ya recibe avisos de otra cuenta: tocá para sumar ESTA'
+                    : 'Recibir reservas y Ventas Live en este dispositivo');
         }
         if (estadoEl) {
             estadoEl.textContent = activo ? 'Activados' : (_estado.dispositivos > 0 ? _estado.dispositivos + ' dispositivo(s)' : 'Apagados');
             estadoEl.className = 'avisos-push-estado' + (activo ? ' on' : '');
         }
-        btn.textContent = activo ? 'Desactivar en este dispositivo' : 'Activar en este dispositivo';
+        btn.textContent = activo ? 'Desactivar en esta cuenta' : 'Activar en esta cuenta';
         btn.className = 'avisos-push-btn' + (activo ? ' off' : ' pr');
         btn.disabled = false;
 
         if (!nota) return;
         if (nota.dataset.fijo === '1') return;   // no pisar mensajes de acción
-        if (esIOS() && !esStandalone()) {
+        if (sumaOtra) {
+            nota.textContent = 'Este equipo ya recibe los avisos de otra cuenta. Activa acá para sumar ESTA cuenta (no hay que volver a dar permiso).';
+        } else if (esIOS() && !esStandalone()) {
             nota.textContent = 'En iPhone/iPad: Compartir → "Añadir a pantalla de inicio" y activa los avisos desde ahí.';
         } else if (_estado.email) {
             nota.textContent = 'Si este dispositivo no tiene los avisos activados, el aviso llega al correo de la cuenta (' + _estado.email + ').';
@@ -347,15 +369,18 @@
         if (btn) btn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            var activo = _estado.suscrito && _estado.permiso === 'granted';
+            var activo = esActivo();
             btn.disabled = true;
             (activo ? desactivar() : activar()).then(function (r) {
                 btn.disabled = false;
                 if (r && r.ok) {
-                    _estado.suscrito = !activo;
+                    _estado.este = !activo;
                     _estado.dispositivos = r.dispositivos || 0;
+                    _estado.otros = r.otros || _estado.otros || 0;
                     _estado.permiso = Notification.permission;
-                    setNota(activo ? 'Avisos apagados en este dispositivo.' : '¡Listo! Te avisamos acá aunque cierres la web.', 'bien');
+                    setNota(activo
+                        ? 'Avisos apagados para esta cuenta en este equipo.'
+                        : '¡Listo! Esta cuenta ya te avisa acá aunque cierres la web.', 'bien');
                 } else {
                     setNota((r && r.error) || 'No se pudo cambiar', 'mal');
                 }
@@ -387,8 +412,8 @@
 
     function avisarEnPrimeroPlan() {
         if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-        // Si el dispositivo ya recibe el push del servidor, no duplicamos.
-        if (_estado.suscrito) return;
+        // Si esta cuenta ya le llega por push del servidor, no duplicamos.
+        if (esActivo()) return;
         if (document.visibilityState === 'visible' && document.hasFocus()) {
             // Con la pestaña a la vista, la campana ya muestra el aviso: no duplicar.
             return;
@@ -435,13 +460,28 @@
     function refrescarEstado() {
         var permiso = (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported';
         return Promise.all([rpc('avisos_estado'), suscripcionActual()]).then(function (res) {
-            var est = res[0] || {};
+            var sub = res[1];
             _estado.permiso = permiso;
-            _estado.suscrito = !!res[1];
-            _estado.dispositivos = est.dispositivos || 0;
-            _estado.email = est.email || '';
+            _estado.suscrito = !!sub;   // el navegador tiene suscripción (puede ser de otra cuenta)
             pintar();
-            return _estado;
+            if (!sub) {
+                var est0 = res[0] || {};
+                _estado.dispositivos = est0.dispositivos || 0;
+                _estado.email = est0.email || '';
+                _estado.este = false;
+                _estado.otros = est0.otros || 0;
+                pintar();
+                return _estado;
+            }
+            return rpc('avisos_estado', { p_endpoint: sub.endpoint }).then(function (est) {
+                var e = est || {};
+                _estado.dispositivos = e.dispositivos || 0;
+                _estado.email = e.email || '';
+                _estado.este = !!e.este;
+                _estado.otros = e.otros || 0;
+                pintar();
+                return _estado;
+            });
         });
     }
 
