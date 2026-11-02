@@ -68,7 +68,23 @@
         if (!window.supabase) {
             console.warn('[main] Supabase SDK no disponible, se usara script.js legacy');
         } else {
-            window.supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+            // Sesión POR PESTAÑA: si la pestaña está marcada como "cuenta
+            // independiente" (ver cuentas-tabs.js), el SDK guarda su sesión en
+            // sessionStorage y no pisa la cuenta principal del navegador.
+            let _optsAuth;
+            try {
+                if (sessionStorage.getItem('agendapro_tab_scoped') === '1') {
+                    _optsAuth = {
+                        auth: {
+                            storage: window.sessionStorage,
+                            storageKey: 'sb-agendapro-pestana-auth',
+                            persistSession: true,
+                            autoRefreshToken: true
+                        }
+                    };
+                }
+            } catch (_e) { /* noop */ }
+            window.supabaseClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, _optsAuth);
             console.log('[main] window.supabaseClient asignado (sin import)');
         }
     } catch (e) {

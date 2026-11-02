@@ -10,6 +10,20 @@ const STORAGE_KEYS = {
     USER_DATA: 'agendapro_user_data'
 };
 
+/**
+ * Almacén de la sesión: POR PESTAÑA cuando la pestaña está marcada como
+ * "cuenta independiente" (`sessionStorage.agendapro_tab_scoped === '1'`).
+ * Así se puede tener la cuenta A en una pestaña y la cuenta B en otra del
+ * mismo navegador. Sin la marca, todo sigue exactamente igual que antes
+ * (localStorage, sesión compartida entre pestañas).
+ */
+function store() {
+    try {
+        if (window.sessionStorage.getItem('agendapro_tab_scoped') === '1') return window.sessionStorage;
+    } catch (e) { /* modo privado / bloqueado: se usa localStorage */ }
+    return window.localStorage;
+}
+
 // const SUPER_ADMIN_EMAILS = ['super@demo.com'];
 
 /**
@@ -31,9 +45,10 @@ export const JwtManager = {
      * Se llama despues de login, registro con sesion, y refresh.
      */
     setTokens(accessToken, refreshToken) {
-        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+        const st = store();
+        st.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
         if (refreshToken) {
-            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+            st.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
         }
         // Cachear datos de usuario desde el payload del JWT
         const payload = decodeJWTPayload(accessToken);
@@ -42,7 +57,7 @@ export const JwtManager = {
             const email = payload.email || '';
             // Rol exclusivamente desde user_metadata (sin override por email)
             const rol = meta.rol || 'cliente';
-            localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify({
+            st.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify({
                 id: payload.sub,
                 nombre: meta.nombre || (email ? email.split('@')[0] : 'Usuario'),
                 email: email,
@@ -54,11 +69,11 @@ export const JwtManager = {
     },
 
     getAccessToken() {
-        return localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        return store().getItem(STORAGE_KEYS.ACCESS_TOKEN);
     },
 
     getRefreshToken() {
-        return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+        return store().getItem(STORAGE_KEYS.REFRESH_TOKEN);
     },
 
     /**
@@ -66,7 +81,7 @@ export const JwtManager = {
      */
     getUserData() {
         try {
-            const raw = localStorage.getItem(STORAGE_KEYS.USER_DATA);
+            const raw = store().getItem(STORAGE_KEYS.USER_DATA);
             return raw ? JSON.parse(raw) : null;
         } catch {
             return null;
@@ -143,9 +158,10 @@ export const JwtManager = {
      * Se llama en logout y cuando el refresh falla.
      */
     clear() {
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+        const st = store();
+        st.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+        st.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        st.removeItem(STORAGE_KEYS.USER_DATA);
         this._stopAutoRefresh();
     },
 

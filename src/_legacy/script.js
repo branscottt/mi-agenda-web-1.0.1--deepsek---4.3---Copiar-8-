@@ -13,6 +13,34 @@ const supabaseKey = _cfg.supabaseKey;
 
 let supabaseClient = null;
 
+// ── Sesión POR PESTAÑA (varias cuentas en el mismo navegador) ───────────────
+// Si la pestaña está marcada como "cuenta independiente" (sessionStorage),
+// los tokens viven SOLO en esa pestaña y localStorage queda para la cuenta
+// principal. Sin la marca se usa localStorage, igual que siempre.
+function _storeSesion() {
+    try {
+        if (window.sessionStorage.getItem('agendapro_tab_scoped') === '1') return window.sessionStorage;
+    } catch (e) { /* modo privado: cae a localStorage */ }
+    return window.localStorage;
+}
+
+/** Opciones del cliente Supabase: sesión por pestaña cuando está marcada. */
+function _opcionesAuth() {
+    try {
+        if (window.sessionStorage.getItem('agendapro_tab_scoped') === '1') {
+            return {
+                auth: {
+                    storage: window.sessionStorage,
+                    storageKey: 'sb-agendapro-pestana-auth',
+                    persistSession: true,
+                    autoRefreshToken: true
+                }
+            };
+        }
+    } catch (e) { /* noop */ }
+    return undefined;
+}
+
 // ========== FALLBACK para JwtManager (si los modulos ES no cargan) ==========
 if (!window.JwtManager) {
     window.JwtManager = {
@@ -40,7 +68,7 @@ if (!window.JwtManager) {
         },
         getUserData() {
             try {
-                const raw = localStorage.getItem('agendapro_user_data');
+                const raw = _storeSesion().getItem('agendapro_user_data');
                 if (raw) return JSON.parse(raw);
             } catch (e) {}
             try {
@@ -87,7 +115,7 @@ async function initSupabase() {
     // Fallback: crear cliente propio si main.js no se ejecutó (ej. client.html sin main.js)
     try {
         if (window.supabase) {
-            supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+            supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, _opcionesAuth());
             window.supabaseClient = supabaseClient;
             console.log('[initSupabase] Cliente creado como fallback (main.js no disponible)');
             return true;
@@ -666,7 +694,7 @@ function configurarLimpiezaAutomatica() {
     // La limpieza de citas expiradas es tarea del admin con sesión. En el flujo
     // anónimo (cliente externo, /p/:slug) el RLS deniega el DELETE y solo genera
     // errores 42501/401 en consola — mismo guard que usa NotificacionesAdminManager.
-    const accessToken = localStorage.getItem('agendapro_access_token');
+    const accessToken = _storeSesion().getItem('agendapro_access_token');
     if (!accessToken) return;
 
     setInterval(async () => {
@@ -3015,7 +3043,7 @@ async function iniciarPagoMercadoPago(planKey, tenantId) {
     } catch (e) {}
     if (!email) {
         try {
-            const stored = JSON.parse(localStorage.getItem('agendapro_user_data') || '{}');
+            const stored = JSON.parse(_storeSesion().getItem('agendapro_user_data') || '{}');
             email = stored.email || '';
         } catch (e) {}
     }
@@ -14727,7 +14755,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (typeof NotificacionesAdminManager !== 'undefined') {
         // Solo limpiar notificaciones viejas si hay sesión activa (evita error 42501 de anon)
         try {
-            const accessToken = localStorage.getItem('agendapro_access_token');
+            const accessToken = _storeSesion().getItem('agendapro_access_token');
             if (accessToken) {
                 await NotificacionesAdminManager.eliminarViejos(7);
             }

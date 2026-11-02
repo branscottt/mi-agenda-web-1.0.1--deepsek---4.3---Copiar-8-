@@ -132,6 +132,12 @@ if (fs.existsSync('avisos-push.js')) {
     console.log('   ✅ dist/avisos-push.js copied');
 }
 
+// 4-bis-0c. Copiar cuentas-tabs.js (dos cuentas en dos pestañas del navegador)
+if (fs.existsSync('cuentas-tabs.js')) {
+    fs.copyFileSync('cuentas-tabs.js', path.join('dist', 'cuentas-tabs.js'));
+    console.log('   ✅ dist/cuentas-tabs.js copied');
+}
+
 // 4-bis. Copiar iconos (notificaciones push, favicon, apple-touch, PWA)
 if (fs.existsSync('icons')) {
     const iconsOut = path.join('dist', 'icons');
