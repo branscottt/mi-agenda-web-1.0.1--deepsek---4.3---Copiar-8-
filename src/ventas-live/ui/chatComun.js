@@ -1259,16 +1259,16 @@ export function porReenviarAuto(mensajes, ahora = Date.now()) {
 }
 
 // ── COPIAR / REENVIAR A OTRA CONVERSACIÓN (como WhatsApp) ────────────────────
-/** Copia texto al portapapeles (con respaldo para navegadores sin permiso). */
+/**
+ * Copia texto al portapapeles. Se intenta PRIMERO el método clásico (textarea +
+ * execCommand): funciona siempre dentro de un clic y no depende de permisos. En
+ * producción el sitio manda `Permissions-Policy: clipboard-write=()`, así que la
+ * API asíncrona está bloqueada y además ensucia la consola con un error; por eso
+ * queda como respaldo, no como camino principal.
+ */
 export async function copiarAlPortapapeles(texto) {
     const t = String(texto || '');
     if (!t) return false;
-    try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(t);
-            return true;
-        }
-    } catch (_) { /* sigue el respaldo */ }
     try {
         const ta = document.createElement('textarea');
         ta.value = t;
@@ -1279,8 +1279,15 @@ export async function copiarAlPortapapeles(texto) {
         ta.select();
         const ok = document.execCommand('copy');
         ta.remove();
-        return ok;
-    } catch (_) { return false; }
+        if (ok) return true;
+    } catch (_) { /* sigue el respaldo */ }
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(t);
+            return true;
+        }
+    } catch (_) { /* sin permisos: se informa que no se pudo */ }
+    return false;
 }
 
 /** Botones de copiar / reenviar de una burbuja (cualquier mensaje, recibido o enviado). */
