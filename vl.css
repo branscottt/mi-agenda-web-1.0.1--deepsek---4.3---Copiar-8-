@@ -1318,6 +1318,9 @@
             .vf-form-grid { grid-template-columns: 1fr 1fr !important; }
             .vf-form-grid > .vl-form-row:first-child { grid-column: span 1; }
         }
+        @media (max-width: 700px) {
+            .vl-card-grid { grid-template-columns: 1fr; gap: 4px; }
+        }
         @media (max-width: 520px) {
             .vf-form-grid { grid-template-columns: 1fr !important; }
         }
@@ -1669,8 +1672,8 @@
 
         @media (max-width: 860px) {
             .vl-tablero { height: auto; max-height: none; overflow-y: visible; padding-bottom: 18px; align-items: flex-start; }
-            .vl-tablero .kanban-list { width: 82vw; min-width: 82vw; max-height: 66vh; }
-            .vl-card-grid { grid-template-columns: 1fr; gap: 4px; }
+            /* Tablet: 340px = dos columnas a la vista (82vw daba 630px, una lista) */
+            .vl-tablero .kanban-list { width: min(340px, 82vw); min-width: min(340px, 82vw); max-height: 66vh; }
             .vl-tablero-buscar input { width: 150px; }
             .vl-card-modal { max-height: 93vh; }
             .vl-card-acciones .vl-btn { flex: 1 1 auto; justify-content: center; }
