@@ -1463,3 +1463,221 @@
             .vl-vendido-lista { max-height: 210px; }
             .vl-liberar-acc { width: 100%; justify-content: flex-end; }
         }
+
+        /* ===== ENVÍOS COMO TABLERO (estilo Trello de reservas) =====
+           Reutiliza las clases .kanban-* de style.css: mismas columnas, mismas
+           tarjetas y mismo modal que el tablero de reservas de clientes. */
+        .vl-tablero-cab {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+        }
+        .vl-tablero-resumen {
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            font-size: 0.82rem; color: #ced4da;
+        }
+        .vl-tablero-resumen b { color: #f8f9fa; }
+        .vl-res-ambar { color: #ffd43b; font-weight: 700; }
+        .vl-res-tenue { color: #adb5bd; }
+        .vl-tablero-herramientas { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .vl-tablero-buscar {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px; padding: 0 10px; height: 36px;
+        }
+        .vl-tablero-buscar i { color: #868e96; font-size: 0.8rem; }
+        .vl-tablero-buscar input {
+            background: transparent; border: none; outline: none; color: #f8f9fa;
+            font-size: 0.84rem; width: 210px; font-family: inherit;
+        }
+        .vl-tablero-buscar input::placeholder { color: #6c757d; }
+        .vl-config-aviso:empty { display: none; }
+        .vl-config-banner {
+            border: 1px solid rgba(255,193,7,0.5); background: rgba(255,193,7,0.10);
+            border-radius: 12px; padding: 11px 14px; margin-bottom: 12px; font-size: 0.84rem;
+        }
+        .vl-config-banner b { color: #ffe066; }
+        .vl-config-banner ul { margin: 6px 0 0 18px; padding: 0; color: #ced4da; }
+
+        .vl-tablero {
+            display: flex; align-items: stretch; gap: 14px;
+            padding: 4px 2px 14px;
+            overflow-x: auto; overflow-y: hidden;
+            height: calc(100vh - 258px); min-height: 400px;
+            scrollbar-width: thin;
+            scroll-snap-type: x proximity;
+        }
+        .vl-tablero::-webkit-scrollbar { height: 9px; }
+        .vl-tablero::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
+        .vl-tablero::-webkit-scrollbar-thumb { background: rgba(157,78,221,0.55); border-radius: 999px; }
+        .vl-tablero .kanban-list { width: 262px; min-width: 262px; max-height: 100%; scroll-snap-align: start; }
+        .vl-tcol-head { border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .vl-tcol-icono {
+            width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0;
+            display: grid; place-items: center; font-size: 0.72rem;
+            color: var(--vl-col); background: color-mix(in srgb, var(--vl-col) 18%, transparent);
+        }
+        .vl-tcol .kanban-list-titulo { padding-left: 0; font-size: 0.86rem; }
+        .vl-tcol .kanban-list-count { background: color-mix(in srgb, var(--vl-col) 22%, transparent); color: var(--vl-col); }
+        .vl-tcol-vacia { color: #5c636a; text-align: center; font-size: 0.78rem; padding: 14px 0; }
+
+        .vl-tcard { position: relative; padding: 10px 11px; display: flex; flex-direction: column; gap: 0; align-items: stretch; }
+        .vl-tcard-bloqueada { opacity: 0.86; }
+        .vl-tcard .kanban-card-chips { margin-bottom: 6px; gap: 3px; }
+        .vl-tcard .kanban-chip { font-size: 0.63rem; padding: 2px 8px; }
+        .vl-tcard .kanban-card-titulo { font-size: 0.85rem; font-weight: 700; }
+        .vl-tcard-linea {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            font-size: 0.74rem; color: #adb5bd; margin-top: 5px;
+        }
+        .vl-tcard-linea i { font-size: 0.66rem; opacity: 0.7; margin-right: 2px; }
+        .vl-tcard-monto { color: #f8f9fa; font-weight: 800; font-size: 0.8rem; }
+        .vl-tcard-fecha { display: block; color: #ced4da; }
+        .vl-tcard-fotos { display: flex; gap: 4px; margin-top: 7px; align-items: center; }
+        .vl-tcard-fotos img {
+            width: 42px; height: 42px; border-radius: 7px; object-fit: cover;
+            border: 1px solid rgba(255,255,255,0.12); background: #1b1a24;
+        }
+        .vl-tcard-foto-vacia {
+            width: 42px; height: 42px; border-radius: 7px; display: grid; place-items: center;
+            background: rgba(255,255,255,0.05); color: #6c757d; font-size: 0.7rem;
+        }
+        .vl-tcard-fotos-mas {
+            font-size: 0.68rem; color: #ffd43b; background: rgba(255,212,59,0.12);
+            border-radius: 999px; padding: 2px 7px; font-weight: 700;
+        }
+        .vl-tcard-nota {
+            margin-top: 6px; font-size: 0.7rem; color: #b197fc;
+            background: rgba(157,78,221,0.10); border-radius: 7px; padding: 4px 7px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* --- Tarjeta abierta (modal Trello) --- */
+        .vl-card-overlay { z-index: 8990; padding: 16px; }
+        .vl-card-modal { max-width: 760px; }
+        .vl-card-cab { display: flex; align-items: center; gap: 11px; min-width: 0; }
+        .vl-card-avatar {
+            width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+            display: grid; place-items: center; color: #fff; font-size: 0.9rem;
+            background: linear-gradient(135deg, #9d4edd, #7b2cbf);
+        }
+        .vl-card-cab-txt { min-width: 0; }
+        .vl-card-cab-txt h4 {
+            margin: 0; font-size: 1rem; color: #f8f9fa; font-weight: 800;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .vl-card-cab-sub { font-size: 0.78rem; color: #adb5bd; margin-top: 2px; }
+        .vl-card-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+        .vl-card-chips .kanban-chip { font-size: 0.66rem; padding: 2px 9px; }
+        .vl-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .vl-card-seccion { margin-top: 16px; min-width: 0; }
+        .vl-card-items { display: flex; flex-direction: column; gap: 6px; }
+        .vl-item {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 9px; padding: 7px 9px;
+        }
+        .vl-item-txt { flex: 1; min-width: 0; }
+        .vl-item-desc { font-size: 0.82rem; color: #e9ecef; font-weight: 600; }
+        .vl-item-sub { font-size: 0.68rem; color: #868e96; margin-top: 1px; }
+        .vl-item-precio { font-size: 0.82rem; color: #f8f9fa; font-weight: 800; white-space: nowrap; }
+        .vl-item-editar {
+            background: transparent; border: none; color: #868e96; cursor: pointer;
+            padding: 4px 6px; border-radius: 6px; font-size: 0.72rem;
+        }
+        .vl-item-editar:hover { color: #c77dff; background: rgba(157,78,221,0.14); }
+        .vl-item-edit { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+        .vl-item-edit input {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 8px; color: #f8f9fa; font-size: 0.8rem; padding: 6px 8px;
+            font-family: inherit; width: 100%; box-sizing: border-box;
+        }
+        .vl-item-edit-acc { display: flex; gap: 6px; justify-content: flex-end; }
+        .vl-item-edit-acc .vl-btn { padding: 5px 10px; font-size: 0.74rem; }
+        .vl-card-totales {
+            display: flex; gap: 14px; flex-wrap: wrap; margin-top: 9px;
+            font-size: 0.78rem; color: #adb5bd;
+        }
+        .vl-card-totales b { color: #f8f9fa; }
+        .vl-card-datos-auto {
+            margin-top: 10px; display: flex; flex-direction: column; gap: 4px;
+            font-size: 0.76rem; color: #adb5bd;
+        }
+        .vl-card-datos-auto i { width: 14px; color: #868e96; margin-right: 4px; }
+        .vl-card-form-campo { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; }
+        .vl-card-form-campo span { font-size: 0.68rem; color: #868e96; text-transform: uppercase; letter-spacing: .04em; }
+        .vl-card-form-campo input, .vl-card-seccion textarea {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.13);
+            border-radius: 9px; color: #f8f9fa; font-size: 0.82rem; padding: 7px 9px;
+            font-family: inherit; width: 100%; box-sizing: border-box;
+        }
+        .vl-card-form-campo input:focus, .vl-card-seccion textarea:focus {
+            outline: none; border-color: rgba(157,78,221,0.7);
+        }
+        .vl-card-form-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .vl-card-guardar-datos, .vl-card-guardar-nota { margin-top: 4px; font-size: 0.78rem; }
+        .vl-card-fotos { display: flex; flex-wrap: wrap; gap: 8px; }
+        .vl-card-foto { position: relative; width: 88px; height: 88px; }
+        .vl-card-foto img, .vl-card-foto-vacia {
+            width: 88px; height: 88px; border-radius: 10px; object-fit: cover;
+            border: 1px solid rgba(255,255,255,0.12); background: #1b1a24;
+            display: grid; place-items: center; color: #6c757d;
+        }
+        .vl-card-foto-del {
+            position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+            border-radius: 50%; border: none; cursor: pointer; color: #fff;
+            background: #c92a2a; font-size: 0.62rem; display: grid; place-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        .vl-card-foto-del:hover { background: #e03131; }
+        .vl-card-etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
+        .vl-etq {
+            border: 1px solid color-mix(in srgb, var(--etq) 55%, transparent);
+            background: transparent; color: var(--etq); cursor: pointer;
+            border-radius: 999px; padding: 4px 11px; font-size: 0.72rem; font-weight: 700;
+            font-family: inherit; transition: background .12s ease;
+        }
+        .vl-etq:hover { background: color-mix(in srgb, var(--etq) 14%, transparent); }
+        .vl-etq.activa { background: var(--etq); color: #fff; border-color: transparent; }
+        .vl-card-nota-label { margin-top: 14px; }
+        .vl-card-acciones {
+            display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px;
+            padding: 0 0 4px;
+        }
+        .vl-card-acciones .vl-btn { font-size: 0.78rem; padding: 7px 11px; }
+        .vl-tenue { color: #868e96; font-size: 0.78rem; }
+
+        /* --- Confirmación en dos toques --- */
+        .vl-confirm-overlay {
+            position: fixed; inset: 0; z-index: 10050;
+            background: rgba(5,5,10,0.72); backdrop-filter: blur(3px);
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .vl-confirm {
+            background: #16141f; border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 18px; padding: 20px; width: 100%; max-width: 420px;
+            box-shadow: 0 24px 70px rgba(0,0,0,0.55); animation: vlFade .14s ease;
+        }
+        .vl-confirm h4 { margin: 0 0 8px; color: #f8f9fa; font-size: 1rem; }
+        .vl-confirm p { margin: 0 0 8px; color: #ced4da; font-size: 0.85rem; line-height: 1.5; }
+        .vl-confirm-acciones { display: flex; gap: 9px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+        /* El tablero necesita más ancho que el resto de las pestañas. */
+        @media (min-width: 1100px) {
+            .ventas-live-screen:has(#vl-view-envios.active) .vl-topbar,
+            .ventas-live-screen:has(#vl-view-envios.active) .vl-main { max-width: 1400px; }
+        }
+
+        @media (max-width: 860px) {
+            .vl-tablero { height: auto; max-height: none; overflow-y: visible; padding-bottom: 18px; align-items: flex-start; }
+            .vl-tablero .kanban-list { width: 82vw; min-width: 82vw; max-height: 66vh; }
+            .vl-card-grid { grid-template-columns: 1fr; gap: 4px; }
+            .vl-tablero-buscar input { width: 150px; }
+            .vl-card-modal { max-height: 93vh; }
+            .vl-card-acciones .vl-btn { flex: 1 1 auto; justify-content: center; }
+        }
+        @media (max-width: 520px) {
+            .vl-tablero .kanban-list { width: 82vw; min-width: 82vw; max-height: 62vh; }
+            .vl-tablero-cab { gap: 8px; }
+            .vl-tablero-resumen { font-size: 0.76rem; gap: 8px; }
+            .vl-card-foto, .vl-card-foto img, .vl-card-foto-vacia { width: 72px; height: 72px; }
+        }

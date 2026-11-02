@@ -367,6 +367,29 @@ export const vlApi = {
     panelProcesos: () => callRpc('vl_panel_procesos'),
     enviosPendientes: () => callRpc('vl_envios_pendientes'),
     configFaltantes: () => callRpc('vl_config_faltantes'),
+
+    // ---- Tablero de envíos (estilo Trello) ----
+    // Mover una tarjeta = decisión REAL del pedido: fija el courier (blue/paket),
+    // la entrega presencial, o deja el pedido sin forma de entrega definida.
+    tableroMover: (procesoId, columna) =>
+        callRpc('vl_tablero_mover', { p_proceso_id: procesoId, p_columna: columna }),
+    // Orden manual dentro de la columna (se guarda al soltar la tarjeta).
+    tableroOrden: (ids) => callRpc('vl_tablero_orden', { p_ids: Array.isArray(ids) ? ids : [] }),
+    // Etiquetas libres + nota interna (lo único que no viene del chat).
+    tableroTarjeta: (procesoId, etiquetas, nota) =>
+        callRpc('vl_tablero_tarjeta', {
+            p_proceso_id: procesoId,
+            p_etiquetas: Array.isArray(etiquetas) ? etiquetas : [],
+            p_nota: nota || ''
+        }),
+    // Corregir descripción/precio de una prenda (sin pagos registrados).
+    itemEditar: (itemId, descripcion, precio) =>
+        callRpc('vl_item_editar', {
+            p_item_id: itemId, p_descripcion: descripcion, p_precio: precio
+        }),
+    // Borrar una foto que mandó el cliente (devuelve media_path para el bucket).
+    borrarMediaMensaje: (mensajeId) =>
+        callRpc('vl_wa_mensaje_media_borrar', { p_mensaje_id: mensajeId }),
     dashboard: () => callRpc('vl_dashboard'),
     // Lo YA VENDIDO del LIVE abierto: solo prendas pagadas (pagada/entregada),
     // con su lista. Lo adjudicado sin pagar llega aparte como "sin pagar".
