@@ -9,7 +9,7 @@ function ok(name, cond, extra) {
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome' });
-  const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  const ctx = await browser.newContext({ ...devices[process.env.DEVICE || 'iPhone 13'] });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
