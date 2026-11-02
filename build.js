@@ -138,6 +138,14 @@ if (fs.existsSync('cuentas-tabs.js')) {
     console.log('   ✅ dist/cuentas-tabs.js copied');
 }
 
+// 4-bis-0d. Copiar atras.js (botón "atrás" del celular en toda la web)
+// No se bundlea: se carga con <script defer src="/atras.js?v=N"> en cada HTML.
+// Si se edita, subir el ?v en los HTML.
+if (fs.existsSync('atras.js')) {
+    fs.copyFileSync('atras.js', path.join('dist', 'atras.js'));
+    console.log('   ✅ dist/atras.js copied');
+}
+
 // 4-bis. Copiar iconos (notificaciones push, favicon, apple-touch, PWA)
 if (fs.existsSync('icons')) {
     const iconsOut = path.join('dist', 'icons');

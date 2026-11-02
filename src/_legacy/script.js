@@ -14527,6 +14527,10 @@ function iniciarSistemaUrgencias() {
 var cerrarPopupReserva, toggleSidebar, closeSidebar, navigateTo,
     toggleNotifPopover, closeNotifPopover, filtrarNotifPopover, actualizarBadgeNotif;
 
+// Atrás del celular: la PRIMERA sección que se muestra al cargar la página no
+// se apila (es el fondo del historial). Los cambios posteriores sí.
+var _primerNav = true;
+
 (function() {
     if (typeof document === 'undefined') return;
     if (!document.querySelector('.admin-screen')) return;
@@ -14552,6 +14556,19 @@ var cerrarPopupReserva, toggleSidebar, closeSidebar, navigateTo,
     };
 
     navigateTo = window.navigateTo = function(sectionId) {
+        // Sección visible ANTES de navegar (para que "atrás" vuelva a ella).
+        var anterior = null;
+        var secciones = document.querySelectorAll('.section-content');
+        for (var si = 0; si < secciones.length; si++) {
+            var sEl = secciones[si];
+            if (sEl.style.display !== 'none' && sEl.offsetParent !== null) {
+                anterior = sEl.id.replace('section-', '');
+                break;
+            }
+        }
+        var esPrimeraNav = _primerNav;
+        _primerNav = false;
+
         document.querySelectorAll('.section-content').forEach(function(el) {
             el.style.display = 'none';
         });
@@ -14607,6 +14624,13 @@ var cerrarPopupReserva, toggleSidebar, closeSidebar, navigateTo,
                     break;
             }
         }, 100);
+
+        // Atrás del celular: cada cambio de sección es UN paso. Al apretar
+        // atrás se vuelve a la sección anterior (no se sale de la página).
+        if (!esPrimeraNav && anterior && anterior !== sectionId &&
+            window.Atras && typeof window.Atras.vista === 'function') {
+            window.Atras.vista(sectionId, function() { navigateTo(anterior); });
+        }
     };
 
     toggleNotifPopover = window.toggleNotifPopover = function(event) {
@@ -15915,6 +15939,18 @@ function _initCSPEventBridge() {
         // Fallback: lookup directo
         if (directMap[attr]) {
             el.addEventListener('click', directMap[attr]);
+            continue;
+        }
+
+        // Fallback 2: función global con el mismo nombre. Necesario en páginas
+        // que definen la función en un <script> inline (ej. cliente.html:
+        // window.cerrarPopupReserva), donde la variable local de legacy no se
+        // asigna y el botón quedaba SIN handler (X muerta).
+        var fnNameMatch = attr.match(/^([A-Za-z_$][\w$]*)\(\)$/);
+        if (fnNameMatch && typeof window[fnNameMatch[1]] === 'function') {
+            (function(fn) {
+                el.addEventListener('click', function(ev) { fn.call(window, ev); });
+            })(window[fnNameMatch[1]]);
             continue;
         }
 

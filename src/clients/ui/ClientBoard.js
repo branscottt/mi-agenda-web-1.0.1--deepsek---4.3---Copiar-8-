@@ -103,6 +103,18 @@ let maCerrando = false;        // guard anti doble-disparo (X/back rápido)
 
 function maPushHistorialBoard() {
     if (maHistorialActivo) return; // ya hay entrada (re-apertura sobre el mismo board)
+    // Motor compartido de "atrás" (atras.js): una capa por el tablero. Así el
+    // atrás cierra primero la tarjeta abierta y después el tablero, en vez de
+    // salir de la página.
+    if (window.Atras && typeof window.Atras.abrir === 'function') {
+        window.Atras.abrir('board', function() {
+            maHistorialActivo = false;
+            maCerrando = false;
+            cerrarModal();
+        });
+        maHistorialActivo = true;
+        return;
+    }
     try {
         history.pushState({ maBoard: true }, '');
         maHistorialActivo = true;
@@ -113,6 +125,13 @@ function maConsumirEntradaBoard() {
     // Cierre por UI (X, backdrop, Escape, eliminar): consume la entrada propia
     // para que "atrás" posterior no quede mudo ni salga de más.
     if (maCerrando) return;
+    if (window.Atras && typeof window.Atras.consumir === 'function' && window.Atras.hay('board')) {
+        maCerrando = true;
+        window.Atras.consumir('board');
+        maCerrando = false;
+        cerrarModal();
+        return;
+    }
     if (!maHistorialActivo) { cerrarModal(); return; }
     maCerrando = true;
     try {
@@ -239,7 +258,11 @@ function renderBoardModal() {
         if (e.target === overlay) maConsumirEntradaBoard();
     });
     document.addEventListener('keydown', kanbanEscHandler);
-    window.addEventListener('popstate', maPopHandler);
+    // Con atras.js instalado, el motor compartido maneja el atrás: no se
+    // duplica el listener (cerraría el tablero dos veces o pisaría capas).
+    if (!(window.Atras && typeof window.Atras.abrir === 'function')) {
+        window.addEventListener('popstate', maPopHandler);
+    }
     maPushHistorialBoard();
 
     bindAddLista();
