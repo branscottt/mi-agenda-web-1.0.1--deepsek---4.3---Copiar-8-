@@ -78,6 +78,22 @@ async function borrarSub(supabaseUrl: string, sr: string, endpoint: string): Pro
   }
 }
 
+/** Nombre del negocio del espacio (para que el aviso diga de QUÉ cuenta es). */
+async function negocioDe(supabaseUrl: string, sr: string, tenantId: string): Promise<string> {
+  try {
+    const r = await fetch(
+      `${supabaseUrl}/rest/v1/tenants?id=eq.${encodeURIComponent(tenantId)}&select=nombre_negocio`,
+      { headers: sbHeaders(sr) },
+    );
+    if (!r.ok) return '';
+    const j = await r.json().catch(() => []);
+    const n = (Array.isArray(j) && j[0]) ? String((j[0] as { nombre_negocio?: string }).nombre_negocio || '') : '';
+    return n.trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 /**
  * TODOS los dispositivos del DUEÑO, no solo los del espacio que avisa.
  * Un mismo correo de cuenta tiene un espacio por proyecto (reservas y Ventas
@@ -342,13 +358,17 @@ async function handle(req: Request): Promise<Response> {
     : (notificacionId ? `avisos-${notificacionId}` : `avisos-${tipo}`)));
   const quiereEmail = body.email_fallback === undefined ? true : !!body.email_fallback;
 
-  // ── Etiqueta de PROYECTO: al dueño le tiene que quedar claro de dónde viene
-  //    el aviso (reservas o Ventas Live) sin abrir nada. ────────────────────
+  // ── Etiqueta de PROYECTO y de CUENTA en el título ────────────────────────
+  // El dueño puede tener VARIAS cuentas en el mismo equipo (p.ej. dos negocios
+  // de reservas): el título dice el proyecto y el NOMBRE DEL NEGOCIO, y el
+  // cuerpo arranca con el tipo de aviso ("Nueva reserva: ...").
   const proyecto = String(body.proyecto || 'reservas');
   const etiquetaProyecto = proyecto === 'ventas_live' ? '💬 Ventas Live' : '📅 Reservas';
+  const negocio = esPrueba ? '' : await negocioDe(base, sr, tenantId);
   const tituloFinal = esPrueba
     ? titulo
-    : (titulo.startsWith('📅') || titulo.startsWith('💬') ? titulo : `${etiquetaProyecto} · ${titulo}`);
+    : (negocio ? `${etiquetaProyecto} · ${negocio}` : `${etiquetaProyecto} · ${titulo}`);
+  const cuerpoFinal = (!esPrueba && negocio && !cuerpo.startsWith(titulo)) ? `${titulo} · ${cuerpo}` : cuerpo;
 
   // ── Dispositivos del dueño (LOS DOS proyectos) ───────────────────────────
   const listaSubs = await dispositivosDe(base, sr, tenantId);
@@ -362,7 +382,7 @@ async function handle(req: Request): Promise<Response> {
       fallos.push('faltan claves VAPID en los secrets');
     } else {
       webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-      const payload = JSON.stringify({ title: tituloFinal, body: cuerpo, url: urlRel, tag, tipo });
+      const payload = JSON.stringify({ title: tituloFinal, body: cuerpoFinal, url: urlRel, tag, tipo });
       for (const s of listaSubs) {
         try {
           await webpush.sendNotification(
@@ -396,7 +416,7 @@ async function handle(req: Request): Promise<Response> {
     } else {
       const to = await destinatarios(base, sr, tenantId);
       emailDestino = to.join(', ');
-      const r = await enviarCorreo(to, tituloFinal, cuerpo, url);
+      const r = await enviarCorreo(to, tituloFinal, cuerpoFinal, url);
       emailEstado = r.estado;
       if (r.estado === 'error') fallos.push(`correo: ${r.detalle}`);
     }

@@ -66,6 +66,21 @@ async function borrarSub(supabaseUrl: string, sr: string, endpoint: string): Pro
   }
 }
 
+/** Nombre del negocio (para distinguir CUENTAS distintas en el mismo equipo). */
+async function negocioDe(supabaseUrl: string, sr: string, tenantId: string): Promise<string> {
+  try {
+    const r = await fetch(
+      `${supabaseUrl}/rest/v1/tenants?id=eq.${encodeURIComponent(tenantId)}&select=nombre_negocio`,
+      { headers: { 'apikey': sr, 'Authorization': `Bearer ${sr}` } },
+    );
+    if (!r.ok) return '';
+    const j = await r.json().catch(() => []);
+    return (Array.isArray(j) && j[0]) ? String((j[0] as { nombre_negocio?: string }).nombre_negocio || '').trim() : '';
+  } catch (_) {
+    return '';
+  }
+}
+
 /**
  * Dispositivos del DUEÑO (los dos proyectos). El dueño tiene un espacio de
  * reservas y uno de Ventas Live con el MISMO correo: si activó los avisos en
@@ -230,9 +245,12 @@ async function handle(req: Request): Promise<Response> {
   }
 
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-  // Etiqueta del PROYECTO en el título: el dueño tiene reservas y Ventas Live en
-  // el mismo teléfono y tiene que saber de un vistazo de dónde viene el aviso.
-  const tituloFinal = /Ventas Live/.test(titulo) ? titulo : `💬 Ventas Live · ${titulo}`;
+  // Etiqueta del PROYECTO y de la CUENTA en el título: el dueño puede tener
+  // varios negocios en el mismo teléfono y tiene que saber de dónde viene.
+  const negocio = origen === 'prueba' ? '' : await negocioDe(supabaseUrl, sr, tenantId);
+  const tituloFinal = origen === 'prueba'
+    ? titulo
+    : (negocio ? `💬 ${negocio} · ${titulo}` : (/Ventas Live/.test(titulo) ? titulo : `💬 Ventas Live · ${titulo}`));
   const payload = JSON.stringify({ title: tituloFinal, body: cuerpo, url, tag, chatId });
 
   let enviados = 0;
