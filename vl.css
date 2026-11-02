@@ -620,6 +620,45 @@
         .vl-fila-msg.vl-fallida .vl-burbuja-hora { color: #ffccbc; }
         .vl-fallo-marca { color: #ffab91; font-size: 0.68rem; font-weight: 600; }
 
+        /* Mensaje que WhatsApp NO entregó: el motivo se LEE debajo de la burbuja
+           (en el celular el tooltip del ⚠ no existe) y hay botón para reenviarlo.
+           Salmón suave, sin rojo fuerte ni parpadeo: es un aviso, no una alarma. */
+        .vl-fallo-linea {
+            display: flex; align-items: flex-start; gap: 7px; flex-wrap: wrap;
+            margin-top: 5px; max-width: 100%; box-sizing: border-box;
+            background: rgba(255,138,101,0.12); border: 1px solid rgba(255,138,101,0.45);
+            border-radius: 9px; padding: 7px 9px;
+            color: #ffd7cc; font-size: 0.76rem; line-height: 1.35; text-align: left;
+        }
+        .vl-fallo-linea > i { margin-top: 2px; color: #ffab91; }
+        .vl-fallo-linea > span { flex: 1 1 140px; min-width: 0; }
+        .vl-fallo-linea b { color: #ffb3a7; }
+        .vl-fallo-reenviar {
+            display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+            min-height: 30px; padding: 4px 10px; border-radius: 8px;
+            border: 1px solid rgba(255,171,145,0.6); background: rgba(255,138,101,0.18);
+            color: #ffd7cc; font-size: 0.75rem; font-weight: 700; font-family: inherit;
+        }
+        .vl-fallo-reenviar:hover { background: rgba(255,138,101,0.3); }
+        .vl-fallo-reenviar i { font-size: 0.72rem; }
+
+        /* Ventana de 24 h cerrada: banner arriba del hilo. Explica ANTES de escribir
+           por qué WhatsApp no va a entregar el mensaje (y qué hacer). */
+        .vl-ventana-banner {
+            background: rgba(255,193,7,0.10); border: 1px solid rgba(255,193,7,0.38);
+            border-radius: 10px; padding: 9px 11px; margin: 0 0 10px;
+        }
+        .vl-ventana-titulo { color: #ffe066; font-weight: 700; font-size: 0.84rem; display: flex; align-items: center; gap: 6px; }
+        .vl-ventana-detalle { color: #ced4da; font-size: 0.79rem; margin-top: 3px; line-height: 1.4; }
+
+        /* Lista de conversaciones: "⚠️ No entregado" (mensaje nuestro que WhatsApp
+           no entregó por la ventana de 24 h). Se ve sin abrir el chat. */
+        .vl-conv-chip.no-entregado {
+            background: rgba(255,138,101,0.16); border: 1px solid rgba(255,138,101,0.55);
+            color: #ffc4b4; font-weight: 700;
+        }
+        .vl-conv-item.con-no-entregado { border-color: rgba(255,138,101,0.45); }
+
         /* ===== Buscar dentro de la conversación (la lupa de WhatsApp) ===== */
         .vl-busq-barra { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 2px 0 6px;
             background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; }

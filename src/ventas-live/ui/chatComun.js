@@ -1084,6 +1084,105 @@ function citaHtml(m, nombreCliente) {
         + `</div>`;
 }
 
+// ── VENTANA DE 24 H Y MENSAJES QUE NO LLEGARON ────────────────────────────────
+// WhatsApp solo deja escribir texto libre durante las 24 h siguientes al último
+// mensaje del cliente. Pasado ese plazo Meta ACEPTA el envío (devuelve wamid) y
+// después lo marca como 'failed' por el webhook: el panel lo guardaba como
+// 'fallido' pero el único aviso era el tooltip del ⚠, que en el celular no se ve.
+// Caso real (02/11): a una clienta le mandaron el código de seguimiento 4 días
+// después de su último mensaje, nunca le llegó y el dueño se enteró por un
+// pantallazo que ella misma mandó. Ahora: se avisa ANTES de escribir, se explica
+// en el hilo cuando no llegó, y se puede reenviar de un toque.
+export const VENTANA_WA_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Estado REAL de la ventana de 24 h, calculado con los mensajes del hilo.
+ * Sin suposiciones: si no hay ningún mensaje del cliente, la ventana está
+ * cerrada (WhatsApp tampoco deja iniciar la conversación con texto libre).
+ * @returns {{abierta:boolean, nunca:boolean, restanteMs:number, ultimoMs:number}}
+ */
+export function estadoVentanaWa(mensajes, ahora = Date.now()) {
+    const entradas = (mensajes || [])
+        .filter(m => m && m.direction === 'in' && String(m.tipo || '').toLowerCase() !== 'reaccion')
+        .map(m => Date.parse(m.creado_en))
+        .filter(t => Number.isFinite(t));
+    if (!entradas.length) return { abierta: false, nunca: true, restanteMs: 0, ultimoMs: 0 };
+    const ultimoMs = Math.max.apply(null, entradas);
+    const restanteMs = ultimoMs + VENTANA_WA_MS - ahora;
+    return { abierta: restanteMs > 0, nunca: false, restanteMs: Math.max(0, restanteMs), ultimoMs };
+}
+
+/** Banner que se ve ARRIBA del hilo cuando la ventana de 24 h está cerrada. */
+export function avisoVentanaHtml(estado, nombreCliente = 'el cliente') {
+    if (!estado || estado.abierta) return '';
+    const quien = escapeHtml(String(nombreCliente || 'el cliente'));
+    const titulo = estado.nunca ? 'Todavía no te escribió' : 'La ventana de 24 h está cerrada';
+    const detalle = estado.nunca
+        ? `WhatsApp no deja iniciar la conversación con texto libre: ${quien} tiene que escribirte primero (o hay que mandar una plantilla aprobada).`
+        : `WhatsApp solo entrega mensajes libres durante 24 h desde el último mensaje de ${quien}. Pídele que te escriba algo (aunque sea un "hola") y contéstale ahí mismo.`;
+    return `<div class="vl-ventana-banner">`
+        + `<div class="vl-ventana-titulo"><i class="fas fa-clock"></i> ${titulo}</div>`
+        + `<div class="vl-ventana-detalle">${detalle}</div></div>`;
+}
+
+/**
+ * Pregunta antes de escribir en un chat con la ventana cerrada: el mensaje se
+ * perdería sin que nadie se entere. Dos opciones claras (Cancelar / Enviar igual),
+ * y el texto explica lo que va a pasar de verdad.
+ */
+export function confirmarFueraDeVentana(nombreCliente = 'este cliente') {
+    return window.confirm(
+        'La ventana de 24 h con ' + nombreCliente + ' está cerrada.\n\n'
+        + 'WhatsApp solo entrega mensajes libres dentro de las 24 h desde el último '
+        + 'mensaje del cliente, así que lo más probable es que lo rechace.\n\n'
+        + '¿Enviarlo igual?'
+    );
+}
+
+/** El motivo de un envío fallido, en castellano y sin el texto crudo de Meta. */
+export function explicarFalloWa(errorWa) {
+    const d = String(errorWa || '').trim();
+    if (!d) return 'WhatsApp no lo entregó.';
+    if (d.includes('131047') || /re-?engagement/i.test(d) || /more than 24 hours/i.test(d)) {
+        return 'Pasaron más de 24 h sin que el cliente escribiera, así que WhatsApp no deja escribirle sin una plantilla aprobada. Pedile que te escriba algo y contéstale ahí.';
+    }
+    if (d.includes('131026') || /not a valid whatsapp/i.test(d)) {
+        return 'Ese número no tiene WhatsApp o no puede recibir mensajes.';
+    }
+    if (d.includes('131053') || /media upload/i.test(d)) {
+        return 'WhatsApp no pudo procesar la foto o el archivo. Probá mandarlo de nuevo (o como archivo).';
+    }
+    if (d.includes('131042') || /payment/i.test(d)) {
+        return 'WhatsApp rechazó el envío por un problema de pago de la cuenta del negocio.';
+    }
+    // Cualquier otro motivo llega en inglés: se muestra corto, sin el prefijo repetido.
+    const limpio = d.replace(/^(Re-?engagement message\s*[—-]\s*)+/i, '')
+        .replace(/\s+/g, ' ').trim();
+    return (limpio.length > 180 ? limpio.slice(0, 179) + '…' : limpio) || 'WhatsApp no lo entregó.';
+}
+
+/**
+ * Línea VISIBLE debajo de la burbuja cuando un mensaje no llegó (antes el motivo
+ * quedaba escondido en el tooltip, invisible en el celular). Con `id` se agrega
+ * el botón "Reenviar", que cada vista engancha por delegación.
+ */
+export function lineaFalloHtml(motivo, { id = '' } = {}) {
+    const txt = escapeHtml(String(motivo || 'WhatsApp no lo entregó.'));
+    const boton = id
+        ? `<button class="vl-fallo-reenviar" type="button" data-reenviar="${escapeHtml(String(id))}">`
+            + `<i class="fas fa-rotate-right"></i> Reenviar</button>`
+        : '';
+    return `<div class="vl-fallo-linea"><i class="fas fa-exclamation-triangle"></i>`
+        + `<span><b>No llegó.</b> ${txt}</span>${boton}</div>`;
+}
+
+/** La línea de fallo que corresponde a este mensaje ('' si salió bien). */
+function falloLineaDe(m) {
+    if (String(m.direction || '') !== 'out') return '';
+    if (String(m.estado_wa || '').toLowerCase() !== 'fallido') return '';
+    return lineaFalloHtml(explicarFalloWa(m.error_wa), { id: m.id });
+}
+
 /** Ticks de entrega de un mensaje NUESTRO (✓ enviado, ✓✓ entregado, ✓✓ azul leído). */
 function ticksHtml(m) {
     if (String(m.direction || '') !== 'out') return '';
@@ -1099,8 +1198,10 @@ function ticksHtml(m) {
         return '<span class="vl-tick leido" title="Leído por el cliente"><i class="fas fa-check-double"></i></span>';
     }
     if (e === 'fallido') {
-        const det = m.error_wa ? ': ' + escapeHtml(String(m.error_wa)).slice(0, 160) : '';
-        return `<span class="vl-tick fallido" title="No se pudo entregar${det}"><i class="fas fa-exclamation-triangle"></i></span>`;
+        // El motivo ya NO vive solo en el tooltip: va escrito debajo de la burbuja
+        // (ver falloLineaDe), que es lo que se ve en el celular.
+        const det = ' title="No se pudo entregar: ' + escapeHtml(explicarFalloWa(m.error_wa)) + '"';
+        return `<span class="vl-tick fallido"${det}><i class="fas fa-exclamation-triangle"></i></span>`;
     }
     return '';
 }
@@ -1208,6 +1309,7 @@ export function burbujasHtml(mensajes, { nombreCliente = 'Cliente' } = {}) {
                     <div class="vl-burbuja-hora">${responderBtnHtml(m)}${reaccionBtnHtml(m)}${escapeHtml(fmtHora(m.creado_en))}${ticksHtml(m)}</div>
                     ${reaccionesHtml(reacciones[m.wa_message_id])}
                 </div>
+                ${falloLineaDe(m)}
             </div>`;
         }).join('');
 }
@@ -1239,7 +1341,7 @@ function extrasDeseados(lista) {
     lista.forEach((m) => {
         const w = String(m.wa_message_id || '');
         if (!w) return;
-        porWamid[w] = { tick: ticksHtml(m), reac: reaccionesHtml(reac[w]) };
+        porWamid[w] = { tick: ticksHtml(m), reac: reaccionesHtml(reac[w]), fallo: falloLineaDe(m) };
     });
     return porWamid;
 }
@@ -1251,6 +1353,7 @@ function sembrarExtras(cont, lista) {
         const d = deseados[fila.dataset.wamid || ''];
         fila.dataset.tick = d ? d.tick : '';
         fila.dataset.reac = d ? d.reac : '';
+        fila.dataset.fallo = (d && d.fallo) ? d.fallo : '';
     });
 }
 
@@ -1273,6 +1376,15 @@ function aplicarExtras(cont, lista) {
             fila.dataset.reac = d.reac;
             burbuja.querySelectorAll('.vl-reaccion').forEach((n) => n.remove());
             if (d.reac) burbuja.insertAdjacentHTML('beforeend', d.reac);
+            cambio = true;
+        }
+        // Mensaje que Meta rechazó DESPUÉS de aceptarlo (webhook 'failed'): aparece
+        // la línea con el motivo y el botón Reenviar, sin repintar el hilo entero.
+        const falloDeseado = d.fallo || '';
+        if ((fila.dataset.fallo || '') !== falloDeseado) {
+            fila.dataset.fallo = falloDeseado;
+            fila.querySelectorAll('.vl-fallo-linea').forEach((n) => n.remove());
+            if (falloDeseado) fila.insertAdjacentHTML('beforeend', falloDeseado);
             cambio = true;
         }
     });

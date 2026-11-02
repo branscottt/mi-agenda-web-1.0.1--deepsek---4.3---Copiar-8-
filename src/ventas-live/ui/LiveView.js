@@ -8,7 +8,7 @@
 import { vlApi, normalizarTiktok, CATEGORIA_INFO } from '../domain/vlApi.js';
 import { mostrarToast } from '../../shared/infrastructure/toast.js';
 import { formatearDinero, escapeHtml } from '../../shared/infrastructure/formatters.js';
-import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista } from './chatComun.js';
+import { burbujasHtml, nombreDeCliente, autoScrollAbajo, firmarMedias, quienEsHtml, bindQuienEs, montarAdjunto, montarResponder, montarSaltoCita, montarReaccion, pintarHilo, olvidarHilo, barraEmojisHtml, montarEmojis, resaltarBusqueda, limpiarBusqueda, montarGrabadora, chatALaVista, estadoVentanaWa, avisoVentanaHtml, lineaFalloHtml, explicarFalloWa, confirmarFueraDeVentana } from './chatComun.js';
 import { getSupabase } from '../../shared/infrastructure/supabase.js';
 import { accionesChatHtml, bindAccionesChat, procesoParaModales, modalLiberarItems } from './accionesProceso.js';
 import {
@@ -47,6 +47,11 @@ let _responder = null;   // "responder citando" del chat del LIVE
 // Buscador de la conversación (la lupa de WhatsApp): texto + aparición actual.
 let _busq = { texto: '', i: 0, n: 0, chat: null };
 let _leidoWamid = '';    // último entrante ya marcado como leído (✓✓ azul)
+// Lo que hay pintado en el hilo del chat del LIVE (para reenviar sin re-pedirlo)
+// y el estado REAL de la ventana de 24 h de WhatsApp (para avisar antes de enviar).
+let _mensajesChat = [];
+let _ventanaChat = null;
+let _chatMeta = null;    // ficha de la conversación abierta (nombre, modo…)
 
 // Sugerencias de usuario del campo "Usuario TikTok" (clientes que ya existen).
 let _sugerencias = [];
@@ -162,6 +167,7 @@ function buildDOM() {
                         <button class="vl-busq-salto" id="lv-chat-busq-x" type="button" title="Cerrar la búsqueda"><i class="fas fa-xmark"></i></button>
                     </div>
                     <div class="vl-chat-mini-scroll" id="lv-chat-msgs"></div>
+                    <div id="lv-chat-ventana"></div>
                     <div class="vl-chat-previa" id="lv-chat-previa" hidden></div>
                     <div class="vl-cita-previa" id="lv-chat-cita" hidden></div>
                     <div class="vl-chat-mini-composer" id="lv-chat-composer" style="display:none;">
@@ -281,6 +287,13 @@ function buildDOM() {
     }
     // Apretar la cita lleva al mensaje citado (y lo marca un instante).
     montarSaltoCita({ contenedor: $('lv-chat-msgs') });
+    // "Reenviar" de un mensaje que WhatsApp NO entregó (línea de fallo del hilo).
+    $('lv-chat-msgs').addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('.vl-fallo-reenviar') : null;
+        if (!btn) return;
+        e.preventDefault();
+        reenviarDelHiloChat(btn.dataset.reenviar);
+    });
     // Reaccionar a un mensaje con un emoji (😍👍🔥…), como en WhatsApp.
     montarReaccion({
         contenedor: $('lv-chat-msgs'),
@@ -338,6 +351,7 @@ function buildDOM() {
                 const partes = [];
                 if (sinLeer) partes.push(sinLeer + ' mensaje' + (sinLeer === 1 ? '' : 's') + ' sin leer');
                 if (porRevisar) partes.push(porRevisar + ' por revisar (comprobante / pago / usuario)');
+                if (Number(extra && extra.sinEntregar)) partes.push(Number(extra.sinEntregar) + ' con mensajes que NO le llegaron al cliente');
                 btn.title = partes.length ? partes.join(' · ') : 'Ver todas las conversaciones';
             }
         }
@@ -1112,8 +1126,18 @@ async function cargarHiloChat({ silencioso = false, forzarAbajo = false } = {}) 
     if (!res.ok) return;
 
     const chat = (res.data && res.data.chat) || {};
+    _chatMeta = chat;
     if (chat.modo) _chatModo = chat.modo;
     const mensajes = (res.data && Array.isArray(res.data.mensajes)) ? res.data.mensajes : [];
+    // Lo que se ve queda guardado (el "Reenviar" de un mensaje fallido lo usa) y
+    // se recalcula la ventana de 24 h REAL para avisar ANTES de enviar.
+    _mensajesChat = mensajes;
+    _ventanaChat = estadoVentanaWa(mensajes);
+    const hostVentana = $('lv-chat-ventana');
+    if (hostVentana) {
+        const htmlVentana = avisoVentanaHtml(_ventanaChat, nombreDeCliente(chat));
+        if (hostVentana.innerHTML !== htmlVentana) hostVentana.innerHTML = htmlVentana;
+    }
     // Firmar las URLs de las fotos/archivos (bucket privado 'vl-media').
     await firmarMedias(mensajes, getSupabase());
 
@@ -1258,6 +1282,11 @@ async function enviarChat() {
     const adjuntos = (_adjunto && _adjunto.tiene()) ? _adjunto.items() : [];
     if (!texto && !adjuntos.length) return;
 
+    // AVISO ANTES DE PERDER EL MENSAJE: con la ventana de 24 h cerrada WhatsApp
+    // acepta el envío y después lo marca 'failed' (no llega y antes no se veía).
+    if (_ventanaChat && !_ventanaChat.abierta
+        && !confirmarFueraDeVentana(nombreDeCliente(_chatMeta))) return;
+
     // La cita y los adjuntos se toman AHORA (después el panel los limpia).
     const citaWamid = _responder && _responder.cita() ? _responder.cita().wamid : '';
     const tmpId = 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
@@ -1382,7 +1411,8 @@ function actualizarPendienteChat(tmpId, texto) {
 
 /**
  * Marca una burbuja pendiente como NO enviada. Sin rojo fuerte ni parpadeo: un
- * ⚠ salmón y el motivo completo en el tooltip (para que se entienda qué pasó).
+ * ⚠ salmón y el motivo ESCRITO debajo de la burbuja (antes solo iba en el
+ * tooltip, así que en el celular no se veía y parecía que había salido).
  */
 function marcarPendienteFallidoChat(tmpId, motivo) {
     const el = document.querySelector(`#lv-chat-msgs [data-pendiente="${tmpId}"]`);
@@ -1395,6 +1425,29 @@ function marcarPendienteFallidoChat(tmpId, motivo) {
     delete el.dataset.pendiente;
     const hora = el.querySelector('.vl-burbuja-hora');
     if (hora) hora.innerHTML = '<span class="vl-fallo-marca"><i class="fas fa-exclamation-triangle"></i> no enviado</span>';
+    if (!el.querySelector('.vl-fallo-linea')) {
+        el.insertAdjacentHTML('beforeend', lineaFalloHtml(explicarFalloWa(motivo)));
+    }
+}
+
+/**
+ * Reenvía un mensaje que quedó como 'fallido' en el chat del LIVE, con el MISMO
+ * texto/archivo guardado. Si la ventana de 24 h sigue cerrada, se pregunta antes.
+ */
+async function reenviarDelHiloChat(id) {
+    if (!_chatId || !id) return;
+    const m = (_mensajesChat || []).find(x => String(x.id) === String(id));
+    if (!m) { mostrarToast('No encontré ese mensaje para reenviar', 'error'); return; }
+    if (_ventanaChat && !_ventanaChat.abierta
+        && !confirmarFueraDeVentana(nombreDeCliente(_chatMeta))) return;
+    mostrarToast('Reenviando…', 'info');
+    const r = await vlApi.reenviar(_chatId, m);
+    if (!r || !r.ok) {
+        mostrarToast((r && r.error) || 'No se pudo reenviar: probá de nuevo', 'error');
+        return;
+    }
+    mostrarToast('Reenviado 💜', 'success');
+    cargarHiloChat({ forzarAbajo: true });
 }
 
 // ── Nota de voz ─────────────────────────────────────────────────────────────

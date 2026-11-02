@@ -248,6 +248,28 @@ async function enviarMediaManual(chatId, opciones = {}) {
     }
 }
 
+// Reenviar un mensaje que WhatsApp NO entregó (estado_wa = 'fallido').
+// Se reusa el MISMO camino que un envío normal: el archivo ya está en el bucket
+// privado, así que wa-enviar lo vuelve a bajar y lo manda (nada de re-subir).
+// Solo sirve cuando la ventana de 24 h está abierta otra vez: si sigue cerrada,
+// wa-enviar devuelve el motivo y el panel lo muestra.
+async function reenviarMensaje(chatId, m) {
+    if (!chatId || !m) return { ok: false, error: 'No se pudo reenviar' };
+    const tipo = String(m.tipo || 'texto').toLowerCase();
+    const conMedia = !!m.media_path && ['imagen', 'video', 'documento', 'audio'].includes(tipo);
+    const texto = String(m.body || '').trim();
+    if (!conMedia && !texto) return { ok: false, error: 'Ese mensaje no tiene nada para reenviar' };
+    const r = await postWaEnviar({
+        chat_id: chatId,
+        texto: texto || null,
+        media_path: conMedia ? m.media_path : null,
+        media_tipo: conMedia ? tipo : null,
+        contexto_wa_id: null
+    });
+    if (!r.ok) return r;
+    return { ok: true, data: r.data && r.data.mensaje ? r.data.mensaje : null };
+}
+
 async function callRpc(nombre, params = {}) {
     const supabase = getSupabase();
     if (!supabase) return { ok: false, error: 'Sesión no disponible' };
@@ -435,6 +457,8 @@ export const vlApi = {
         enviarMensajeManual(chatId, texto, contexto, origen),
     // Foto o video con comentario (desde computador, celular o tablet).
     enviarMediaManual: (chatId, opciones) => enviarMediaManual(chatId, opciones),
+    // Reenviar un mensaje que WhatsApp marcó como 'fallido' (mismo texto/archivo).
+    reenviar: (chatId, mensaje) => reenviarMensaje(chatId, mensaje),
     // Reaccionar a un mensaje (emoji '' = quitar la reacción), igual que WhatsApp.
     reaccionar: (chatId, wamid, emoji) => reaccionarManual(chatId, wamid, emoji),
     // ✓✓ azul al cliente al abrir el chat (mejor esfuerzo: no interrumpe nada).
